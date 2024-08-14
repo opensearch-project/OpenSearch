@@ -200,8 +200,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> SHALLOW_SNAPSHOT_V2 = Setting.boolSetting(
-        "snapshot.shallow_snapshot_v2",
+    public static final Setting<Boolean> SNAPSHOT_V2 = Setting.boolSetting(
+        "snapshot.snapshot_v2",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -209,7 +209,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private volatile int maxConcurrentOperations;
 
-    private volatile boolean isShallowSnapV2;
+    private volatile boolean isSnapshotV2;
 
     public SnapshotsService(
         Settings settings,
@@ -240,8 +240,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
-            isShallowSnapV2 = SHALLOW_SNAPSHOT_V2.get(settings);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(SHALLOW_SNAPSHOT_V2, this::setShallowSnapshotV2);
+            isSnapshotV2 = SNAPSHOT_V2.get(settings);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_V2, this::setSnapshotV2);
         }
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
@@ -250,12 +250,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
     }
 
-    private void setShallowSnapshotV2(boolean isShallowSnapV2) {
-        this.isShallowSnapV2 = isShallowSnapV2;
+    private void setSnapshotV2(boolean isSnapshotV2) {
+        this.isSnapshotV2 = isSnapshotV2;
     }
 
-    public boolean isShallowSnapV2() {
-        return isShallowSnapV2;
+    public boolean isSnapshotV2() {
+        return isSnapshotV2;
     }
 
     /**
@@ -280,8 +280,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             logger.warn("Shallow snapshots are not supported during migration. Falling back to full snapshot.");
             remoteStoreIndexShallowCopy = false;
         }
-        if (remoteStoreIndexShallowCopy && isShallowSnapV2 && request.indices().length == 0) {
-            createShallowSnapshotV2(request, listener);
+        if (remoteStoreIndexShallowCopy && isSnapshotV2 && request.indices().length == 0) {
+            createSnapshotV2(request, listener);
         } else {
             createSnapshot(
                 request,
@@ -440,7 +440,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
-    public void createShallowSnapshotV2(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
+    public void createSnapshotV2(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         long pinnedTimestamp = System.currentTimeMillis();
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());

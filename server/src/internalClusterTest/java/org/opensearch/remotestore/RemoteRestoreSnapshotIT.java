@@ -747,10 +747,11 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.segment.repository]" + " on restore"));
     }
 
-    public void testCreateShallowCopyV2() throws Exception {
+    public void testCreateSnapshotV2() throws Exception {
 
-        Settings snapshotSettings = Settings.builder().put("snapshot.shallow_snapshot_v2", true).build();
+        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
         internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
         internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -758,7 +759,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String snapshotName1 = "test-create-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
-        String restoredIndexName1 = indexName1 + "-restored";
 
         createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
 
@@ -775,7 +775,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
         logger.info("--> snapshot");
 
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
@@ -783,22 +782,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 
-        // // delete indices
-        // DeleteResponse deleteResponse = client().prepareDelete(indexName1, "0").execute().actionGet();
-        // assertEquals(deleteResponse.getResult(), DocWriteResponse.Result.DELETED);
-        // RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin()
-        // .cluster()
-        // .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
-        // .setWaitForCompletion(false)
-        // .setIndices(indexName1)
-        // .setRenamePattern(indexName1)
-        // .setRenameReplacement(restoredIndexName1)
-        // .get();
-        //
-        // assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
-        // ensureYellowAndNoInitializingShards(restoredIndexName1);
-        // ensureGreen(restoredIndexName1);
-        // assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
     }
 
 }
