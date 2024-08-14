@@ -10,13 +10,12 @@ package org.opensearch.gateway.remote.model;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.AbstractDiffable;
-import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.common.remote.RemoteWriteableBlobEntity;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
@@ -39,7 +38,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 public class RemotePinnedTimestamps extends RemoteWriteableBlobEntity<RemotePinnedTimestamps.PinnedTimestamps> {
     private static final Logger logger = LogManager.getLogger(RemotePinnedTimestamps.class);
 
-    public static class PinnedTimestamps extends AbstractDiffable<ClusterBlocks> {
+    public static class PinnedTimestamps implements Writeable {
         private final Map<Long, List<String>> pinnedTimestampPinningEntityMap;
 
         public PinnedTimestamps(Map<Long, List<String>> pinnedTimestampPinningEntityMap) {
