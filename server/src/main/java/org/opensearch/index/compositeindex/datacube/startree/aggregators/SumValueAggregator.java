@@ -7,32 +7,28 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.apache.lucene.util.NumericUtils;
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 /**
  * Sum value aggregator for star tree
  *
+ * <p>This implementation follows the Kahan summation algorithm to improve the accuracy
+ * of the sum by tracking and compensating for the accumulated error in each iteration.
+ *
+ * @see <a href="http://en.wikipedia.org/wiki/Kahan_summation_algorithm">Kahan Summation Algorithm</a>
+ *
  * @opensearch.experimental
  */
-public class SumValueAggregator implements ValueAggregator<Double> {
+class SumValueAggregator implements ValueAggregator<Double> {
 
-    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
-    private double sum = 0;
-    private double compensation = 0;
+    private final StarTreeNumericType starTreeNumericType;
+    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+
     private CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-
-    private StarTreeNumericType starTreeNumericType;
 
     public SumValueAggregator(StarTreeNumericType starTreeNumericType) {
         this.starTreeNumericType = starTreeNumericType;
-    }
-
-    @Override
-    public MetricStat getAggregationType() {
-        return MetricStat.SUM;
     }
 
     @Override
@@ -43,64 +39,68 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     @Override
     public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue) {
         kahanSummation.reset(0, 0);
-        kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
+        // add takes care of the sum and compensation internally
+        if (segmentDocValue != null) {
+            kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
+        }
         return kahanSummation.value();
     }
 
+    // we have overridden this method because the reset with sum and compensation helps us keep
+    // track of precision and avoids a potential loss in accuracy of sums.
     @Override
     public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue) {
-        assert kahanSummation.value() == value;
-        kahanSummation.reset(sum, compensation);
-        kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
+        assert value == null || kahanSummation.value() == value;
+        // add takes care of the sum and compensation internally
+        if (segmentDocValue != null) {
+            kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
+        }
         return kahanSummation.value();
     }
 
     @Override
     public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
-        assert kahanSummation.value() == aggregatedValue;
-        kahanSummation.reset(sum, compensation);
-        kahanSummation.add(value);
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
+        assert aggregatedValue == null || kahanSummation.value() == aggregatedValue;
+        // add takes care of the sum and compensation internally
+        if (value != null) {
+            kahanSummation.add(value);
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
+        }
         return kahanSummation.value();
     }
 
     @Override
     public Double getInitialAggregatedValue(Double value) {
         kahanSummation.reset(0, 0);
-        kahanSummation.add(value);
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
-        return kahanSummation.value();
-    }
-
-    @Override
-    public int getMaxAggregatedValueByteSize() {
-        return Double.BYTES;
-    }
-
-    @Override
-    public Long toLongValue(Double value) {
-        try {
-            return NumericUtils.doubleToSortableLong(value);
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot convert " + value + " to sortable long", e);
+        // add takes care of the sum and compensation internally
+        if (value != null) {
+            kahanSummation.add(value);
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
         }
+        return kahanSummation.value();
     }
 
     @Override
     public Double toStarTreeNumericTypeValue(Long value) {
         try {
             if (value == null) {
-                return 0.0;
+                return getIdentityMetricValue();
             }
-            return VALUE_AGGREGATOR_TYPE.getDoubleValue(value);
+            return starTreeNumericType.getDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }
+    }
+
+    @Override
+    public Double getIdentityMetricValue() {
+        // in present aggregations, if the metric behind sum is missing, we treat it as 0
+        return 0D;
     }
 }

@@ -55,6 +55,7 @@ dependencies {
     exclude group: 'com.nimbusds'
     exclude module: "commons-configuration2"
   }
+  api "dnsjava:dnsjava:3.6.0"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -88,5 +89,5 @@ dependencies {
     exclude group: "com.squareup.okio"
   }
   runtimeOnly "com.squareup.okio:okio:3.9.0"
-  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.5"
+  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.6"
 }
