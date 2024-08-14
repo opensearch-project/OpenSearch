@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -15,7 +16,6 @@ import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Set;
-import org.opensearch.common.collect.Tuple;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 
@@ -40,14 +40,20 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         prepareCluster(1, 1, INDEX_NAME, 0, 2);
         ensureGreen(INDEX_NAME);
 
-        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(RemoteStorePinnedTimestampService.class, primaryNodeName(INDEX_NAME));
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
 
         Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp = RemoteStorePinnedTimestampService.getPinnedTimestamps();
         long lastFetchTimestamp = pinnedTimestampWithFetchTimestamp.v1();
         assertEquals(-1L, lastFetchTimestamp);
         assertEquals(Set.of(), pinnedTimestampWithFetchTimestamp.v2());
 
-        assertThrows(IllegalArgumentException.class, () -> remoteStorePinnedTimestampService.pinTimestamp(1234L, "ss1", noOpActionListener));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> remoteStorePinnedTimestampService.pinTimestamp(1234L, "ss1", noOpActionListener)
+        );
 
         long timestamp1 = System.currentTimeMillis() + 30000L;
         long timestamp2 = System.currentTimeMillis() + 60000L;

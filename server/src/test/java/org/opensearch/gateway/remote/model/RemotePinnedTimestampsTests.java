@@ -13,7 +13,6 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -24,8 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
-
 public class RemotePinnedTimestampsTests extends OpenSearchTestCase {
 
     private RemotePinnedTimestamps remotePinnedTimestamps;
@@ -33,8 +30,7 @@ public class RemotePinnedTimestampsTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         Compressor compressor = new DeflateCompressor();
-        NamedXContentRegistry mockNamedXContentRegistry = mock(NamedXContentRegistry.class);
-        remotePinnedTimestamps = new RemotePinnedTimestamps("testClusterUUID", compressor, mockNamedXContentRegistry);
+        remotePinnedTimestamps = new RemotePinnedTimestamps("testClusterUUID", compressor);
     }
 
     public void testGenerateBlobFileName() {

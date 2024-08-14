@@ -158,8 +158,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     private void updatePinning(Consumer<RemotePinnedTimestamps.PinnedTimestamps> updateConsumer, ActionListener<Void> listener) {
         RemotePinnedTimestamps remotePinnedTimestamps = new RemotePinnedTimestamps(
             clusterService.state().metadata().clusterUUID(),
-            blobStoreRepository.getCompressor(),
-            blobStoreRepository.getNamedXContentRegistry()
+            blobStoreRepository.getCompressor()
         );
         BlobPath path = pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps);
         blobStoreTransferService.listAllInSortedOrder(path, remotePinnedTimestamps.getType(), Integer.MAX_VALUE, new ActionListener<>() {
@@ -252,8 +251,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
             long triggerTimestamp = System.currentTimeMillis();
             RemotePinnedTimestamps remotePinnedTimestamps = new RemotePinnedTimestamps(
                 clusterService.state().metadata().clusterUUID(),
-                blobStoreRepository.getCompressor(),
-                blobStoreRepository.getNamedXContentRegistry()
+                blobStoreRepository.getCompressor()
             );
             BlobPath path = pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps);
             blobStoreTransferService.listAllInSortedOrder(path, remotePinnedTimestamps.getType(), 1, new ActionListener<>() {

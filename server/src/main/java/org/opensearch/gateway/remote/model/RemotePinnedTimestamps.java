@@ -13,13 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
+import org.opensearch.common.remote.RemoteWriteableBlobEntity;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 
@@ -38,7 +36,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
  *
  * @opensearch.internal
  */
-public class RemotePinnedTimestamps extends AbstractRemoteWritableBlobEntity<RemotePinnedTimestamps.PinnedTimestamps> {
+public class RemotePinnedTimestamps extends RemoteWriteableBlobEntity<RemotePinnedTimestamps.PinnedTimestamps> {
     private static final Logger logger = LogManager.getLogger(RemotePinnedTimestamps.class);
 
     public static class PinnedTimestamps extends AbstractDiffable<ClusterBlocks> {
@@ -83,8 +81,8 @@ public class RemotePinnedTimestamps extends AbstractRemoteWritableBlobEntity<Rem
 
     private PinnedTimestamps pinnedTimestamps;
 
-    public RemotePinnedTimestamps(String clusterUUID, Compressor compressor, NamedXContentRegistry namedXContentRegistry) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+    public RemotePinnedTimestamps(String clusterUUID, Compressor compressor) {
+        super(clusterUUID, compressor);
         pinnedTimestamps = new PinnedTimestamps(new HashMap<>());
     }
 
@@ -101,11 +99,6 @@ public class RemotePinnedTimestamps extends AbstractRemoteWritableBlobEntity<Rem
     @Override
     public String generateBlobFileName() {
         return this.blobFileName = String.join(DELIMITER, PINNED_TIMESTAMPS, RemoteStoreUtils.invertLong(System.currentTimeMillis()));
-    }
-
-    @Override
-    public ClusterMetadataManifest.UploadedMetadata getUploadedMetadata() {
-        return null;
     }
 
     @Override
