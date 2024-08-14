@@ -21,8 +21,13 @@ import java.util.Map;
 /**
  * {
  *     "queryGroupID": {
- *
- *     }
+ *          "completions": 1233234234,
+ *          "rejections": 1243545,
+ *          "CPU": { "current_usage": 49.6, "cancellation": 432 },
+ *          "MEMORY": { "current_usage": 39.6, "cancellation": 42 }
+ *     },
+ *     ...
+ *     ...
  * }
  */
 public class QueryGroupStats implements ToXContentObject, Writeable {
@@ -30,6 +35,10 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
 
     public QueryGroupStats(Map<String, QueryGroupStatsHolder> stats) {
         this.stats = stats;
+    }
+
+    public QueryGroupStats(StreamInput in) throws IOException {
+        stats = in.readMap(StreamInput::readString, QueryGroupStatsHolder::new);
     }
 
 
@@ -41,10 +50,21 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        for (Map.Entry<String, QueryGroupStatsHolder> queryGroupStats: stats.entrySet()) {
+            builder.startObject(queryGroupStats.getKey());
+            queryGroupStats.getValue().toXContent(builder, params);
+            builder.endObject();
+        }
+        return builder;
     }
 
+    /**
+     * This is a stats holder object which will hold the data for a query group at a point in time
+     * the instance will only be created on demand through stats api
+     */
     public static class QueryGroupStatsHolder implements ToXContentObject, Writeable {
+        public static final String COMPLETIONS = "completions";
+        public static final String REJECTIONS = "rejections";
         private final long completions;
         private final long rejections;
         private final Map<ResourceType, ResourceStats> resourceStats;
@@ -61,6 +81,12 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
 
+        /**
+         * Writes the {@param statsHolder} to {@param out}
+         * @param out StreamOutput
+         * @param statsHolder QueryGroupStatsHolder
+         * @throws IOException exception
+         */
         public static void writeTo(StreamOutput out, QueryGroupStatsHolder statsHolder) throws IOException {
             out.writeVLong(statsHolder.completions);
             out.writeVLong(statsHolder.rejections);
@@ -76,8 +102,8 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("completions", completions);
-            builder.field("rejections", rejections);
+            builder.field(COMPLETIONS, completions);
+            builder.field(REJECTIONS, rejections);
             for (Map.Entry<ResourceType, ResourceStats> resourceStat: resourceStats.entrySet()) {
                 ResourceType resourceType = resourceStat.getKey();
                 ResourceStats resourceStats1 = resourceStat.getValue();
@@ -89,6 +115,9 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         }
     }
 
+    /**
+     * point in time resource level stats holder
+     */
     public static class ResourceStats implements ToXContentObject, Writeable {
         public static final String CURRENT_USAGE = "current_usage";
         public static final String CANCELLATIONS = "cancellations";
@@ -105,6 +134,12 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             this.cancellations = in.readVLong();
         }
 
+        /**
+         * Writes the {@param stats} to {@param out}
+         * @param out StreamOutput
+         * @param stats QueryGroupStatsHolder
+         * @throws IOException exception
+         */
         public static void writeTo(StreamOutput out, ResourceStats stats) throws IOException {
             out.writeDouble(stats.currentUsage);
             out.writeVLong(stats.cancellations);

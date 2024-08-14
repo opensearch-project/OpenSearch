@@ -15,9 +15,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * This class will keep the live view of the query group stats
+ * This class will keep the point in time view of the query group stats
  */
-public class QueryGroupState {
+public class QueryGroupsState {
     /**
      * completions at the query group level, this is a cumulative counter since the Opensearch start time
      */
@@ -29,11 +29,11 @@ public class QueryGroupState {
     private final AtomicLong rejections = new AtomicLong();
 
     /**
-     * This is used to store the resource type stat both for CPU and MEMORY
+     * This is used to store the resource type state both for CPU and MEMORY
      */
     private final Map<ResourceType, ResourceTypeState> resourceState;
 
-    public QueryGroupState() {
+    public QueryGroupsState() {
         resourceState = new EnumMap<>(ResourceType.class);
         resourceState.put(ResourceType.CPU, new ResourceTypeState(ResourceType.CPU));
         resourceState.put(ResourceType.MEMORY, new ResourceTypeState(ResourceType.MEMORY));
@@ -47,14 +47,32 @@ public class QueryGroupState {
         return rejections.get();
     }
 
+    /**
+     * getter for query group resource state
+     * @return the query group resource state
+     */
     public Map<ResourceType, ResourceTypeState> getResourceState() {
         return resourceState;
     }
 
+    /**
+     * this is a call back to increment cancellations for a query group at task level
+     */
     public void incrementCompletions() {
         completions.incrementAndGet();
     }
 
+
+    /**
+     * this is a call back to increment rejections for a query group at incoming request
+     */
+    public void incrementRejections() {
+        rejections.incrementAndGet();
+    }
+
+    /**
+     * This class holds the resource level stats for the query group
+     */
     public static class ResourceTypeState {
         private final ResourceType resourceType;
         private final AtomicLong cancellations = new AtomicLong();
@@ -63,10 +81,16 @@ public class QueryGroupState {
             this.resourceType = resourceType;
         }
 
+        /**
+         * getter for resource type cancellations
+         */
         public long getCancellations() {
             return cancellations.get();
         }
 
+        /**
+         * this will be called when a task is cancelled due to this resource
+         */
         public void incrementCancellations() {
             cancellations.incrementAndGet();
         }
