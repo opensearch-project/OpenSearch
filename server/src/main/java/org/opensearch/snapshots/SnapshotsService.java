@@ -269,6 +269,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         startCreateSnapshot(request, listener);
     }
 
+    /**
+     * This method calls {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} to create snapshot if snapshot
+     * V2 is not enabled.
+     * For V2 enabled snapshots, {@link #createSnapshotV2(CreateSnapshotRequest, ActionListener)} is called and
+     * appropriate listeners are mapped
+     * @param request snapshot request
+     * @param listener snapshot completion listener
+     */
     public void startCreateSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         Repository repository = repositoriesService.repository(request.repository());
         boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
@@ -440,6 +448,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
+    /**
+     * Initializes the snapshotting process for clients when Snapshot v2 is enabled. This method is responsible for taking
+     * a shallow snapshot and pinning the snapshot timestamp.The entire process is executed on the cluster manager node.
+     *
+     * Unlike traditional snapshot operations, this method performs a synchronous snapshot execution and doesn't
+     * upload any shard metadata to the snapshot repository.
+     * The pinned timestamp is later reconciled with remote store segment and translog metadata files during the restore
+     * operation.
+     *
+     * @param request  snapshot request
+     * @param listener snapshot creation listener
+     */
     public void createSnapshotV2(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         long pinnedTimestamp = System.currentTimeMillis();
         final String repositoryName = request.repository();
@@ -530,10 +550,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
                 }
                 final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                pinnedTimestampListener.whenComplete(repoData -> {
-                    // completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(repoData, snapshotInfo));
-                    listener.onResponse(snapshotInfo);
-                }, listener::onFailure);
+                pinnedTimestampListener.whenComplete(repoData -> { listener.onResponse(snapshotInfo); }, listener::onFailure);
                 repository.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),
@@ -560,7 +577,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         @Override
                         public void onFailure(Exception e) {
                             logger.error("Failed to upload files to snapshot repo {} for snapshot {} ", repositoryName, snapshotName);
-                            // failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()));
                             listener.onFailure(e);
                         }
                     }
@@ -570,7 +586,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } catch (Exception e) {
             assert false : new AssertionError(e);
             logger.error("Snapshot {} creation failed with exception {}", snapshot.getSnapshotId().getName(), e);
-            // failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()));
             listener.onFailure(e);
         }
     }

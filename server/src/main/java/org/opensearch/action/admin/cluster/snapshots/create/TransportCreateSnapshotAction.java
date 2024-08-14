@@ -103,7 +103,8 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener
     ) {
-        if (request.waitForCompletion()) {
+        Boolean isSnapshotV2 = clusterService.getClusterSettings().get(SnapshotsService.SNAPSHOT_V2);
+        if (request.waitForCompletion() || isSnapshotV2) {
             snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {
             snapshotsService.startCreateSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));

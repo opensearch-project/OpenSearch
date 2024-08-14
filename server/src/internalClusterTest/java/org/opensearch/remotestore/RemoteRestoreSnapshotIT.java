@@ -10,6 +10,7 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.delete.DeleteResponse;
@@ -755,6 +756,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
+        String indexName3 = "testindex3";
         String snapshotRepoName = "test-create-snapshot-repo";
         String snapshotName1 = "test-create-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -775,12 +777,32 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        logger.info("--> snapshot");
-
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+
+        // TODO - verify pinned timestamp
+        indexDocuments(client, indexName1, 10);
+        indexDocuments(client, indexName2, 20);
+
+        createIndex(indexName3, indexSettings);
+        indexDocuments(client, indexName3, 10);
+
+        String snapshotName2 = "test-create-snapshot2";
+
+        // verify even if waitForCompletion is not true, the request executes in a sync manner
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
+            .get();
+        snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
+
+        // TODO - verify pinned timestamp
 
     }
 

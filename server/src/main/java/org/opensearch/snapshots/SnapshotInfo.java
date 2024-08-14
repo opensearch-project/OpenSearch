@@ -100,12 +100,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String REMOTE_STORE_INDEX_SHALLOW_COPY = "remote_store_index_shallow_copy";
 
     private static final String PINNED_TIMESTAMP = "pinned_timestamp";
+
     private static final String USER_METADATA = "metadata";
 
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
-    private XContentBuilder builder;
-    private XContentBuilder build;
 
     /**
      * Builds snapshot information
