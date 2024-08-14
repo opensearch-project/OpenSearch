@@ -897,6 +897,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        boolean isSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
         if (isReadOnly()) {
@@ -918,6 +919,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         repositoryData,
                         repositoryMetaVersion,
                         remoteStoreLockManagerFactory,
+                        isSnapshotV2,
                         listener
                     );
                 }
@@ -942,6 +944,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             repositoryStateId,
             repositoryMetaVersion,
             null, // Passing null since no remote store lock files need to be cleaned up.
+            false,
             listener
         );
     }
@@ -1016,6 +1019,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData repositoryData,
         Version repoMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        boolean isSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
         // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
@@ -1051,10 +1055,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, listener::onFailure);
         // Once we have updated the repository, run the clean-ups
         writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
+            int groupSize = 2;
+            if (isSnapshotV2) {
+                groupSize = 1;
+            }
             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
             final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(
                 ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
-                2
+                groupSize
             );
             cleanupUnlinkedRootAndIndicesBlobs(
                 snapshotIds,
@@ -1064,13 +1072,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreLockManagerFactory,
                 afterCleanupsListener
             );
-            asyncCleanupUnlinkedShardLevelBlobs(
-                repositoryData,
-                snapshotIds,
-                writeShardMetaDataAndComputeDeletesStep.result(),
-                remoteStoreLockManagerFactory,
-                afterCleanupsListener
-            );
+            if (!isSnapshotV2) {
+                asyncCleanupUnlinkedShardLevelBlobs(
+                    repositoryData,
+                    snapshotIds,
+                    writeShardMetaDataAndComputeDeletesStep.result(),
+                    remoteStoreLockManagerFactory,
+                    afterCleanupsListener
+                );
+            }
+
         }, listener::onFailure);
     }
 
