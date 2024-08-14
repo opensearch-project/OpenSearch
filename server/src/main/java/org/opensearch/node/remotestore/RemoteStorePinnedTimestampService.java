@@ -67,8 +67,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         "cluster.remote_store.pinned_timestamps.scheduler_interval",
         TimeValue.timeValueMinutes(3),
         TimeValue.timeValueMinutes(1),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     public RemoteStorePinnedTimestampService(
@@ -83,11 +82,6 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         this.clusterService = clusterService;
 
         pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL,
-                this::setPinnedTimestampsSchedulerInterval
-            );
     }
 
     /**
