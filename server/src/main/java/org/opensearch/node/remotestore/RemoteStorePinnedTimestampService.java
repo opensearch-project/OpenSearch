@@ -35,7 +35,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -50,7 +52,6 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
     private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
     public static final int PINNED_TIMESTAMP_FILES_TO_KEEP = 5;
-    public static final int TIMESTAMP_PINNING_PAST_BUFFER_IN_MILLIS = 10000;
 
     private final Supplier<RepositoriesService> repositoriesService;
     private final Settings settings;
@@ -61,6 +62,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     private RemoteStorePinnedTimestampsBlobStore pinnedTimestampsBlobStore;
     private AsyncUpdatePinnedTimestampTask asyncUpdatePinnedTimestampTask;
     private volatile TimeValue pinnedTimestampsSchedulerInterval;
+    private final Semaphore updateTimetampPinningSemaphore = new Semaphore(1);
 
     /**
      * Controls pinned timestamp scheduler interval
@@ -69,6 +71,17 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         "cluster.remote_store.pinned_timestamps.scheduler_interval",
         TimeValue.timeValueMinutes(3),
         TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Controls allowed timestamp values to be pinned from past
+     */
+    public static final Setting<TimeValue> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL = Setting.timeSetting(
+        "cluster.remote_store.pinned_timestamps.lookback_interval",
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
     );
 
@@ -101,7 +114,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         final String remoteStoreRepo = settings.get(
             Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
-        assert remoteStoreRepo != null : "Remote Cluster State repository is not configured";
+        assert remoteStoreRepo != null : "Remote Segment Store repository is not configured";
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
@@ -134,8 +147,11 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     public void pinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) {
         // If a caller uses current system time to pin the timestamp, following check will almost always fail.
         // So, we allow pinning timestamp in the past upto some buffer
-        if (timestamp < TimeUnit.NANOSECONDS.toMillis(System.nanoTime()) - TIMESTAMP_PINNING_PAST_BUFFER_IN_MILLIS) {
-            throw new IllegalArgumentException("Timestamp to be pinned is less than current timestamp");
+        long lookbackIntervalInMills = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings).millis();
+        if (timestamp < TimeUnit.NANOSECONDS.toMillis(System.nanoTime()) - lookbackIntervalInMills) {
+            throw new IllegalArgumentException(
+                "Timestamp to be pinned is less than current timestamp - value of cluster.remote_store.pinned_timestamps.lookback_interval"
+            );
         }
         updatePinning(pinnedTimestamps -> pinnedTimestamps.pin(timestamp, pinningEntity), listener);
     }
@@ -157,39 +173,72 @@ public class RemoteStorePinnedTimestampService implements Closeable {
             blobStoreRepository.getCompressor()
         );
         BlobPath path = pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps);
-        blobStoreTransferService.listAllInSortedOrder(path, remotePinnedTimestamps.getType(), Integer.MAX_VALUE, new ActionListener<>() {
-            @Override
-            public void onResponse(List<BlobMetadata> blobMetadata) {
-                PinnedTimestamps pinnedTimestamps = new PinnedTimestamps(new HashMap<>());
-                if (blobMetadata.isEmpty() == false) {
-                    pinnedTimestamps = readExistingPinnedTimestamps(blobMetadata.get(0).name(), remotePinnedTimestamps);
-                }
-                updateConsumer.accept(pinnedTimestamps);
-                remotePinnedTimestamps.setPinnedTimestamps(pinnedTimestamps);
-                pinnedTimestampsBlobStore.writeAsync(remotePinnedTimestamps, listener);
+        try {
+            if (updateTimetampPinningSemaphore.tryAcquire(10, TimeUnit.MINUTES)) {
+                ActionListener<Void> semaphoreAwareListener = ActionListener.runBefore(listener, updateTimetampPinningSemaphore::release);
+                ActionListener<List<BlobMetadata>> listCallResponseListener = getListenerForListCallResponse(
+                    remotePinnedTimestamps,
+                    updateConsumer,
+                    semaphoreAwareListener
+                );
+                blobStoreTransferService.listAllInSortedOrder(
+                    path,
+                    remotePinnedTimestamps.getType(),
+                    Integer.MAX_VALUE,
+                    listCallResponseListener
+                );
+            } else {
+                throw new TimeoutException("Timed out while waiting to acquire lock in updatePinning");
+            }
+        } catch (InterruptedException | TimeoutException e) {
+            listener.onFailure(e);
+        }
+    }
 
-                // Delete older pinnedTimestamp files
-                if (blobMetadata.size() > PINNED_TIMESTAMP_FILES_TO_KEEP) {
-                    List<String> oldFilesToBeDeleted = blobMetadata.subList(PINNED_TIMESTAMP_FILES_TO_KEEP, blobMetadata.size())
-                        .stream()
-                        .map(BlobMetadata::name)
-                        .collect(Collectors.toList());
-                    try {
-                        blobStoreTransferService.deleteBlobs(
-                            pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps),
-                            oldFilesToBeDeleted
-                        );
-                    } catch (IOException e) {
-                        logger.error("Exception while deleting stale pinned timestamps", e);
-                    }
+    private ActionListener<List<BlobMetadata>> getListenerForListCallResponse(
+        RemotePinnedTimestamps remotePinnedTimestamps,
+        Consumer<PinnedTimestamps> updateConsumer,
+        ActionListener<Void> listener
+    ) {
+        return ActionListener.wrap(blobMetadata -> {
+            PinnedTimestamps pinnedTimestamps = new PinnedTimestamps(new HashMap<>());
+            if (blobMetadata.isEmpty() == false) {
+                pinnedTimestamps = readExistingPinnedTimestamps(blobMetadata.get(0).name(), remotePinnedTimestamps);
+            }
+            updateConsumer.accept(pinnedTimestamps);
+            remotePinnedTimestamps.setPinnedTimestamps(pinnedTimestamps);
+            ActionListener<Void> writeCallResponseListener = getListenerForWriteCallResponse(
+                remotePinnedTimestamps,
+                blobMetadata,
+                listener
+            );
+            pinnedTimestampsBlobStore.writeAsync(remotePinnedTimestamps, writeCallResponseListener);
+        }, listener::onFailure);
+    }
+
+    private ActionListener<Void> getListenerForWriteCallResponse(
+        RemotePinnedTimestamps remotePinnedTimestamps,
+        List<BlobMetadata> blobMetadata,
+        ActionListener<Void> listener
+    ) {
+        return ActionListener.wrap(unused -> {
+            // Delete older pinnedTimestamp files
+            if (blobMetadata.size() > PINNED_TIMESTAMP_FILES_TO_KEEP) {
+                List<String> oldFilesToBeDeleted = blobMetadata.subList(PINNED_TIMESTAMP_FILES_TO_KEEP, blobMetadata.size())
+                    .stream()
+                    .map(BlobMetadata::name)
+                    .collect(Collectors.toList());
+                try {
+                    blobStoreTransferService.deleteBlobs(
+                        pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps),
+                        oldFilesToBeDeleted
+                    );
+                } catch (IOException e) {
+                    logger.error("Exception while deleting stale pinned timestamps", e);
                 }
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            listener.onResponse(null);
+        }, listener::onFailure);
     }
 
     private PinnedTimestamps readExistingPinnedTimestamps(String blobFilename, RemotePinnedTimestamps remotePinnedTimestamps) {

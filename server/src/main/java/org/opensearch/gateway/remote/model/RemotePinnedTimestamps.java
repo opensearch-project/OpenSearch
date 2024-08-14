@@ -77,7 +77,11 @@ public class RemotePinnedTimestamps extends RemoteWriteableBlobEntity<RemotePinn
          */
         public void unpin(Long timestamp, String pinningEntity) {
             logger.debug("Unpinning timestamp = {} against entity = {}", timestamp, pinningEntity);
-            pinnedTimestampPinningEntityMap.computeIfPresent(timestamp, (k, v) -> {
+            if (pinnedTimestampPinningEntityMap.containsKey(timestamp) == false
+                || pinnedTimestampPinningEntityMap.get(timestamp).contains(pinningEntity) == false) {
+                logger.warn("Timestamp: {} is not pinned by entity: {}", timestamp, pinningEntity);
+            }
+            pinnedTimestampPinningEntityMap.compute(timestamp, (k, v) -> {
                 v.remove(pinningEntity);
                 return v.isEmpty() ? null : v;
             });
