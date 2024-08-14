@@ -210,19 +210,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         IndexNameExpressionResolver indexNameExpressionResolver,
         RepositoriesService repositoriesService,
         TransportService transportService,
-        ActionFilters actionFilters
-    ) {
-        this(settings, clusterService, indexNameExpressionResolver, repositoriesService, transportService, actionFilters, null);
-    }
-
-    public SnapshotsService(
-        Settings settings,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        RepositoriesService repositoriesService,
-        TransportService transportService,
         ActionFilters actionFilters,
-        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService
+        @Nullable RemoteStorePinnedTimestampService remoteStorePinnedTimestampService
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

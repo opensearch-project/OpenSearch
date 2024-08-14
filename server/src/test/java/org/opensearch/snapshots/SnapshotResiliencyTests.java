@@ -2015,7 +2015,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,
-                    actionFilters
+                    actionFilters,
+                    null
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
