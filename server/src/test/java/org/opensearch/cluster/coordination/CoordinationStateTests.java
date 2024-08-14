@@ -68,6 +68,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
@@ -947,7 +948,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .previousClusterUUID(randomAlphaOfLength(10))
             .clusterUUIDCommitted(true)
             .build();
-        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID))
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION))
             .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
 
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
@@ -978,7 +979,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
         coordinationState.handlePrePublish(clusterState);
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         Mockito.when(remoteClusterStateService.markLastStateAsCommitted(any(), any()))

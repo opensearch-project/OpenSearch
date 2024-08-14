@@ -248,6 +248,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     );
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V3;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = CODEC_V3;
 
     static {
         declareParser(PARSER_V0, CODEC_V0);
@@ -256,7 +257,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         declareParser(PARSER_V3, CODEC_V3);
     }
 
-    public static Integer getCodecForVersion(Version version) {
+    public static int getCodecForVersion(Version version) {
         Integer codecVersion = -1;
         Version maxVersion = Version.V_EMPTY;
         for (Entry<Version, Integer> entry : CODEC_TO_VERSION_MAPPING.entrySet()) {
