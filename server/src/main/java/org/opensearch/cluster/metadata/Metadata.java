@@ -1593,9 +1593,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private void buildSystemTemplatesLookup() {
             if (previousMetadata != null
                 && Objects.equals(
-                previousMetadata.customs.get(ComponentTemplateMetadata.TYPE),
-                this.customs.get(ComponentTemplateMetadata.TYPE)
-            )) {
+                    previousMetadata.customs.get(ComponentTemplateMetadata.TYPE),
+                    this.customs.get(ComponentTemplateMetadata.TYPE)
+                )) {
                 systemTemplatesLookup = Collections.unmodifiableMap(previousMetadata.systemTemplatesLookup);
             } else {
                 systemTemplatesLookup = new HashMap<>();

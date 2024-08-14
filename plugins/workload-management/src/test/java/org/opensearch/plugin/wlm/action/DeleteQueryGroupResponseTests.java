@@ -22,61 +22,36 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
 import static org.mockito.Mockito.mock;
 
 public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
 
+    /**
+     * Test case to verify the serialization and deserialization of DeleteQueryGroupResponse.
+     */
     public void testSerializationSingleQueryGroup() throws IOException {
-        List<QueryGroup> list = new ArrayList<>();
-        list.add(queryGroupOne);
-        DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(list, RestStatus.OK);
-        assertEquals(response.getQueryGroups(), list);
-
+        DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(queryGroupOne, RestStatus.OK);
+        assertEquals(response.getQueryGroup(), queryGroupOne);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
 
         DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(streamInput);
+        List<QueryGroup> list1 = new ArrayList<>();
+        List<QueryGroup> list2 = new ArrayList<>();
+        list1.add(response.getQueryGroup());
+        list2.add(otherResponse.getQueryGroup());
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        assertEqualQueryGroups(list1, list2);
     }
 
-    public void testSerializationMultipleQueryGroup() throws IOException {
-        DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(queryGroupList(), RestStatus.OK);
-        assertEquals(response.getQueryGroups(), queryGroupList());
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-
-        DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(streamInput);
-        assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        assertEquals(2, otherResponse.getQueryGroups().size());
-        assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
-    }
-
-    public void testSerializationNull() throws IOException {
-        List<QueryGroup> list = new ArrayList<>();
-        DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(list, RestStatus.OK);
-        assertEquals(response.getQueryGroups(), list);
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-
-        DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(streamInput);
-        assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        assertEquals(0, otherResponse.getQueryGroups().size());
-    }
-
+    /**
+     * Tests the structure of toXContent of DeleteQueryGroupResponse.
+     */
     public void testToXContentDeleteSingleQueryGroup() throws IOException {
-        List<QueryGroup> queryGroupList = new ArrayList<>();
-        queryGroupList.add(queryGroupOne);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(queryGroupList, RestStatus.OK);
+        DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(queryGroupOne, RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"deleted\" : [\n"
@@ -91,46 +66,6 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
             + "    }\n"
             + "  ]\n"
             + "}";
-        assertEquals(expected, actual);
-    }
-
-    public void testToXContentDeleteMultipleQueryGroup() throws IOException {
-        List<QueryGroup> queryGroupList = new ArrayList<>();
-        queryGroupList.add(queryGroupOne);
-        queryGroupList.add(queryGroupTwo);
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(queryGroupList, RestStatus.OK);
-        String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n"
-            + "  \"deleted\" : [\n"
-            + "    {\n"
-            + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
-            + "      \"name\" : \"query_group_one\",\n"
-            + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updated_at\" : 4513232413,\n"
-            + "      \"resource_limits\" : {\n"
-            + "        \"memory\" : 0.3\n"
-            + "      }\n"
-            + "    },\n"
-            + "    {\n"
-            + "      \"_id\" : \"G5iIqHy4g7eK1qIAAAAIH53=1\",\n"
-            + "      \"name\" : \"query_group_two\",\n"
-            + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updated_at\" : 4513232415,\n"
-            + "      \"resource_limits\" : {\n"
-            + "        \"memory\" : 0.6\n"
-            + "      }\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
-        assertEquals(expected, actual);
-    }
-
-    public void testToXContentDeleteZeroQueryGroup() throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(new ArrayList<>(), RestStatus.OK);
-        String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n" + "  \"deleted\" : [ ]\n" + "}";
         assertEquals(expected, actual);
     }
 }

@@ -37,10 +37,8 @@ import org.opensearch.search.ResourceType;
 
 import java.util.Collection;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * This class defines the functions for QueryGroup persistence
@@ -250,16 +248,17 @@ public class QueryGroupPersistenceService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                final Map<String, QueryGroup> oldGroupsMap = oldState.metadata().queryGroups();
-                final Map<String, QueryGroup> newGroupsMap = newState.metadata().queryGroups();
-
-                List<QueryGroup> deletedGroups = oldGroupsMap.keySet()
+                final Optional<QueryGroup> queryGroupToRemove = oldState.metadata()
+                    .queryGroups()
+                    .values()
                     .stream()
-                    .filter(groupId -> !newGroupsMap.containsKey(groupId))
-                    .map(oldGroupsMap::get)
-                    .collect(Collectors.toList());
+                    .filter(queryGroup -> queryGroup.getName().equals(name))
+                    .findFirst();
 
-                DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(deletedGroups, RestStatus.OK);
+                assert queryGroupToRemove.isPresent();
+                assert !newState.metadata().queryGroups().containsValue(queryGroupToRemove.get());
+
+                DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(queryGroupToRemove.get(), RestStatus.OK);
                 listener.onResponse(response);
             }
         });
@@ -272,7 +271,7 @@ public class QueryGroupPersistenceService {
      */
     ClusterState deleteQueryGroupInClusterState(final String name, final ClusterState currentClusterState) {
         final Metadata metadata = currentClusterState.metadata();
-        QueryGroup queryGroupToRemove = metadata.queryGroups()
+        final QueryGroup queryGroupToRemove = metadata.queryGroups()
             .values()
             .stream()
             .filter(queryGroup -> queryGroup.getName().equals(name))

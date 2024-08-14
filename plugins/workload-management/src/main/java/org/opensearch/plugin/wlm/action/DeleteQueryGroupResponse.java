@@ -18,7 +18,6 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Response for delete QueryGroup
@@ -26,16 +25,16 @@ import java.util.List;
  * @opensearch.experimental
  */
 public class DeleteQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final List<QueryGroup> queryGroups;
+    private final QueryGroup queryGroup;
     private final RestStatus restStatus;
 
     /**
      * Constructor for DeleteQueryGroupResponse
-     * @param queryGroups - The QueryGroup list to be fetched
+     * @param queryGroup - The QueryGroup deleted
      * @param restStatus - The rest status for this response
      */
-    public DeleteQueryGroupResponse(final List<QueryGroup> queryGroups, RestStatus restStatus) {
-        this.queryGroups = queryGroups;
+    public DeleteQueryGroupResponse(final QueryGroup queryGroup, RestStatus restStatus) {
+        this.queryGroup = queryGroup;
         this.restStatus = restStatus;
     }
 
@@ -44,13 +43,13 @@ public class DeleteQueryGroupResponse extends ActionResponse implements ToXConte
      * @param in - A {@link StreamInput} object
      */
     public DeleteQueryGroupResponse(StreamInput in) throws IOException {
-        this.queryGroups = in.readList(QueryGroup::new);
+        this.queryGroup = new QueryGroup(in);
         this.restStatus = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(queryGroups);
+        queryGroup.writeTo(out);
         RestStatus.writeTo(out, restStatus);
     }
 
@@ -58,9 +57,7 @@ public class DeleteQueryGroupResponse extends ActionResponse implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("deleted");
-        for (QueryGroup group : queryGroups) {
-            group.toXContent(builder, params);
-        }
+        queryGroup.toXContent(builder, params);
         builder.endArray();
         builder.endObject();
         return builder;
@@ -69,8 +66,8 @@ public class DeleteQueryGroupResponse extends ActionResponse implements ToXConte
     /**
      * queryGroups getter
      */
-    public List<QueryGroup> getQueryGroups() {
-        return queryGroups;
+    public QueryGroup getQueryGroup() {
+        return queryGroup;
     }
 
     /**
