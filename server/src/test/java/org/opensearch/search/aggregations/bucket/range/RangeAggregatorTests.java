@@ -539,7 +539,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         Query boolQuery = builder.build();
 
         List<Document> docList = new ArrayList<>();
-        for (int i = 0; i < 3; i++) docList.add(new Document());
+        for (int i = 0; i < 3; i++)
+            docList.add(new Document());
 
         docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
         docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
@@ -548,22 +549,15 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
         docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route2", Field.Store.NO));
 
-        testRewriteOptimizationCase(
-            NUM_FIELD_TYPE,
-            new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } },
-            boolQuery,
-            docList,
-            range -> {
-                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-                assertEquals(2, ranges.size());
-                assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
-                assertEquals(1, ranges.get(0).getDocCount());
-                assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
-                assertEquals(1, ranges.get(1).getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-            },
-            false
-        );
+        testRewriteOptimizationCase(NUM_FIELD_TYPE, new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } }, boolQuery, docList, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+            assertEquals(1, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, false);
     }
 
     /**
@@ -580,7 +574,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         Query boolQuery = builder.build();
 
         List<Document> docList = new ArrayList<>();
-        for (int i = 0; i < 3; i++) docList.add(new Document());
+        for (int i = 0; i < 3; i++)
+            docList.add(new Document());
 
         docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
         docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
@@ -589,22 +584,15 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
         docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
 
-        testRewriteOptimizationCase(
-            NUM_FIELD_TYPE,
-            new double[][]{{0.0, 10.0}, {10.0, 20.0}},
-            boolQuery,
-            docList,
-            range -> {
-                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-                assertEquals(2, ranges.size());
-                assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
-                assertEquals(1, ranges.get(0).getDocCount());
-                assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
-                assertEquals(2, ranges.get(1).getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-            },
-            true
-        );
+        testRewriteOptimizationCase(NUM_FIELD_TYPE, new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } }, boolQuery, docList, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+            assertEquals(2, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, true);
     }
 
     private void testCase(
@@ -675,7 +663,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         for (Number dataPoint : dataPoints) {
             Document doc = new Document();
             List<Field> fieldList = numberType.createFields(fieldName, dataPoint, true, true, false);
-            for (Field fld : fieldList) doc.add(fld);
+            for (Field fld : fieldList)
+                doc.add(fld);
             docs.add(doc);
         }
 
