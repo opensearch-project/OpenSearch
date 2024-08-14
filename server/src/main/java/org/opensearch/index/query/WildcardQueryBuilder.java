@@ -47,7 +47,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -253,9 +252,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+                QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
                     rewrite_override,
-                    RewriteOverride.DEFAULT,
+                    QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                     LoggingDeprecationHandler.INSTANCE
                 );
                 Query query = fieldType.wildcardQuery(value, null, rewriteOverride, caseInsensitive, context); // the rewrite method doesn't
@@ -282,9 +281,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+        QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
             rewrite_override,
-            RewriteOverride.DEFAULT,
+            QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
             LoggingDeprecationHandler.INSTANCE
         );
         return fieldType.wildcardQuery(value, method, rewriteOverride, caseInsensitive, context);

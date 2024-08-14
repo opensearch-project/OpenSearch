@@ -46,7 +46,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -381,9 +380,9 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             throw new IllegalStateException("Rewrite first");
         }
         String rewrite = this.rewrite;
-        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+        QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
             rewrite_override,
-            RewriteOverride.DEFAULT,
+            QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
             LoggingDeprecationHandler.INSTANCE
         );
         Query query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, null, rewriteOverride, context);

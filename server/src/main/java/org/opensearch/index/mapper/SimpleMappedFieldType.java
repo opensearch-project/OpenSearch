@@ -88,7 +88,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         ShapeRelation relation,
         ZoneId timeZone,
         DateMathParser parser,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
         if (relation == ShapeRelation.DISJOINT) {
@@ -113,7 +113,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
-        RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
         return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);

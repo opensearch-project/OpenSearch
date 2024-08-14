@@ -230,7 +230,11 @@ public abstract class MappedFieldType {
         );
     }
 
-    public Query termsQuery(List<?> values, @Nullable RewriteOverride rewriteOverride, @Nullable QueryShardContext context) {
+    public Query termsQuery(
+        List<?> values,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext context
+    ) {
         return termsQuery(values, context);
     }
 
@@ -270,7 +274,7 @@ public abstract class MappedFieldType {
         ShapeRelation relation,
         ZoneId timeZone,
         DateMathParser parser,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
         return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, relation, timeZone, parser, context);
@@ -311,7 +315,7 @@ public abstract class MappedFieldType {
         int maxExpansions,
         boolean transpositions,
         @Nullable MultiTermQuery.RewriteMethod method,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
         return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
@@ -320,7 +324,7 @@ public abstract class MappedFieldType {
     public Query prefixQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         boolean caseInsensitve,
         QueryShardContext context
     ) {
@@ -365,7 +369,7 @@ public abstract class MappedFieldType {
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         boolean caseInsensitve,
         QueryShardContext context
     ) {
@@ -400,7 +404,7 @@ public abstract class MappedFieldType {
         int matchFlags,
         int maxDeterminizedStates,
         @Nullable MultiTermQuery.RewriteMethod method,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
         return regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);

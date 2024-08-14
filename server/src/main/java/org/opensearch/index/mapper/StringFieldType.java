@@ -141,7 +141,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         int maxExpansions,
         boolean transpositions,
         @Nullable MultiTermQuery.RewriteMethod method,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
         return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
@@ -207,7 +207,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     public Query wildcardQuery(
         String value,
         MultiTermQuery.RewriteMethod method,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         boolean caseInsensitive,
         QueryShardContext context
     ) {
@@ -312,7 +312,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
-        @Nullable RewriteOverride rewriteOverride,
+        @Nullable QueryShardContext.RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
         return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);

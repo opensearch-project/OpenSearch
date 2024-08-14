@@ -47,7 +47,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -242,9 +241,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+                QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
                     rewrite_override,
-                    RewriteOverride.DEFAULT,
+                    QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                     LoggingDeprecationHandler.INSTANCE
                 );
                 Query query = fieldType.prefixQuery(value, null, rewriteOverride, caseInsensitive, context); // the rewrite method doesn't
@@ -270,9 +269,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+        QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
             rewrite_override,
-            RewriteOverride.DEFAULT,
+            QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
             LoggingDeprecationHandler.INSTANCE
         );
         return fieldType.prefixQuery(value, method, rewriteOverride, caseInsensitive, context);

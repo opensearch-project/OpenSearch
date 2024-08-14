@@ -159,4 +159,21 @@ public class QueryRewriteContext {
     public boolean validate() {
         return validate;
     }
+
+    /** A custom rewrite override for a query. Default executes the query as is and other values determine which structure to use at run-time.
+     *
+     * @opensearch.internal
+     */
+    @PublicApi(since = "2.17.0")
+    public enum RewriteOverride {
+
+        // don't override the rewrite, use default
+        INDEX_OR_DOC_VALUES,
+
+        // use index structure
+        INDEX_ONLY,
+
+        // use doc_values structure
+        DOC_VALUES_ONLY
+    }
 }

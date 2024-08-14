@@ -50,7 +50,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -327,9 +326,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+            QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
                 rewrite_override,
-                RewriteOverride.DEFAULT,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 LoggingDeprecationHandler.INSTANCE
             );
             query = fieldType.regexpQuery(

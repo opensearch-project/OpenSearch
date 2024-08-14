@@ -61,6 +61,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -388,14 +389,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, RewriteOverride rewriteOverride, QueryShardContext context) {
+        public Query termsQuery(List<?> values, QueryShardContext.RewriteOverride rewriteOverride, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             if (rewriteOverride == null) {
-                rewriteOverride = RewriteOverride.DEFAULT;
+                rewriteOverride = QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES;
             }
             Query query = null;
             switch (rewriteOverride) {
-                case DEFAULT:
+                case INDEX_OR_DOC_VALUES:
                     // has index and doc_values enabled
                     if (isSearchable() && hasDocValues()) {
                         BytesRef[] bytesRefs = new BytesRef[values.size()];
@@ -438,7 +439,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         public Query prefixQuery(
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
-            @Nullable RewriteOverride rewriteOverride,
+            @Nullable QueryShardContext.RewriteOverride rewriteOverride,
             boolean caseInsensitive,
             QueryShardContext context
         ) {
@@ -452,11 +453,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             failIfNotIndexedAndNoDocValues();
             if (rewriteOverride == null) {
-                rewriteOverride = RewriteOverride.DEFAULT;
+                rewriteOverride = QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES;
             }
             Query query = null;
             switch (rewriteOverride) {
-                case DEFAULT:
+                case INDEX_OR_DOC_VALUES:
                     if (isSearchable() && hasDocValues()) {
                         Query indexQuery = super.prefixQuery(value, method, caseInsensitive, context);
                         Query dvQuery = super.prefixQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, context);
@@ -500,7 +501,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             int matchFlags,
             int maxDeterminizedStates,
             @Nullable MultiTermQuery.RewriteMethod method,
-            @Nullable RewriteOverride rewriteOverride,
+            @Nullable QueryShardContext.RewriteOverride rewriteOverride,
             QueryShardContext context
         ) {
             if (context.allowExpensiveQueries() == false) {
@@ -510,11 +511,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             failIfNotIndexedAndNoDocValues();
             if (rewriteOverride == null) {
-                rewriteOverride = RewriteOverride.DEFAULT;
+                rewriteOverride = QueryRewriteContext.RewriteOverride.INDEX_OR_DOC_VALUES;
             }
             Query query = null;
             switch (rewriteOverride) {
-                case DEFAULT:
+                case INDEX_OR_DOC_VALUES:
                     if (isSearchable() && hasDocValues()) {
                         Query indexQuery = super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
                         Query dvQuery = super.regexpQuery(
@@ -564,7 +565,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
-            RewriteOverride rewriteOverride,
+            QueryShardContext.RewriteOverride rewriteOverride,
             QueryShardContext context
         ) {
             if (context.allowExpensiveQueries() == false) {
@@ -576,11 +577,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             failIfNotIndexedAndNoDocValues();
             if (rewriteOverride == null) {
-                rewriteOverride = RewriteOverride.DEFAULT;
+                rewriteOverride = QueryRewriteContext.RewriteOverride.INDEX_OR_DOC_VALUES;
             }
             Query query = null;
             switch (rewriteOverride) {
-                case DEFAULT:
+                case INDEX_OR_DOC_VALUES:
                     if (isSearchable() && hasDocValues()) {
                         Query indexQuery = new TermRangeQuery(
                             name(),
@@ -644,7 +645,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             int maxExpansions,
             boolean transpositions,
             @Nullable MultiTermQuery.RewriteMethod method,
-            @Nullable RewriteOverride rewriteOverride,
+            @Nullable QueryShardContext.RewriteOverride rewriteOverride,
             QueryShardContext context
         ) {
             failIfNotIndexedAndNoDocValues();
@@ -654,11 +655,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             if (rewriteOverride == null) {
-                rewriteOverride = RewriteOverride.DEFAULT;
+                rewriteOverride = QueryRewriteContext.RewriteOverride.INDEX_OR_DOC_VALUES;
             }
             Query query = null;
             switch (rewriteOverride) {
-                case DEFAULT:
+                case INDEX_OR_DOC_VALUES:
                     if (isSearchable() && hasDocValues()) {
                         Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
                         Query dvQuery = super.fuzzyQuery(
@@ -707,7 +708,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         public Query wildcardQuery(
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
-            @Nullable RewriteOverride rewriteOverride,
+            @Nullable QueryShardContext.RewriteOverride rewriteOverride,
             boolean caseInsensitive,
             QueryShardContext context
         ) {
@@ -721,11 +722,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             // wildcard
             // query text
             if (rewriteOverride == null) {
-                rewriteOverride = RewriteOverride.DEFAULT;
+                rewriteOverride = QueryRewriteContext.RewriteOverride.INDEX_OR_DOC_VALUES;
             }
             Query query = null;
             switch (rewriteOverride) {
-                case DEFAULT:
+                case INDEX_OR_DOC_VALUES:
                     if (isSearchable() && hasDocValues()) {
                         Query indexQuery = super.wildcardQuery(value, method, caseInsensitive, true, context);
                         Query dvQuery = super.wildcardQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, true, context);

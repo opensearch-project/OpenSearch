@@ -72,6 +72,7 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,22 +137,34 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             new TermInSetQuery("field", terms),
             new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms)
         );
-        assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), RewriteOverride.DEFAULT, null));
+        assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, null));
 
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         Query expectedIndex = new TermInSetQuery("field", terms);
-        assertEquals(expectedIndex, onlyIndexed.termsQuery(Arrays.asList("foo", "bar"), RewriteOverride.DEFAULT, null));
-        assertEquals(expectedIndex, onlyIndexed.termsQuery(Arrays.asList("foo", "bar"), RewriteOverride.INDEX_ONLY, null));
+        assertEquals(
+            expectedIndex,
+            onlyIndexed.termsQuery(Arrays.asList("foo", "bar"), QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, null)
+        );
+        assertEquals(
+            expectedIndex,
+            onlyIndexed.termsQuery(Arrays.asList("foo", "bar"), QueryShardContext.RewriteOverride.INDEX_ONLY, null)
+        );
 
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms);
-        assertEquals(expectedDocValues, onlyDocValues.termsQuery(Arrays.asList("foo", "bar"), RewriteOverride.DEFAULT, null));
-        assertEquals(expectedDocValues, onlyDocValues.termsQuery(Arrays.asList("foo", "bar"), RewriteOverride.DOC_VALUES_ONLY, null));
+        assertEquals(
+            expectedDocValues,
+            onlyDocValues.termsQuery(Arrays.asList("foo", "bar"), QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, null)
+        );
+        assertEquals(
+            expectedDocValues,
+            onlyDocValues.termsQuery(Arrays.asList("foo", "bar"), QueryShardContext.RewriteOverride.DOC_VALUES_ONLY, null)
+        );
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), RewriteOverride.DEFAULT, null)
+            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, null)
         );
         assertEquals(
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
@@ -190,21 +203,33 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         Query expected = new IndexOrDocValuesQuery(indexExpected, dvExpected);
-        Query actual = ft.rangeQuery("foo", "bar", true, false, RewriteOverride.DEFAULT, MOCK_QSC);
+        Query actual = ft.rangeQuery("foo", "bar", true, false, QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, MOCK_QSC);
         assertEquals(expected, actual);
 
         KeywordFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(indexExpected, onlyIndexed.rangeQuery("foo", "bar", true, false, RewriteOverride.DEFAULT, MOCK_QSC));
-        assertEquals(indexExpected, onlyIndexed.rangeQuery("foo", "bar", true, false, RewriteOverride.INDEX_ONLY, MOCK_QSC));
+        assertEquals(
+            indexExpected,
+            onlyIndexed.rangeQuery("foo", "bar", true, false, QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, MOCK_QSC)
+        );
+        assertEquals(
+            indexExpected,
+            onlyIndexed.rangeQuery("foo", "bar", true, false, QueryShardContext.RewriteOverride.INDEX_ONLY, MOCK_QSC)
+        );
 
         KeywordFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
-        assertEquals(dvExpected, onlyDocValues.rangeQuery("foo", "bar", true, false, RewriteOverride.DEFAULT, MOCK_QSC));
-        assertEquals(dvExpected, onlyDocValues.rangeQuery("foo", "bar", true, false, RewriteOverride.DOC_VALUES_ONLY, MOCK_QSC));
+        assertEquals(
+            dvExpected,
+            onlyDocValues.rangeQuery("foo", "bar", true, false, QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, MOCK_QSC)
+        );
+        assertEquals(
+            dvExpected,
+            onlyDocValues.rangeQuery("foo", "bar", true, false, QueryShardContext.RewriteOverride.DOC_VALUES_ONLY, MOCK_QSC)
+        );
 
         KeywordFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.rangeQuery("foo", "bar", true, false, RewriteOverride.DEFAULT, MOCK_QSC)
+            () -> unsearchable.rangeQuery("foo", "bar", true, false, QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, MOCK_QSC)
         );
 
         assertEquals(
@@ -214,7 +239,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
-            () -> ft.rangeQuery("foo", "bar", true, false, RewriteOverride.DEFAULT, MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.rangeQuery(
+                "foo",
+                "bar",
+                true,
+                false,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                MOCK_QSC_DISALLOW_EXPENSIVE
+            )
         );
         assertEquals(
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
@@ -229,18 +261,42 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 new RegexpQuery(new Term("field", "foo.*")),
                 new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
             ),
-            ft.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, RewriteOverride.DEFAULT, MOCK_QSC)
+            ft.regexpQuery(
+                "foo.*",
+                0,
+                0,
+                10,
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                MOCK_QSC
+            )
         );
 
         Query indexExpected = new RegexpQuery(new Term("field", "foo.*"));
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         assertEquals(
             indexExpected,
-            onlyIndexed.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, RewriteOverride.DEFAULT, MOCK_QSC)
+            onlyIndexed.regexpQuery(
+                "foo.*",
+                0,
+                0,
+                10,
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                MOCK_QSC
+            )
         );
         assertEquals(
             indexExpected,
-            onlyIndexed.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, RewriteOverride.INDEX_ONLY, MOCK_QSC)
+            onlyIndexed.regexpQuery(
+                "foo.*",
+                0,
+                0,
+                10,
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_ONLY,
+                MOCK_QSC
+            )
         );
 
         Query dvExpected = new RegexpQuery(
@@ -254,17 +310,33 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
         assertEquals(
             dvExpected,
-            onlyDocValues.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.DOC_VALUES_REWRITE, RewriteOverride.DEFAULT, MOCK_QSC)
+            onlyDocValues.regexpQuery(
+                "foo.*",
+                0,
+                0,
+                10,
+                MultiTermQuery.DOC_VALUES_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                MOCK_QSC
+            )
         );
         assertEquals(
             dvExpected,
-            onlyDocValues.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.DOC_VALUES_REWRITE, RewriteOverride.DOC_VALUES_ONLY, MOCK_QSC)
+            onlyDocValues.regexpQuery(
+                "foo.*",
+                0,
+                0,
+                10,
+                MultiTermQuery.DOC_VALUES_REWRITE,
+                QueryShardContext.RewriteOverride.DOC_VALUES_ONLY,
+                MOCK_QSC
+            )
         );
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, RewriteOverride.DEFAULT, MOCK_QSC)
+            () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, MOCK_QSC)
         );
         assertEquals(
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
@@ -273,7 +345,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
-            () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, RewriteOverride.DEFAULT, MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.regexpQuery(
+                "foo.*",
+                randomInt(10),
+                0,
+                randomInt(10) + 1,
+                null,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                MOCK_QSC_DISALLOW_EXPENSIVE
+            )
         );
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -285,7 +365,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true),
                 new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE)
             ),
-            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, RewriteOverride.DEFAULT, MOCK_QSC)
+            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES, MOCK_QSC)
         );
 
         Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true);
@@ -299,7 +379,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 50,
                 true,
                 FuzzyQuery.defaultRewriteMethod(50),
-                RewriteOverride.DEFAULT,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 MOCK_QSC
             )
         );
@@ -312,7 +392,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 50,
                 true,
                 FuzzyQuery.defaultRewriteMethod(50),
-                RewriteOverride.INDEX_ONLY,
+                QueryShardContext.RewriteOverride.INDEX_ONLY,
                 MOCK_QSC
             )
         );
@@ -328,7 +408,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 50,
                 true,
                 MultiTermQuery.DOC_VALUES_REWRITE,
-                RewriteOverride.DEFAULT,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 MOCK_QSC
             )
         );
@@ -341,7 +421,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 50,
                 true,
                 MultiTermQuery.DOC_VALUES_REWRITE,
-                RewriteOverride.DOC_VALUES_ONLY,
+                QueryShardContext.RewriteOverride.DOC_VALUES_ONLY,
                 MOCK_QSC
             )
         );
@@ -356,7 +436,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 50,
                 true,
                 MultiTermQuery.DOC_VALUES_REWRITE,
-                RewriteOverride.DEFAULT,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 MOCK_QSC
             )
         );
@@ -374,7 +454,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 randomInt(10) + 1,
                 randomBoolean(),
                 FuzzyQuery.defaultRewriteMethod(randomInt(10) + 1),
-                RewriteOverride.DEFAULT,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 MOCK_QSC_DISALLOW_EXPENSIVE
             )
         );
@@ -393,18 +473,36 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(
             expected,
-            ft.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, RewriteOverride.DEFAULT, false, MOCK_QSC)
+            ft.wildcardQuery(
+                "foo*",
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                false,
+                MOCK_QSC
+            )
         );
 
         Query indexExpected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
         KeywordFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         assertEquals(
             indexExpected,
-            onlyIndexed.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, RewriteOverride.DEFAULT, false, MOCK_QSC)
+            onlyIndexed.wildcardQuery(
+                "foo*",
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                false,
+                MOCK_QSC
+            )
         );
         assertEquals(
             indexExpected,
-            onlyIndexed.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, RewriteOverride.INDEX_ONLY, false, MOCK_QSC)
+            onlyIndexed.wildcardQuery(
+                "foo*",
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_ONLY,
+                false,
+                MOCK_QSC
+            )
         );
 
         Query dvExpected = new WildcardQuery(
@@ -415,11 +513,23 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
         assertEquals(
             dvExpected,
-            onlyDocValues.wildcardQuery("foo*", MultiTermQuery.DOC_VALUES_REWRITE, RewriteOverride.DEFAULT, false, MOCK_QSC)
+            onlyDocValues.wildcardQuery(
+                "foo*",
+                MultiTermQuery.DOC_VALUES_REWRITE,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
+                false,
+                MOCK_QSC
+            )
         );
         assertEquals(
             dvExpected,
-            onlyDocValues.wildcardQuery("foo*", MultiTermQuery.DOC_VALUES_REWRITE, RewriteOverride.DOC_VALUES_ONLY, false, MOCK_QSC)
+            onlyDocValues.wildcardQuery(
+                "foo*",
+                MultiTermQuery.DOC_VALUES_REWRITE,
+                QueryShardContext.RewriteOverride.DOC_VALUES_ONLY,
+                false,
+                MOCK_QSC
+            )
         );
 
         KeywordFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
@@ -428,7 +538,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             () -> unsearchable.wildcardQuery(
                 "foo*",
                 MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
-                RewriteOverride.DEFAULT,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 false,
                 MOCK_QSC
             )
@@ -443,7 +553,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             () -> ft.wildcardQuery(
                 "foo*",
                 MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
-                RewriteOverride.DEFAULT,
+                QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 false,
                 MOCK_QSC_DISALLOW_EXPENSIVE
             )

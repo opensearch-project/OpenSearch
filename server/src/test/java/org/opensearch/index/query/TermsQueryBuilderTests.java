@@ -53,7 +53,6 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
@@ -365,7 +364,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
-        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist", RewriteOverride.DEFAULT);
+        TermsQueryBuilder query = new TermsQueryBuilder(
+            "_index",
+            "does_not_exist",
+            "also_does_not_exist",
+            QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES
+        );
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));

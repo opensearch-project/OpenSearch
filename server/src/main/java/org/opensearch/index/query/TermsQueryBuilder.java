@@ -56,7 +56,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.indices.TermsLookup;
 
@@ -510,9 +509,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+        QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
             rewrite_override,
-            RewriteOverride.DEFAULT,
+            QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
             LoggingDeprecationHandler.INSTANCE
         );
         return fieldType.termsQuery(values, rewriteOverride, context);
