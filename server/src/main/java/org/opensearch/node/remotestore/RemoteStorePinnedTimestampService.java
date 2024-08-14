@@ -40,8 +40,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
-
 /**
  * Service for managing pinned timestamps in a remote store.
  * This service handles pinning and unpinning of timestamps, as well as periodic updates of the pinned timestamps set.
@@ -100,9 +98,8 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     }
 
     private void validateRemoteStoreConfiguration() {
-        assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
         final String remoteStoreRepo = settings.get(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
+            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
         assert remoteStoreRepo != null : "Remote Cluster State repository is not configured";
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
@@ -132,7 +129,6 @@ public class RemoteStorePinnedTimestampService implements Closeable {
      * @param timestamp The timestamp to be pinned
      * @param pinningEntity The entity responsible for pinning the timestamp
      * @param listener A listener to be notified when the pinning operation completes
-     * @throws IOException If an I/O error occurs during the pinning process
      * @throws IllegalArgumentException If the timestamp is less than the current time minus one second
      */
     public void pinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) {

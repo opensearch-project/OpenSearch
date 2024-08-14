@@ -785,7 +785,6 @@ public class Node implements Closeable {
             final RemoteClusterStateService remoteClusterStateService;
             final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
             final RemoteIndexPathUploader remoteIndexPathUploader;
-            final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService;
             if (isRemoteStoreClusterStateEnabled(settings)) {
                 remoteIndexPathUploader = new RemoteIndexPathUploader(
                     threadPool,
@@ -803,6 +802,14 @@ public class Node implements Closeable {
                     List.of(remoteIndexPathUploader),
                     namedWriteableRegistry
                 );
+                remoteClusterStateCleanupManager = remoteClusterStateService.getCleanupManager();
+            } else {
+                remoteClusterStateService = null;
+                remoteIndexPathUploader = null;
+                remoteClusterStateCleanupManager = null;
+            }
+            final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService;
+            if (isRemoteStoreAttributePresent(settings)) {
                 remoteStorePinnedTimestampService = new RemoteStorePinnedTimestampService(
                     repositoriesServiceReference::get,
                     settings,
@@ -810,11 +817,7 @@ public class Node implements Closeable {
                     clusterService
                 );
                 resourcesToClose.add(remoteStorePinnedTimestampService);
-                remoteClusterStateCleanupManager = remoteClusterStateService.getCleanupManager();
             } else {
-                remoteClusterStateService = null;
-                remoteIndexPathUploader = null;
-                remoteClusterStateCleanupManager = null;
                 remoteStorePinnedTimestampService = null;
             }
 
