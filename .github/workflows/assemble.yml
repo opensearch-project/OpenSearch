@@ -23,12 +23,10 @@ jobs:
         with:
           java-version: 17
           distribution: temurin
-      - name: Set JAVA11_HOME
-        # See please https://docs.gradle.org/8.10/userguide/upgrading_version_8.html#minimum_daemon_jvm_version
-        if: matrix.java == 11
+      - name: Set JAVA${{ matrix.java }}_HOME
         shell: bash
         run: |
-          echo "JAVA11_HOME=$JAVA_HOME_11_${{ runner.arch }}" >> $GITHUB_ENV
+          echo "JAVA${{ matrix.java }}_HOME=$JAVA_HOME_${{ matrix.java }}_${{ runner.arch }}" >> $GITHUB_ENV
       - name: Setup docker (missing on MacOS)
         id: setup_docker
         if: runner.os == 'macos'
@@ -43,19 +41,11 @@ jobs:
           # Report success even if previous step failed (Docker on MacOS runner is very unstable)
           exit 0;
       - name: Run Gradle (assemble)
-        if: runner.os != 'macos' && matrix.java != 11
-        run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE 
-      - name: Run Gradle (assemble)
         shell: bash
-        if: runner.os != 'macos' && matrix.java == 11
+        if: runner.os != 'macos'
         run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=11
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=${{ matrix.java }} 
       - name: Run Gradle (assemble)
-        if: runner.os == 'macos' && steps.setup_docker.outcome == 'success' && matrix.java == 11
+        if: runner.os == 'macos' && steps.setup_docker.outcome == 'success'
         run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=11
-      - name: Run Gradle (assemble)
-        if: runner.os == 'macos' && steps.setup_docker.outcome == 'success' && matrix.java != 11
-        run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=${{ matrix.java }}
