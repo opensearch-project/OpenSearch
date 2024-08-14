@@ -21,6 +21,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.model.RemotePinnedTimestamps;
+import org.opensearch.gateway.remote.model.RemotePinnedTimestamps.PinnedTimestamps;
 import org.opensearch.gateway.remote.model.RemoteStorePinnedTimestampsBlobStore;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.node.Node;
@@ -31,6 +32,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -153,7 +155,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         updatePinning(pinnedTimestamps -> pinnedTimestamps.unpin(timestamp, pinningEntity), listener);
     }
 
-    private void updatePinning(Consumer<RemotePinnedTimestamps.PinnedTimestamps> updateConsumer, ActionListener<Void> listener) {
+    private void updatePinning(Consumer<PinnedTimestamps> updateConsumer, ActionListener<Void> listener) {
         RemotePinnedTimestamps remotePinnedTimestamps = new RemotePinnedTimestamps(
             clusterService.state().metadata().clusterUUID(),
             blobStoreRepository.getCompressor()
@@ -162,7 +164,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         blobStoreTransferService.listAllInSortedOrder(path, remotePinnedTimestamps.getType(), Integer.MAX_VALUE, new ActionListener<>() {
             @Override
             public void onResponse(List<BlobMetadata> blobMetadata) {
-                RemotePinnedTimestamps.PinnedTimestamps pinnedTimestamps = remotePinnedTimestamps.getPinnedTimestamps();
+                PinnedTimestamps pinnedTimestamps = new PinnedTimestamps(new HashMap<>());
                 if (blobMetadata.isEmpty() == false) {
                     pinnedTimestamps = readExistingPinnedTimestamps(blobMetadata.get(0).name(), remotePinnedTimestamps);
                 }
@@ -194,10 +196,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         });
     }
 
-    private RemotePinnedTimestamps.PinnedTimestamps readExistingPinnedTimestamps(
-        String blobFilename,
-        RemotePinnedTimestamps remotePinnedTimestamps
-    ) {
+    private PinnedTimestamps readExistingPinnedTimestamps(String blobFilename, RemotePinnedTimestamps remotePinnedTimestamps) {
         remotePinnedTimestamps.setBlobFileName(blobFilename);
         remotePinnedTimestamps.setFullBlobName(pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps));
         try {
@@ -258,10 +257,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                     if (blobMetadata.isEmpty()) {
                         return;
                     }
-                    RemotePinnedTimestamps.PinnedTimestamps pinnedTimestamps = readExistingPinnedTimestamps(
-                        blobMetadata.get(0).name(),
-                        remotePinnedTimestamps
-                    );
+                    PinnedTimestamps pinnedTimestamps = readExistingPinnedTimestamps(blobMetadata.get(0).name(), remotePinnedTimestamps);
                     logger.debug(
                         "Fetched pinned timestamps from remote store: {} - {}",
                         triggerTimestamp,
