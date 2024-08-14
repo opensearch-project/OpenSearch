@@ -35,7 +35,6 @@ package org.opensearch.env;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -61,6 +60,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -1300,7 +1300,7 @@ public final class NodeEnvironment implements Closeable {
      * Resolve the custom path for a index's shard.
      */
     public static Path resolveBaseCustomLocation(String customDataPath, Path sharedDataPath, int nodeLockId) {
-        if (Strings.isNotEmpty(customDataPath)) {
+        if (!Strings.isNullOrEmpty(customDataPath)) {
             // This assert is because this should be caught by MetadataCreateIndexService
             assert sharedDataPath != null;
             return sharedDataPath.resolve(customDataPath).resolve(Integer.toString(nodeLockId));

@@ -9,6 +9,7 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.AbstractXContentParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -23,6 +24,9 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.LinkedList;
 
 /**
  * JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
@@ -32,21 +36,20 @@ import java.util.ArrayList;
  */
 public class JsonToStringXContentParser extends AbstractXContentParser {
     private final String fieldTypeName;
-    private XContentParser parser;
+    private final XContentParser parser;
 
-    private ArrayList<String> valueList = new ArrayList<>();
-    private ArrayList<String> valueAndPathList = new ArrayList<>();
-    private ArrayList<String> keyList = new ArrayList<>();
+    private final ArrayList<String> valueList = new ArrayList<>();
+    private final ArrayList<String> valueAndPathList = new ArrayList<>();
+    private final ArrayList<String> keyList = new ArrayList<>();
 
-    private XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent);
+    private final XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent);
 
-    private NamedXContentRegistry xContentRegistry;
+    private final NamedXContentRegistry xContentRegistry;
 
-    private DeprecationHandler deprecationHandler;
+    private final DeprecationHandler deprecationHandler;
 
     private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
     private static final String VALUE_SUFFIX = "._value";
-    private static final String DOT_SYMBOL = ".";
     private static final String EQUAL_SYMBOL = "=";
 
     public JsonToStringXContentParser(
@@ -63,9 +66,14 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     }
 
     public XContentParser parseObject() throws IOException {
+        assert currentToken() == Token.START_OBJECT;
+        parser.nextToken(); // Skip the outer START_OBJECT. Need to return on END_OBJECT.
+
         builder.startObject();
-        StringBuilder path = new StringBuilder(fieldTypeName);
-        parseToken(path, null);
+        LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldTypeName));
+        while (currentToken() != Token.END_OBJECT) {
+            parseToken(path);
+        }
         builder.field(this.fieldTypeName, keyList);
         builder.field(this.fieldTypeName + VALUE_SUFFIX, valueList);
         builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, valueAndPathList);
@@ -74,75 +82,55 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         return JsonXContent.jsonXContent.createParser(this.xContentRegistry, this.deprecationHandler, String.valueOf(jString));
     }
 
-    private void parseToken(StringBuilder path, String currentFieldName) throws IOException {
-
-        while (this.parser.nextToken() != Token.END_OBJECT) {
-            if (this.parser.currentName() != null) {
-                currentFieldName = this.parser.currentName();
+    private void parseToken(Deque<String> path) throws IOException {
+        if (this.parser.currentToken() == Token.FIELD_NAME) {
+            String fieldName = this.parser.currentName();
+            path.addLast(fieldName); // Pushing onto the stack *must* be matched by pop
+            String parts = fieldName;
+            while (parts.contains(".")) { // Extract the intermediate keys maybe present in fieldName
+                int dotPos = parts.indexOf('.');
+                String part = parts.substring(0, dotPos);
+                this.keyList.add(part);
+                parts = parts.substring(dotPos + 1);
             }
-            StringBuilder parsedFields = new StringBuilder();
-
-            if (this.parser.currentToken() == Token.FIELD_NAME) {
-                path.append(DOT_SYMBOL).append(currentFieldName);
-                int dotIndex = currentFieldName.indexOf(DOT_SYMBOL);
-                String fieldNameSuffix = currentFieldName;
-                // The field name may be of the form foo.bar.baz
-                // If that's the case, each "part" is a key.
-                while (dotIndex >= 0) {
-                    String fieldNamePrefix = fieldNameSuffix.substring(0, dotIndex);
-                    if (!fieldNamePrefix.isEmpty()) {
-                        this.keyList.add(fieldNamePrefix);
-                    }
-                    fieldNameSuffix = fieldNameSuffix.substring(dotIndex + 1);
-                    dotIndex = fieldNameSuffix.indexOf(DOT_SYMBOL);
-                }
-                if (!fieldNameSuffix.isEmpty()) {
-                    this.keyList.add(fieldNameSuffix);
-                }
-            } else if (this.parser.currentToken() == Token.START_ARRAY) {
-                parseToken(path, currentFieldName);
-                break;
-            } else if (this.parser.currentToken() == Token.END_ARRAY) {
-                // skip
-            } else if (this.parser.currentToken() == Token.START_OBJECT) {
-                parseToken(path, currentFieldName);
-                int dotIndex = path.lastIndexOf(DOT_SYMBOL, path.length());
-
-                if (dotIndex != -1 && path.length() > currentFieldName.length()) {
-                    path.setLength(path.length() - currentFieldName.length() - 1);
-                }
-            } else {
-                if (!path.toString().contains(currentFieldName)) {
-                    path.append(DOT_SYMBOL).append(currentFieldName);
-                }
-                parseValue(parsedFields);
-                this.valueList.add(parsedFields.toString());
-                this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields);
-                int dotIndex = path.lastIndexOf(DOT_SYMBOL, path.length());
-                if (dotIndex != -1 && path.length() > currentFieldName.length()) {
-                    path.setLength(path.length() - currentFieldName.length() - 1);
-                }
+            this.keyList.add(parts); // parts has no dot, so either it's the original fieldName or it's the last part
+            this.parser.nextToken(); // advance to the value of fieldName
+            parseToken(path); // parse the value for fieldName (which will be an array, an object, or a primitive value)
+            path.removeLast(); // Here is where we pop fieldName from the stack (since we're done with the value of fieldName)
+            // Note that whichever other branch we just passed through has already ended with nextToken(), so we
+            // don't need to call it.
+        } else if (this.parser.currentToken() == Token.START_ARRAY) {
+            parser.nextToken();
+            while (this.parser.currentToken() != Token.END_ARRAY) {
+                parseToken(path);
             }
-
+            this.parser.nextToken();
+        } else if (this.parser.currentToken() == Token.START_OBJECT) {
+            parser.nextToken();
+            while (this.parser.currentToken() != Token.END_OBJECT) {
+                parseToken(path);
+            }
+            this.parser.nextToken();
+        } else if (this.parser.currentToken().isValue()) {
+            String parsedValue = parseValue();
+            if (parsedValue != null) {
+                this.valueList.add(parsedValue);
+                this.valueAndPathList.add(Strings.collectionToDelimitedString(path, ".") + EQUAL_SYMBOL + parsedValue);
+            }
+            this.parser.nextToken();
         }
     }
 
-    private void parseValue(StringBuilder parsedFields) throws IOException {
+    private String parseValue() throws IOException {
         switch (this.parser.currentToken()) {
             case VALUE_BOOLEAN:
             case VALUE_NUMBER:
             case VALUE_STRING:
             case VALUE_NULL:
-                parsedFields.append(this.parser.textOrNull());
-                break;
+                return this.parser.textOrNull();
             // Handle other token types as needed
-            case FIELD_NAME:
-            case VALUE_EMBEDDED_OBJECT:
-            case END_ARRAY:
-            case START_ARRAY:
-                break;
             default:
-                throw new IOException("Unsupported token type [" + parser.currentToken() + "]");
+                throw new IOException("Unsupported value token type [" + parser.currentToken() + "]");
         }
     }
 
