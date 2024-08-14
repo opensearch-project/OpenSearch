@@ -44,11 +44,13 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.identity.Subject;
 import org.opensearch.index.IndexModule;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
@@ -71,8 +73,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import static org.opensearch.plugins.PluginSubject.PLUGIN_EXECUTION_CONTEXT;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -939,16 +943,23 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     }
 
     public void testInitializePlugins() {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, TestPlugin.class);
 
-        service.initializePlugins(mock(ThreadPool.class));
+        service.initializePlugins(threadPool);
 
         Plugin testPlugin = service.filterPlugins(Plugin.class).get(0);
-        PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), mock(ThreadPool.class));
+        PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), threadPool);
+        assertThat(testPluginSubject.getPrincipal().getName(), equalTo(TestPlugin.class.getCanonicalName()));
+        try (Subject.Session session = testPluginSubject.runAs()) {
+            assertThat(TestPlugin.class.getCanonicalName(), equalTo(threadPool.getThreadContext().getHeader(PLUGIN_EXECUTION_CONTEXT)));
+        }
+        assertNull(threadPool.getThreadContext().getHeader(PLUGIN_EXECUTION_CONTEXT));
         // pluginSubject should have previously been set in service.initializePlugins
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginSubject(testPluginSubject));
         assertThat(e.getMessage(), containsString("pluginSubject can only be set once"));
+        terminate(threadPool);
     }
 
     public void testExtensiblePlugin() {
