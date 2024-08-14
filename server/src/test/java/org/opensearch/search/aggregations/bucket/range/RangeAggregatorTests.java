@@ -73,6 +73,7 @@ import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -128,36 +129,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             assertEquals(2, ranges.size());
             assertEquals(2, ranges.get(0).getDocCount());
             assertEquals(0, ranges.get(1).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(range));
-        });
-    }
-
-    public void testTopLevelTermQuery() throws IOException {
-        final String KEYWORD_FIELD_NAME = "route";
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.setMinimumNumberShouldMatch(0);
-        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
-        Query boolQuery = builder.build();
-
-        Document doc1 = new Document();
-        Document doc2 = new Document();
-        Document doc3 = new Document();
-        doc1.add(new NumericDocValuesField(NUMBER_FIELD_NAME, 3));
-        doc2.add(new NumericDocValuesField(NUMBER_FIELD_NAME, 11));
-        doc3.add(new NumericDocValuesField(NUMBER_FIELD_NAME, 12));
-        doc1.add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
-        doc2.add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
-        doc3.add(new KeywordField(KEYWORD_FIELD_NAME, "route2", Field.Store.NO));
-
-        testCase(boolQuery, iw -> {
-            iw.addDocument(doc1);
-            iw.addDocument(doc2);
-            iw.addDocument(doc3);
-        }, range -> {
-            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-            assertEquals(2, ranges.size());
-            assertEquals(1, ranges.get(0).getDocCount());
-            assertEquals(1, ranges.get(1).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(range));
         });
     }
@@ -554,6 +525,88 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    /**
+     * Expect no optimization as top level query excludes documents.
+     */
+    public void testTopLevelFilterTermQuery() throws IOException {
+        final String KEYWORD_FIELD_NAME = "route";
+        final NumberFieldType NUM_FIELD_TYPE = new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE);
+        final NumberType numType = NUM_FIELD_TYPE.numberType();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(0);
+        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
+        Query boolQuery = builder.build();
+
+        List<Document> docList = new ArrayList<>();
+        for (int i = 0; i < 3; i++) docList.add(new Document());
+
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route2", Field.Store.NO));
+
+        testRewriteOptimizationCase(
+            NUM_FIELD_TYPE,
+            new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } },
+            boolQuery,
+            docList,
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            false
+        );
+    }
+
+    /**
+     * Expect optimization as top level query is effective match all.
+     */
+    public void testTopLevelEffectiveMatchAll() throws IOException {
+        final String KEYWORD_FIELD_NAME = "route";
+        final NumberFieldType NUM_FIELD_TYPE = new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE);
+        final NumberType numType = NUM_FIELD_TYPE.numberType();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(0);
+        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
+        Query boolQuery = builder.build();
+
+        List<Document> docList = new ArrayList<>();
+        for (int i = 0; i < 3; i++) docList.add(new Document());
+
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+
+        testRewriteOptimizationCase(
+            NUM_FIELD_TYPE,
+            new double[][]{{0.0, 10.0}, {10.0, 20.0}},
+            boolQuery,
+            docList,
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+                assertEquals(2, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            true
+        );
+    }
+
     private void testCase(
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -617,11 +670,33 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         NumberType numberType = fieldType.numberType();
         String fieldName = numberType.typeName();
+        List<Document> docs = new ArrayList<>();
+
+        for (Number dataPoint : dataPoints) {
+            Document doc = new Document();
+            List<Field> fieldList = numberType.createFields(fieldName, dataPoint, true, true, false);
+            for (Field fld : fieldList) doc.add(fld);
+            docs.add(doc);
+        }
+
+        testRewriteOptimizationCase(fieldType, ranges, query, docs, verify, optimized);
+    }
+
+    private void testRewriteOptimizationCase(
+        NumberFieldType fieldType,
+        double[][] ranges,
+        Query query,
+        List<Document> documents,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+        boolean optimized
+    ) throws IOException {
+        NumberType numberType = fieldType.numberType();
+        String fieldName = numberType.typeName();
 
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
-                for (Number dataPoint : dataPoints) {
-                    indexWriter.addDocument(numberType.createFields(fieldName, dataPoint, true, true, false));
+                for (Document doc : documents) {
+                    indexWriter.addDocument(doc);
                 }
             }
 
