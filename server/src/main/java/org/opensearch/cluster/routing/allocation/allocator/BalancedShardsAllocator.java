@@ -54,6 +54,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -87,6 +88,7 @@ import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_SH
 public class BalancedShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
+    public static final TimeValue MIN_ALLOCATOR_TIMEOUT = TimeValue.timeValueSeconds(20);
 
     public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.index",
@@ -169,6 +171,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    public static final Setting<TimeValue> ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.balanced_shards_allocator.allocator_timeout",
+        TimeValue.timeValueSeconds(20),
+        TimeValue.MINUS_ONE,
+        timeValue -> {
+            if (timeValue.compareTo(MIN_ALLOCATOR_TIMEOUT) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + "cluster.routing.allocation.balanced_shards_allocator.allocator_timeout"
+                        + "] should be more than 20s or -1ms to disable timeout"
+                );
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile boolean movePrimaryFirst;
     private volatile ShardMovementStrategy shardMovementStrategy;
 
@@ -181,6 +200,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float threshold;
 
     private volatile boolean ignoreThrottleInRestore;
+    private volatile TimeValue allocatorTimeout;
+    private long startTime;
 
     public BalancedShardsAllocator(Settings settings) {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -197,6 +218,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
+        setAllocatorTimeout(ALLOCATOR_TIMEOUT_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
@@ -206,6 +228,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_THROTTLE_FOR_REMOTE_RESTORE, this::setIgnoreThrottleInRestore);
+        clusterSettings.addSettingsUpdateConsumer(ALLOCATOR_TIMEOUT_SETTING, this::setAllocatorTimeout);
     }
 
     /**
@@ -284,6 +307,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.threshold = threshold;
     }
 
+    private void setAllocatorTimeout(TimeValue allocatorTimeout) {
+        this.allocatorTimeout = allocatorTimeout;
+    }
+
+    private boolean allocatorTimedOut(long currentTime) {
+        if (allocatorTimeout.equals(TimeValue.MINUS_ONE)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Allocator timeout is disabled. Will not short circuit allocator tasks");
+            }
+            return false;
+        }
+        return currentTime - this.startTime > allocatorTimeout.nanos();
+    }
+
     @Override
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
@@ -298,8 +335,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             threshold,
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
-            ignoreThrottleInRestore
+            ignoreThrottleInRestore,
+            this::allocatorTimedOut
         );
+        this.startTime = System.nanoTime();
         localShardsBalancer.allocateUnassigned();
         localShardsBalancer.moveShards();
         localShardsBalancer.balance();
@@ -321,7 +360,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             threshold,
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
-            ignoreThrottleInRestore
+            ignoreThrottleInRestore,
+            this::allocatorTimedOut
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -585,7 +625,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, null);
         }
     }
 
