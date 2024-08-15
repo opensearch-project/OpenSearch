@@ -270,7 +270,6 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
 
         switch (compositeIndexFieldInfo.getType()) {
             case STAR_TREE:
-
                 return new StarTreeValues(
                     compositeIndexMetadataMap.get(compositeIndexFieldInfo.getField()),
                     compositeIndexInputMap.get(compositeIndexFieldInfo.getField()),

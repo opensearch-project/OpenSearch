@@ -125,7 +125,11 @@ public class StarTreeTestUtils {
             }
 
             for (int mi = 0; mi < resultStarTreeDocument.metrics.length; mi++) {
-                assertEquals(resultStarTreeDocument.metrics[mi], expectedStarTreeDocument.metrics[mi]);
+                if (expectedStarTreeDocument.metrics[mi] instanceof Long) {
+                    assertEquals(resultStarTreeDocument.metrics[mi], ((Long) expectedStarTreeDocument.metrics[mi]).doubleValue());
+                } else {
+                    assertEquals(resultStarTreeDocument.metrics[mi], expectedStarTreeDocument.metrics[mi]);
+                }
             }
         }
     }
