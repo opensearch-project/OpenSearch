@@ -250,7 +250,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    @TestLogging(reason = "Getting trace logs from remote store package", value = "org.opensearch.remotestore:TRACE")
+    @TestLogging(reason = "Getting trace logs from remote store package", value = "org.opensearch.index.shard:TRACE")
     public void testDownloadStatsCorrectnessSinglePrimarySingleReplica() throws Exception {
         setup();
         // Scenario:
@@ -280,11 +280,13 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             .get(0)
             .getSegmentStats();
         logger.info(
-            "Zero state primary stats: {}ms refresh time lag, {}b bytes lag, {}b upload bytes started and {}b upload bytes failed.",
+            "Zero state primary stats: {}ms refresh time lag, {}b bytes lag, {}b upload bytes started, {}b upload bytes failed , {} uploads succeeded, {} upload byes succeeded.",
             zeroStatePrimaryStats.refreshTimeLagMs,
             zeroStatePrimaryStats.bytesLag,
             zeroStatePrimaryStats.uploadBytesStarted,
-            zeroStatePrimaryStats.uploadBytesFailed
+            zeroStatePrimaryStats.uploadBytesFailed,
+            zeroStatePrimaryStats.totalUploadsSucceeded,
+            zeroStatePrimaryStats.uploadBytesSucceeded
         );
         assertTrue(
             zeroStatePrimaryStats.totalUploadsStarted == zeroStatePrimaryStats.totalUploadsSucceeded
@@ -348,7 +350,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    @TestLogging(reason = "Getting trace logs from remote store package", value = "org.opensearch.remotestore:TRACE")
+    @TestLogging(reason = "Getting trace logs from remote store package", value = "org.opensearch.index.shard:TRACE")
     public void testDownloadStatsCorrectnessSinglePrimaryMultipleReplicaShards() throws Exception {
         setup();
         // Scenario:
@@ -382,11 +384,13 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             .get(0)
             .getSegmentStats();
         logger.info(
-            "Zero state primary stats: {}ms refresh time lag, {}b bytes lag, {}b upload bytes started and {}b upload bytes failed.",
+            "Zero state primary stats: {}ms refresh time lag, {}b bytes lag, {}b upload bytes started, {}b upload bytes failed , {} uploads succeeded, {} upload byes succeeded.",
             zeroStatePrimaryStats.refreshTimeLagMs,
             zeroStatePrimaryStats.bytesLag,
             zeroStatePrimaryStats.uploadBytesStarted,
-            zeroStatePrimaryStats.uploadBytesFailed
+            zeroStatePrimaryStats.uploadBytesFailed,
+            zeroStatePrimaryStats.totalUploadsSucceeded,
+            zeroStatePrimaryStats.uploadBytesSucceeded
         );
         assertTrue(
             zeroStatePrimaryStats.totalUploadsStarted == zeroStatePrimaryStats.totalUploadsSucceeded
@@ -617,7 +621,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 }
                 assertZeroTranslogDownloadStats(translogStats);
             });
-        }, 5, TimeUnit.SECONDS);
+        }, 10, TimeUnit.SECONDS);
     }
 
     public void testStatsCorrectnessOnFailover() {
