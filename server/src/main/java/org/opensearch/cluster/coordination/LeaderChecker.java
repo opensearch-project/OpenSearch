@@ -416,7 +416,7 @@ public class LeaderChecker {
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            sender.writeTo(out);
+            sender.writeToWithoutAttribute(out);
         }
 
         public DiscoveryNode getSender() {

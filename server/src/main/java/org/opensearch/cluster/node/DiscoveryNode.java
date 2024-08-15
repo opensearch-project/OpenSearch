@@ -358,17 +358,31 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeToUtil(out, true);
+    }
+
+    public void writeToWithoutAttribute(StreamOutput out) throws IOException {
+        writeToUtil(out, false);
+    }
+
+    private void writeToUtil(StreamOutput out, boolean includeAttributes) throws IOException {
         out.writeString(nodeName);
         out.writeString(nodeId);
         out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (includeAttributes) {
+            out.writeVInt(attributes.size());
+            for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        } else {
+            // Set the size of attribute as 0 so that no attribute is read from stream on receiver node.
+            out.writeVInt(0);
         }
+
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
