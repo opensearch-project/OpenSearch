@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 
+- Fix range aggregation optimization ignoring top level queries ([#15194](https://github.com/opensearch-project/OpenSearch/pull/15194))
+
 ### Security
 
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/57cd81da11e5cb831029719f0394e40aff68ced2...2.16
