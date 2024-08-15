@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.AbstractSubject;
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
@@ -22,7 +23,11 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class NoopSubject implements Subject {
+public class NoopSubject extends AbstractSubject {
+
+    public NoopSubject() {
+        super();
+    }
 
     @Override
     public Principal getPrincipal() {
@@ -53,10 +58,5 @@ public class NoopSubject implements Subject {
     @Override
     public void authenticate(AuthToken AuthToken) {
         // Do nothing as noop subject is always logged in
-    }
-
-    @Override
-    public Session runAs() {
-        return () -> {};
     }
 }

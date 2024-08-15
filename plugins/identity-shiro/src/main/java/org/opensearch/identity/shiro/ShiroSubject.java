@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.shiro;
 
+import org.opensearch.identity.AbstractSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 
@@ -19,7 +20,7 @@ import java.util.Objects;
  *
  * @opensearch.experimental
  */
-public class ShiroSubject implements Subject {
+public class ShiroSubject extends AbstractSubject {
     private final ShiroTokenManager authTokenHandler;
     private final org.apache.shiro.subject.Subject shiroSubject;
 
@@ -87,10 +88,5 @@ public class ShiroSubject implements Subject {
         final org.apache.shiro.authc.AuthenticationToken authToken = authTokenHandler.translateAuthToken(authenticationToken)
             .orElseThrow(() -> new UnsupportedAuthenticationToken());
         shiroSubject.login(authToken);
-    }
-
-    @Override
-    public Session runAs() {
-        return () -> {};
     }
 }

@@ -44,7 +44,6 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.identity.Subject;
 import org.opensearch.index.IndexModule;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.test.MockLogAppender;
@@ -942,7 +941,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("pluginSubject can only be set once"));
     }
 
-    public void testInitializePlugins() {
+    public void testInitializePlugins() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, TestPlugin.class);
@@ -952,9 +951,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Plugin testPlugin = service.filterPlugins(Plugin.class).get(0);
         PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), threadPool);
         assertThat(testPluginSubject.getPrincipal().getName(), equalTo(TestPlugin.class.getCanonicalName()));
-        try (Subject.Session session = testPluginSubject.runAs()) {
+        testPluginSubject.runAs(() -> {
             assertThat(TestPlugin.class.getCanonicalName(), equalTo(threadPool.getThreadContext().getHeader(PLUGIN_EXECUTION_CONTEXT)));
-        }
+            return null;
+        });
         assertNull(threadPool.getThreadContext().getHeader(PLUGIN_EXECUTION_CONTEXT));
         // pluginSubject should have previously been set in service.initializePlugins
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginSubject(testPluginSubject));

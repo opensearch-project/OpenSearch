@@ -8,9 +8,8 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.identity.AbstractSubject;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -22,15 +21,12 @@ import java.security.Principal;
  *
  * @opensearch.api
  */
-public class PluginSubject implements Subject {
-    public static final String PLUGIN_EXECUTION_CONTEXT = "_plugin_execution_context";
-
+public class PluginSubject extends AbstractSubject {
     private final NamedPrincipal pluginCanonicalName;
-    private final ThreadPool threadPool;
 
     PluginSubject(Class<?> pluginClass, ThreadPool threadPool) {
+        super(threadPool);
         this.pluginCanonicalName = new NamedPrincipal(pluginClass.getCanonicalName());
-        this.threadPool = threadPool;
     }
 
     @Override
@@ -41,12 +37,5 @@ public class PluginSubject implements Subject {
     @Override
     public void authenticate(AuthToken token) {
         // no-op
-    }
-
-    @Override
-    public Session runAs() {
-        ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext();
-        threadPool.getThreadContext().putHeader(PLUGIN_EXECUTION_CONTEXT, pluginCanonicalName.getName());
-        return ctx::restore;
     }
 }

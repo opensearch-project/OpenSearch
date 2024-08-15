@@ -18,6 +18,8 @@ import org.opensearch.plugins.PluginSubject;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+import static org.opensearch.identity.AbstractSubject.SUBJECT_HEADER;
+
 /**
  * Transport action for GetExecutionContext.
  *
@@ -36,10 +38,14 @@ public class TestGetExecutionContextTransportAction extends HandledTransportActi
 
     @Override
     protected void doExecute(Task task, TestGetExecutionContextRequest request, ActionListener<TestGetExecutionContextResponse> listener) {
-        String pluginClassName;
-        try (Subject.Session session = pluginSubject.runAs()) {
-            pluginClassName = transportService.getThreadPool().getThreadContext().getHeader(PluginSubject.PLUGIN_EXECUTION_CONTEXT);
+        try {
+            pluginSubject.runAs(() -> {
+                String pluginClassName = transportService.getThreadPool().getThreadContext().getHeader(SUBJECT_HEADER);
+                listener.onResponse(new TestGetExecutionContextResponse(pluginClassName));
+                return null;
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        listener.onResponse(new TestGetExecutionContextResponse(pluginClassName));
     }
 }
