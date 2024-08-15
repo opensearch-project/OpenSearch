@@ -72,7 +72,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import static org.opensearch.plugins.PluginSubject.PLUGIN_EXECUTION_CONTEXT;
+import static org.opensearch.identity.AbstractSubject.SUBJECT_HEADER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -952,10 +952,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), threadPool);
         assertThat(testPluginSubject.getPrincipal().getName(), equalTo(TestPlugin.class.getCanonicalName()));
         testPluginSubject.runAs(() -> {
-            assertThat(TestPlugin.class.getCanonicalName(), equalTo(threadPool.getThreadContext().getHeader(PLUGIN_EXECUTION_CONTEXT)));
+            assertThat(TestPlugin.class.getCanonicalName(), equalTo(threadPool.getThreadContext().getHeader(SUBJECT_HEADER)));
             return null;
         });
-        assertNull(threadPool.getThreadContext().getHeader(PLUGIN_EXECUTION_CONTEXT));
+        assertNull(threadPool.getThreadContext().getHeader(SUBJECT_HEADER));
         // pluginSubject should have previously been set in service.initializePlugins
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginSubject(testPluginSubject));
         assertThat(e.getMessage(), containsString("pluginSubject can only be set once"));
