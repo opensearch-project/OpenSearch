@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import java.util.Map.Entry;
 import org.opensearch.Version;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -29,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,7 +47,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     // required for state publication
     public static final int CODEC_V3 = 3; // In Codec V3, we have introduced new diff field in diff-manifest's routing_table_diff
 
-    private static final Map<Version, Integer> CODEC_TO_VERSION_MAPPING = Map.of(Version.V_2_16_0,
+    private static final Map<Version, Integer> CODEC_TO_VERSION_MAPPING = Map.of(
+        Version.V_2_16_0,
         ClusterMetadataManifest.CODEC_V3,
         Version.V_2_15_0,
         ClusterMetadataManifest.CODEC_V2,

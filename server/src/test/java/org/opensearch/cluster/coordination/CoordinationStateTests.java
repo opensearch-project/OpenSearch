@@ -979,7 +979,8 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
         coordinationState.handlePrePublish(clusterState);
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1))
+            .writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         Mockito.when(remoteClusterStateService.markLastStateAsCommitted(any(), any()))

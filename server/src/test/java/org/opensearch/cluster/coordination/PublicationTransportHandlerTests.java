@@ -37,8 +37,11 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.PublicationTransportHandler.PublicationContext;
+import org.opensearch.cluster.coordination.PublicationTransportHandler.RemotePublicationContext;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -54,14 +57,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -288,6 +295,43 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         Mockito.verify(remoteClusterStateService, times(1)).getClusterMetadataManifestByFileName(Mockito.any(), Mockito.any());
     }
 
+    public void testNewPublicationContext() {
+        RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
+        PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest = p -> expectedPublishResponse;
+        final PublicationTransportHandler handler = getPublicationTransportHandler(handlePublishRequest, remoteClusterStateService);
+
+        // Remote publication disabled
+        ClusterChangedEvent event1 = new ClusterChangedEvent(
+            "source1",
+            buildClusterState(TERM, VERSION + 1),
+            buildClusterState(TERM, VERSION)
+        );
+        PublicationContext publicationContext = handler.newPublicationContext(event1, false, new PersistedStateRegistry());
+        assertNotNull(publicationContext);
+        assertThat(publicationContext, not(instanceOf(RemotePublicationContext.class)));
+
+        // Remote publication enabled but some nodes are remote enabled and some remote disabled
+        ClusterChangedEvent event2 = new ClusterChangedEvent(
+            "source2",
+            buildClusterStateWithMixedNodes(TERM, VERSION + 1),
+            buildClusterState(TERM, VERSION)
+        );
+        PublicationContext publicationContext2 = handler.newPublicationContext(event2, true, new PersistedStateRegistry());
+        assertNotNull(publicationContext2);
+        assertThat(publicationContext2, not(instanceOf(RemotePublicationContext.class)));
+
+        // Remote publication enabled and all nodes are remote enabled
+        ClusterChangedEvent event3 = new ClusterChangedEvent(
+            "source3",
+            buildClusterStateWithRemoteNodes(TERM, VERSION + 1),
+            buildClusterState(TERM, VERSION)
+        );
+        PublicationContext publicationContext3 = handler.newPublicationContext(event3, true, new PersistedStateRegistry());
+        assertNotNull(publicationContext3);
+        assertThat(publicationContext3, instanceOf(RemotePublicationContext.class));
+    }
+
     private PublicationTransportHandler getPublicationTransportHandler(
         Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
         RemoteClusterStateService remoteClusterStateService
@@ -308,6 +352,56 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder().term(term);
         Metadata newMetadata = Metadata.builder().coordinationMetadata(coordMetadataBuilder.build()).build();
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(localNode).add(secondNode).localNodeId(LOCAL_NODE_ID).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).version(version).metadata(newMetadata).nodes(nodes).build();
+    }
+
+    private ClusterState buildClusterStateWithMixedNodes(long term, long version) {
+        CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder().term(term);
+        Metadata newMetadata = Metadata.builder().coordinationMetadata(coordMetadataBuilder.build()).build();
+        DiscoveryNode remoteNode = new DiscoveryNode(
+            "remoteNode",
+            buildNewFakeTransportAddress(),
+            Map.of(
+                REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "remote_state_repo",
+                REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "remote_routing_repo"
+            ),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(localNode).add(remoteNode).localNodeId(LOCAL_NODE_ID).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).version(version).metadata(newMetadata).nodes(nodes).build();
+    }
+
+    private ClusterState buildClusterStateWithRemoteNodes(long term, long version) {
+        CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder().term(term);
+        Metadata newMetadata = Metadata.builder().coordinationMetadata(coordMetadataBuilder.build()).build();
+        DiscoveryNode remoteNode1 = new DiscoveryNode(
+            "remoteNode1",
+            buildNewFakeTransportAddress(),
+            Map.of(
+                REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "remote_state_repo",
+                REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "remote_routing_repo"
+            ),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNode remoteNode2 = new DiscoveryNode(
+            "remoteNode2",
+            buildNewFakeTransportAddress(),
+            Map.of(
+                REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "remote_state_repo",
+                REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "remote_routing_repo"
+            ),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(remoteNode1).add(remoteNode2).localNodeId(remoteNode1.getId()).build();
         return ClusterState.builder(ClusterState.EMPTY_STATE).version(version).metadata(newMetadata).nodes(nodes).build();
     }
 }

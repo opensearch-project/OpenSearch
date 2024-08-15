@@ -97,8 +97,8 @@ import java.util.function.Supplier;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -111,6 +111,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -213,6 +214,18 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             .version(version)
             .metadata(metadata)
             .build();
+    }
+
+    private ClusterState createClusterStateWithNodes(long version, Metadata metadata) {
+        DiscoveryNode oldNode = new DiscoveryNode(
+            "node2",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.V_2_13_0
+        );
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(oldNode).build();
+        return ClusterState.builder(clusterName).nodes(discoveryNodes).version(version).metadata(metadata).build();
     }
 
     private CoordinationMetadata createCoordinationMetadata(long term) {
@@ -755,7 +768,8 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         );
 
         remotePersistedState.setLastAcceptedState(secondClusterState);
-        Mockito.verify(remoteClusterStateService, times(1)).writeFullMetadata(secondClusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
+        Mockito.verify(remoteClusterStateService, times(1))
+            .writeFullMetadata(secondClusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
 
         assertThat(remotePersistedState.getLastAcceptedState(), equalTo(secondClusterState));
         assertThat(remotePersistedState.getCurrentTerm(), equalTo(clusterTerm));
@@ -776,6 +790,46 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         remotePersistedState.setLastAcceptedState(thirdClusterState);
         remotePersistedState.markLastAcceptedStateAsCommitted();
         assertThat(remotePersistedState.getLastAcceptedState().metadata().clusterUUIDCommitted(), equalTo(true));
+    }
+
+    public void testRemotePersistedStateWithDifferentNodeConfiguration() throws IOException {
+        final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+        final String previousClusterUUID = "prev-cluster-uuid";
+        final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(5L)
+            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+            .build();
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION)))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any(), eq(CODEC_V1)))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest2"));
+
+        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest3"));
+        CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
+        ClusterState clusterState = createClusterState(
+            randomNonNegativeLong(),
+            Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()).build()
+        );
+        remotePersistedState.setLastAcceptedState(clusterState);
+        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
+
+        ClusterState clusterState2 = createClusterState(
+            randomNonNegativeLong(),
+            Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()).build()
+        );
+        remotePersistedState.setLastAcceptedState(clusterState2);
+        Mockito.verify(remoteClusterStateService).writeIncrementalMetadata(clusterState, clusterState2, manifest);
+
+        ClusterState clusterState3 = createClusterStateWithNodes(
+            randomNonNegativeLong(),
+            Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()).build()
+        );
+        remotePersistedState.setLastAcceptedState(clusterState3);
+
+        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState3, previousClusterUUID, CODEC_V1);
+
     }
 
     public void testRemotePersistedStateNotCommitted() throws IOException {
@@ -813,14 +867,17 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         remotePersistedState.setLastAcceptedState(clusterState);
         ArgumentCaptor<String> previousClusterUUIDCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<ClusterState> clusterStateCaptor = ArgumentCaptor.forClass(ClusterState.class);
-        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterStateCaptor.capture(), previousClusterUUIDCaptor.capture(), eq(MANIFEST_CURRENT_CODEC_VERSION));
+        Mockito.verify(remoteClusterStateService)
+            .writeFullMetadata(clusterStateCaptor.capture(), previousClusterUUIDCaptor.capture(), eq(MANIFEST_CURRENT_CODEC_VERSION));
         assertEquals(previousClusterUUID, previousClusterUUIDCaptor.getValue());
     }
 
     public void testRemotePersistedStateExceptionOnFullStateUpload() throws IOException {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
         final String previousClusterUUID = "prev-cluster-uuid";
-        Mockito.doThrow(IOException.class).when(remoteClusterStateService).writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION));
+        Mockito.doThrow(IOException.class)
+            .when(remoteClusterStateService)
+            .writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION));
 
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
 
@@ -837,7 +894,9 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
         final String previousClusterUUID = "prev-cluster-uuid";
-        Mockito.doThrow(IOException.class).when(remoteClusterStateService).writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION));
+        Mockito.doThrow(IOException.class)
+            .when(remoteClusterStateService)
+            .writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION));
         when(remoteClusterStateService.getStats()).thenReturn(remoteStateStats);
         doCallRealMethod().when(remoteClusterStateService).writeMetadataFailed();
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);

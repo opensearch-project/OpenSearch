@@ -338,10 +338,7 @@ public class PublicationTransportHandler {
                 return new RemotePublicationContext(clusterChangedEvent, persistedStateRegistry);
             }
         }
-        final PublicationContext publicationContext = new PublicationContext(
-            clusterChangedEvent,
-            persistedStateRegistry
-        );
+        final PublicationContext publicationContext = new PublicationContext(clusterChangedEvent, persistedStateRegistry);
 
         // Build the serializations we expect to need now, early in the process, so that an error during serialization fails the publication
         // straight away. This isn't watertight since we send diffs on a best-effort basis and may fall back to sending a full state (and
@@ -408,10 +405,7 @@ public class PublicationTransportHandler {
         private final Map<Version, BytesReference> serializedDiffs = new HashMap<>();
         protected final PersistedStateRegistry persistedStateRegistry;
 
-        PublicationContext(
-            ClusterChangedEvent clusterChangedEvent,
-            PersistedStateRegistry persistedStateRegistry
-        ) {
+        PublicationContext(ClusterChangedEvent clusterChangedEvent, PersistedStateRegistry persistedStateRegistry) {
             discoveryNodes = clusterChangedEvent.state().nodes();
             newState = clusterChangedEvent.state();
             previousState = clusterChangedEvent.previousState();
@@ -607,17 +601,12 @@ public class PublicationTransportHandler {
 
     public class RemotePublicationContext extends PublicationContext {
 
-        RemotePublicationContext(
-            ClusterChangedEvent clusterChangedEvent, PersistedStateRegistry persistedStateRegistry
-        ) {
+        RemotePublicationContext(ClusterChangedEvent clusterChangedEvent, PersistedStateRegistry persistedStateRegistry) {
             super(clusterChangedEvent, persistedStateRegistry);
         }
 
         @Override
-        public void sendClusterState(
-            final DiscoveryNode destination,
-            final ActionListener<PublishWithJoinResponse> listener
-        ) {
+        public void sendClusterState(final DiscoveryNode destination, final ActionListener<PublishWithJoinResponse> listener) {
             try {
                 final String manifestFileName = ((RemotePersistedState) persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE))
                     .getLastUploadedManifestFile();
