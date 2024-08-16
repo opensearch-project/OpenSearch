@@ -349,6 +349,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final BalancedShardsAllocator.ModelNode[] modelNodes = sorter.modelNodes;
         final float[] weights = sorter.weights;
         for (String index : buildWeightOrderedIndices()) {
+            // Terminate if the time allocated to the balanced shards allocator has elapsed
+            if (timedOutFunc.apply(System.nanoTime())) {
+                logger.info(
+                    "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
+                        + ". Skipping indices iteration"
+                );
+                return;
+            }
             IndexMetadata indexMetadata = metadata.index(index);
 
             // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
@@ -373,6 +381,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
             int lowIdx = 0;
             int highIdx = relevantNodes - 1;
             while (true) {
+                // break if the time allocated to the balanced shards allocator has elapsed
+                if (timedOutFunc.apply(System.nanoTime())) {
+                    logger.info(
+                        "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
+                            + ". Skipping relevant nodes iteration"
+                    );
+                    break;
+                }
                 final BalancedShardsAllocator.ModelNode minNode = modelNodes[lowIdx];
                 final BalancedShardsAllocator.ModelNode maxNode = modelNodes[highIdx];
                 advance_range: if (maxNode.numShards(index) > 0) {
