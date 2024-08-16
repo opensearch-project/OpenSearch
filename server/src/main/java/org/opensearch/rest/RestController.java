@@ -57,7 +57,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.Subject;
+import org.opensearch.identity.UserSubject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.usage.UsageService;
@@ -593,7 +593,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // Authentication did not fail so return true. Authorization is handled at the action level.
                 return true;
             }
-            final Subject currentSubject = identityService.getSubject();
+            final UserSubject currentSubject = identityService.getUserSubject();
             currentSubject.authenticate(token);
             logger.debug("Logged in as user " + currentSubject);
         } catch (final Exception e) {

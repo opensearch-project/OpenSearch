@@ -29,7 +29,7 @@ public class IdentityPluginTests extends OpenSearchTestCase {
         IdentityPlugin identityPlugin1 = new NoopIdentityPlugin(threadPool);
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
         IdentityService identityService1 = new IdentityService(Settings.EMPTY, threadPool, pluginList1);
-        assertTrue(identityService1.getSubject().getPrincipal().getName().equalsIgnoreCase("Unauthenticated"));
+        assertTrue(identityService1.getUserSubject().getPrincipal().getName().equalsIgnoreCase("Unauthenticated"));
         assertThat(identityService1.getTokenManager(), is(instanceOf(NoopTokenManager.class)));
     }
 

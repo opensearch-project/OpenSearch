@@ -22,7 +22,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.identity.PluginSubject;
-import org.opensearch.identity.Subject;
+import org.opensearch.identity.UserSubject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
@@ -86,7 +86,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
      * @return The current subject
      */
     @Override
-    public Subject getSubject() {
+    public UserSubject getUserSubject() {
         return new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());
     }
 

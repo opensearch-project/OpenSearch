@@ -48,10 +48,10 @@ public class IdentityService {
     }
 
     /**
-     * Gets the current Subject
+     * Gets the current UserSubject
      */
-    public Subject getSubject() {
-        return identityPlugin.getSubject();
+    public UserSubject getUserSubject() {
+        return identityPlugin.getUserSubject();
     }
 
     /**

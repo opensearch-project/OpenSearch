@@ -76,10 +76,10 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         extensionTokenProcessor = "placeholder_extension_token_processor";
         identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
         TokenManager tokenManager = identityService.getTokenManager();
-        Subject subject = this.identityService.getSubject();
+        Subject subject = this.identityService.getUserSubject();
         OnBehalfOfClaims claims = new OnBehalfOfClaims("testID", subject.getPrincipal().getName());
         expectedRequestIssuerIdentity = identityService.getTokenManager()
-            .issueOnBehalfOfToken(identityService.getSubject(), claims)
+            .issueOnBehalfOfToken(identityService.getUserSubject(), claims)
             .asAuthHeaderValue();
     }
 

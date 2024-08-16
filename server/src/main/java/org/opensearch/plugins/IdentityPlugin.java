@@ -10,7 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.identity.PluginSubject;
-import org.opensearch.identity.Subject;
+import org.opensearch.identity.UserSubject;
 import org.opensearch.identity.tokens.TokenManager;
 
 /**
@@ -22,10 +22,11 @@ import org.opensearch.identity.tokens.TokenManager;
 public interface IdentityPlugin {
 
     /**
-     * Get the current subject.
+     * Get the current user subject.
+     *
      * @return Should never return null
      * */
-    Subject getSubject();
+    UserSubject getUserSubject();
 
     /**
      * Get the Identity Plugin's token manager implementation
