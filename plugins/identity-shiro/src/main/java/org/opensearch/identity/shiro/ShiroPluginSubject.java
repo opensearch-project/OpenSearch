@@ -42,11 +42,6 @@ public class ShiroPluginSubject implements PluginSubject {
     }
 
     @Override
-    public void authenticate(AuthToken token) {
-        // Do nothing as noop subject is always logged in
-    }
-
-    @Override
     public <T> T runAs(Callable<T> callable) throws Exception {
         try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
             callable.call();
