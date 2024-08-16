@@ -25,7 +25,7 @@ public class PluginSubjectTests extends OpenSearchTestCase {
         private Subject subject;
 
         @Override
-        public void initializePlugin(Subject subject) {
+        public void assignSubject(Subject subject) {
             this.subject = subject;
         }
 

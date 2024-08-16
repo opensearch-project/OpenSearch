@@ -72,7 +72,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
         if (identityAwarePlugins != null) {
             for (IdentityAwarePlugin plugin : identityAwarePlugins) {
                 Subject subject = new NoopPluginSubject(threadPool);
-                plugin.initializePlugin(subject);
+                plugin.assignSubject(subject);
             }
         }
     }

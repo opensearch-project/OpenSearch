@@ -27,5 +27,5 @@ public interface IdentityAwarePlugin {
      * @param pluginSystemSubject A subject for running transport actions in the plugin system context for system index
      *                      interaction
      */
-    default void initializePlugin(Subject pluginSystemSubject) {}
+    default void assignSubject(Subject pluginSystemSubject) {}
 }
