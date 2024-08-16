@@ -18,7 +18,7 @@ import java.security.Principal;
 import java.util.concurrent.Callable;
 
 public class NoopPluginSubject extends AbstractSubject {
-    private ThreadPool threadPool;
+    private final ThreadPool threadPool;
 
     public NoopPluginSubject(ThreadPool threadPool) {
         super();
