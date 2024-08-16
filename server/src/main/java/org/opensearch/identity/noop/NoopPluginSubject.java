@@ -45,9 +45,10 @@ public class NoopPluginSubject implements Subject {
     }
 
     @Override
-    public void runAs(Callable<Void> callable) throws Exception {
+    public <T> T runAs(Callable<T> callable) throws Exception {
         try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
             callable.call();
         }
+        return null;
     }
 }
