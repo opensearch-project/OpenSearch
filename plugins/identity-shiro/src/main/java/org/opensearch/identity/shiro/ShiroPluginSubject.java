@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.noop;
+package org.opensearch.identity.shiro;
 
-import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.Subject;
@@ -23,15 +23,15 @@ import java.util.concurrent.Callable;
  * <p>
  * This class and related classes in this package will not return nulls or fail permissions checks
  *
- * This class is used by the NoopIdentityPlugin to initialize IdentityAwarePlugins
+ * This class is used by the ShiroIdentityPlugin to initialize IdentityAwarePlugins
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
-@InternalApi
-public class NoopPluginSubject implements Subject {
+@ExperimentalApi
+public class ShiroPluginSubject implements Subject {
     private final ThreadPool threadPool;
 
-    NoopPluginSubject(ThreadPool threadPool) {
+    ShiroPluginSubject(ThreadPool threadPool) {
         super();
         this.threadPool = threadPool;
     }

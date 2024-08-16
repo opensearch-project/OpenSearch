@@ -15,13 +15,13 @@ import org.apache.shiro.mgt.SecurityManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.identity.Subject;
-import org.opensearch.identity.noop.NoopPluginSubject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
@@ -39,6 +39,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin {
     private Logger log = LogManager.getLogger(this.getClass());
 
@@ -100,6 +101,6 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
 
     @Override
     public Subject getPluginSubject(Plugin plugin) {
-        return new NoopPluginSubject(threadPool);
+        return new ShiroPluginSubject(threadPool);
     }
 }

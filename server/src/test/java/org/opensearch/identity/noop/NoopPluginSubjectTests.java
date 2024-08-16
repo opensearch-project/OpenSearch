@@ -6,10 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.identity.noop;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.noop.NoopPluginSubject;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.NamedPrincipal;
+import org.opensearch.identity.Subject;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchTestCase;
@@ -20,7 +22,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PluginSubjectTests extends OpenSearchTestCase {
+public class NoopPluginSubjectTests extends OpenSearchTestCase {
     public static class TestPlugin extends Plugin implements IdentityAwarePlugin {
         private Subject subject;
 
