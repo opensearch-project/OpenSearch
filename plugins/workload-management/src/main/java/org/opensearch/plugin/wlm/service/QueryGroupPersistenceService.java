@@ -26,9 +26,11 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * This class defines the functions for QueryGroup persistence
@@ -190,6 +192,24 @@ public class QueryGroupPersistenceService {
             }
         }
         return map;
+    }
+
+    /**
+     * Get the QueryGroups with the specified name from cluster state
+     * @param name - the QueryGroup name we are getting
+     * @param currentState - current cluster state
+     */
+    public static Collection<QueryGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
+        final Map<String, QueryGroup> currentGroups = currentState.getMetadata().queryGroups();
+        if (name == null || name.isEmpty()) {
+            return currentGroups.values();
+        }
+        return currentGroups.values()
+            .stream()
+            .filter(group -> group.getName().equals(name))
+            .findAny()
+            .stream()
+            .collect(Collectors.toList());
     }
 
     /**
