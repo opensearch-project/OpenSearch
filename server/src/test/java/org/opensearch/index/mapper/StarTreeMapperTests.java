@@ -56,6 +56,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
+            assertEquals(2, starTreeFieldType.getDimensions().size());
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
             DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
@@ -65,9 +66,15 @@ public class StarTreeMapperTests extends MapperTestCase {
             );
             assertEquals(expectedTimeUnits, dateDim.getIntervals());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
+            assertEquals(2, starTreeFieldType.getMetrics().size());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.SUM, MetricStat.AVG);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
+
+            Metric metric = starTreeFieldType.getMetrics().get(1);
+            assertEquals("_doc_count", metric.getField());
+            assertEquals(List.of(MetricStat.DOC_COUNT), metric.getMetrics());
+
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
             assertEquals(
@@ -91,6 +98,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             );
             assertEquals(expectedTimeUnits, dateDim.getIntervals());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
+            assertEquals(3, starTreeFieldType.getMetrics().size());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(
                 MetricStat.AVG,
@@ -100,6 +108,13 @@ public class StarTreeMapperTests extends MapperTestCase {
                 MetricStat.MIN
             );
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
+
+            assertEquals("metric_field", starTreeFieldType.getMetrics().get(1).getField());
+            expectedMetrics = Arrays.asList(MetricStat.AVG, MetricStat.COUNT, MetricStat.SUM, MetricStat.MAX, MetricStat.MIN);
+            assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(1).getMetrics());
+            Metric metric = starTreeFieldType.getMetrics().get(2);
+            assertEquals("_doc_count", metric.getField());
+            assertEquals(List.of(MetricStat.DOC_COUNT), metric.getMetrics());
             assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
             assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
@@ -136,7 +151,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     public void testInvalidParam() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(getInvalidMapping(false, false, false, false, true))
+            () -> createMapperService(getInvalidMapping(false, false, false, false, true, false))
         );
         assertEquals(
             "Failed to parse mapping [_doc]: Star tree mapping definition has unsupported parameters:  [invalid : {invalid=invalid}]",
@@ -180,6 +195,14 @@ public class StarTreeMapperTests extends MapperTestCase {
             "Failed to parse mapping [_doc]: non-numeric field type is associated with star tree metric [startree]",
             ex.getMessage()
         );
+    }
+
+    public void testInvalidMetricTypeWithDocCount() {
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(getInvalidMapping(false, false, false, false, false, true))
+        );
+        assertEquals("Failed to parse mapping [_doc]: Invalid metric stat: _doc_count", ex.getMessage());
     }
 
     public void testInvalidDimType() {
@@ -546,7 +569,8 @@ public class StarTreeMapperTests extends MapperTestCase {
         boolean invalidSkipDims,
         boolean invalidDimType,
         boolean invalidMetricType,
-        boolean invalidParam
+        boolean invalidParam,
+        boolean invalidDocCountMetricType
     ) throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
@@ -583,6 +607,12 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject();
             b.field("name", "metric_field");
+            if (invalidDocCountMetricType) {
+                b.startArray("stats");
+                b.value("_doc_count");
+                b.value("avg");
+                b.endArray();
+            }
             b.endObject();
             b.endArray();
             b.endObject();
@@ -681,7 +711,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     private XContentBuilder getInvalidMapping(boolean singleDim, boolean invalidSkipDims, boolean invalidDimType, boolean invalidMetricType)
         throws IOException {
-        return getInvalidMapping(singleDim, invalidSkipDims, invalidDimType, invalidMetricType, false);
+        return getInvalidMapping(singleDim, invalidSkipDims, invalidDimType, invalidMetricType, false, false);
     }
 
     protected boolean supportsOrIgnoresBoost() {

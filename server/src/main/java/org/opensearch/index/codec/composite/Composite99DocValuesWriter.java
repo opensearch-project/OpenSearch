@@ -15,6 +15,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -75,6 +76,10 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         delegate.addNumericField(field, valuesProducer);
+        // Perform this only during flush flow
+        if (mergeState.get() == null && segmentHasCompositeFields) {
+            createCompositeIndicesIfPossible(valuesProducer, field);
+        }
     }
 
     @Override
@@ -116,12 +121,21 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         if (segmentFieldSet.isEmpty()) {
             Set<String> compositeFieldSetCopy = new HashSet<>(compositeFieldSet);
             for (String compositeField : compositeFieldSetCopy) {
-                fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
-                    @Override
-                    public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
-                        return DocValues.emptySortedNumeric();
-                    }
-                });
+                if (compositeField.equals("_doc_count")) {
+                    fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                        @Override
+                        public NumericDocValues getNumeric(FieldInfo field) {
+                            return DocValues.emptyNumeric();
+                        }
+                    });
+                } else {
+                    fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                        @Override
+                        public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                            return DocValues.emptySortedNumeric();
+                        }
+                    });
+                }
                 compositeFieldSet.remove(compositeField);
             }
         }

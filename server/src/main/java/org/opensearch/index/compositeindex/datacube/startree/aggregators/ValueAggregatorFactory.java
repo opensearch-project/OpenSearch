@@ -36,6 +36,8 @@ public class ValueAggregatorFactory {
                 return new MinValueAggregator(starTreeNumericType);
             case MAX:
                 return new MaxValueAggregator(starTreeNumericType);
+            case DOC_COUNT:
+                return new DocCountAggregator(starTreeNumericType);
             default:
                 throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
         }

@@ -225,6 +225,9 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 for (Object metric : metricsList) {
                     Map<String, Object> metricMap = (Map<String, Object>) metric;
                     String name = (String) XContentMapValues.extractValue(CompositeDataCubeFieldType.NAME, metricMap);
+                    if (name.equals("_doc_count")) {
+                        continue;
+                    }
                     metricMap.remove(CompositeDataCubeFieldType.NAME);
                     if (objbuilder == null || objbuilder.mappersBuilders == null) {
                         metrics.add(getMetric(name, metricMap, context));
@@ -249,7 +252,8 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             } else {
                 throw new MapperParsingException(String.format(Locale.ROOT, "unable to parse metrics for star tree field [%s]", this.name));
             }
-
+            Metric docCountMetric = new Metric("_doc_count", List.of(MetricStat.DOC_COUNT));
+            metrics.add(docCountMetric);
             return metrics;
         }
 
