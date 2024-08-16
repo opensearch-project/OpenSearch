@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -129,6 +130,7 @@ public class RemoteManifestManager {
                 .checksum(clusterStateChecksum);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
             logger.trace("uploading manifest [{}]", manifest);
+            logger.trace(() -> new ParameterizedMessage("[{}] uploading manifest", manifest));
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }

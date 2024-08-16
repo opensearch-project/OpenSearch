@@ -9,15 +9,24 @@
 package org.opensearch.gateway.remote;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -162,7 +171,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .opensearchVersion(Version.CURRENT)
             .nodeId("B10RX1f5RJenMQvYccCgSQ")
             .committed(true)
-            .codecVersion(ClusterMetadataManifest.CODEC_V3)
+            .codecVersion(ClusterMetadataManifest.CODEC_V4)
             .indices(randomUploadedIndexMetadataList())
             .previousClusterUUID("yfObdx8KSMKKrXf8UyHhM")
             .clusterUUIDCommitted(true)
@@ -201,6 +210,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                     "indicesRoutingDiffPath"
                 )
             )
+            .checksum(new ClusterStateChecksum(createClusterState()))
             .build();
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -482,6 +492,22 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 }
             );
         }
+        {
+            // Mutate checksum
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.checksum(null);
+                    return builder.build();
+                }
+            );
+        }
     }
 
     public void testClusterMetadataManifestXContentV2() throws IOException {
@@ -601,6 +627,74 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                     uploadedMetadataAttribute.getUploadedFilename()
                 )
             )
+            .build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
+            assertEquals(originalManifest, fromXContentManifest);
+        }
+    }
+
+    public void testClusterMetadataManifestXContentV4() throws IOException {
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
+        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff = Mockito.mock(
+            DiffableUtils.MapDiff.class
+        );
+        ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState());
+        ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .clusterUUID("test-cluster-uuid")
+            .stateUUID("test-state-uuid")
+            .opensearchVersion(Version.CURRENT)
+            .nodeId("test-node-id")
+            .committed(false)
+            .codecVersion(ClusterMetadataManifest.CODEC_V4)
+            .indices(Collections.singletonList(uploadedIndexMetadata))
+            .previousClusterUUID("prev-cluster-uuid")
+            .clusterUUIDCommitted(true)
+            .coordinationMetadata(uploadedMetadataAttribute)
+            .settingMetadata(uploadedMetadataAttribute)
+            .templatesMetadata(uploadedMetadataAttribute)
+            .customMetadataMap(
+                Collections.unmodifiableList(
+                    Arrays.asList(
+                        new UploadedMetadataAttribute(
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
+                            "custom--repositories-file"
+                        ),
+                        new UploadedMetadataAttribute(
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                            "custom--index_graveyard-file"
+                        ),
+                        new UploadedMetadataAttribute(
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + WeightedRoutingMetadata.TYPE,
+                            "custom--weighted_routing_netadata-file"
+                        )
+                    )
+                ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity()))
+            )
+            .routingTableVersion(1L)
+            .indicesRouting(Collections.singletonList(uploadedIndexMetadata))
+            .discoveryNodesMetadata(uploadedMetadataAttribute)
+            .clusterBlocksMetadata(uploadedMetadataAttribute)
+            .transientSettingsMetadata(uploadedMetadataAttribute)
+            .hashesOfConsistentSettings(uploadedMetadataAttribute)
+            .clusterStateCustomMetadataMap(Collections.emptyMap())
+            .diffManifest(
+                new ClusterStateDiffManifest(
+                    RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
+                    ClusterState.EMPTY_STATE,
+                    routingTableIncrementalDiff,
+                    uploadedMetadataAttribute.getUploadedFilename()
+                )
+            )
+            .checksum(checksum)
             .build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -736,4 +830,40 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         return uploadedIndexMetadata;
     }
 
+    static ClusterState createClusterState() {
+        final Index index = new Index("test-index", "index-uuid");
+        final Settings idxSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
+        final Settings settings = Settings.builder().put("mock-settings", true).build();
+        final TemplatesMetadata templatesMetadata = TemplatesMetadata.builder()
+            .put(IndexTemplateMetadata.builder("template1").settings(idxSettings).patterns(List.of("test*")).build())
+            .build();
+        final RemoteClusterStateTestUtils.CustomMetadata1 customMetadata = new RemoteClusterStateTestUtils.CustomMetadata1(
+            "custom-metadata-1"
+        );
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .version(1L)
+            .stateUUID("state-uuid")
+            .metadata(
+                Metadata.builder()
+                    .version(randomNonNegativeLong())
+                    .put(indexMetadata, true)
+                    .clusterUUID("cluster-uuid")
+                    .coordinationMetadata(coordinationMetadata)
+                    .persistentSettings(settings)
+                    .templates(templatesMetadata)
+                    .hashesOfConsistentSettings(Map.of("key1", "value1", "key2", "value2"))
+                    .putCustom(customMetadata.getWriteableName(), customMetadata)
+                    .build()
+            )
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).version(1L).build())
+            .build();
+    }
 }

@@ -203,7 +203,10 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateReadTimeout = clusterSettings.get(REMOTE_STATE_READ_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_STATE_READ_TIMEOUT_SETTING, this::setRemoteStateReadTimeout);
         this.checksumValidationEnabled = clusterSettings.get(REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING);
-        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING, this::setChecksumValidationEnabled);
+        clusterSettings.addSettingsUpdateConsumer(
+            REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING,
+            this::setChecksumValidationEnabled
+        );
 
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -891,7 +894,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
-            checksumValidationEnabled ? previousManifest.getClusterStateChecksum(): null,
+            checksumValidationEnabled ? previousManifest.getClusterStateChecksum() : null,
             true
         );
         if (!previousManifest.isClusterUUIDCommitted() && committedManifestDetails.getClusterMetadataManifest().isClusterUUIDCommitted()) {
@@ -1330,7 +1333,7 @@ public class RemoteClusterStateService implements Closeable {
         boolean includeEphemeral
     ) throws IOException {
         if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
-            ClusterState clusterState =  readClusterStateInParallel(
+            ClusterState clusterState = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
                 manifest,
                 manifest.getClusterUUID(),
@@ -1350,7 +1353,7 @@ public class RemoteClusterStateService implements Closeable {
                 includeEphemeral
             );
 
-            if (checksumValidationEnabled && manifest.getClusterStateChecksum()!=null) {
+            if (checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
                 validateClusterStateFromChecksum(manifest.getClusterStateChecksum(), clusterState);
             }
             return clusterState;
@@ -1466,21 +1469,25 @@ public class RemoteClusterStateService implements Closeable {
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
 
-        if (checksumValidationEnabled && manifest.getClusterStateChecksum()!=null) {
+        if (checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
             validateClusterStateFromChecksum(manifest.getClusterStateChecksum(), clusterState);
         }
         return clusterState;
     }
 
-    private void validateClusterStateFromChecksum(ClusterStateChecksum clusterStateChecksum, ClusterState clusterState) {
+    void validateClusterStateFromChecksum(ClusterStateChecksum clusterStateChecksum, ClusterState clusterState) {
         ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
         if (!newClusterStateChecksum.equals(clusterStateChecksum)) {
+            List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(clusterStateChecksum);
             logger.error(
-                "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}",
-                clusterStateChecksum,
-                newClusterStateChecksum
+                () -> new ParameterizedMessage(
+                    "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}. Entities failing validation {}",
+                    clusterStateChecksum,
+                    newClusterStateChecksum,
+                    failedValidation
+                )
             );
-            throw new IllegalStateException("Cluster state checksums do not match.");
+            throw new IllegalStateException("Cluster state checksums do not match. Validation failed for " + failedValidation);
         }
     }
 

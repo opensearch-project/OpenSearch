@@ -24,6 +24,8 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import com.jcraft.jzlib.JZlib;
@@ -35,18 +37,19 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  */
 public class ClusterStateChecksum implements ToXContentFragment, Writeable {
 
-    private static final String ROUTING_TABLE_CS = "routing_table";
-    private static final String NODES_CS = "discovery_nodes";
-    private static final String BLOCKS_CS = "blocks";
-    private static final String CUSTOMS_CS = "customs";
-    private static final String COORDINATION_MD_CS = "coordination_md";
-    private static final String SETTINGS_MD_CS = "settings_md";
-    private static final String TRANSIENT_SETTINGS_MD_CS = "transient_settings_md";
-    private static final String TEMPLATES_MD_CS = "templated_md";
-    private static final String CUSTOM_MD_CS = "customs_md";
-    private static final String HASHES_MD_CS = "hashes_md";
-    private static final String INDICES_CS = "indices_md";
+    static final String ROUTING_TABLE_CS = "routing_table";
+    static final String NODES_CS = "discovery_nodes";
+    static final String BLOCKS_CS = "blocks";
+    static final String CUSTOMS_CS = "customs";
+    static final String COORDINATION_MD_CS = "coordination_md";
+    static final String SETTINGS_MD_CS = "settings_md";
+    static final String TRANSIENT_SETTINGS_MD_CS = "transient_settings_md";
+    static final String TEMPLATES_MD_CS = "templated_md";
+    static final String CUSTOM_MD_CS = "customs_md";
+    static final String HASHES_MD_CS = "hashes_md";
+    static final String INDICES_CS = "indices_md";
     private static final String CLUSTER_STATE_CS = "cluster_state";
+    private static final int CHECKSUM_SIZE = 8;
     private static final Logger logger = LogManager.getLogger(ClusterStateChecksum.class);
 
     long routingTableChecksum;
@@ -133,16 +136,20 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             logger.error("Failed to create checksum for cluster state.", e);
             throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
         }
-        clusterStateChecksum = JZlib.crc32_combine(routingTableChecksum, nodesChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, blocksChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, clusterStateCustomsChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, coordinationMetadataChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, settingMetadataChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, transientSettingsMetadataChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, templatesMetadataChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, customMetadataMapChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, hashesOfConsistentSettingsChecksum, 8);
-        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, indicesChecksum, 8);
+        createClusterStateChecksum();
+    }
+
+    private void createClusterStateChecksum() {
+        clusterStateChecksum = JZlib.crc32_combine(routingTableChecksum, nodesChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, blocksChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, clusterStateCustomsChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, coordinationMetadataChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, settingMetadataChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, transientSettingsMetadataChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, templatesMetadataChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, customMetadataMapChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, hashesOfConsistentSettingsChecksum, CHECKSUM_SIZE);
+        clusterStateChecksum = JZlib.crc32_combine(clusterStateChecksum, indicesChecksum, CHECKSUM_SIZE);
     }
 
     public static ClusterStateChecksum.Builder builder() {
@@ -322,6 +329,48 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             indicesChecksum,
             clusterStateChecksum
         );
+    }
+
+    public List<String> getMismatchEntities(ClusterStateChecksum otherClusterStateChecksum) {
+        if (this.clusterStateChecksum == otherClusterStateChecksum.clusterStateChecksum) {
+            logger.info("No mismatch in checksums.");
+            return List.of();
+        }
+        List<String> mismatches = new ArrayList<>();
+        addIfMismatch(this.routingTableChecksum, otherClusterStateChecksum.routingTableChecksum, ROUTING_TABLE_CS, mismatches);
+        addIfMismatch(this.nodesChecksum, otherClusterStateChecksum.nodesChecksum, NODES_CS, mismatches);
+        addIfMismatch(this.blocksChecksum, otherClusterStateChecksum.blocksChecksum, BLOCKS_CS, mismatches);
+        addIfMismatch(this.clusterStateCustomsChecksum, otherClusterStateChecksum.clusterStateCustomsChecksum, CUSTOMS_CS, mismatches);
+        addIfMismatch(
+            this.coordinationMetadataChecksum,
+            otherClusterStateChecksum.coordinationMetadataChecksum,
+            COORDINATION_MD_CS,
+            mismatches
+        );
+        addIfMismatch(this.settingMetadataChecksum, otherClusterStateChecksum.settingMetadataChecksum, SETTINGS_MD_CS, mismatches);
+        addIfMismatch(
+            this.transientSettingsMetadataChecksum,
+            otherClusterStateChecksum.transientSettingsMetadataChecksum,
+            TRANSIENT_SETTINGS_MD_CS,
+            mismatches
+        );
+        addIfMismatch(this.templatesMetadataChecksum, otherClusterStateChecksum.templatesMetadataChecksum, TEMPLATES_MD_CS, mismatches);
+        addIfMismatch(this.customMetadataMapChecksum, otherClusterStateChecksum.customMetadataMapChecksum, CUSTOM_MD_CS, mismatches);
+        addIfMismatch(
+            this.hashesOfConsistentSettingsChecksum,
+            otherClusterStateChecksum.hashesOfConsistentSettingsChecksum,
+            HASHES_MD_CS,
+            mismatches
+        );
+        addIfMismatch(this.indicesChecksum, otherClusterStateChecksum.indicesChecksum, INDICES_CS, mismatches);
+
+        return mismatches;
+    }
+
+    private void addIfMismatch(long checksum, long otherChecksum, String entityName, List<String> mismatches) {
+        if (checksum != otherChecksum) {
+            mismatches.add(entityName);
+        }
     }
 
     public static class Builder {
