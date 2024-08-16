@@ -50,7 +50,7 @@ public interface ValueAggregator<A> {
     }
 
     /**
-     * Converts an aggregated value from a Long type.
+     * Converts a segment long value to an aggregated value.
      */
     A toAggregatedValueType(Long rawValue);
 
