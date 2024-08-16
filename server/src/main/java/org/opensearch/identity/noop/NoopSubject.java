@@ -24,10 +24,6 @@ import java.util.Objects;
  */
 public class NoopSubject implements Subject {
 
-    public NoopSubject() {
-        super();
-    }
-
     @Override
     public Principal getPrincipal() {
         return NamedPrincipal.UNAUTHENTICATED;
