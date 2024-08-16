@@ -17,6 +17,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
@@ -24,7 +25,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -63,7 +63,7 @@ public class RemoteManifestManager {
 
     private volatile TimeValue metadataManifestUploadTimeout;
     private final String nodeId;
-    private final RemoteClusterStateBlobStore<ClusterMetadataManifest, RemoteClusterMetadataManifest> manifestBlobStore;
+    private final RemoteWriteableEntityBlobStore<ClusterMetadataManifest, RemoteClusterMetadataManifest> manifestBlobStore;
     private final Compressor compressor;
     private final NamedXContentRegistry namedXContentRegistry;
     // todo remove blobStorerepo from here
@@ -79,12 +79,13 @@ public class RemoteManifestManager {
     ) {
         this.metadataManifestUploadTimeout = clusterSettings.get(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING);
         this.nodeId = nodeId;
-        this.manifestBlobStore = new RemoteClusterStateBlobStore<>(
+        this.manifestBlobStore = new RemoteWriteableEntityBlobStore<>(
             blobStoreTransferService,
             blobStoreRepository,
             clusterName,
             threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+            ThreadPool.Names.REMOTE_STATE_READ,
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
         );
         ;
         clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);

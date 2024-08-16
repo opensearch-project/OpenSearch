@@ -9,7 +9,7 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -29,7 +29,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 /**
  * Wrapper class for uploading/downloading {@link ClusterMetadataManifest} to/from remote blob store
  */
-public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEntity<ClusterMetadataManifest> {
+public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWriteableBlobEntity<ClusterMetadataManifest> {
 
     public static final String MANIFEST = "manifest";
     public static final int SPLITTED_MANIFEST_FILE_LENGTH = 6;
