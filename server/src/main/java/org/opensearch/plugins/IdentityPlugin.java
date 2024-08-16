@@ -8,17 +8,16 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
-import org.opensearch.threadpool.ThreadPool;
-
-import java.util.List;
 
 /**
  * Plugin that provides identity and access control for OpenSearch
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface IdentityPlugin {
 
     /**
@@ -33,5 +32,12 @@ public interface IdentityPlugin {
      */
     TokenManager getTokenManager();
 
-    void initializeIdentityAwarePlugins(final List<IdentityAwarePlugin> systemIndexPlugins, ThreadPool threadPool);
+    /**
+     * Gets a subject corresponding to the passed plugin that can be utilized to perform transport actions
+     * in the plugin system context
+     *
+     * @param plugin The corresponding plugin
+     * @return Subject corresponding to the plugin
+     */
+    Subject getPluginSubject(Plugin plugin);
 }

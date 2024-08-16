@@ -10,11 +10,9 @@ package org.opensearch.identity.noop;
 
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
-import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
-
-import java.util.List;
 
 /**
  * Implementation of identity plugin that does not enforce authentication or authorization
@@ -24,6 +22,12 @@ import java.util.List;
  * @opensearch.internal
  */
 public class NoopIdentityPlugin implements IdentityPlugin {
+
+    private final ThreadPool threadPool;
+
+    public NoopIdentityPlugin(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     /**
      * Get the current subject
@@ -44,12 +48,7 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     }
 
     @Override
-    public void initializeIdentityAwarePlugins(List<IdentityAwarePlugin> identityAwarePlugins, ThreadPool threadPool) {
-        if (identityAwarePlugins != null) {
-            for (IdentityAwarePlugin plugin : identityAwarePlugins) {
-                Subject subject = new NoopPluginSubject(threadPool);
-                plugin.assignSubject(subject);
-            }
-        }
+    public Subject getPluginSubject(Plugin plugin) {
+        return new NoopPluginSubject(threadPool);
     }
 }

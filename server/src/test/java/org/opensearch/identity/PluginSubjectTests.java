@@ -36,10 +36,10 @@ public class PluginSubjectTests extends OpenSearchTestCase {
 
     public void testInitializeIdentityAwarePlugin() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
-        IdentityService identityService = new IdentityService(Settings.EMPTY, List.of());
+        IdentityService identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
 
         TestPlugin testPlugin = new TestPlugin();
-        identityService.initializeIdentityAwarePlugins(List.of(testPlugin), threadPool);
+        identityService.initializeIdentityAwarePlugins(List.of(testPlugin));
 
         Subject testPluginSubject = new NoopPluginSubject(threadPool);
         assertThat(testPlugin.getSubject().getPrincipal().getName(), equalTo(NamedPrincipal.UNAUTHENTICATED.getName()));

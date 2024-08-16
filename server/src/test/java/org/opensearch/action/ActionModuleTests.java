@@ -130,6 +130,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
     public void testSetupRestHandlerContainsKnownBuiltin() throws IOException {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         ActionModule actionModule = new ActionModule(
             settings.getSettings(),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
@@ -142,8 +143,8 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(Settings.EMPTY, new ArrayList<>()),
-            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()))
+            new IdentityService(Settings.EMPTY, threadPool, new ArrayList<>()),
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, threadPool, List.of()))
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail

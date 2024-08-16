@@ -110,6 +110,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         SettingsModule settingsModule = new SettingsModule(settings);
         UsageService usageService = new UsageService();
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
         actionModule = new ActionModule(
             settingsModule.getSettings(),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
@@ -122,10 +123,10 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(Settings.EMPTY, new ArrayList<>()),
-            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()))
+            new IdentityService(Settings.EMPTY, threadPool, new ArrayList<>()),
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, threadPool, List.of()))
         );
-        identityService = new IdentityService(Settings.EMPTY, new ArrayList<>());
+        identityService = new IdentityService(Settings.EMPTY, threadPool, new ArrayList<>());
         dynamicActionRegistry = actionModule.getDynamicActionRegistry();
     }
 

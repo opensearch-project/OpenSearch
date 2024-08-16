@@ -61,6 +61,7 @@ import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -114,7 +115,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        identityService = new IdentityService(Settings.EMPTY, List.of());
+        identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());

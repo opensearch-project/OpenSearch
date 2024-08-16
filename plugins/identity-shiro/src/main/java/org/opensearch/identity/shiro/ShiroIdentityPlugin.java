@@ -12,16 +12,27 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.SecurityManager;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.noop.NoopPluginSubject;
 import org.opensearch.identity.tokens.TokenManager;
-import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.watcher.ResourceWatcherService;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.function.Supplier;
 
 /**
  * Identity implementation with Shiro
@@ -34,6 +45,8 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     private final Settings settings;
     private final ShiroTokenManager authTokenHandler;
 
+    private ThreadPool threadPool;
+
     /**
      * Create a new instance of the Shiro Identity Plugin
      *
@@ -45,6 +58,24 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
 
         SecurityManager securityManager = new ShiroSecurityManager();
         SecurityUtils.setSecurityManager(securityManager);
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        this.threadPool = threadPool;
+        return Collections.emptyList();
     }
 
     /**
@@ -68,12 +99,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     }
 
     @Override
-    public void initializeIdentityAwarePlugins(List<IdentityAwarePlugin> identityAwarePlugins, ThreadPool threadPool) {
-        if (identityAwarePlugins != null) {
-            for (IdentityAwarePlugin plugin : identityAwarePlugins) {
-                Subject subject = new NoopPluginSubject(threadPool);
-                plugin.assignSubject(subject);
-            }
-        }
+    public Subject getPluginSubject(Plugin plugin) {
+        return new NoopPluginSubject(threadPool);
     }
 }

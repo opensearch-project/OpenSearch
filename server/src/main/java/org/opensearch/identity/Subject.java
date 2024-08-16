@@ -5,6 +5,7 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;
@@ -15,6 +16,7 @@ import java.util.concurrent.Callable;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface Subject {
 
     /**

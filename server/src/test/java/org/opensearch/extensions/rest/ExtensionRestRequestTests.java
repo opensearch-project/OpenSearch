@@ -29,6 +29,7 @@ import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.mockito.Mockito.mock;
 
 public class ExtensionRestRequestTests extends OpenSearchTestCase {
 
@@ -72,7 +74,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         userPrincipal = () -> "user1";
         expectedHttpVersion = HttpRequest.HttpVersion.HTTP_1_1;
         extensionTokenProcessor = "placeholder_extension_token_processor";
-        identityService = new IdentityService(Settings.EMPTY, List.of());
+        identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
         TokenManager tokenManager = identityService.getTokenManager();
         Subject subject = this.identityService.getSubject();
         OnBehalfOfClaims claims = new OnBehalfOfClaims("testID", subject.getPrincipal().getName());
