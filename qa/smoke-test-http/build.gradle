@@ -38,7 +38,6 @@ dependencies {
   testImplementation project(path: ':plugins:transport-reactor-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio')
   testImplementation project(path: ':plugins:identity-shiro') // for http
-  testImplementation project(path: ':server')
 }
 
 integTest {
