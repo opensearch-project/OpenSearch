@@ -1,5 +1,5 @@
 {
-  "query_group_context": {
+  "get_query_group_context": {
     "stability": "experimental",
     "url": {
       "paths": [
@@ -20,9 +20,6 @@
         }
       ]
     },
-    "params":{},
-    "body":{
-      "description":"The QueryGroup schema"
-    }
+    "params":{}
   }
 }
