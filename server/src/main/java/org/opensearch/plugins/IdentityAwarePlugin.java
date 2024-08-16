@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.identity.Subject;
 
 /**
@@ -17,8 +18,9 @@ import org.opensearch.identity.Subject;
  * When the Security plugin is installed, the default subject is the authenticated user. In particular,
  * SystemIndexPlugins utilize the {@link Subject} to perform transport actions that interact with system indices.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface IdentityAwarePlugin {
 
     /**
