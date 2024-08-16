@@ -129,7 +129,6 @@ public class RemoteManifestManager {
                 .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings)
                 .checksum(clusterStateChecksum);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
-            logger.trace("uploading manifest [{}]", manifest);
             logger.trace(() -> new ParameterizedMessage("[{}] uploading manifest", manifest));
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
