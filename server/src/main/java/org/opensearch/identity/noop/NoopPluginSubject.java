@@ -17,6 +17,15 @@ import org.opensearch.threadpool.ThreadPool;
 import java.security.Principal;
 import java.util.concurrent.Callable;
 
+/**
+ * Implementation of subject that is always authenticated
+ * <p>
+ * This class and related classes in this package will not return nulls or fail permissions checks
+ *
+ * This class is used by the NoopIdentityPlugin to initialize IdentityAwarePlugins
+ *
+ * @opensearch.internal
+ */
 public class NoopPluginSubject implements Subject {
     private final ThreadPool threadPool;
 
