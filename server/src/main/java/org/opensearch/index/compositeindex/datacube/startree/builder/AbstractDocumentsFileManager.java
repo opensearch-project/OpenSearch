@@ -175,12 +175,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
                     throw new IllegalStateException("Unsupported metric type");
             }
         }
-        offset += StarTreeDocumentBitSetUtil.readBitSet(
-            input,
-            offset,
-            metrics,
-            index -> metricAggregatorInfos.get(index).getValueAggregators().getIdentityMetricValue()
-        );
+        offset += StarTreeDocumentBitSetUtil.readBitSet(input, offset, metrics, index -> null);
         return offset;
     }
 
