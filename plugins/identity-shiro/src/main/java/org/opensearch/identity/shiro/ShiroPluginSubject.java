@@ -12,7 +12,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.PluginSubject;
-import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.security.Principal;
