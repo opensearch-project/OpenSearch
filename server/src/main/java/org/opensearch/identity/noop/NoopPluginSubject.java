@@ -11,8 +11,7 @@ package org.opensearch.identity.noop;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.Subject;
-import org.opensearch.identity.tokens.AuthToken;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.security.Principal;
@@ -28,7 +27,7 @@ import java.util.concurrent.Callable;
  * @opensearch.internal
  */
 @InternalApi
-public class NoopPluginSubject implements Subject {
+public class NoopPluginSubject implements PluginSubject {
     private final ThreadPool threadPool;
 
     NoopPluginSubject(ThreadPool threadPool) {
@@ -39,11 +38,6 @@ public class NoopPluginSubject implements Subject {
     @Override
     public Principal getPrincipal() {
         return NamedPrincipal.UNAUTHENTICATED;
-    }
-
-    @Override
-    public void authenticate(AuthToken token) {
-        // Do nothing as noop subject is always logged in
     }
 
     @Override

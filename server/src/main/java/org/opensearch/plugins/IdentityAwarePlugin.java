@@ -9,6 +9,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 
 /**
@@ -29,5 +30,5 @@ public interface IdentityAwarePlugin {
      * @param pluginSystemSubject A subject for running transport actions in the plugin system context for system index
      *                      interaction
      */
-    default void assignSubject(Subject pluginSystemSubject) {}
+    default void assignSubject(PluginSubject pluginSystemSubject) {}
 }

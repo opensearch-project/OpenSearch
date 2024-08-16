@@ -9,6 +9,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 
@@ -39,5 +40,5 @@ public interface IdentityPlugin {
      * @param plugin The corresponding plugin
      * @return Subject corresponding to the plugin
      */
-    Subject getPluginSubject(Plugin plugin);
+    PluginSubject getPluginSubject(Plugin plugin);
 }

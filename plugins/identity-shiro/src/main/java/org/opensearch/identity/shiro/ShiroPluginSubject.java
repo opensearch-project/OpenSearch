@@ -11,7 +11,7 @@ package org.opensearch.identity.shiro;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.Subject;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -28,7 +28,7 @@ import java.util.concurrent.Callable;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class ShiroPluginSubject implements Subject {
+public class ShiroPluginSubject implements PluginSubject {
     private final ThreadPool threadPool;
 
     ShiroPluginSubject(ThreadPool threadPool) {

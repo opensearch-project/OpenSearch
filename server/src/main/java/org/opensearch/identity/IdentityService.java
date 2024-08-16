@@ -64,8 +64,8 @@ public class IdentityService {
     public void initializeIdentityAwarePlugins(final List<IdentityAwarePlugin> identityAwarePlugins) {
         if (identityAwarePlugins != null) {
             for (IdentityAwarePlugin plugin : identityAwarePlugins) {
-                Subject subject = identityPlugin.getPluginSubject((Plugin) plugin);
-                plugin.assignSubject(subject);
+                PluginSubject pluginSubject = identityPlugin.getPluginSubject((Plugin) plugin);
+                plugin.assignSubject(pluginSubject);
             }
         }
     }

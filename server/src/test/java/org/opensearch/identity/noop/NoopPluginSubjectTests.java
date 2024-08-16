@@ -11,7 +11,7 @@ package org.opensearch.identity.noop;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.Subject;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchTestCase;
@@ -24,14 +24,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NoopPluginSubjectTests extends OpenSearchTestCase {
     public static class TestPlugin extends Plugin implements IdentityAwarePlugin {
-        private Subject subject;
+        private PluginSubject subject;
 
         @Override
-        public void assignSubject(Subject subject) {
+        public void assignSubject(PluginSubject subject) {
             this.subject = subject;
         }
 
-        public Subject getSubject() {
+        public PluginSubject getSubject() {
             return subject;
         }
     }
@@ -43,7 +43,7 @@ public class NoopPluginSubjectTests extends OpenSearchTestCase {
         TestPlugin testPlugin = new TestPlugin();
         identityService.initializeIdentityAwarePlugins(List.of(testPlugin));
 
-        Subject testPluginSubject = new NoopPluginSubject(threadPool);
+        PluginSubject testPluginSubject = new NoopPluginSubject(threadPool);
         assertThat(testPlugin.getSubject().getPrincipal().getName(), equalTo(NamedPrincipal.UNAUTHENTICATED.getName()));
         assertThat(testPluginSubject.getPrincipal().getName(), equalTo(NamedPrincipal.UNAUTHENTICATED.getName()));
         threadPool.getThreadContext().putHeader("test_header", "foo");

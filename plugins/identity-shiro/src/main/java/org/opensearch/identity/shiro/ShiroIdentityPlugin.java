@@ -21,6 +21,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
@@ -100,7 +101,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     }
 
     @Override
-    public Subject getPluginSubject(Plugin plugin) {
+    public PluginSubject getPluginSubject(Plugin plugin) {
         return new ShiroPluginSubject(threadPool);
     }
 }
