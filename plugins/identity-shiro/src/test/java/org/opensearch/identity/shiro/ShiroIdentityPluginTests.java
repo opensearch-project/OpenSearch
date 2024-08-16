@@ -30,6 +30,7 @@ public class ShiroIdentityPluginTests extends OpenSearchTestCase {
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
         IdentityService identityService1 = new IdentityService(Settings.EMPTY, threadPool, pluginList1);
         assertThat(identityService1.getTokenManager(), is(instanceOf(ShiroTokenManager.class)));
+        terminate(threadPool);
     }
 
     public void testMultipleIdentityPluginsFail() {
@@ -40,6 +41,7 @@ public class ShiroIdentityPluginTests extends OpenSearchTestCase {
         List<IdentityPlugin> pluginList = List.of(identityPlugin1, identityPlugin2, identityPlugin3);
         Exception ex = assertThrows(OpenSearchException.class, () -> new IdentityService(Settings.EMPTY, threadPool, pluginList));
         assert (ex.getMessage().contains("Multiple identity plugins are not supported,"));
+        terminate(threadPool);
     }
 
 }
