@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
@@ -29,7 +30,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(randomDouble);
         assertEquals(
-            randomDouble + aggregator.toStarTreeNumericTypeValue(randomLong),
+            randomDouble + StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
@@ -41,7 +42,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         aggregator.getInitialAggregatedValue(randomDouble1);
         assertEquals(randomDouble1, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, null), 0.0);
         assertEquals(
-            randomDouble1 + aggregator.toStarTreeNumericTypeValue(randomLong),
+            randomDouble1 + StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, randomLong),
             0.0
         );
@@ -51,7 +52,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(null);
         assertEquals(
-            aggregator.toStarTreeNumericTypeValue(randomLong),
+            StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
             aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
             0.0
         );
@@ -70,9 +71,9 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         assertEquals(randomDouble, aggregator.getInitialAggregatedValue(randomDouble), 0.0);
     }
 
-    public void testToStarTreeNumericTypeValue() {
+    public void testToAggregatedValueType() {
         long randomLong = randomLong();
-        assertEquals(aggregator.toStarTreeNumericTypeValue(randomLong), aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
+        assertEquals(aggregator.toAggregatedValueType(randomLong), aggregator.toAggregatedValueType(randomLong), 0.0);
     }
 
     public void testIdentityMetricValue() {

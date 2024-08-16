@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
@@ -23,18 +24,18 @@ public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         double randomDouble = randomDouble();
         assertEquals(
-            Math.max(aggregator.toStarTreeNumericTypeValue(randomLong), randomDouble),
+            Math.max(StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType), randomDouble),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
         assertEquals(
-            aggregator.toStarTreeNumericTypeValue(randomLong),
+            StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
             aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
             0.0
         );
         assertEquals(randomDouble, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, null), 0.0);
         assertEquals(
-            Math.max(2.0, aggregator.toStarTreeNumericTypeValue(3L)),
+            Math.max(2.0, StarTreeTestUtils.toStarTreeNumericTypeValue(3L, starTreeNumericType)),
             aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L),
             0.0
         );
@@ -53,10 +54,10 @@ public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
         assertEquals(randomDouble, aggregator.getInitialAggregatedValue(randomDouble), 0.0);
     }
 
-    public void testToStarTreeNumericTypeValue() {
+    public void testToAggregatedValueType() {
         MaxValueAggregator aggregator = new MaxValueAggregator(StarTreeNumericType.DOUBLE);
         long randomLong = randomLong();
-        assertEquals(NumericUtils.sortableLongToDouble(randomLong), aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
+        assertEquals(NumericUtils.sortableLongToDouble(randomLong), aggregator.toAggregatedValueType(randomLong), 0.0);
     }
 
     public void testIdentityMetricValue() {
