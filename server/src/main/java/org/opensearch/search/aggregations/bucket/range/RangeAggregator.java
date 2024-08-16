@@ -68,6 +68,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper.segmentMatchAll;
 
 /**
  * Aggregate all docs that match given ranges.
@@ -298,12 +299,12 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = fastFilterContext.tryFastFilterAggregation(
+        if (segmentMatchAll(context, ctx) && fastFilterContext.tryFastFilterAggregation(
             ctx,
             this::incrementBucketDocCount,
-            (activeIndex) -> subBucketOrdinal(0, (int) activeIndex)
-        );
-        if (optimized) throw new CollectionTerminatedException();
+            (activeIndex) -> subBucketOrdinal(0, (int) activeIndex))) {
+            throw new CollectionTerminatedException();
+        }
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
