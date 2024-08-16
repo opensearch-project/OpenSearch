@@ -299,10 +299,12 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (segmentMatchAll(context, ctx) && fastFilterContext.tryFastFilterAggregation(
-            ctx,
-            this::incrementBucketDocCount,
-            (activeIndex) -> subBucketOrdinal(0, (int) activeIndex))) {
+        if (segmentMatchAll(context, ctx)
+            && fastFilterContext.tryFastFilterAggregation(
+                ctx,
+                this::incrementBucketDocCount,
+                (activeIndex) -> subBucketOrdinal(0, (int) activeIndex)
+            )) {
             throw new CollectionTerminatedException();
         }
 
