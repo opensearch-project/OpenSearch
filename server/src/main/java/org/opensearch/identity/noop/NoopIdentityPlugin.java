@@ -10,7 +10,11 @@ package org.opensearch.identity.noop;
 
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
+import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.threadpool.ThreadPool;
+
+import java.util.List;
 
 /**
  * Implementation of identity plugin that does not enforce authentication or authorization
@@ -37,5 +41,15 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     @Override
     public TokenManager getTokenManager() {
         return new NoopTokenManager();
+    }
+
+    @Override
+    public void initializeIdentityAwarePlugins(List<IdentityAwarePlugin> identityAwarePlugins, ThreadPool threadPool) {
+        if (identityAwarePlugins != null) {
+            for (IdentityAwarePlugin plugin : identityAwarePlugins) {
+                Subject subject = new NoopPluginSubject(threadPool);
+                plugin.initializePlugin(subject);
+            }
+        }
     }
 }

@@ -11,7 +11,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
+import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -56,5 +58,9 @@ public class IdentityService {
      */
     public TokenManager getTokenManager() {
         return identityPlugin.getTokenManager();
+    }
+
+    public void initializeIdentityAwarePlugins(final List<IdentityAwarePlugin> identityAwarePlugins, ThreadPool threadPool) {
+        identityPlugin.initializeIdentityAwarePlugins(identityAwarePlugins, threadPool);
     }
 }

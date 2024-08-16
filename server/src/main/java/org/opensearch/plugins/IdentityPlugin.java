@@ -10,6 +10,9 @@ package org.opensearch.plugins;
 
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
+import org.opensearch.threadpool.ThreadPool;
+
+import java.util.List;
 
 /**
  * Plugin that provides identity and access control for OpenSearch
@@ -22,11 +25,13 @@ public interface IdentityPlugin {
      * Get the current subject.
      * @return Should never return null
      * */
-    public Subject getSubject();
+    Subject getSubject();
 
     /**
      * Get the Identity Plugin's token manager implementation
      * @return Should never return null.
      */
-    public TokenManager getTokenManager();
+    TokenManager getTokenManager();
+
+    void initializeIdentityAwarePlugins(final List<IdentityAwarePlugin> systemIndexPlugins, ThreadPool threadPool);
 }

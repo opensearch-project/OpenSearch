@@ -1,0 +1,56 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.identity;
+
+import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.noop.NoopPluginSubject;
+import org.opensearch.plugins.IdentityAwarePlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class PluginSubjectTests extends OpenSearchTestCase {
+    public static class TestPlugin extends Plugin implements IdentityAwarePlugin {
+        private Subject subject;
+
+        @Override
+        public void initializePlugin(Subject subject) {
+            this.subject = subject;
+        }
+
+        public Subject getSubject() {
+            return subject;
+        }
+    }
+
+    public void testInitializeIdentityAwarePlugin() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        IdentityService identityService = new IdentityService(Settings.EMPTY, List.of());
+
+        TestPlugin testPlugin = new TestPlugin();
+        identityService.initializeIdentityAwarePlugins(List.of(testPlugin), threadPool);
+
+        Subject testPluginSubject = new NoopPluginSubject(threadPool);
+        assertThat(testPlugin.getSubject().getPrincipal().getName(), equalTo(NamedPrincipal.UNAUTHENTICATED.getName()));
+        assertThat(testPluginSubject.getPrincipal().getName(), equalTo(NamedPrincipal.UNAUTHENTICATED.getName()));
+        threadPool.getThreadContext().putHeader("test_header", "foo");
+        assertThat(threadPool.getThreadContext().getHeader("test_header"), equalTo("foo"));
+        testPluginSubject.runAs(() -> {
+            assertNull(threadPool.getThreadContext().getHeader("test_header"));
+            return null;
+        });
+        assertThat(threadPool.getThreadContext().getHeader("test_header"), equalTo("foo"));
+        terminate(threadPool);
+    }
+}

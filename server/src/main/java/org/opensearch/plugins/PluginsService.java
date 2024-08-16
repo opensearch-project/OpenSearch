@@ -55,7 +55,6 @@ import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -773,14 +772,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (Throwable t) {
             throw new OpenSearchException("Unable to load plugin class [" + className + "]", t);
-        }
-    }
-
-    public void initializePlugins(ThreadPool threadPool) {
-        List<Plugin> pluginList = filterPlugins(Plugin.class);
-        for (Plugin p : pluginList) {
-            PluginSubject pluginSubject = new PluginSubject(p.getClass(), threadPool);
-            p.setPluginSubject(pluginSubject);
         }
     }
 

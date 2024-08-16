@@ -93,8 +93,6 @@ import java.util.function.UnaryOperator;
 @PublicApi(since = "1.0.0")
 public abstract class Plugin implements Closeable {
 
-    protected PluginSubject pluginSubject;
-
     /**
      * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see
      * also {@link ClusterState.FeatureAware}.
@@ -119,18 +117,6 @@ public abstract class Plugin implements Closeable {
      */
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         return Collections.emptyList();
-    }
-
-    /**
-     * Setter for PluginSubject.
-     *
-     * @param pluginSubject A subject for executing transport actions as the plugin
-     */
-    final void setPluginSubject(PluginSubject pluginSubject) {
-        if (this.pluginSubject != null) {
-            throw new IllegalStateException("pluginSubject can only be set once");
-        }
-        this.pluginSubject = pluginSubject;
     }
 
     /**

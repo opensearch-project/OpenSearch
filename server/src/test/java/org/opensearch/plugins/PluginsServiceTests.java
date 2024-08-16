@@ -49,8 +49,6 @@ import org.opensearch.semver.SemverRange;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -72,16 +70,13 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import static org.opensearch.identity.AbstractSubject.SUBJECT_HEADER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends OpenSearchTestCase {
@@ -931,35 +926,6 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         RuntimeException exception = expectThrows(RuntimeException.class, () -> newPluginsService(settings));
         assertTrue(exception.getCause() instanceof ClassNotFoundException);
         assertThat(exception, hasToString(containsString("Unable to load plugin class [DummyClass]")));
-    }
-
-    public void testSetPluginSubject() {
-        TestPlugin testPlugin = new TestPlugin();
-        PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), mock(ThreadPool.class));
-        testPlugin.setPluginSubject(testPluginSubject); // should succeed
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginSubject(testPluginSubject));
-        assertThat(e.getMessage(), containsString("pluginSubject can only be set once"));
-    }
-
-    public void testInitializePlugins() throws Exception {
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService service = newPluginsService(settings, TestPlugin.class);
-
-        service.initializePlugins(threadPool);
-
-        Plugin testPlugin = service.filterPlugins(Plugin.class).get(0);
-        PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), threadPool);
-        assertThat(testPluginSubject.getPrincipal().getName(), equalTo(TestPlugin.class.getCanonicalName()));
-        testPluginSubject.runAs(() -> {
-            assertThat(TestPlugin.class.getCanonicalName(), equalTo(threadPool.getThreadContext().getHeader(SUBJECT_HEADER)));
-            return null;
-        });
-        assertNull(threadPool.getThreadContext().getHeader(SUBJECT_HEADER));
-        // pluginSubject should have previously been set in service.initializePlugins
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginSubject(testPluginSubject));
-        assertThat(e.getMessage(), containsString("pluginSubject can only be set once"));
-        terminate(threadPool);
     }
 
     public void testExtensiblePlugin() {
