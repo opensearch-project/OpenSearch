@@ -34,5 +34,7 @@ public interface Subject {
     /**
      * runAs allows the caller to run a callable function as this subject
      */
-    void runAs(Callable<Void> callable) throws Exception;
+    default void runAs(Callable<Void> callable) throws Exception {
+        callable.call();
+    };
 }

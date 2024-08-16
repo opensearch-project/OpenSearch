@@ -9,15 +9,15 @@
 package org.opensearch.identity.noop;
 
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.identity.AbstractSubject;
 import org.opensearch.identity.NamedPrincipal;
+import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.security.Principal;
 import java.util.concurrent.Callable;
 
-public class NoopPluginSubject extends AbstractSubject {
+public class NoopPluginSubject implements Subject {
     private final ThreadPool threadPool;
 
     public NoopPluginSubject(ThreadPool threadPool) {

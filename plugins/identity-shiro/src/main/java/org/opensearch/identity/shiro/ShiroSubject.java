@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.shiro;
 
-import org.opensearch.identity.AbstractSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 
@@ -20,7 +19,7 @@ import java.util.Objects;
  *
  * @opensearch.experimental
  */
-public class ShiroSubject extends AbstractSubject {
+public class ShiroSubject implements Subject {
     private final ShiroTokenManager authTokenHandler;
     private final org.apache.shiro.subject.Subject shiroSubject;
 

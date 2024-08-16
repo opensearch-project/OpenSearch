@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.noop;
 
-import org.opensearch.identity.AbstractSubject;
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
@@ -23,7 +22,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class NoopSubject extends AbstractSubject {
+public class NoopSubject implements Subject {
 
     public NoopSubject() {
         super();
