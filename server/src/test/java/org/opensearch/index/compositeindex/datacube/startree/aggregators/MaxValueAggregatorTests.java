@@ -9,7 +9,6 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.apache.lucene.util.NumericUtils;
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
@@ -24,21 +23,13 @@ public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         double randomDouble = randomDouble();
         assertEquals(
-            Math.max(StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType), randomDouble),
+            Math.max(starTreeNumericType.getDoubleValue(randomLong), randomDouble),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
-        assertEquals(
-            StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
-            aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
-            0.0
-        );
+        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
         assertEquals(randomDouble, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, null), 0.0);
-        assertEquals(
-            Math.max(2.0, StarTreeTestUtils.toStarTreeNumericTypeValue(3L, starTreeNumericType)),
-            aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L),
-            0.0
-        );
+        assertEquals(Math.max(2.0, starTreeNumericType.getDoubleValue(3L)), aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
     }
 
     public void testMergeAggregatedValues() {

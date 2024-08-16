@@ -8,7 +8,6 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
@@ -30,7 +29,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(randomDouble);
         assertEquals(
-            randomDouble + StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
+            randomDouble + starTreeNumericType.getDoubleValue(randomLong),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
@@ -42,7 +41,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         aggregator.getInitialAggregatedValue(randomDouble1);
         assertEquals(randomDouble1, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, null), 0.0);
         assertEquals(
-            randomDouble1 + StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
+            randomDouble1 + starTreeNumericType.getDoubleValue(randomLong),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, randomLong),
             0.0
         );
@@ -51,11 +50,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
     public void testMergeAggregatedValueAndSegmentValue_nullInitialDocValue() {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(null);
-        assertEquals(
-            StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
-            aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
-            0.0
-        );
+        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
     }
 
     public void testMergeAggregatedValues() {

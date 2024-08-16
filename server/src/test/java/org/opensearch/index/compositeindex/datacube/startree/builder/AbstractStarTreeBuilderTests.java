@@ -1508,23 +1508,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         return sf;
     }
 
-    public void testMergeFlowWithSum_randomNumberTypes() throws IOException {
-        List<Long> dimList = List.of(0L, 1L, 3L, 4L, 5L, 6L);
-        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5, 6);
-        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L, -1L);
-        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5, 6);
-
-        List<Long> metricsList = List.of(
-            getLongFromDouble(0.0),
-            getLongFromDouble(10.0),
-            getLongFromDouble(20.0),
-            getLongFromDouble(30.0),
-            getLongFromDouble(40.0),
-            getLongFromDouble(50.0),
-            getLongFromDouble(60.0)
-
-        );
-        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
+    public void testMergeFlow_randomNumberTypes() throws Exception {
 
         DocumentMapper documentMapper = mock(DocumentMapper.class);
         when(mapperService.documentMapper()).thenReturn(documentMapper);
@@ -1555,48 +1539,9 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             null
         );
         when(documentMapper.mappers()).thenReturn(fieldMappers);
-
-        StarTreeField sf = getStarTreeField(MetricStat.SUM);
-        StarTreeValues starTreeValues = getStarTreeValues(
-            getSortedNumericMock(dimList, docsWithField),
-            getSortedNumericMock(dimList2, docsWithField2),
-            getSortedNumericMock(metricsList, metricsWithField),
-            sf,
-            "6"
-        );
-
-        StarTreeValues starTreeValues2 = getStarTreeValues(
-            getSortedNumericMock(dimList, docsWithField),
-            getSortedNumericMock(dimList2, docsWithField2),
-            getSortedNumericMock(metricsList, metricsWithField),
-            sf,
-            "6"
-        );
-        builder = getStarTreeBuilder(sf, getWriteState(6), mapperService);
-        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
-        /**
-         * Asserting following dim / metrics [ dim1, dim2 / Sum [ metric] ]
-         * [0, 0] | [0.0]
-         * [1, 1] | [20.0]
-         * [3, 3] | [60.0]
-         * [4, 4] | [80.0]
-         * [5, 5] | [100.0]
-         * [null, 2] | [40.0]
-         * ------------------ We only take non star docs
-         * [6,-1] | [120.0]
-         */
-        int count = 0;
-        while (starTreeDocumentIterator.hasNext()) {
-            count++;
-            StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
-            assertEquals(
-                starTreeDocument.dimensions[0] != null ? starTreeDocument.dimensions[0] * 2 * 10.0 : 40.0,
-                starTreeDocument.metrics[0]
-            );
-        }
-        assertEquals(6, count);
-        builder.build(starTreeDocumentIterator);
-        validateStarTree(builder.getRootNode(), 2, 1, builder.getStarTreeDocuments());
+        testMergeFlowWithSum();
+        builder.close();
+        testMergeFlowWithCount();
     }
 
     public void testMergeFlowWithSum() throws IOException {

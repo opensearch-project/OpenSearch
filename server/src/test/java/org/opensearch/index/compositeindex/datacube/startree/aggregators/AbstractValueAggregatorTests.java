@@ -10,7 +10,6 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -70,7 +69,7 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
             assertEquals(CountValueAggregator.DEFAULT_INITIAL_VALUE, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong()));
         } else {
             assertEquals(
-                StarTreeTestUtils.toStarTreeNumericTypeValue(randomLong, starTreeNumericType),
+                starTreeNumericType.getDoubleValue(randomLong),
                 aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong)
             );
         }
