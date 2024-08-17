@@ -10,8 +10,6 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -139,12 +137,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 }
                 List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
                 for (Map.Entry<String, DocIdSetIterator> metricDocValuesEntry : starTreeValues.getMetricDocValuesIteratorMap().entrySet()) {
-                    if (metricDocValuesEntry.getValue() instanceof NumericDocValues) {
-                        metricReaders.add(
-                            new SequentialDocValuesIterator(DocValues.singleton((NumericDocValues) metricDocValuesEntry.getValue()))
-                        );
-                        continue;
-                    }
                     metricReaders.add(new SequentialDocValuesIterator(metricDocValuesEntry.getValue()));
                 }
                 int currentDocId = 0;

@@ -19,13 +19,17 @@ public class DocCountAggregator implements ValueAggregator<Long> {
 
     private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
 
-    public DocCountAggregator(StarTreeNumericType starTreeNumericType) {}
+    public DocCountAggregator() {}
 
     @Override
     public StarTreeNumericType getAggregatedValueType() {
         return VALUE_AGGREGATOR_TYPE;
     }
 
+    /**
+     * If _doc_count field for a doc is missing, we increment the _doc_count by '1' for the associated doc
+     * otherwise take the actual value present in the field
+     */
     @Override
     public Long getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue) {
         if (segmentDocValue == null) {
@@ -56,6 +60,9 @@ public class DocCountAggregator implements ValueAggregator<Long> {
         return value;
     }
 
+    /**
+     * If _doc_count field for a doc is missing, we increment the _doc_count by '1' for the associated doc
+     */
     @Override
     public Long getIdentityMetricValue() {
         return 1L;

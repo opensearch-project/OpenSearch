@@ -23,6 +23,7 @@ import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreesBuilder;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -61,8 +62,11 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
+        // TODO : add integ test for this
         for (FieldInfo fi : segmentWriteState.fieldInfos) {
             if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())) {
+                segmentFieldSet.add(fi.name);
+            } else if (fi.name.equals(DocCountFieldMapper.NAME)) {
                 segmentFieldSet.add(fi.name);
             }
         }
@@ -70,6 +74,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             compositeFieldSet.addAll(type.fields());
         }
         // check if there are any composite fields which are part of the segment
+        // TODO : add integ test where there are no composite fields in a segment, test both flush and merge cases
         segmentHasCompositeFields = Collections.disjoint(segmentFieldSet, compositeFieldSet) == false;
     }
 
@@ -121,22 +126,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         if (segmentFieldSet.isEmpty()) {
             Set<String> compositeFieldSetCopy = new HashSet<>(compositeFieldSet);
             for (String compositeField : compositeFieldSetCopy) {
-                if (compositeField.equals("_doc_count")) {
-                    fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
-                        @Override
-                        public NumericDocValues getNumeric(FieldInfo field) {
-                            return DocValues.emptyNumeric();
-                        }
-                    });
-                } else {
-                    fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
-                        @Override
-                        public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
-                            return DocValues.emptySortedNumeric();
-                        }
-                    });
-                }
-                compositeFieldSet.remove(compositeField);
+                addDocValuesForEmptyField(compositeField);
             }
         }
         // we have all the required fields to build composite fields
@@ -149,7 +139,28 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                 }
             }
         }
+    }
 
+    /**
+     * Add empty doc values for fields not present in segment
+     */
+    private void addDocValuesForEmptyField(String compositeField) {
+        if (compositeField.equals(DocCountFieldMapper.NAME)) {
+            fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                @Override
+                public NumericDocValues getNumeric(FieldInfo field) {
+                    return DocValues.emptyNumeric();
+                }
+            });
+        } else {
+            fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                @Override
+                public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                    return DocValues.emptySortedNumeric();
+                }
+            });
+        }
+        compositeFieldSet.remove(compositeField);
     }
 
     @Override

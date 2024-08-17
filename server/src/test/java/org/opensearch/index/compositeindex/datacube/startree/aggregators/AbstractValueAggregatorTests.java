@@ -48,11 +48,7 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testMergeAggregatedNullValueAndSegmentNullValue() {
-        if (aggregator instanceof CountValueAggregator) {
-            assertThrows(AssertionError.class, () -> aggregator.mergeAggregatedValueAndSegmentValue(null, null));
-        } else {
-            assertEquals(aggregator.getIdentityMetricValue(), aggregator.mergeAggregatedValueAndSegmentValue(null, null));
-        }
+        assertEquals(aggregator.getIdentityMetricValue(), aggregator.mergeAggregatedValueAndSegmentValue(null, null));
     }
 
     public void testMergeAggregatedNullValues() {
@@ -65,13 +61,6 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
         long randomLong = randomLong();
-        if (aggregator instanceof CountValueAggregator) {
-            assertEquals(CountValueAggregator.DEFAULT_INITIAL_VALUE, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong()));
-        } else {
-            assertEquals(
-                aggregator.toStarTreeNumericTypeValue(randomLong),
-                aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong)
-            );
-        }
+        assertEquals(aggregator.toStarTreeNumericTypeValue(randomLong), aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
     }
 }

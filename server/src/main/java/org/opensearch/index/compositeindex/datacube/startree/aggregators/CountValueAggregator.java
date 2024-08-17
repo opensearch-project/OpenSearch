@@ -19,7 +19,7 @@ class CountValueAggregator implements ValueAggregator<Long> {
     public static final long DEFAULT_INITIAL_VALUE = 1L;
     private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
 
-    public CountValueAggregator(StarTreeNumericType starTreeNumericType) {}
+    public CountValueAggregator() {}
 
     @Override
     public StarTreeNumericType getAggregatedValueType() {

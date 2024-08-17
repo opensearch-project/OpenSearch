@@ -29,6 +29,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.ValueAg
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -118,7 +119,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     public List<MetricAggregatorInfo> generateMetricAggregatorInfos(MapperService mapperService) {
         List<MetricAggregatorInfo> metricAggregatorInfos = new ArrayList<>();
         for (Metric metric : this.starTreeField.getMetrics()) {
-            if (metric.getField().equals("_doc_count")) {
+            if (metric.getField().equals(DocCountFieldMapper.NAME)) {
                 MetricAggregatorInfo metricAggregatorInfo = new MetricAggregatorInfo(
                     MetricStat.DOC_COUNT,
                     metric.getField(),
@@ -437,7 +438,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             String dimension = dimensionsSplitOrder.get(i).getField();
             FieldInfo dimensionFieldInfo = state.fieldInfos.fieldInfo(dimension);
             if (dimensionFieldInfo == null) {
-                dimensionFieldInfo = getFieldInfo(dimension);
+                dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC);
             }
             dimensionReaders[i] = new SequentialDocValuesIterator(
                 fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
@@ -449,15 +450,15 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         logger.debug("Finished Building star-tree in ms : {}", (System.currentTimeMillis() - startTime));
     }
 
-    private static FieldInfo getFieldInfo(String field) {
+    private static FieldInfo getFieldInfo(String field, DocValuesType docValuesType) {
         return new FieldInfo(
             field,
-            1,
+            1, // This is filled as part of doc values creation and is not used otherwise
             false,
             false,
             false,
             IndexOptions.NONE,
-            DocValuesType.SORTED_NUMERIC,
+            docValuesType,
             -1,
             Collections.emptyMap(),
             0,
@@ -483,12 +484,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             for (MetricStat metricStat : metric.getMetrics()) {
                 SequentialDocValuesIterator metricReader = null;
                 FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
-                if (metricFieldInfo == null) {
-                    metricFieldInfo = getFieldInfo(metric.getField());
-                }
                 if (metricStat.equals(MetricStat.DOC_COUNT)) {
                     metricReader = getDocCountMetricReader(fieldProducerMap, metricFieldInfo);
                 } else {
+                    if (metricFieldInfo == null) {
+                        metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
+                    }
                     metricReader = new SequentialDocValuesIterator(
                         fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
                     );
@@ -499,19 +500,17 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         return metricReaders;
     }
 
-    private static SequentialDocValuesIterator getDocCountMetricReader(
-        Map<String, DocValuesProducer> fieldProducerMap,
-        FieldInfo metricFieldInfo
-    ) throws IOException {
-        SequentialDocValuesIterator metricReader;
-        // _doc_count is numeric field , so we need to get sortedNumericDocValues
-        if (fieldProducerMap.containsKey(metricFieldInfo.name)) {
-            metricReader = new SequentialDocValuesIterator(
-                DocValues.singleton(fieldProducerMap.get(metricFieldInfo.name).getNumeric(metricFieldInfo))
-            );
-        } else {
-            metricReader = new SequentialDocValuesIterator(DocValues.emptySortedNumeric());
+    private SequentialDocValuesIterator getDocCountMetricReader(Map<String, DocValuesProducer> fieldProducerMap, FieldInfo metricFieldInfo)
+        throws IOException {
+        if (metricFieldInfo == null) {
+            metricFieldInfo = getFieldInfo(DocCountFieldMapper.NAME, DocValuesType.NUMERIC);
         }
+        SequentialDocValuesIterator metricReader;
+        assert fieldProducerMap.containsKey(metricFieldInfo.name);
+        // _doc_count is numeric field , so we need to get convert to sortedNumericDocValues
+        metricReader = new SequentialDocValuesIterator(
+            DocValues.singleton(fieldProducerMap.get(metricFieldInfo.name).getNumeric(metricFieldInfo))
+        );
         return metricReader;
     }
 

@@ -31,13 +31,13 @@ public class ValueAggregatorFactory {
             case SUM:
                 return new SumValueAggregator(starTreeNumericType);
             case COUNT:
-                return new CountValueAggregator(starTreeNumericType);
+                return new CountValueAggregator();
             case MIN:
                 return new MinValueAggregator(starTreeNumericType);
             case MAX:
                 return new MaxValueAggregator(starTreeNumericType);
             case DOC_COUNT:
-                return new DocCountAggregator(starTreeNumericType);
+                return new DocCountAggregator();
             default:
                 throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
         }
