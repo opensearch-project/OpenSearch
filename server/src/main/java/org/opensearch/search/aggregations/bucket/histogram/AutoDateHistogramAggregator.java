@@ -213,7 +213,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 return ord;
             }
         };
-        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, context);
     }
 
     protected abstract LongKeyedBucketOrds getBucketOrds();

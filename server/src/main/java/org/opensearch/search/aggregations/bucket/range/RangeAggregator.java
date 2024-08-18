@@ -291,7 +291,7 @@ public class RangeAggregator extends BucketsAggregator {
                 buildRanges(ranges);
             }
         };
-        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, context);
     }
 
     @Override

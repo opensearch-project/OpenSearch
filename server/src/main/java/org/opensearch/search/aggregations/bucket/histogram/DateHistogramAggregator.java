@@ -158,7 +158,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 return ord;
             }
         };
-        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, context);
     }
 
     @Override

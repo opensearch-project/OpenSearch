@@ -52,21 +52,20 @@ public final class FilterRewriteOptimizationContext {
     public FilterRewriteOptimizationContext(
         AggregatorBridge aggregatorBridge,
         final Object parent,
-        final int subAggLength,
         SearchContext context
     ) throws IOException {
         this.aggregatorBridge = aggregatorBridge;
-        this.canOptimize = this.canOptimize(parent, subAggLength, context);
+        this.canOptimize = this.canOptimize(parent, context);
     }
 
     /**
      * common logic for checking whether the optimization can be applied and prepare at shard level
      * if the aggregation has any special logic, it should be done using {@link AggregatorBridge}
      */
-    private boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) throws IOException {
+    private boolean canOptimize(final Object parent, SearchContext context) throws IOException {
         if (context.maxAggRewriteFilters() == 0) return false;
 
-        if (parent != null || subAggLength != 0) return false;
+        if (parent != null) return false;
 
         boolean canOptimize = aggregatorBridge.canOptimize();
         if (canOptimize) {
