@@ -11,9 +11,7 @@ package org.opensearch.index.compositeindex.datacube;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Supported metric types for composite index
@@ -54,13 +52,6 @@ public enum MetricStat {
      */
     public boolean isDerivedMetric() {
         return baseMetrics != null;
-    }
-
-    /**
-     * Return required metrics for every metric field in star tree field
-     */
-    public static Set<MetricStat> getRequiredMetrics() {
-        return Collections.singleton(MetricStat.COUNT);
     }
 
     public static MetricStat fromTypeName(String typeName) {

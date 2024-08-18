@@ -266,7 +266,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 metricStrings = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
             }
             // Add all required metrics initially
-            Set<MetricStat> metricSet = new LinkedHashSet<>(MetricStat.getRequiredMetrics());
+            Set<MetricStat> metricSet = new LinkedHashSet<>();
             for (String metricString : metricStrings) {
                 MetricStat metricStat = MetricStat.fromTypeName(metricString);
                 metricSet.add(metricStat);
