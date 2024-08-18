@@ -158,3 +158,111 @@ setup:
   - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
   - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
   - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }
+
+---
+"Complex aggregation with range, auto_date_histogram, and metric aggregations":
+  - do:
+      indices.create:
+        index: tmin_metrics
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metrics:
+                properties:
+                  size:
+                    type: float
+                  tmin:
+                    type: float
+
+  - do:
+      bulk:
+        refresh: true
+        index: tmin_metrics
+        body:
+          - '{"index":{}}'
+          - '{"@timestamp": "2023-01-01T00:00:00Z", "metrics": {"size": -15, "tmin": -20}}'
+          - '{"index":{}}'
+          - '{"@timestamp": "2023-01-02T00:00:00Z", "metrics": {"size": 5, "tmin": 0}}'
+          - '{"index":{}}'
+          - '{"@timestamp": "2023-01-03T00:00:00Z", "metrics": {"size": 26, "tmin": 10}}'
+          - '{"index":{}}'
+          - '{"@timestamp": "2023-01-04T00:00:00Z", "metrics": {"size": 50, "tmin": 15}}'
+          - '{"index":{}}'
+          - '{"@timestamp": "2023-01-05T00:00:00Z", "metrics": {"size": 77, "tmin": 20}}'
+          - '{"index":{}}'
+          - '{"@timestamp": "2023-02-15T00:00:00Z", "metrics": {"size": 88, "tmin": 33}}'
+          - '{"index":{}}'
+          - '{"@timestamp": "2023-01-06T00:00:00Z", "metrics": {"size": 123, "tmin": 25}}'
+
+  - do:
+      search:
+        index: tmin_metrics
+        body:
+          size: 0
+          aggs:
+            tmax:
+              range:
+                field: metrics.size
+                ranges:
+                  - to: 10
+                  - from: 10
+                    to: 100
+                  - from: 100
+
+              aggs:
+                date:
+                  auto_date_histogram:
+                    field: "@timestamp"
+                    buckets: 20
+                  aggs:
+                    tmin:
+                      min:
+                        field: metrics.tmin
+                    tavg:
+                      avg:
+                        field: metrics.size
+                    tmax:
+                      max:
+                        field: metrics.size
+
+  - match: { hits.total.value: 7 }
+  - length: { aggregations.tmax.buckets: 3 }
+
+  - match: { aggregations.tmax.buckets.0.key: "*-10.0" }
+  - match: { aggregations.tmax.buckets.0.doc_count: 2 }
+  - length: { aggregations.tmax.buckets.0.date.buckets: 9 }
+
+  - match: { aggregations.tmax.buckets.0.date.buckets.0.doc_count: 1 }
+  - match: { aggregations.tmax.buckets.0.date.buckets.0.tmin.value: -20.0 }
+  - match: { aggregations.tmax.buckets.0.date.buckets.0.tavg.value: -15.0 }
+  - match: { aggregations.tmax.buckets.0.date.buckets.0.tmax.value: -15.0 }
+
+  - match: { aggregations.tmax.buckets.0.date.buckets.8.doc_count: 1 }
+  - match: { aggregations.tmax.buckets.0.date.buckets.8.tmin.value: 0.0 }
+  - match: { aggregations.tmax.buckets.0.date.buckets.8.tavg.value: 5.0 }
+  - match: { aggregations.tmax.buckets.0.date.buckets.8.tmax.value: 5.0 }
+
+  - match: { aggregations.tmax.buckets.1.key: "10.0-100.0" }
+  - match: { aggregations.tmax.buckets.1.doc_count: 4 }
+  - length: { aggregations.tmax.buckets.1.date.buckets: 7 }
+
+  - match: { aggregations.tmax.buckets.1.date.buckets.0.doc_count: 3 }
+  - match: { aggregations.tmax.buckets.1.date.buckets.0.tmin.value: 10.0 }
+  - match: { aggregations.tmax.buckets.1.date.buckets.0.tavg.value: 51.0 }
+  - match: { aggregations.tmax.buckets.1.date.buckets.0.tmax.value: 77.0 }
+
+  - match: { aggregations.tmax.buckets.1.date.buckets.6.doc_count: 1 }
+  - match: { aggregations.tmax.buckets.1.date.buckets.6.tmin.value: 33.0 }
+  - match: { aggregations.tmax.buckets.1.date.buckets.6.tavg.value: 88.0 }
+  - match: { aggregations.tmax.buckets.1.date.buckets.6.tmax.value: 88.0 }
+
+  - match: { aggregations.tmax.buckets.2.key: "100.0-*" }
+  - match: { aggregations.tmax.buckets.2.doc_count: 1 }
+  - length: { aggregations.tmax.buckets.2.date.buckets: 1 }
+
+  - match: { aggregations.tmax.buckets.2.date.buckets.0.doc_count: 1 }
+  - match: { aggregations.tmax.buckets.2.date.buckets.0.tmin.value: 25.0 }
+  - match: { aggregations.tmax.buckets.2.date.buckets.0.tavg.value: 123.0 }
+  - match: { aggregations.tmax.buckets.2.date.buckets.0.tmax.value: 123.0 }
