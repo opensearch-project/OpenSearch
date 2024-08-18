@@ -202,10 +202,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             }
 
             @Override
-            protected long getOrd(int rangeIdx) {
-                PackedValueRanges ranges = filterRewriteOptimizationContext.getRanges();
+            protected long getOrd(int rangeIdx, PackedValueRanges ranges) {
                 assert(ranges != null);
-
                 long rangeStart = LongPoint.decodeDimension(ranges.getLower(rangeIdx), 0);
                 rangeStart = this.getFieldType().convertNanosToMillis(rangeStart);
                 long ord = getBucketOrds().add(0, getRoundingPrepared().round(rangeStart));

@@ -83,7 +83,7 @@ public abstract class AggregatorBridge {
     /**
      * Translate an index of the packed value range array to an agg bucket ordinal.
      */
-    protected long getOrd(int rangeIdx) {
+    protected long getOrd(int rangeIdx, PackedValueRanges ranges) {
         return rangeIdx;
     }
 
@@ -109,7 +109,7 @@ public abstract class AggregatorBridge {
                 ranges,
                 rangeMax(),
                 (activeIndex, docID) -> {
-                    long ord = this.getOrd(activeIndex);
+                    long ord = this.getOrd(activeIndex, ranges);
                     try {
                         incrementDocCount.accept(ord, (long) 1);
                         sub.collect(docID, ord);
@@ -124,7 +124,7 @@ public abstract class AggregatorBridge {
                 ranges,
                 rangeMax(),
                 (activeIndex, docCount) -> {
-                    long ord = this.getOrd(activeIndex);
+                    long ord = this.getOrd(activeIndex, ranges);
                     incrementDocCount.accept(ord, (long) docCount);
                 }
             );

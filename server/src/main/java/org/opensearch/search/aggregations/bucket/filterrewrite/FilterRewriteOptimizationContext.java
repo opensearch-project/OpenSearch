@@ -66,7 +66,9 @@ public final class FilterRewriteOptimizationContext {
 
         boolean canOptimize = aggregatorBridge.canOptimize();
         if (canOptimize) {
-            aggregatorBridge.setRangesConsumer(this::setRanges);
+            aggregatorBridge.setRangesConsumer((PackedValueRanges ranges) -> {
+                this.ranges = ranges;
+            });
 
             this.shardId = context.indexShard().shardId().toString();
 
@@ -79,14 +81,6 @@ public final class FilterRewriteOptimizationContext {
         logger.debug("Fast filter rewriteable: {} for shard {}", canOptimize, shardId);
 
         return canOptimize;
-    }
-
-    public void setRanges(PackedValueRanges ranges) {
-        this.ranges = ranges;
-    }
-
-    public PackedValueRanges getRanges() {
-        return this.ranges;
     }
 
     /**

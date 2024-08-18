@@ -76,6 +76,7 @@ import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.filterrewrite.CompositeAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
+import org.opensearch.search.aggregations.bucket.filterrewrite.PackedValueRanges;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
@@ -218,8 +219,9 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected long getOrd(int rangeIdx) {
-                long rangeStart = LongPoint.decodeDimension(filterRewriteOptimizationContext.getRanges().getLower(rangeIdx), 0);
+            protected long getOrd(int rangeIdx, PackedValueRanges ranges) {
+                assert(ranges != null);
+                long rangeStart = LongPoint.decodeDimension(ranges.getLower(rangeIdx), 0);
                 rangeStart = this.getFieldType().convertNanosToMillis(rangeStart);
                 long ord = bucketOrds.add(0, getRoundingPrepared().round(rangeStart));
 
