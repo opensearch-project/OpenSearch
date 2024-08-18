@@ -79,9 +79,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     /**
      * Reads all the configuration related to dimensions and metrics, builds a star-tree based on the different construction parameters.
      *
-     * @param starTreeField    holds the configuration for the star tree
-     * @param state            stores the segment write state
-     * @param mapperService    helps to find the original type of the field
+     * @param starTreeField holds the configuration for the star tree
+     * @param state         stores the segment write state
+     * @param mapperService helps to find the original type of the field
      */
     protected BaseStarTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService) {
         logger.debug("Building star tree : {}", starTreeField.getName());
@@ -211,7 +211,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * aggregated star-tree documents.
      *
      * @param dimensionReaders List of docValues readers to read dimensions from the segment
-     * @param metricReaders List of docValues readers to read metrics from the segment
+     * @param metricReaders    List of docValues readers to read metrics from the segment
      * @return Iterator for the aggregated star-tree document
      */
     public abstract Iterator<StarTreeDocument> sortAndAggregateSegmentDocuments(
@@ -232,7 +232,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
     /**
      * Returns the star-tree document from the segment based on the current doc id
-     *
      */
     protected StarTreeDocument getSegmentStarTreeDocument(
         int currentDocId,
@@ -357,32 +356,15 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
     /**
      * Safely converts the metric value of object type to long.
+     * Nulls are handled during aggregation
      *
      * @param metric value of the metric
      * @return converted metric value to long
      */
-    private static long getLong(Object metric) {
+    private static Long getLong(Object metric) {
         Long metricValue = null;
-        // TODO : remove this after we merge identity changes
-        if (metric instanceof Double) {
-            if (0D == (double) metric) {
-                return 0L;
-            }
-        }
-        try {
-            if (metric instanceof Long) {
-                metricValue = (long) metric;
-            } else if (metric != null) {
-                metricValue = Long.valueOf(String.valueOf(metric));
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException("unable to cast segment metric", e);
-        }
-
-        if (metricValue == null) {
-            return 0;
-            // TODO: handle this properly
-            // throw new IllegalStateException("unable to cast segment metric");
+        if (metric instanceof Long) {
+            metricValue = (long) metric;
         }
         return metricValue;
     }
@@ -431,7 +413,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * Builds the star tree from the original segment documents
      *
      * @param fieldProducerMap contain s the docValues producer to get docValues associated with each field
-     *
      * @throws IOException when we are unable to build star-tree
      */
     public void build(Map<String, DocValuesProducer> fieldProducerMap) throws IOException {
@@ -496,14 +477,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 if (metricFieldInfo == null) {
                     metricFieldInfo = getFieldInfo(metric.getField());
                 }
-                // TODO
-                // if (metricStat != MetricStat.COUNT) {
-                // Need not initialize the metric reader for COUNT metric type
+
                 SequentialDocValuesIterator metricReader = new SequentialDocValuesIterator(
                     fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
                 );
-                // }
-
                 metricReaders.add(metricReader);
             }
         }

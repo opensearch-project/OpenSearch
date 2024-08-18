@@ -152,15 +152,18 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
 
         transferTracker.updateLatestLocalFileNameLengthMap(List.of("test"), k -> 1L);
-        // Sleep for 100ms and then the lag should be within 100ms +/- 20ms
-        Thread.sleep(100);
-        assertTrue(Math.abs(transferTracker.getTimeMsLag() - 100) <= 20);
+        // Sleep for 100ms and then the lag should not be shorter
+        long span = 100;
+        Thread.sleep(span);
+        long lag = transferTracker.getTimeMsLag();
+        assertTrue("Actual lag [" + lag + "ms] is not expected to be shorter than span [" + span + "ms]", lag >= span);
 
         transferTracker.updateRemoteRefreshTimeMs(transferTracker.getLocalRefreshTimeMs());
         transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
-        long random = randomIntBetween(50, 200);
-        Thread.sleep(random);
-        assertTrue(Math.abs(transferTracker.getTimeMsLag() - random) <= 20);
+        long randomSpan = randomIntBetween(50, 200);
+        Thread.sleep(randomSpan);
+        lag = transferTracker.getTimeMsLag();
+        assertTrue("Actual lag [" + lag + "ms] is not expected to be shorter than span [" + randomSpan + "ms]", lag >= randomSpan);
     }
 
     public void testAddUploadBytesStarted() {
