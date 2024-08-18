@@ -49,11 +49,8 @@ public final class FilterRewriteOptimizationContext {
     private final AtomicInteger segments = new AtomicInteger();
     private final AtomicInteger optimizedSegments = new AtomicInteger();
 
-    public FilterRewriteOptimizationContext(
-        AggregatorBridge aggregatorBridge,
-        final Object parent,
-        SearchContext context
-    ) throws IOException {
+    public FilterRewriteOptimizationContext(AggregatorBridge aggregatorBridge, final Object parent, SearchContext context)
+        throws IOException {
         this.aggregatorBridge = aggregatorBridge;
         this.canOptimize = this.canOptimize(parent, context);
     }
