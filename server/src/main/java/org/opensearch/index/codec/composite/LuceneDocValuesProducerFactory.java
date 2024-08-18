@@ -23,7 +23,7 @@ import java.io.IOException;
  */
 public class LuceneDocValuesProducerFactory {
 
-    public static DocValuesProvider getDocValuesProducerForCompositeCodec(
+    public static CompositeDocValuesProducer getDocValuesProducerForCompositeCodec(
         String compositeCodec,
         SegmentReadState state,
         String dataCodec,

@@ -11,6 +11,7 @@ package org.opensearch.index.codec.composite;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SortedNumericDocValues;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -18,7 +19,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public interface DocValuesProvider {
+public interface CompositeDocValuesProducer extends Closeable {
 
     /**
      * Returns the sorted numeric document values for the specified field.

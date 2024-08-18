@@ -85,7 +85,7 @@ public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
             new FieldInfos(new FieldInfo[0]),
             newIOContext(random())
         );
-        DocValuesProvider producer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
+        CompositeDocValuesProducer producer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             segmentReadState,
             dataCodec,
