@@ -68,7 +68,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
             // Assert COUNT and SUM gets added when AVG is defined
-            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.AVG, MetricStat.COUNT, MetricStat.SUM);
+            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.AVG, MetricStat.VALUE_COUNT, MetricStat.SUM);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
@@ -124,7 +124,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
             // Assert AVG gets added when both of its base metrics is already present
-            List<MetricStat> expectedMetrics = List.of(MetricStat.SUM, MetricStat.COUNT, MetricStat.AVG);
+            List<MetricStat> expectedMetrics = List.of(MetricStat.SUM, MetricStat.VALUE_COUNT, MetricStat.AVG);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
@@ -150,7 +150,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(expectedTimeUnits, dateDim.getIntervals());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
-            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.COUNT, MetricStat.SUM, MetricStat.AVG);
+            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
@@ -275,17 +275,17 @@ public class StarTreeMapperTests extends MapperTestCase {
         assertEquals(metric1, metric2);
         List<MetricStat> m2 = new ArrayList<>();
         m2.add(MetricStat.MAX);
-        m2.add(MetricStat.COUNT);
+        m2.add(MetricStat.VALUE_COUNT);
         metric2 = new Metric("name", m2);
         assertNotEquals(metric1, metric2);
 
-        assertEquals(MetricStat.COUNT, MetricStat.fromTypeName("count"));
+        assertEquals(MetricStat.VALUE_COUNT, MetricStat.fromTypeName("value_count"));
         assertEquals(MetricStat.MAX, MetricStat.fromTypeName("max"));
         assertEquals(MetricStat.MIN, MetricStat.fromTypeName("min"));
         assertEquals(MetricStat.SUM, MetricStat.fromTypeName("sum"));
         assertEquals(MetricStat.AVG, MetricStat.fromTypeName("avg"));
 
-        assertEquals(List.of(MetricStat.COUNT, MetricStat.SUM), MetricStat.AVG.getBaseMetrics());
+        assertEquals(List.of(MetricStat.VALUE_COUNT, MetricStat.SUM), MetricStat.AVG.getBaseMetrics());
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> MetricStat.fromTypeName("invalid"));
         assertEquals("Invalid metric stat: invalid", ex.getMessage());
@@ -555,7 +555,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.field("name", metric);
             b.startArray("stats");
             b.value("sum");
-            b.value("count");
+            b.value("value_count");
             b.endArray();
             b.endObject();
             b.endArray();

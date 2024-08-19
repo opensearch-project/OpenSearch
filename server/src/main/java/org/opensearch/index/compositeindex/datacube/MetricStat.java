@@ -20,18 +20,17 @@ import java.util.List;
  */
 @ExperimentalApi
 public enum MetricStat {
-    COUNT("count"),
+    VALUE_COUNT("value_count"),
     SUM("sum"),
     MIN("min"),
     MAX("max"),
-    AVG("avg", COUNT, SUM);
+    AVG("avg", VALUE_COUNT, SUM);
 
     private final String typeName;
     private final MetricStat[] baseMetrics;
 
     MetricStat(String typeName, MetricStat... baseMetrics) {
         this.typeName = typeName;
-        assert baseMetrics != null && baseMetrics.length > 0;
         this.baseMetrics = baseMetrics;
     }
 
@@ -52,7 +51,7 @@ public enum MetricStat {
      * For example, AVG is derived from COUNT and SUM
      */
     public boolean isDerivedMetric() {
-        return baseMetrics != null;
+        return baseMetrics != null && baseMetrics.length > 0;
     }
 
     public static MetricStat fromTypeName(String typeName) {

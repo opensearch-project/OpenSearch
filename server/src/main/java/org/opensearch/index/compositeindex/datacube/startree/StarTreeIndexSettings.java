@@ -96,7 +96,7 @@ public class StarTreeIndexSettings {
      */
     public static final Setting<List<String>> DEFAULT_METRICS_LIST = Setting.listSetting(
         "index.composite_index.star_tree.field.default.metrics",
-        Arrays.asList(MetricStat.COUNT.toString(), MetricStat.SUM.toString()),
+        Arrays.asList(MetricStat.VALUE_COUNT.toString(), MetricStat.SUM.toString()),
         Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
