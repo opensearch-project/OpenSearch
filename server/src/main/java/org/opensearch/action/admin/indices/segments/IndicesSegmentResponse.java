@@ -45,7 +45,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -83,19 +84,21 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         if (indicesSegments != null) {
             return indicesSegments;
         }
+
+        Arrays.sort(shards, Comparator.comparing(shardSegment -> shardSegment.getShardRouting().getIndexName()));
         Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
-        Map<String, List<ShardSegments>> indicesShardSegments = new HashMap<>();
-        for (ShardSegments shard : shards) {
-            List<ShardSegments> shardSegList = indicesShardSegments.get(shard.getShardRouting().getIndexName());
-            if (shardSegList == null) {
-                shardSegList = new ArrayList<>();
-                indicesShardSegments.put(shard.getShardRouting().getIndexName(), shardSegList);
+        int lastIdx = 0;
+        for (int i = 0; i < shards.length; i++) {
+            String lastIndexName = shards[lastIdx].getShardRouting().getIndexName();
+            String currentIndexName = shards[i].getShardRouting().getIndexName();
+            if (!currentIndexName.equals(lastIndexName)) {
+                indicesSegments.put(lastIndexName, new IndexSegments(lastIndexName, Arrays.copyOfRange(shards, lastIdx, i)));
+                lastIdx = i;
             }
-            shardSegList.add(shard);
-        }
-        for (Map.Entry<String, List<ShardSegments>> entry : indicesShardSegments.entrySet()) {
-            indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue().toArray(new ShardSegments[0])));
+            if (i == shards.length - 1) {
+                indicesSegments.put(currentIndexName, new IndexSegments(currentIndexName, Arrays.copyOfRange(shards, lastIdx, i + 1)));
+            }
         }
 
         this.indicesSegments = indicesSegments;
