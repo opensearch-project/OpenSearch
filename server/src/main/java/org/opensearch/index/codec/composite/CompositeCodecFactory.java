@@ -30,6 +30,10 @@ import static org.opensearch.index.codec.CodecService.ZLIB;
  */
 @ExperimentalApi
 public class CompositeCodecFactory {
+
+    // we can use this to track the latest composite codec
+    public static final String COMPOSITE_CODEC = Composite99Codec.COMPOSITE_INDEX_CODEC_NAME;
+
     public CompositeCodecFactory() {}
 
     public Map<String, Codec> getCompositeIndexCodecs(MapperService mapperService, Logger logger) {

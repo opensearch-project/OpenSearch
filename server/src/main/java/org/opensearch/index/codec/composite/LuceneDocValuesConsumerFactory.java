@@ -14,8 +14,6 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-import static org.opensearch.index.codec.composite.composite99.Composite99Codec.COMPOSITE_INDEX_CODEC_NAME;
-
 /**
  * A factory class that provides a factory method for creating {@link DocValuesConsumer} instances
  * based on the specified composite codec.
@@ -34,7 +32,7 @@ public class LuceneDocValuesConsumerFactory {
     ) throws IOException {
 
         switch (compositeCodec) {
-            case COMPOSITE_INDEX_CODEC_NAME:
+            case CompositeCodecFactory.COMPOSITE_CODEC:
                 return new Lucene90DocValuesConsumerWrapper(state, dataCodec, dataExtension, metaCodec, metaExtension)
                     .getLucene90DocValuesConsumer();
             default:
