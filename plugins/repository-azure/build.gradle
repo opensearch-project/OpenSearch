@@ -48,7 +48,7 @@ dependencies {
   api 'com.azure:azure-json:1.1.0'
   api 'com.azure:azure-xml:1.1.0'
   api 'com.azure:azure-storage-common:12.25.1'
-  api 'com.azure:azure-core-http-netty:1.15.1'
+  api 'com.azure:azure-core-http-netty:1.15.3'
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
