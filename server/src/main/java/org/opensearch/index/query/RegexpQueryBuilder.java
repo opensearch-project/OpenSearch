@@ -76,7 +76,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
 
-    private String rewrite_override;
+    private String rewriteOverride;
 
     private final String fieldName;
 
@@ -117,8 +117,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         maxDeterminizedStates = in.readVInt();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
-        if (in.getVersion().after(Version.V_2_16_0)) {
-            rewrite_override = in.readOptionalString();
+        if (in.getVersion().after(Version.V_2_17_0)) {
+            rewriteOverride = in.readOptionalString();
         }
     }
 
@@ -130,8 +130,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         out.writeVInt(maxDeterminizedStates);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
-        if (out.getVersion().after(Version.V_2_16_0)) {
-            out.writeOptionalString(rewrite_override);
+        if (out.getVersion().after(Version.V_2_17_0)) {
+            out.writeOptionalString(rewriteOverride);
         }
     }
 
@@ -183,8 +183,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         return this.caseInsensitive;
     }
 
-    public RegexpQueryBuilder rewrite_override(String rewrite_override) {
-        this.rewrite_override = rewrite_override;
+    public RegexpQueryBuilder rewriteOverride(String rewriteOverride) {
+        this.rewriteOverride = rewriteOverride;
         return this;
     }
 
@@ -223,8 +223,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             builder.field(REWRITE_FIELD.getPreferredName(), rewrite);
         }
         printBoostAndQueryName(builder);
-        if (rewrite_override != null) {
-            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        if (rewriteOverride != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewriteOverride);
         }
         builder.endObject();
         builder.endObject();
@@ -234,7 +234,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         String fieldName = null;
         String rewrite = null;
         String value = null;
-        String rewrite_override = null;
+        String rewriteOverride = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
         boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
@@ -270,7 +270,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            rewrite_override = parser.textOrNull();
+                            rewriteOverride = parser.textOrNull();
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -292,7 +292,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             .boost(boost)
             .queryName(queryName);
         result.caseInsensitive(caseInsensitive);
-        result.rewrite_override(rewrite_override);
+        result.rewriteOverride(rewriteOverride);
         return result;
     }
 
@@ -326,8 +326,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
-                rewrite_override,
+            QueryShardContext.RewriteOverride rewriteOverrideMethod = QueryParsers.parseRewriteOverride(
+                rewriteOverride,
                 QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                 LoggingDeprecationHandler.INSTANCE
             );
@@ -337,7 +337,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                 matchFlagsValue,
                 maxDeterminizedStates,
                 method,
-                rewriteOverride,
+                rewriteOverrideMethod,
                 context
             );
         }
@@ -359,7 +359,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, syntaxFlagsValue, caseInsensitive, maxDeterminizedStates, rewrite, rewrite_override);
+        return Objects.hash(fieldName, value, syntaxFlagsValue, caseInsensitive, maxDeterminizedStates, rewrite, rewriteOverride);
     }
 
     @Override
@@ -370,6 +370,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             && Objects.equals(caseInsensitive, other.caseInsensitive)
             && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
             && Objects.equals(rewrite, other.rewrite)
-            && Objects.equals(rewrite_override, other.rewrite_override);
+            && Objects.equals(rewriteOverride, other.rewriteOverride);
     }
 }
