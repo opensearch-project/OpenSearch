@@ -163,8 +163,8 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
     private volatile boolean isTranslogMetadataEnabled;
-    private volatile TimeValue pinnedTimestampsSchedulerInterval;
-    private volatile TimeValue pinnedTimestampsLookbackInterval;
+    private static volatile TimeValue pinnedTimestampsSchedulerInterval;
+    private static volatile TimeValue pinnedTimestampsLookbackInterval;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -273,11 +273,11 @@ public class RemoteStoreSettings {
         this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
     }
 
-    public TimeValue getPinnedTimestampsSchedulerInterval() {
+    public static TimeValue getPinnedTimestampsSchedulerInterval() {
         return pinnedTimestampsSchedulerInterval;
     }
 
-    public TimeValue getPinnedTimestampsLookbackInterval() {
+    public static TimeValue getPinnedTimestampsLookbackInterval() {
         return pinnedTimestampsLookbackInterval;
     }
 }

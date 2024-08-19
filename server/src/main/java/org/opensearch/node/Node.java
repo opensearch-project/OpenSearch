@@ -818,8 +818,7 @@ public class Node implements Closeable {
                     repositoriesServiceReference::get,
                     settings,
                     threadPool,
-                    clusterService,
-                    remoteStoreSettings
+                    clusterService
                 );
                 resourcesToClose.add(remoteStorePinnedTimestampService);
             } else {

@@ -57,7 +57,6 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     private final Settings settings;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final RemoteStoreSettings remoteStoreSettings;
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
     private RemoteStorePinnedTimestampsBlobStore pinnedTimestampsBlobStore;
@@ -68,14 +67,12 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
         ThreadPool threadPool,
-        ClusterService clusterService,
-        RemoteStoreSettings remoteStoreSettings
+        ClusterService clusterService
     ) {
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     /**
@@ -86,7 +83,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     public void start() {
         validateRemoteStoreConfiguration();
         initializeComponents();
-        startAsyncUpdateTask(remoteStoreSettings.getPinnedTimestampsSchedulerInterval());
+        startAsyncUpdateTask(RemoteStoreSettings.getPinnedTimestampsSchedulerInterval());
     }
 
     private void validateRemoteStoreConfiguration() {
@@ -126,7 +123,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     public void pinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) {
         // If a caller uses current system time to pin the timestamp, following check will almost always fail.
         // So, we allow pinning timestamp in the past upto some buffer
-        long lookbackIntervalInMills = remoteStoreSettings.getPinnedTimestampsLookbackInterval().millis();
+        long lookbackIntervalInMills = RemoteStoreSettings.getPinnedTimestampsLookbackInterval().millis();
         if (timestamp < (System.currentTimeMillis() - lookbackIntervalInMills)) {
             throw new IllegalArgumentException(
                 "Timestamp to be pinned is less than current timestamp - value of cluster.remote_store.pinned_timestamps.lookback_interval"
