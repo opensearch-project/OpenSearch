@@ -134,6 +134,27 @@ public class RemoteStoreSettings {
         Property.Dynamic
     );
 
+    /**
+     * Controls pinned timestamp scheduler interval
+     */
+    public static final Setting<TimeValue> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL = Setting.timeSetting(
+        "cluster.remote_store.pinned_timestamps.scheduler_interval",
+        TimeValue.timeValueMinutes(3),
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Controls allowed timestamp values to be pinned from past
+     */
+    public static final Setting<TimeValue> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL = Setting.timeSetting(
+        "cluster.remote_store.pinned_timestamps.lookback_interval",
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
@@ -142,6 +163,8 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
     private volatile boolean isTranslogMetadataEnabled;
+    private volatile TimeValue pinnedTimestampsSchedulerInterval;
+    private volatile TimeValue pinnedTimestampsLookbackInterval;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -179,6 +202,9 @@ public class RemoteStoreSettings {
             CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
             this::setClusterRemoteSegmentTransferTimeout
         );
+
+        pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
+        pinnedTimestampsLookbackInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -245,5 +271,13 @@ public class RemoteStoreSettings {
 
     private void setMaxRemoteTranslogReaders(int maxRemoteTranslogReaders) {
         this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
+    }
+
+    public TimeValue getPinnedTimestampsSchedulerInterval() {
+        return pinnedTimestampsSchedulerInterval;
+    }
+
+    public TimeValue getPinnedTimestampsLookbackInterval() {
+        return pinnedTimestampsLookbackInterval;
     }
 }

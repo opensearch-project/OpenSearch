@@ -785,6 +785,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
             );
+            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
             final RemoteClusterStateService remoteClusterStateService;
             final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
             final RemoteIndexPathUploader remoteIndexPathUploader;
@@ -817,7 +818,8 @@ public class Node implements Closeable {
                     repositoriesServiceReference::get,
                     settings,
                     threadPool,
-                    clusterService
+                    clusterService,
+                    remoteStoreSettings
                 );
                 resourcesToClose.add(remoteStorePinnedTimestampService);
             } else {
@@ -865,7 +867,6 @@ public class Node implements Closeable {
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
-            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
             final CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(settings, settingsModule.getClusterSettings());
 
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
