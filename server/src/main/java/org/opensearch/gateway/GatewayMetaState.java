@@ -618,7 +618,7 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
-        public PersistedStateStats getStats() {
+        public PersistedStateStats getUploadStats() {
             // Note: These stats are not published yet, will come in future
             return null;
         }
@@ -745,8 +745,8 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
-        public PersistedStateStats getStats() {
-            return remoteClusterStateService.getStats();
+        public PersistedStateStats getUploadStats() {
+            return remoteClusterStateService.getUploadStats();
         }
 
         private boolean verifyManifestAndClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {

@@ -503,7 +503,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             assertBusy(() -> {
                 // wait for stats to get updated
                 assertTrue(remoteClusterStateCleanupManager.getStats() != null);
-                assertEquals(0, remoteClusterStateCleanupManager.getStats().getSuccessCount());
+                assertEquals(0, remoteClusterStateCleanupManager.getStats().getUploadStats().getSuccessCount());
                 assertEquals(1, remoteClusterStateCleanupManager.getStats().getCleanupAttemptFailedCount());
             });
         } catch (Exception e) {

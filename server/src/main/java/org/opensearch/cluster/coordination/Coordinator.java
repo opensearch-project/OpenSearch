@@ -896,11 +896,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         ClusterStateStats clusterStateStats = clusterManagerService.getClusterStateStats();
         ArrayList<PersistedStateStats> stats = new ArrayList<>();
         Stream.of(PersistedStateRegistry.PersistedStateType.values()).forEach(stateType -> {
-            if (persistedStateRegistry.getPersistedState(stateType) != null
-                && persistedStateRegistry.getPersistedState(stateType).getStats() != null) {
-                stats.add(persistedStateRegistry.getPersistedState(stateType).getStats());
+            if (persistedStateRegistry.getPersistedState(stateType) != null) {
+                if (persistedStateRegistry.getPersistedState(stateType).getUploadStats() != null) {
+                    stats.add(persistedStateRegistry.getPersistedState(stateType).getUploadStats());
+                }
             }
         });
+        if (coordinationState.get().isRemotePublicationEnabled()) {
+            stats.add(publicationHandler.getDownloadStats());
+        }
         clusterStateStats.setPersistenceStats(stats);
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
     }

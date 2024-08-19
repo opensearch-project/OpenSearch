@@ -68,7 +68,7 @@ import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.PersistedClusterStateService.Writer;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
-import org.opensearch.gateway.remote.RemotePersistenceStats;
+import org.opensearch.gateway.remote.RemoteUploadStats;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
@@ -899,13 +899,13 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
     }
 
     public void testRemotePersistedStateFailureStats() throws IOException {
-        RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
+        RemoteUploadStats remoteStateStats = new RemoteUploadStats();
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
         final String previousClusterUUID = "prev-cluster-uuid";
         Mockito.doThrow(IOException.class)
             .when(remoteClusterStateService)
             .writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION));
-        when(remoteClusterStateService.getStats()).thenReturn(remoteStateStats);
+        when(remoteClusterStateService.getUploadStats()).thenReturn(remoteStateStats);
         doCallRealMethod().when(remoteClusterStateService).writeMetadataFailed();
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
 
@@ -916,8 +916,8 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         );
 
         assertThrows(OpenSearchException.class, () -> remotePersistedState.setLastAcceptedState(clusterState));
-        assertEquals(1, remoteClusterStateService.getStats().getFailedCount());
-        assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
+        assertEquals(1, remoteClusterStateService.getUploadStats().getFailedCount());
+        assertEquals(0, remoteClusterStateService.getUploadStats().getSuccessCount());
     }
 
     public void testGatewayForRemoteState() throws IOException {

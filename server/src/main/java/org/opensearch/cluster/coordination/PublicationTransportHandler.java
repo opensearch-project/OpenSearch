@@ -178,6 +178,10 @@ public class PublicationTransportHandler {
         );
     }
 
+    public PersistedStateStats getDownloadStats() {
+        return remoteClusterStateService.getDownloadStats();
+    }
+
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         try (StreamInput in = CompressedStreamUtils.decompressBytes(request, namedWriteableRegistry)) {
             ClusterState incomingState;
@@ -231,69 +235,75 @@ public class PublicationTransportHandler {
     }
 
     // package private for testing
-    PublishWithJoinResponse handleIncomingRemotePublishRequest(RemotePublishRequest request) throws IOException {
-        if (transportService.getLocalNode().equals(request.getSourceNode())) {
-            return acceptRemoteStateOnLocalNode(request);
-        }
-        // TODO Make cluster state download non-blocking: https://github.com/opensearch-project/OpenSearch/issues/14102
-        ClusterMetadataManifest manifest = remoteClusterStateService.getClusterMetadataManifestByFileName(
-            request.getClusterUUID(),
-            request.getManifestFile()
-        );
-        if (manifest == null) {
-            throw new IllegalStateException("Publication failed as manifest was not found for " + request);
-        }
-        boolean applyFullState = false;
-        final ClusterState lastSeen = lastSeenClusterState.get();
-        if (lastSeen == null) {
-            logger.debug(() -> "Diff cannot be applied as there is no last cluster state");
-            applyFullState = true;
-        } else if (manifest.getDiffManifest() == null) {
-            logger.trace(() -> "There is no diff in the manifest");
-            applyFullState = true;
-        } else if (manifest.getDiffManifest().getFromStateUUID().equals(lastSeen.stateUUID()) == false) {
-            logger.debug(() -> "Last cluster state not compatible with the diff");
-            applyFullState = true;
-        }
+    PublishWithJoinResponse handleIncomingRemotePublishRequest(RemotePublishRequest request) throws IOException, RuntimeException {
+        try {
+            if (transportService.getLocalNode().equals(request.getSourceNode())) {
+                return acceptRemoteStateOnLocalNode(request);
+            }
+            // TODO Make cluster state download non-blocking: https://github.com/opensearch-project/OpenSearch/issues/14102
+            ClusterMetadataManifest manifest = remoteClusterStateService.getClusterMetadataManifestByFileName(
+                request.getClusterUUID(),
+                request.getManifestFile()
+            );
+            if (manifest == null) {
+                throw new IllegalStateException("Publication failed as manifest was not found for " + request);
+            }
+            boolean applyFullState = false;
+            final ClusterState lastSeen = lastSeenClusterState.get();
+            if (lastSeen == null) {
+                logger.debug(() -> "Diff cannot be applied as there is no last cluster state");
+                applyFullState = true;
+            } else if (manifest.getDiffManifest() == null) {
+                logger.debug(() -> "There is no diff in the manifest");
+                applyFullState = true;
+            } else if (manifest.getDiffManifest().getFromStateUUID().equals(lastSeen.stateUUID()) == false) {
+                logger.debug(() -> "Last cluster state not compatible with the diff");
+                applyFullState = true;
+            }
 
-        if (applyFullState == true) {
-            logger.debug(
-                () -> new ParameterizedMessage(
-                    "Downloading full cluster state for term {}, version {}, stateUUID {}",
-                    manifest.getClusterTerm(),
-                    manifest.getStateVersion(),
-                    manifest.getStateUUID()
-                )
-            );
-            ClusterState clusterState = remoteClusterStateService.getClusterStateForManifest(
-                request.getClusterName(),
-                manifest,
-                transportService.getLocalNode().getId(),
-                true
-            );
-            fullClusterStateReceivedCount.incrementAndGet();
-            final PublishWithJoinResponse response = acceptState(clusterState);
-            lastSeenClusterState.set(clusterState);
-            return response;
-        } else {
-            logger.debug(
-                () -> new ParameterizedMessage(
-                    "Downloading diff cluster state for term {}, version {}, previousUUID {}, current UUID {}",
-                    manifest.getClusterTerm(),
-                    manifest.getStateVersion(),
-                    manifest.getDiffManifest().getFromStateUUID(),
-                    manifest.getStateUUID()
-                )
-            );
-            ClusterState clusterState = remoteClusterStateService.getClusterStateUsingDiff(
-                manifest,
-                lastSeen,
-                transportService.getLocalNode().getId()
-            );
-            compatibleClusterStateDiffReceivedCount.incrementAndGet();
-            final PublishWithJoinResponse response = acceptState(clusterState);
-            lastSeenClusterState.compareAndSet(lastSeen, clusterState);
-            return response;
+            if (applyFullState == true) {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Downloading full cluster state for term {}, version {}, stateUUID {}",
+                        manifest.getClusterTerm(),
+                        manifest.getStateVersion(),
+                        manifest.getStateUUID()
+                    )
+                );
+                ClusterState clusterState = remoteClusterStateService.getClusterStateForManifest(
+                    request.getClusterName(),
+                    manifest,
+                    transportService.getLocalNode().getId(),
+                    true
+                );
+                fullClusterStateReceivedCount.incrementAndGet();
+                final PublishWithJoinResponse response = acceptState(clusterState);
+                lastSeenClusterState.set(clusterState);
+                return response;
+            } else {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Downloading diff cluster state for term {}, version {}, previousUUID {}, current UUID {}",
+                        manifest.getClusterTerm(),
+                        manifest.getStateVersion(),
+                        manifest.getDiffManifest().getFromStateUUID(),
+                        manifest.getStateUUID()
+                    )
+                );
+                ClusterState clusterState = remoteClusterStateService.getClusterStateUsingDiff(
+                    manifest,
+                    lastSeen,
+                    transportService.getLocalNode().getId()
+                );
+                compatibleClusterStateDiffReceivedCount.incrementAndGet();
+                final PublishWithJoinResponse response = acceptState(clusterState);
+                lastSeenClusterState.compareAndSet(lastSeen, clusterState);
+                return response;
+            }
+        } catch (Exception e) {
+            remoteClusterStateService.readMetadataFailed();
+            if (e instanceof IOException) throw new IOException("IOException in reading remote cluster state", e);
+            throw new RuntimeException("Runtime exception in reading remote cluster state", e);
         }
     }
 
