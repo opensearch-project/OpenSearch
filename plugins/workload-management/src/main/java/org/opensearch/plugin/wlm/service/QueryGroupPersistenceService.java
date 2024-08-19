@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * This class defines the functions for QueryGroup persistence
