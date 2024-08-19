@@ -10,6 +10,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
 | Ashish Singh             | [ashking94](https://github.com/ashking94)               | Amazon      |
+| Ankit Jain               | [jainankitk](https://github.com/jainankitk)             | Amazon      |
 | Bukhtawar Khan           | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
 | Charlotte Henkle         | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
 | Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
