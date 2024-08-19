@@ -44,7 +44,7 @@ public class QueryGroupMetadataTests extends AbstractDiffableSerializationTestCa
         queryGroupMetadata.toXContent(builder, null);
         builder.endObject();
         assertEquals(
-            "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\",\"resiliency_mode\":\"enforced\",\"updatedAt\":1720047207,\"resourceLimits\":{\"memory\":0.5}}}",
+            "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\",\"resiliency_mode\":\"enforced\",\"updated_at\":1720047207,\"resource_limits\":{\"memory\":0.5}}}",
             builder.toString()
         );
     }
