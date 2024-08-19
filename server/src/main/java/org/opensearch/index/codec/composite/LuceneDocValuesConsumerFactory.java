@@ -23,7 +23,6 @@ import java.io.IOException;
 public class LuceneDocValuesConsumerFactory {
 
     public static DocValuesConsumer getDocValuesConsumerForCompositeCodec(
-        String compositeCodec,
         SegmentWriteState state,
         String dataCodec,
         String dataExtension,
@@ -31,14 +30,8 @@ public class LuceneDocValuesConsumerFactory {
         String metaExtension
     ) throws IOException {
 
-        switch (compositeCodec) {
-            case CompositeCodecFactory.COMPOSITE_CODEC:
-                return new Lucene90DocValuesConsumerWrapper(state, dataCodec, dataExtension, metaCodec, metaExtension)
-                    .getLucene90DocValuesConsumer();
-            default:
-                throw new IllegalStateException("Invalid composite codec " + "[" + compositeCodec + "]");
-        }
-
+        return new Lucene90DocValuesConsumerWrapper(state, dataCodec, dataExtension, metaCodec, metaExtension)
+            .getLucene90DocValuesConsumer();
     }
 
 }

@@ -17,6 +17,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
+import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -25,9 +26,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.UUID;
-
-import static org.opensearch.index.codec.composite.composite99.Composite99Codec.COMPOSITE_INDEX_CODEC_NAME;
-import static org.mockito.Mockito.mock;
 
 public class LuceneDocValuesConsumerFactoryTests extends OpenSearchTestCase {
 
@@ -67,7 +65,6 @@ public class LuceneDocValuesConsumerFactoryTests extends OpenSearchTestCase {
         );
 
         DocValuesConsumer consumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
-            COMPOSITE_INDEX_CODEC_NAME,
             state,
             dataCodec,
             dataExtension,
@@ -76,24 +73,8 @@ public class LuceneDocValuesConsumerFactoryTests extends OpenSearchTestCase {
         );
 
         assertEquals("org.apache.lucene.codecs.lucene90.Lucene90DocValuesConsumer", consumer.getClass().getName());
+        assertEquals(CompositeCodecFactory.COMPOSITE_CODEC, Composite99Codec.COMPOSITE_INDEX_CODEC_NAME);
         consumer.close();
-    }
-
-    public void testGetDocValuesConsumerForCompositeCodec_InvalidCodec() {
-        String compositeCodec = "invalid_codec";
-        SegmentWriteState state = mock(SegmentWriteState.class);
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
-            LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
-                compositeCodec,
-                state,
-                dataCodec,
-                dataExtension,
-                metaCodec,
-                metaExtension
-            );
-        });
-        assertTrue(exception.getMessage().contains("Invalid composite codec"));
     }
 
     @After

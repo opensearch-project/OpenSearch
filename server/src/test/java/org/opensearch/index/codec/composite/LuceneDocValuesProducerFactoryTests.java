@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.UUID;
 
-import static org.opensearch.index.codec.composite.composite99.Composite99Codec.COMPOSITE_INDEX_CODEC_NAME;
 import static org.mockito.Mockito.mock;
 
 public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
@@ -70,7 +69,6 @@ public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
             newIOContext(random())
         );
         DocValuesConsumer consumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
-            COMPOSITE_INDEX_CODEC_NAME,
             state,
             dataCodec,
             dataExtension,
