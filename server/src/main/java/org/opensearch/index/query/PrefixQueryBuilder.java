@@ -241,13 +241,14 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                QueryShardContext.RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+                QueryShardContext.RewriteOverride rewriteOverrideMethod = QueryParsers.parseRewriteOverride(
                     rewriteOverride,
                     QueryShardContext.RewriteOverride.INDEX_OR_DOC_VALUES,
                     LoggingDeprecationHandler.INSTANCE
                 );
-                Query query = fieldType.prefixQuery(value, null, rewriteOverride, caseInsensitive, context); // the rewrite method doesn't
-                                                                                                             // matter
+                Query query = fieldType.prefixQuery(value, null, rewriteOverrideMethod, caseInsensitive, context); // the rewrite method
+                                                                                                                   // doesn't
+                // matter
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
