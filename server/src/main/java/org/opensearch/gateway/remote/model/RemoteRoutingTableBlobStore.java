@@ -9,10 +9,13 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
+import org.opensearch.common.remote.RemoteWriteableBlobEntity;
 import org.opensearch.common.remote.RemoteWriteableEntity;
+import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -28,8 +31,8 @@ import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable
  * @param <IndexRoutingTable> which can be uploaded to / downloaded from blob store
  * @param <U> The concrete class implementing {@link RemoteWriteableEntity} which is used as a wrapper for IndexRoutingTable entity.
  */
-public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRemoteWritableBlobEntity<IndexRoutingTable>> extends
-    RemoteClusterStateBlobStore<IndexRoutingTable, U> {
+public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractClusterMetadataWriteableBlobEntity<IndexRoutingTable>> extends
+    RemoteWriteableEntityBlobStore<IndexRoutingTable, U> {
 
     /**
      * This setting is used to set the remote routing table store blob store path type strategy.
@@ -66,7 +69,14 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRe
         String executor,
         ClusterSettings clusterSettings
     ) {
-        super(blobStoreTransferService, blobStoreRepository, clusterName, threadPool, executor);
+        super(
+            blobStoreTransferService,
+            blobStoreRepository,
+            clusterName,
+            threadPool,
+            executor,
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+        );
         this.pathType = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING);
         this.pathHashAlgo = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING, this::setPathTypeSetting);
@@ -74,7 +84,7 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRe
     }
 
     @Override
-    public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<IndexRoutingTable> obj) {
+    public BlobPath getBlobPathForUpload(final RemoteWriteableBlobEntity<IndexRoutingTable> obj) {
         assert obj.getBlobPathParameters().getPathTokens().size() == 1 : "Unexpected tokens in RemoteRoutingTableObject";
         BlobPath indexRoutingPath = getBlobPathPrefix(obj.clusterUUID()).add(INDEX_ROUTING_TABLE);
 

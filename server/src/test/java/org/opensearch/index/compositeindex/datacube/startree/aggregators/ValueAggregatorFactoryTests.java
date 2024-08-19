@@ -20,8 +20,29 @@ public class ValueAggregatorFactoryTests extends OpenSearchTestCase {
         assertEquals(SumValueAggregator.class, aggregator.getClass());
     }
 
-    public void testGetAggregatedValueTypeForSumType() {
-        StarTreeNumericType starTreeNumericType = ValueAggregatorFactory.getAggregatedValueType(MetricStat.SUM);
-        assertEquals(SumValueAggregator.VALUE_AGGREGATOR_TYPE, starTreeNumericType);
+    public void testGetValueAggregatorForMinType() {
+        ValueAggregator aggregator = ValueAggregatorFactory.getValueAggregator(MetricStat.MIN, StarTreeNumericType.LONG);
+        assertNotNull(aggregator);
+        assertEquals(MinValueAggregator.class, aggregator.getClass());
     }
+
+    public void testGetValueAggregatorForMaxType() {
+        ValueAggregator aggregator = ValueAggregatorFactory.getValueAggregator(MetricStat.MAX, StarTreeNumericType.LONG);
+        assertNotNull(aggregator);
+        assertEquals(MaxValueAggregator.class, aggregator.getClass());
+    }
+
+    public void testGetValueAggregatorForCountType() {
+        ValueAggregator aggregator = ValueAggregatorFactory.getValueAggregator(MetricStat.VALUE_COUNT, StarTreeNumericType.LONG);
+        assertNotNull(aggregator);
+        assertEquals(CountValueAggregator.class, aggregator.getClass());
+    }
+
+    public void testGetValueAggregatorForAvgType() {
+        assertThrows(
+            IllegalStateException.class,
+            () -> ValueAggregatorFactory.getValueAggregator(MetricStat.AVG, StarTreeNumericType.LONG)
+        );
+    }
+
 }
