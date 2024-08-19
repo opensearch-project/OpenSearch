@@ -132,7 +132,10 @@ public class QueryGroupTestUtils {
         return new Tuple<QueryGroupPersistenceService, ClusterState>(queryGroupPersistenceService, clusterState);
     }
 
-    public static void assertEqualResourceLimits(Map<ResourceType, Double> resourceLimitMapOne, Map<ResourceType, Double> resourceLimitMapTwo) {
+    public static void assertEqualResourceLimits(
+        Map<ResourceType, Double> resourceLimitMapOne,
+        Map<ResourceType, Double> resourceLimitMapTwo
+    ) {
         assertTrue(resourceLimitMapOne.keySet().containsAll(resourceLimitMapTwo.keySet()));
         assertTrue(resourceLimitMapOne.values().containsAll(resourceLimitMapTwo.values()));
     }

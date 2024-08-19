@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm;
+package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.action.ActionResponse;
@@ -22,7 +22,7 @@ import java.io.IOException;
 /**
  * Response for the update API for QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class UpdateQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final QueryGroup queryGroup;

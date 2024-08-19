@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm;
+package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -27,6 +27,9 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 
 public class UpdateQueryGroupRequestTests extends OpenSearchTestCase {
 
+    /**
+     * Test case to verify the serialization and deserialization of UpdateQueryGroupRequest.
+     */
     public void testSerialization() throws IOException {
         UpdateQueryGroupRequest request = new UpdateQueryGroupRequest(queryGroupOne);
         BytesStreamOutput out = new BytesStreamOutput();
@@ -40,6 +43,9 @@ public class UpdateQueryGroupRequestTests extends OpenSearchTestCase {
         assertEquals(request.getUpdatedAtInMillis(), otherRequest.getUpdatedAtInMillis());
     }
 
+    /**
+     * Test case to verify the serialization and deserialization of UpdateQueryGroupRequest with only name field.
+     */
     public void testSerializationOnlyName() throws IOException {
         UpdateQueryGroupRequest request = new UpdateQueryGroupRequest(NAME_ONE, null, new HashMap<>(), TIMESTAMP_ONE);
         BytesStreamOutput out = new BytesStreamOutput();
@@ -52,6 +58,9 @@ public class UpdateQueryGroupRequestTests extends OpenSearchTestCase {
         assertEquals(request.getUpdatedAtInMillis(), otherRequest.getUpdatedAtInMillis());
     }
 
+    /**
+     * Test case to verify the serialization and deserialization of UpdateQueryGroupRequest with only resourceLimits field.
+     */
     public void testSerializationOnlyResourceLimit() throws IOException {
         UpdateQueryGroupRequest request = new UpdateQueryGroupRequest(
             NAME_ONE,
@@ -70,6 +79,9 @@ public class UpdateQueryGroupRequestTests extends OpenSearchTestCase {
         assertEquals(request.getUpdatedAtInMillis(), otherRequest.getUpdatedAtInMillis());
     }
 
+    /**
+     * Tests invalid ResourceType.
+     */
     public void testInvalidResourceLimitList() {
         assertThrows(
             IllegalArgumentException.class,
@@ -82,6 +94,9 @@ public class UpdateQueryGroupRequestTests extends OpenSearchTestCase {
         );
     }
 
+    /**
+     * Tests invalid resiliencyMode.
+     */
     public void testInvalidEnforcement() {
         assertThrows(
             IllegalArgumentException.class,

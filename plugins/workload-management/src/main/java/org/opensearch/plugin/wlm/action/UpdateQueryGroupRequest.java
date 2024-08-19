@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm;
+package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -14,7 +14,6 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.metadata.QueryGroup.ResiliencyMode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.ResourceType;
 import org.joda.time.Instant;
@@ -26,18 +25,13 @@ import java.util.Map;
 /**
  * A request for update QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
-public class UpdateQueryGroupRequest extends ActionRequest implements Writeable.Reader<UpdateQueryGroupRequest> {
-    String name;
-    Map<ResourceType, Double> resourceLimits;
-    private ResiliencyMode resiliencyMode;
-    long updatedAtInMillis;
-
-    /**
-     * Default constructor for UpdateQueryGroupRequest
-     */
-    public UpdateQueryGroupRequest() {}
+public class UpdateQueryGroupRequest extends ActionRequest {
+    private final String name;
+    private final Map<ResourceType, Double> resourceLimits;
+    private final ResiliencyMode resiliencyMode;
+    private final long updatedAtInMillis;
 
     /**
      * Constructor for UpdateQueryGroupRequest
@@ -83,13 +77,10 @@ public class UpdateQueryGroupRequest extends ActionRequest implements Writeable.
         }
         if (in.readBoolean()) {
             resiliencyMode = ResiliencyMode.fromName(in.readString());
+        } else {
+            resiliencyMode = null;
         }
         updatedAtInMillis = in.readLong();
-    }
-
-    @Override
-    public UpdateQueryGroupRequest read(StreamInput in) throws IOException {
-        return new UpdateQueryGroupRequest(in);
     }
 
     /**
@@ -98,49 +89,17 @@ public class UpdateQueryGroupRequest extends ActionRequest implements Writeable.
      * @param name - name of the QueryGroup to be updated
      */
     public static UpdateQueryGroupRequest fromXContent(XContentParser parser, String name) throws IOException {
-        while (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            parser.nextToken();
-        }
-
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("expected start object but got a " + parser.currentToken());
-        }
-
-        XContentParser.Token token;
-        String fieldName = "";
-        ResiliencyMode mode = null;
-
-        // Map to hold resources
-        final Map<ResourceType, Double> resourceLimits = new HashMap<>();
-        while ((token = parser.nextToken()) != null) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (fieldName.equals("resiliency_mode")) {
-                    mode = ResiliencyMode.fromName(parser.text());
-                } else {
-                    throw new IllegalArgumentException("unrecognised [field=" + fieldName + " in QueryGroup");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (!fieldName.equals("resourceLimits")) {
-                    throw new IllegalArgumentException(
-                        "QueryGroup.resourceLimits is an object and expected token was { " + " but found " + token
-                    );
-                }
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        fieldName = parser.currentName();
-                    } else {
-                        resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
-                    }
-                }
-            }
-        }
-        return new UpdateQueryGroupRequest(name, mode, resourceLimits, Instant.now().getMillis());
+        QueryGroup.Builder builder = QueryGroup.Builder.fromXContent(parser);
+        return new UpdateQueryGroupRequest(name, builder.getResiliencyMode(), builder.getResourceLimits(), Instant.now().getMillis());
     }
 
     @Override
     public ActionRequestValidationException validate() {
+        QueryGroup.validateName(name);
+        if (resourceLimits != null) {
+            QueryGroup.validateResourceLimits(resourceLimits);
+        }
+        assert QueryGroup.isValid(updatedAtInMillis);
         return null;
     }
 
@@ -152,26 +111,10 @@ public class UpdateQueryGroupRequest extends ActionRequest implements Writeable.
     }
 
     /**
-     * name setter
-     * @param name - name to be set
-     */
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    /**
      * ResourceLimits getter
      */
     public Map<ResourceType, Double> getResourceLimits() {
         return resourceLimits;
-    }
-
-    /**
-     * ResourceLimits setter
-     * @param resourceLimits - ResourceLimit to be set
-     */
-    public void setResourceLimits(Map<ResourceType, Double> resourceLimits) {
-        this.resourceLimits = resourceLimits;
     }
 
     /**
@@ -182,26 +125,10 @@ public class UpdateQueryGroupRequest extends ActionRequest implements Writeable.
     }
 
     /**
-     * resiliencyMode setter
-     * @param resiliencyMode - mode to be set
-     */
-    public void setResiliencyMode(ResiliencyMode resiliencyMode) {
-        this.resiliencyMode = resiliencyMode;
-    }
-
-    /**
      * updatedAtInMillis getter
      */
     public long getUpdatedAtInMillis() {
         return updatedAtInMillis;
-    }
-
-    /**
-     * updatedAtInMillis setter
-     * @param updatedAtInMillis - updatedAtInMillis to be set
-     */
-    public void setUpdatedAtInMillis(long updatedAtInMillis) {
-        this.updatedAtInMillis = updatedAtInMillis;
     }
 
     @Override
@@ -212,7 +139,7 @@ public class UpdateQueryGroupRequest extends ActionRequest implements Writeable.
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeGenericValue);
+            out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeDouble);
         }
         if (resiliencyMode == null) {
             out.writeBoolean(false);

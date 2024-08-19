@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm;
+package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.action.ActionType;
 
 /**
  * Transport action to update QueryGroup
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 public class UpdateQueryGroupAction extends ActionType<UpdateQueryGroupResponse> {
 

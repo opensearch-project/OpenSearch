@@ -29,11 +29,7 @@ import java.util.Objects;
  * Class to define the QueryGroup schema
  * {
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
-<<<<<<< HEAD
  *              "resource_limits": {
-=======
- *              "resourceLimits": {
->>>>>>> 7abcbc98a73 (Add Update QueryGroup API Logic)
  *                  "memory": 0.4
  *              },
  *              "resiliency_mode": "enforced",
@@ -83,7 +79,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         this.updatedAtInMillis = updatedAt;
     }
 
-    private static boolean isValid(long updatedAt) {
+    public static boolean isValid(long updatedAt) {
         long minValidTimestamp = Instant.ofEpochMilli(0L).getMillis();
 
         // Use Instant.now() to get the current time in seconds since epoch
@@ -118,7 +114,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         }
     }
 
-    private void validateResourceLimits(Map<ResourceType, Double> resourceLimits) {
+    public static void validateResourceLimits(Map<ResourceType, Double> resourceLimits) {
         for (Map.Entry<ResourceType, Double> resource : resourceLimits.entrySet()) {
             Double threshold = resource.getValue();
             Objects.requireNonNull(resource.getKey(), "resourceName can't be null");
@@ -326,6 +322,18 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
         public QueryGroup build() {
             return new QueryGroup(name, _id, resiliencyMode, resourceLimits, updatedAt);
+        }
+
+        public ResiliencyMode getResiliencyMode() {
+            return resiliencyMode;
+        }
+
+        public long getUpdatedAt() {
+            return updatedAt;
+        }
+
+        public Map<ResourceType, Double> getResourceLimits() {
+            return resourceLimits;
         }
     }
 }
