@@ -62,15 +62,11 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * A strategy for rounding milliseconds since epoch.
@@ -262,35 +258,6 @@ public abstract class Rounding implements Writeable {
                     throw new OpenSearchException("Unknown date time unit id [" + id + "]");
             }
         }
-    }
-
-    /**
-     * DateTimeUnit Comparator which tracks dateTimeUnits from second unit to year unit
-     */
-    public static class DateTimeUnitComparator implements Comparator<DateTimeUnit> {
-        public static final Map<DateTimeUnit, Integer> ORDERED_DATE_TIME_UNIT = new HashMap<>();
-
-        static {
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.SECOND_OF_MINUTE, 1);
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.MINUTES_OF_HOUR, 2);
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.HOUR_OF_DAY, 3);
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.DAY_OF_MONTH, 4);
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.WEEK_OF_WEEKYEAR, 5);
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.MONTH_OF_YEAR, 6);
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.QUARTER_OF_YEAR, 7);
-            ORDERED_DATE_TIME_UNIT.put(DateTimeUnit.YEAR_OF_CENTURY, 8);
-        }
-
-        @Override
-        public int compare(DateTimeUnit unit1, DateTimeUnit unit2) {
-            return Integer.compare(ORDERED_DATE_TIME_UNIT.get(unit1), ORDERED_DATE_TIME_UNIT.get(unit2));
-        }
-    }
-
-    public static List<DateTimeUnit> getSortedDateTimeUnits(List<DateTimeUnit> dateTimeUnits) {
-        return dateTimeUnits.stream()
-            .sorted(Comparator.comparingInt(DateTimeUnitComparator.ORDERED_DATE_TIME_UNIT::get))
-            .collect(Collectors.toList());
     }
 
     public abstract void innerWriteTo(StreamOutput out) throws IOException;

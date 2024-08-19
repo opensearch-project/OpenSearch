@@ -11,6 +11,9 @@ package org.opensearch.index.compositeindex.datacube.startree;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 
 import java.util.Arrays;
@@ -82,9 +85,9 @@ public class StarTreeIndexSettings {
     /**
      * Default intervals for date dimension as part of star tree fields
      */
-    public static final Setting<List<Rounding.DateTimeUnit>> DEFAULT_DATE_INTERVALS = Setting.listSetting(
+    public static final Setting<List<DateTimeUnitRounding>> DEFAULT_DATE_INTERVALS = Setting.listSetting(
         "index.composite_index.star_tree.field.default.date_intervals",
-        Arrays.asList(Rounding.DateTimeUnit.MINUTES_OF_HOUR.shortName(), Rounding.DateTimeUnit.HOUR_OF_DAY.shortName()),
+        Arrays.asList(Rounding.DateTimeUnit.MINUTES_OF_HOUR.shortName(), ExtendedDateTimeUnit.HALF_HOUR_OF_DAY.shortName()),
         StarTreeIndexSettings::getTimeUnit,
         Setting.Property.IndexScope,
         Setting.Property.Final
@@ -107,10 +110,12 @@ public class StarTreeIndexSettings {
         Setting.Property.Final
     );
 
-    public static Rounding.DateTimeUnit getTimeUnit(String expression) {
-        if (!DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
-            throw new IllegalArgumentException("unknown calendar intervals specified in star tree index mapping");
+    public static DateTimeUnitRounding getTimeUnit(String expression) {
+        if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
+            return new DateTimeUnitAdapter(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression));
+        } else if (ExtendedDateTimeUnit.DATE_FIELD_UNITS.containsKey(expression)) {
+            return ExtendedDateTimeUnit.DATE_FIELD_UNITS.get(expression);
         }
-        return DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression);
+        throw new IllegalArgumentException("unknown calendar intervals specified in star tree index mapping");
     }
 }

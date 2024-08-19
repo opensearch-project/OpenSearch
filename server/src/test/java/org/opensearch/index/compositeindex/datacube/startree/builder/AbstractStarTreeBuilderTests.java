@@ -40,6 +40,9 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -2825,12 +2828,12 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         );
         /**
          * Asserting following dim / metrics [ dim1, dim2 / Sum [metric], count [metric] ]
-         [1655287920000, 1655287200000, 4] | [40.0, 1]
-         [1655287980000, 1655287200000, 3] | [30.0, 1]
-         [1655288040000, 1655287200000, 1] | [10.0, 1]
-         [1655288040000, 1655287200000, 5] | [50.0, 1]
-         [1655288100000, 1655287200000, 0] | [0.0, 1]
-         [null, null, 2] | [20.0, 1]
+         [1655287920000, 1655287200000, 1655287200000, 4] | [40.0, 1]
+         [1655287980000, 1655287200000, 1655287200000, 3] | [30.0, 1]
+         [1655288040000, 1655287200000, 1655287200000, 1] | [10.0, 1]
+         [1655288040000, 1655287200000, 1655287200000, 5] | [50.0, 1]
+         [1655288100000, 1655287200000, 1655287200000, 0] | [0.0, 1]
+         [null, null, null, 2] | [20.0, 1]
          */
         int count = 0;
         List<StarTreeDocument> starTreeDocumentsList = new ArrayList<>();
@@ -2839,7 +2842,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         while (starTreeDocumentIterator.hasNext()) {
             count++;
             StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
-            assertEquals(starTreeDocument.dimensions[2] * 1 * 10.0, starTreeDocument.metrics[0]);
+            assertEquals(starTreeDocument.dimensions[3] * 1 * 10.0, starTreeDocument.metrics[0]);
             assertEquals(1L, starTreeDocument.metrics[1]);
         }
         assertEquals(6, count);
@@ -2852,6 +2855,8 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Integer> docsWithField = List.of(0, 1, 2, 3, 4, 6);
         List<Long> dimList2 = List.of(1655288152000L, 1655288092000L, 1655288032000L, 1655287972000L, 1655288092000L, 1655288092000L, -1L);
         List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 6);
+        List<Long> dimList7 = List.of(1655288152000L, 1655288092000L, 1655288032000L, 1655287972000L, 1655288092000L, 1655288092000L, -1L);
+        List<Integer> docsWithField7 = List.of(0, 1, 2, 3, 4, 6);
 
         List<Long> dimList5 = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
         List<Integer> docsWithField5 = List.of(0, 1, 2, 3, 4, 5, 6);
@@ -2872,6 +2877,8 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Integer> docsWithField3 = List.of(0, 1, 3, 4);
         List<Long> dimList4 = List.of(1655288152000L, 1655288092000L, 1655288032000L, -1L);
         List<Integer> docsWithField4 = List.of(0, 1, 3, 4);
+        List<Long> dimList8 = List.of(1655288152000L, 1655288092000L, 1655288032000L, -1L);
+        List<Integer> docsWithField8 = List.of(0, 1, 3, 4);
 
         List<Long> dimList6 = List.of(5L, 6L, 7L, 8L);
         List<Integer> docsWithField6 = List.of(0, 1, 2, 3);
@@ -2890,6 +2897,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         StarTreeValues starTreeValues = getStarTreeValuesWithDates(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
+            getSortedNumericMock(dimList7, docsWithField7),
             getSortedNumericMock(dimList5, docsWithField5),
             getSortedNumericMock(metricsList, metricsWithField),
             getSortedNumericMock(metricsList1, metricsWithField1),
@@ -2900,6 +2908,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         StarTreeValues starTreeValues2 = getStarTreeValuesWithDates(
             getSortedNumericMock(dimList3, docsWithField3),
             getSortedNumericMock(dimList4, docsWithField4),
+            getSortedNumericMock(dimList8, docsWithField8),
             getSortedNumericMock(dimList6, docsWithField6),
             getSortedNumericMock(metricsList2, metricsWithField2),
             getSortedNumericMock(metricsList21, metricsWithField21),
@@ -2909,16 +2918,16 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         builder = getStarTreeBuilder(sf, getWriteState(4), mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
         /**
-         [[1655287972000, 1655287972000, 3] | [30.0, 3]
-         [1655288032000, 1655288032000, 2] | [20.0, 2]
-         [1655288032000, 1655288032000, 8] | [80.0, 8]
-         [1655288092000, 1655288092000, 1] | [10.0, 1]
-         [1655288092000, 1655288092000, 4] | [40.0, 4]
-         [1655288092000, 1655288092000, 6] | [60.0, 6]
-         [1655288152000, 1655288152000, 0] | [0.0, 0]
-         [1655288152000, 1655288152000, 5] | [50.0, 5]
-         [null, null, 5] | [50.0, 5]
-         [null, null, 7] | [70.0, 7]
+         [1655287972000, 1655287972000, 1655287972000, 3] | [30.0, 3]
+         [1655288032000, 1655288032000, 1655288032000, 2] | [20.0, 2]
+         [1655288032000, 1655288032000, 1655288032000, 8] | [80.0, 8]
+         [1655288092000, 1655288092000, 1655288092000, 1] | [10.0, 1]
+         [1655288092000, 1655288092000, 1655288092000, 4] | [40.0, 4]
+         [1655288092000, 1655288092000, 1655288092000, 6] | [60.0, 6]
+         [1655288152000, 1655288152000, 1655288152000, 0] | [0.0, 0]
+         [1655288152000, 1655288152000, 1655288152000, 5] | [50.0, 5]
+         [null, null, null, 5] | [50.0, 5]
+         [null, null, null, 7] | [70.0, 7]
          */
         int count = 0;
         List<StarTreeDocument> starTreeDocumentsList = new ArrayList<>();
@@ -2928,32 +2937,43 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         while (starTreeDocumentIterator.hasNext()) {
             count++;
             StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
-            assertEquals(starTreeDocument.dimensions[2] * 10.0, (double) starTreeDocument.metrics[0], 0);
-            assertEquals(starTreeDocument.dimensions[2], starTreeDocument.metrics[1]);
+            assertEquals(starTreeDocument.dimensions[3] * 10.0, (double) starTreeDocument.metrics[0], 0);
+            assertEquals(starTreeDocument.dimensions[3], starTreeDocument.metrics[1]);
         }
         assertEquals(10, count);
         builder.build(starTreeDocumentsList.iterator());
-        validateStarTree(builder.getRootNode(), 3, 10, builder.getStarTreeDocuments());
+        validateStarTree(builder.getRootNode(), 4, 10, builder.getStarTreeDocuments());
     }
 
     private StarTreeValues getStarTreeValuesWithDates(
         SortedNumericDocValues dimList,
         SortedNumericDocValues dimList2,
+        SortedNumericDocValues dimList4,
         SortedNumericDocValues dimList3,
         SortedNumericDocValues metricsList,
         SortedNumericDocValues metricsList1,
         StarTreeField sf,
         String number
     ) {
-        Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of("field1_minute", dimList, "field1_hour", dimList2, "field3", dimList3);
+        Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of(
+            "field1_minute",
+            dimList,
+            "field1_half-hour",
+            dimList4,
+            "field1_hour",
+            dimList2,
+            "field3",
+            dimList3
+        );
         Map<String, DocIdSetIterator> metricDocIdSetIterators = Map.of("field2_COUNT", metricsList, "field2_SUM", metricsList1);
         return new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators, Map.of("numSegmentDocs", number));
     }
 
     private static StarTreeField getStarTreeFieldWithDateDimension() {
-        List<Rounding.DateTimeUnit> intervals = new ArrayList<>();
-        intervals.add(Rounding.DateTimeUnit.MINUTES_OF_HOUR);
-        intervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        List<DateTimeUnitRounding> intervals = new ArrayList<>();
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR));
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
+        intervals.add(ExtendedDateTimeUnit.HALF_HOUR_OF_DAY);
         Dimension d1 = new DateDimension("field1", intervals, DateFieldMapper.Resolution.MILLISECONDS);
         Dimension d2 = new NumericDimension("field3");
         Metric m1 = new Metric("field2", List.of(MetricStat.SUM));

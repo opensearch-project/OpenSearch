@@ -23,6 +23,9 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.junit.After;
 import org.junit.Before;
 
@@ -60,11 +63,13 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
             DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
-            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
-                Rounding.DateTimeUnit.DAY_OF_MONTH,
-                Rounding.DateTimeUnit.MONTH_OF_YEAR
+            List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH),
+                new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR)
             );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            for (int i = 0; i < expectedTimeUnits.size(); i++) {
+                assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getIntervals().get(i).shortName());
+            }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.SUM, MetricStat.AVG);
@@ -110,13 +115,15 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
             DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
-            List<String> expectedDimensionFields = Arrays.asList("@timestamp_minute", "@timestamp_hour");
+            List<String> expectedDimensionFields = Arrays.asList("@timestamp_minute", "@timestamp_half-hour");
             assertEquals(expectedDimensionFields, dateDim.getDimensionFieldsNames());
-            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
-                Rounding.DateTimeUnit.MINUTES_OF_HOUR,
-                Rounding.DateTimeUnit.HOUR_OF_DAY
+            List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+                ExtendedDateTimeUnit.HALF_HOUR_OF_DAY
             );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            for (int i = 0; i < expectedTimeUnits.size(); i++) {
+                assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getIntervals().get(i).shortName());
+            }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(
@@ -141,14 +148,16 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
             DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
-            List<String> expectedDimensionFields = Arrays.asList("@timestamp_week", "@timestamp_month", "@timestamp_quarter");
+            List<String> expectedDimensionFields = Arrays.asList("@timestamp_half-hour", "@timestamp_week", "@timestamp_month");
             assertEquals(expectedDimensionFields, dateDim.getDimensionFieldsNames());
-            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
-                Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR,
-                Rounding.DateTimeUnit.MONTH_OF_YEAR,
-                Rounding.DateTimeUnit.QUARTER_OF_YEAR
+            List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                ExtendedDateTimeUnit.HALF_HOUR_OF_DAY,
+                new DateTimeUnitAdapter(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+                new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR)
             );
-            assertEquals(expectedTimeUnits, dateDim.getSortedCalendarIntervals());
+            for (int i = 0; i < expectedTimeUnits.size(); i++) {
+                assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
+            }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(
@@ -337,16 +346,16 @@ public class StarTreeMapperTests extends MapperTestCase {
     }
 
     public void testDimensions() {
-        List<Rounding.DateTimeUnit> d1CalendarIntervals = new ArrayList<>();
-        d1CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        List<DateTimeUnitRounding> d1CalendarIntervals = new ArrayList<>();
+        d1CalendarIntervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
         DateDimension d1 = new DateDimension("name", d1CalendarIntervals, DateFieldMapper.Resolution.MILLISECONDS);
         DateDimension d2 = new DateDimension("name", d1CalendarIntervals, DateFieldMapper.Resolution.MILLISECONDS);
         assertEquals(d1, d2);
         d2 = new DateDimension("name1", d1CalendarIntervals, DateFieldMapper.Resolution.MILLISECONDS);
         assertNotEquals(d1, d2);
-        List<Rounding.DateTimeUnit> d2CalendarIntervals = new ArrayList<>();
-        d2CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
-        d2CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        List<DateTimeUnitRounding> d2CalendarIntervals = new ArrayList<>();
+        d2CalendarIntervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
+        d2CalendarIntervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
         d2 = new DateDimension("name", d2CalendarIntervals, DateFieldMapper.Resolution.MILLISECONDS);
         assertNotEquals(d1, d2);
         NumericDimension n1 = new NumericDimension("name");
@@ -360,8 +369,8 @@ public class StarTreeMapperTests extends MapperTestCase {
         List<MetricStat> m1 = new ArrayList<>();
         m1.add(MetricStat.MAX);
         Metric metric1 = new Metric("name", m1);
-        List<Rounding.DateTimeUnit> d1CalendarIntervals = new ArrayList<>();
-        d1CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        List<DateTimeUnitRounding> d1CalendarIntervals = new ArrayList<>();
+        d1CalendarIntervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
         DateDimension d1 = new DateDimension("name", d1CalendarIntervals, DateFieldMapper.Resolution.MILLISECONDS);
         NumericDimension n1 = new NumericDimension("numeric");
         NumericDimension n2 = new NumericDimension("name1");
@@ -545,9 +554,10 @@ public class StarTreeMapperTests extends MapperTestCase {
                     b.value(getRandom().nextBoolean() ? "hour" : "1h");
                     b.value(getRandom().nextBoolean() ? "minute" : "1m");
                     b.value(getRandom().nextBoolean() ? "year" : "1y");
+                    b.value(getRandom().nextBoolean() ? "quarter-hour" : "15m");
                 }
                 b.value(getRandom().nextBoolean() ? "month" : "1M");
-                b.value(getRandom().nextBoolean() ? "quarter" : "1q");
+                b.value(getRandom().nextBoolean() ? "half-hour" : "30m");
                 b.endArray();
                 b.endObject();
             }
