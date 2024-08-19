@@ -285,7 +285,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 Queue<MetricStat> metricQueue = new LinkedList<>(metricStat.getBaseMetrics());
                 while (metricQueue.isEmpty() == false) {
                     MetricStat metric = metricQueue.poll();
-                    if (metric.isDerivedMetric()) {
+                    if (metric.isDerivedMetric() && !metricSet.contains(metric)) {
                         metricQueue.addAll(metric.getBaseMetrics());
                     }
                     metricSet.add(metric);
