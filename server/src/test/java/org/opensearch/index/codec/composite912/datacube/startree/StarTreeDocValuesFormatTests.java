@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite99.datacube.startree;
+package org.opensearch.index.codec.composite912.datacube.startree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -39,9 +39,9 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
+import org.opensearch.index.codec.composite.Composite912Codec;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
@@ -107,7 +107,7 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        Codec codec = new Composite99Codec(Lucene99Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        Codec codec = new Composite912Codec(Lucene912Codec.Mode.BEST_SPEED, mapperService, testLogger);
         return codec;
     }
 
