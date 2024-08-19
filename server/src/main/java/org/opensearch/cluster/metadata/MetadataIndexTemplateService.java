@@ -585,7 +585,7 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    private static String findContextTemplate(Metadata metadata, Context context) {
+    static String findContextTemplate(Metadata metadata, Context context) {
         if (context == null) {
             return null;
         }
