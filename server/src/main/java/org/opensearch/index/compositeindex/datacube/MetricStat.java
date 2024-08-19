@@ -20,17 +20,18 @@ import java.util.List;
  */
 @ExperimentalApi
 public enum MetricStat {
-    COUNT("count", null),
-    SUM("sum", null),
-    MIN("min", null),
-    MAX("max", null),
-    AVG("avg", new MetricStat[] { COUNT, SUM });
+    COUNT("count"),
+    SUM("sum"),
+    MIN("min"),
+    MAX("max"),
+    AVG("avg", COUNT, SUM);
 
     private final String typeName;
     private final MetricStat[] baseMetrics;
 
-    MetricStat(String typeName, MetricStat[] baseMetrics) {
+    MetricStat(String typeName, MetricStat... baseMetrics) {
         this.typeName = typeName;
+        assert baseMetrics != null && baseMetrics.length > 0;
         this.baseMetrics = baseMetrics;
     }
 
