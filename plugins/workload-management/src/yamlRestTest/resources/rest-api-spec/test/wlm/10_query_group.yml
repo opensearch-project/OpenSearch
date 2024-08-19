@@ -111,7 +111,7 @@
       delete_query_group_context:
         name: "analytics2"
 
-  - match: { deleted.0.name: "analytics2" }
-  - match: { deleted.0.resiliency_mode: "monitor" }
-  - match: { deleted.0.resource_limits.cpu: 0.35 }
-  - match: { deleted.0.resource_limits.memory: 0.25 }
+  - match: { deleted.name: "analytics2" }
+  - match: { deleted.resiliency_mode: "monitor" }
+  - match: { deleted.resource_limits.cpu: 0.35 }
+  - match: { deleted.resource_limits.memory: 0.25 }

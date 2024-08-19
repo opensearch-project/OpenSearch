@@ -302,6 +302,9 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertEquals(50, queryGroupPersistenceService.getMaxQueryGroupCount());
     }
 
+    /**
+     * Tests delete a single QueryGroup
+     */
     public void testDeleteSingleQueryGroup() {
         ClusterState newClusterState = queryGroupPersistenceService().deleteQueryGroupInClusterState(NAME_TWO, clusterState());
         Map<String, QueryGroup> afterDeletionGroups = newClusterState.getMetadata().queryGroups();
@@ -312,6 +315,9 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertEqualQueryGroups(new ArrayList<>(afterDeletionGroups.values()), oldQueryGroups);
     }
 
+    /**
+     * Tests delete a QueryGroup with invalid name
+     */
     public void testDeleteNonExistedQueryGroup() {
         assertThrows(
             IllegalArgumentException.class,

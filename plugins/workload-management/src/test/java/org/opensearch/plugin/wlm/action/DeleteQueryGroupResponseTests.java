@@ -54,17 +54,15 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
         DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(queryGroupOne, RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
-            + "  \"deleted\" : [\n"
-            + "    {\n"
-            + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
-            + "      \"name\" : \"query_group_one\",\n"
-            + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updated_at\" : 4513232413,\n"
-            + "      \"resource_limits\" : {\n"
-            + "        \"memory\" : 0.3\n"
-            + "      }\n"
+            + "  \"deleted\" : {\n"
+            + "    \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
+            + "    \"name\" : \"query_group_one\",\n"
+            + "    \"resiliency_mode\" : \"monitor\",\n"
+            + "    \"updated_at\" : 4513232413,\n"
+            + "    \"resource_limits\" : {\n"
+            + "      \"memory\" : 0.3\n"
             + "    }\n"
-            + "  ]\n"
+            + "  }\n"
             + "}";
         assertEquals(expected, actual);
     }

@@ -56,9 +56,7 @@ public class DeleteQueryGroupResponse extends ActionResponse implements ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray("deleted");
-        queryGroup.toXContent(builder, params);
-        builder.endArray();
+        builder.field("deleted", queryGroup);
         builder.endObject();
         return builder;
     }
