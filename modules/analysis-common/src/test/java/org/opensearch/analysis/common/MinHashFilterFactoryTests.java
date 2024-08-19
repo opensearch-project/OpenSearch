@@ -53,8 +53,7 @@ public class MinHashFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("min_hash");
         String source = "the quick brown fox";
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader(source));
+        Tokenizer tokenizer = getTokenizer(source);
 
         // with_rotation is true by default, and hash_set_size is 1, so even though the source doesn't
         // have enough tokens to fill all the buckets, we still expect 512 tokens.
@@ -73,11 +72,60 @@ public class MinHashFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("test_min_hash");
         String source = "sushi";
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader(source));
+        Tokenizer tokenizer = getTokenizer(source);
 
         // despite the fact that bucket_count is 2 and hash_set_size is 1,
         // because with_rotation is false, we only expect 1 token here.
         assertStreamHasNumberOfTokens(tokenFilter.create(tokenizer), 1);
+    }
+
+    public void testBucketCountSetting() throws IOException {
+        // Correct case with "bucket_count"
+        Settings settingsWithBucketCount = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", "1")
+            .put("index.analysis.filter.test_min_hash.bucket_count", "3")
+            .put("index.analysis.filter.test_min_hash.hash_set_size", "1")
+            .put("index.analysis.filter.test_min_hash.with_rotation", false)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        OpenSearchTestCase.TestAnalysis analysisWithBucketCount = getTestAnalysisFromSettings(settingsWithBucketCount);
+
+        TokenFilterFactory tokenFilterWithBucketCount = analysisWithBucketCount.tokenFilter.get("test_min_hash");
+        String sourceWithBucketCount = "salmon avocado roll uramaki";
+        Tokenizer tokenizerWithBucketCount = getTokenizer(sourceWithBucketCount);
+        // Expect 3 tokens due to bucket_count being set to 3
+        assertStreamHasNumberOfTokens(tokenFilterWithBucketCount.create(tokenizerWithBucketCount), 3);
+    }
+
+    public void testHashSetSizeSetting() throws IOException {
+        // Correct case with "hash_set_size"
+        Settings settingsWithHashSetSize = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", "1")
+            .put("index.analysis.filter.test_min_hash.bucket_count", "1")
+            .put("index.analysis.filter.test_min_hash.hash_set_size", "2")
+            .put("index.analysis.filter.test_min_hash.with_rotation", false)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        OpenSearchTestCase.TestAnalysis analysisWithHashSetSize = getTestAnalysisFromSettings(settingsWithHashSetSize);
+
+        TokenFilterFactory tokenFilterWithHashSetSize = analysisWithHashSetSize.tokenFilter.get("test_min_hash");
+        String sourceWithHashSetSize = "salmon avocado roll uramaki";
+        Tokenizer tokenizerWithHashSetSize = getTokenizer(sourceWithHashSetSize);
+        // Expect 2 tokens due to hash_set_size being set to 2 and bucket_count being 1
+        assertStreamHasNumberOfTokens(tokenFilterWithHashSetSize.create(tokenizerWithHashSetSize), 2);
+    }
+
+    private static OpenSearchTestCase.TestAnalysis getTestAnalysisFromSettings(Settings settingsWithBucketCount) throws IOException {
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(settingsWithBucketCount, new CommonAnalysisPlugin());
+    }
+
+    private static Tokenizer getTokenizer(String sourceWithBucketCount) {
+        Tokenizer tokenizerWithBucketCount = new WhitespaceTokenizer();
+        tokenizerWithBucketCount.setReader(new StringReader(sourceWithBucketCount));
+        return tokenizerWithBucketCount;
     }
 }
