@@ -593,7 +593,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // Authentication did not fail so return true. Authorization is handled at the action level.
                 return true;
             }
-            final UserSubject currentSubject = identityService.getUserSubject();
+            final UserSubject currentSubject = (UserSubject) identityService.getCurrentSubject();
             currentSubject.authenticate(token);
             logger.debug("Logged in as user " + currentSubject);
         } catch (final Exception e) {

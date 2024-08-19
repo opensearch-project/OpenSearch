@@ -249,7 +249,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
 
             TokenManager tokenManager = identityService.getTokenManager();
-            Subject subject = this.identityService.getUserSubject();
+            Subject subject = this.identityService.getCurrentSubject();
             OnBehalfOfClaims claims = new OnBehalfOfClaims(discoveryExtensionNode.getId(), subject.getPrincipal().getName());
 
             transportService.sendRequest(
