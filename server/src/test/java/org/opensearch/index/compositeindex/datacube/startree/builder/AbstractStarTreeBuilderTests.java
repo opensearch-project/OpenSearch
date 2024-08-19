@@ -10,7 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
@@ -273,7 +273,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             numDocs,
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             writeState.segmentInfo.getId(),
             new HashMap<>(),
@@ -287,12 +287,12 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SegmentInfo segmentInfo = new SegmentInfo(
             directory,
             Version.LATEST,
-            Version.LUCENE_9_11_0,
+            Version.LUCENE_9_12_0,
             "test_segment",
             numDocs,
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             id,
             new HashMap<>(),
@@ -1453,7 +1453,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             7,
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),
@@ -1724,7 +1724,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             7,
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),

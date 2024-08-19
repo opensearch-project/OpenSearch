@@ -6,13 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.composite99;
+package org.opensearch.index.codec.composite;
 
-import org.apache.lucene.backward_codecs.lucene99.Lucene99Codec;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
+import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
 import org.opensearch.index.mapper.MapperService;
 
 /**
@@ -22,13 +25,17 @@ import org.opensearch.index.mapper.MapperService;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite99Codec extends FilterCodec {
-    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite99Codec";
+public class Composite912Codec extends FilterCodec {
+    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite912Codec";
     private final MapperService mapperService;
 
     // needed for SPI - this is used in reader path
-    public Composite99Codec() {
-        this(COMPOSITE_INDEX_CODEC_NAME, new Lucene99Codec(), null);
+    public Composite912Codec() {
+        this(COMPOSITE_INDEX_CODEC_NAME, new Lucene912Codec(), null);
+    }
+
+    public Composite912Codec(Lucene912Codec.Mode compressionMode, MapperService mapperService, Logger logger) {
+        this(COMPOSITE_INDEX_CODEC_NAME, new PerFieldMappingPostingFormatCodec(compressionMode, mapperService, logger), mapperService);
     }
 
     /**
@@ -39,7 +46,7 @@ public class Composite99Codec extends FilterCodec {
      * @param delegate codec delegate
      * @param mapperService mapper service instance
      */
-    protected Composite99Codec(String name, Codec delegate, MapperService mapperService) {
+    protected Composite912Codec(String name, Codec delegate, MapperService mapperService) {
         super(name, delegate);
         this.mapperService = mapperService;
     }
