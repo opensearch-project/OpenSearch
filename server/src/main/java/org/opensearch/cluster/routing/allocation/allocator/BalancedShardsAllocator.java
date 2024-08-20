@@ -311,7 +311,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.allocatorTimeout = allocatorTimeout;
     }
 
-    private boolean allocatorTimedOut(long currentTime) {
+    protected boolean allocatorTimedOut(long currentTime) {
         if (allocatorTimeout.equals(TimeValue.MINUS_ONE)) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Allocator timeout is disabled. Will not short circuit allocator tasks");

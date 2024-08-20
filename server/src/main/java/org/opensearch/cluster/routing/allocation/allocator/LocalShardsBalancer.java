@@ -75,7 +75,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final Function<Long, Boolean> timedOutFunc;
     private int totalShardCount = 0;
 
-
     public LocalShardsBalancer(
         Logger logger,
         RoutingAllocation allocation,
@@ -836,9 +835,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
             for (int i = 0; i < primaryLength; i++) {
                 if (timedOutFunc.apply(System.nanoTime())) {
                     // TODO - maybe check if we can allow wait for active shards thingy bypass this condition
-                    logger.info("Ignoring [{}] unassigned shards for allocation as time allocated to " +
-                        "balanced shards allocator has elapsed", (primaryLength - i));
-                    while (i < primaryLength - 1) {
+                    logger.info(
+                        "Ignoring [{}] unassigned shards for allocation as time allocated to balanced shards allocator has elapsed",
+                        (primaryLength - i)
+                    );
+                    while (i < primaryLength) {
                         unassigned.ignoreShard(primary[i], UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                         i++;
                     }
