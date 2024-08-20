@@ -47,7 +47,7 @@ if [ -f "$OPENSEARCH_ENV_FILE" ]; then
     . "$OPENSEARCH_ENV_FILE"
 fi
 
-exec="$OPENSEARCH_HOME/bin/wazuh-indexer"
+exec="$OPENSEARCH_HOME/bin/opensearch"
 prog="wazuh-indexer"
 pidfile="$PID_DIR/${prog}.pid"
 

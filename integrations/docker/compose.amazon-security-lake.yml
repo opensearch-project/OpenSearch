@@ -1,0 +1,175 @@
+name: "amazon-security-lake"
+
+services:
+  events-generator:
+    image: wazuh/indexer-events-generator
+    build:
+      context: ../tools/events-generator
+    container_name: events-generator
+    depends_on:
+      wazuh.indexer:
+        condition: service_healthy
+    command: bash -c "python run.py -a wazuh.indexer"
+
+  wazuh.indexer:
+    image: opensearchproject/opensearch:${WAZUH_INDEXER_VERSION}
+    container_name: wazuh.indexer
+    depends_on:
+      wazuh-certs-generator:
+        condition: service_completed_successfully
+    hostname: wazuh.indexer
+    ports:
+      - 9200:9200
+    environment:
+      - WAZUH_INDEXER_VERSION=${WAZUH_INDEXER_VERSION}
+      # - cluster.name=opensearch-cluster
+      - node.name=wazuh.indexer
+      - discovery.type=single-node
+      # - cluster.initial_cluster_manager_nodes=opensearch-node
+      - bootstrap.memory_lock=true
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - plugins.security.ssl.http.enabled=true
+      - plugins.security.allow_default_init_securityindex=true
+      - plugins.security.ssl.http.pemcert_filepath=/usr/share/opensearch/config/wazuh.indexer.pem
+      - plugins.security.ssl.transport.pemcert_filepath=/usr/share/opensearch/config/wazuh.indexer.pem
+      - plugins.security.ssl.http.pemkey_filepath=/usr/share/opensearch/config/wazuh.indexer-key.pem
+      - plugins.security.ssl.transport.pemkey_filepath=/usr/share/opensearch/config/wazuh.indexer-key.pem
+      - plugins.security.ssl.http.pemtrustedcas_filepath=/usr/share/opensearch/config/root-ca.pem
+      - plugins.security.ssl.transport.pemtrustedcas_filepath=/usr/share/opensearch/config/root-ca.pem
+      - plugins.security.authcz.admin_dn="CN=wazuh.indexer,OU=Wazuh,O=Wazuh,L=California, C=US"
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: curl -sku admin:admin https://localhost:9200/_cat/health | grep -q docker-cluster
+      start_period: 10s
+      start_interval: 3s
+    volumes:
+      - data:/usr/share/opensearch/data
+      - ./certs/wazuh.indexer.pem:/usr/share/opensearch/config/wazuh.indexer.pem
+      - ./certs/wazuh.indexer-key.pem:/usr/share/opensearch/config/wazuh.indexer-key.pem
+      - ./certs/root-ca.pem:/usr/share/opensearch/config/root-ca.pem
+
+  wazuh.dashboard:
+    image: opensearchproject/opensearch-dashboards:${WAZUH_DASHBOARD_VERSION}
+    container_name: wazuh.dashboard
+    depends_on:
+      - wazuh.indexer
+    hostname: wazuh.dashboard
+    ports:
+      - 5601:5601 # Map host port 5601 to container port 5601
+    expose:
+      - "5601" # Expose port 5601 for web access to OpenSearch Dashboards
+    volumes:
+      - ./certs/:/usr/share/opensearch-dashboards/config/certs/
+      - ./certs/wazuh.dashboard-key.pem:/usr/share/opensearch-dashboards/config/certs/opensearch.key
+      - ./certs/wazuh.dashboard.pem:/usr/share/opensearch-dashboards/config/certs/opensearch.pem
+      - ./certs/root-ca.pem:/usr/share/opensearch-dashboards/config/certs/root-ca.pem
+    environment:
+      WAZUH_DASHBOARD_VERSION: ${WAZUH_DASHBOARD_VERSION}
+      OPENSEARCH_HOSTS: '["https://wazuh.indexer:9200"]' # Define the OpenSearch nodes that OpenSearch Dashboards will query
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_KEY: "/usr/share/opensearch-dashboards/config/certs/opensearch.key"
+      SERVER_SSL_CERTIFICATE: "/usr/share/opensearch-dashboards/config/certs/opensearch.pem"
+      OPENSEARCH_SSL_CERTIFICATEAUTHORITIES: "/usr/share/opensearch-dashboards/config/certs/root-ca.pem"
+
+  logstash:
+    depends_on:
+      - wazuh.indexer
+    # image: wazuh/indexer-security-lake-integration
+    image: logstash-oss:${LOGSTASH_OSS_VERSION}
+    build:
+      context: ../logstash
+      args:
+        - LOGSTASH_OSS_VERSION=${LOGSTASH_OSS_VERSION}
+    # container_name: wazuh.integration.security.lake
+    # hostname: wazuh.integration.security.lake
+    environment:
+      LOG_LEVEL: trace
+      LOGSTASH_KEYSTORE_PASS: "SecretPassword"
+      MONITORING_ENABLED: false
+      AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
+      AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      AWS_REGION: "us-east-1"
+      S3_BUCKET_RAW: "wazuh-aws-security-lake-raw"
+      AWS_ENDPOINT: "http://s3.ninja:9000"
+    ports:
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "5044:5044"
+      - "9600:9600"
+    volumes:
+      - ../amazon-security-lake/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./certs/root-ca.pem:/usr/share/logstash/root-ca.pem
+
+  s3.ninja:
+    image: scireum/s3-ninja:latest
+    container_name: s3.ninja
+    hostname: s3.ninja
+    ports:
+      - "9444:9000"
+    volumes:
+      - s3-data:/home/sirius/data
+
+  aws.lambda:
+    image: wazuh/indexer-security-lake-integration:lambda
+    build:
+      context: ../amazon-security-lake
+    environment:
+      AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
+      AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      REGION: "us-east-1"
+      AWS_BUCKET: "wazuh-aws-security-lake-parquet"
+      S3_BUCKET_OCSF: "wazuh-aws-security-lake-ocsf"
+      AWS_ENDPOINT: "http://s3.ninja:9000"
+      SOURCE_LOCATION: "wazuh"
+      ACCOUNT_ID: "111111111111"
+      IS_DEV: true
+      OCSF_CLASS: SECURITY_FINDING
+    volumes:
+      - ../amazon-security-lake/src:/var/task
+    ports:
+      - "9000:8080"
+
+  generate-certs-config:
+    image: alpine:latest
+    volumes:
+      - ./config:/config
+    command: |
+      sh -c "
+      echo '
+      nodes:
+        indexer:
+          - name: wazuh.indexer
+            ip: \"wazuh.indexer\"
+        server:
+          - name: wazuh.manager
+            ip: \"wazuh.manager\"
+        dashboard:
+          - name: wazuh.dashboard
+            ip: \"wazuh.dashboard\"
+      ' > /config/certs.yml
+      "
+
+  wazuh-certs-generator:
+    image: wazuh/wazuh-certs-generator:${WAZUH_CERTS_GENERATOR_VERSION}
+    hostname: wazuh-certs-generator
+    depends_on:
+      generate-certs-config:
+        condition: service_completed_successfully
+    container_name: wazuh-certs-generator
+    environment:
+      - WAZUH_CERTS_GENERATOR_VERSION=${WAZUH_CERTS_GENERATOR_VERSION}
+    entrypoint: sh -c "/entrypoint.sh; chown -R 1000:999 /certificates; chmod 740 /certificates; chmod 440 /certificates/*"
+    volumes:
+      - ./certs/:/certificates/
+      - ./config/certs.yml:/config/certs.yml
+
+volumes:
+  data:
+  s3-data:

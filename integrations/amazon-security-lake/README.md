@@ -90,7 +90,7 @@ Follow the [official documentation](https://docs.aws.amazon.com/lambda/latest/dg
 - Configure the runtime to have 512 MB of memory and 30 seconds timeout.
 - Configure a trigger so every object with `.txt` extension uploaded to the S3 bucket created previously invokes the Lambda.
   ![AWS Lambda trigger](./images/asl-lambda-trigger.jpeg)
--  Use the [Makefile](./Makefile) to generate the zip package `wazuh_to_amazon_security_lake.zip`, and upload it to the S3 bucket created previously as per [these instructions](https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-package.html#gettingstarted-package-zip). See [CONTRIBUTING](./CONTRIBUTING.md) for details about the Makefile.
+- Use the [Makefile](./Makefile) to generate the zip package `wazuh_to_amazon_security_lake.zip`, and upload it to the S3 bucket created previously as per [these instructions](https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-package.html#gettingstarted-package-zip). See [CONTRIBUTING](./CONTRIBUTING.md) for details about the Makefile.
 - Configure the Lambda with the at least the required _Environment Variables_ below:
 
   | Environment variable | Required | Value                                                                                              |
@@ -234,7 +234,7 @@ The tables below represent how the Wazuh Security Events are mapped into the OCS
 | type_uid                     | Long                | 200101             |
 | metadata.product.name        | String              | "Wazuh"            |
 | metadata.product.vendor_name | String              | "Wazuh, Inc."      |
-| metadata.product.version     | String              | "4.9.0"            |
+| metadata.product.version     | String              | "4.9.1"            |
 | metadata.product.lang        | String              | "en"               |
 | metadata.log_name            | String              | "Security events"  |
 | metadata.log_provider        | String              | "Wazuh"            |

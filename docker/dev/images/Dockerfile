@@ -1,4 +1,4 @@
-FROM gradle:jdk21-alpine AS builder
+FROM gradle:8.7.0-jdk21-alpine AS builder
 USER gradle
 WORKDIR /home/wazuh-indexer
 COPY --chown=gradle:gradle . /home/wazuh-indexer

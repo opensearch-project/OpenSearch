@@ -2,6 +2,7 @@ import logging
 import os
 import urllib.parse
 import json
+import gzip
 import boto3
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -31,7 +32,7 @@ def get_events(bucket: str, key: str) -> list:
     logger.info(f"Reading {key}.")
     try:
         response = s3_client.get_object(Bucket=bucket, Key=key)
-        data = response['Body'].read().decode('utf-8')
+        data = gzip.decompress(response['Body'].read()).decode('utf-8')
         return data.splitlines()
     except ClientError as e:
         logger.error(

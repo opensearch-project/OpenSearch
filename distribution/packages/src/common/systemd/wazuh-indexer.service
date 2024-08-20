@@ -70,7 +70,7 @@ SendSIGKILL=no
 SuccessExitStatus=143
 
 # Allow a slow startup before the systemd notifier module kicks in to extend the timeout
-TimeoutStartSec=75
+TimeoutStartSec=180
 
 # Prevent modifications to the control group filesystem
 ProtectControlGroups=true

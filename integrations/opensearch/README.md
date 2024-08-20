@@ -11,11 +11,11 @@ This document describes how to prepare a Docker Compose environment to test the 
 1. Clone the Wazuh repository and navigate to the `integrations/` folder.
 2. Run the following command to start the environment:
    ```bash
-   docker compose -f ./docker/opensearch.yml up -d
+   docker compose -f ./docker/compose.indexer-opensearch.yml up -d
    ```
 3. If you prefer, you can start the integration with the Wazuh Manager as data source:
    ```bash
-   docker compose -f ./docker/manager-opensearch.yml up -d
+   docker compose -f ./docker/compose.manager-opensearch.yml up -d
    ```
 
 The Docker Compose project will bring up the following services:
@@ -29,12 +29,13 @@ The Docker Compose project will bring up the following services:
 
 For custom configurations, you may need to modify these files:
 
-- [docker/opensearch.yml](../docker/opensearch.yml): Docker Compose file.
+- [docker/compose.indexer-opensearch.yml](../docker/compose.indexer-opensearch.yml): Docker Compose file.
 - [docker/.env](../docker/.env): Environment variables file.
 - [opensearch/logstash/pipeline/indexer-to-opensearch.conf](./logstash/pipeline/indexer-to-opensearch.conf): Logstash Pipeline configuration file.
 
 If you opted to start the integration with the Wazuh Manager, you can modify the following files:
-- [docker/manager-opensearch.yml](../docker/manager-opensearch.yml): Docker Compose file.
+
+- [docker/compose.manager-opensearch.yml](../docker/compose.manager-opensearch.yml): Docker Compose file.
 - [opensearch/logstash/pipeline/manager-to-opensearch.conf](./logstash/pipeline/manager-to-opensearch.conf): Logstash Pipeline configuration file.
 
 Check the files above for **credentials**, ports, and other configurations.

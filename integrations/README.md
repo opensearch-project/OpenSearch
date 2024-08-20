@@ -14,14 +14,13 @@ and combines security data from AWS and a broad range of enterprise security dat
 
 Refer to these documents for more information about this integration:
 
-* [User Guide](./amazon-security-lake/README.md).
-* [Developer Guide](./amazon-security-lake/CONTRIBUTING.md).
-
+- [User Guide](./amazon-security-lake/README.md).
+- [Developer Guide](./amazon-security-lake/CONTRIBUTING.md).
 
 ### Other integrations
 
 We host development environments to support the following integrations:
 
-* [Splunk](./splunk/README.md).
-* [Elasticsearch](./elastic/README.md).
-* [OpenSearch](./opensearch/README.md).
+- [Splunk](./splunk/README.md).
+- [Elasticsearch](./elastic/README.md).
+- [OpenSearch](./opensearch/README.md).

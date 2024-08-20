@@ -11,11 +11,11 @@ This document describes how to prepare a Docker Compose environment to test the 
 1. Clone the Wazuh repository and navigate to the `integrations/` folder.
 2. Run the following command to start the environment:
    ```bash
-   docker compose -f ./docker/elastic.yml up -d
+   docker compose -f ./docker/compose.indexer-elastic.yml up -d
    ```
 3. If you prefer, you can start the integration with the Wazuh Manager as data source:
    ```bash
-   docker compose -f ./docker/manager-elastic.yml up -d
+   docker compose -f ./docker/compose.manager-elastic.yml up -d
    ```
 
 The Docker Compose project will bring up the following services:
@@ -29,21 +29,22 @@ The Docker Compose project will bring up the following services:
 
 For custom configurations, you may need to modify these files:
 
-- [docker/elastic.yml](../docker/elastic.yml): Docker Compose file.
+- [docker/compose.indexer-elastic.yml](../docker/compose.indexer-elastic.yml): Docker Compose file.
 - [docker/.env](../docker/.env): Environment variables file.
 - [elastic/logstash/pipeline/indexer-to-elastic.conf](./logstash/pipeline/indexer-to-elastic.conf): Logstash Pipeline configuration file.
 
 If you opted to start the integration with the Wazuh Manager, you can modify the following files:
-- [docker/manager-elastic.yml](../docker/manager-elastic.yml): Docker Compose file.
+
+- [docker/compose.manager-elastic.yml](../docker/compose.manager-elastic.yml): Docker Compose file.
 - [elastic/logstash/pipeline/manager-to-elastic.conf](./logstash/pipeline/manager-to-elastic.conf): Logstash Pipeline configuration file.
 
 Check the files above for **credentials**, ports, and other configurations.
 
-| Service          | Address                | Credentials     |
-| ---------------- | ---------------------- | --------------- |
-| Wazuh Indexer    | https://localhost:9200 | admin:admin     |
-| Elastic          | https://localhost:9201 | elastic:elastic |
-| Kibana           | https://localhost:5602 | elastic:elastic |
+| Service       | Address                | Credentials     |
+| ------------- | ---------------------- | --------------- |
+| Wazuh Indexer | https://localhost:9200 | admin:admin     |
+| Elastic       | https://localhost:9201 | elastic:elastic |
+| Kibana        | https://localhost:5602 | elastic:elastic |
 
 ## Importing the dashboards
 

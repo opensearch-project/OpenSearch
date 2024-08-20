@@ -13,9 +13,9 @@ opensearch_security.readonly_mode.roles: ["kibana_read_only"]
 server.ssl.enabled: true
 server.ssl.key: "/usr/share/opensearch-dashboards/config/certs/opensearch.key"
 server.ssl.certificate: "/usr/share/opensearch-dashboards/config/certs/opensearch.pem"
-opensearch.ssl.certificateAuthorities: ["/usr/share/opensearch-dashboards/config/certs/root-ca.pem"]
+opensearch.ssl.certificateAuthorities:
+  ["/usr/share/opensearch-dashboards/config/certs/root-ca.pem"]
 opensearch.username: "kibanaserver"
 opensearch.password: "kibanaserver"
 opensearchDashboards.branding:
   useExpandedHeader: false
-

@@ -108,10 +108,12 @@ set -- "$@" "%%dir /usr/lib/systemd/system"
 set -- "$@" "%%dir /usr/lib/tmpfiles.d"
 set -- "$@" "%%dir /usr/share"
 set -- "$@" "%%dir /var"
+set -- "$@" "%%dir /var/run"
+set -- "$@" "%%dir /var/run/%{name}"
+set -- "$@" "%%dir /run"
 set -- "$@" "%%dir /var/lib"
 set -- "$@" "%%dir /var/log"
 set -- "$@" "%%dir /usr/lib/sysctl.d"
-set -- "$@" "%%dir /usr/lib/systemd"
 set -- "$@" "%%dir /usr/lib/systemd"
 set -- "$@" "%{_sysconfdir}/sysconfig/%{name}"
 set -- "$@" "%{config_dir}/log4j2.properties"
@@ -174,8 +176,8 @@ exit 0
 
 %post
 set -e
-chown -R %{name}.%{name} %{config_dir}
-chown -R %{name}.%{name} %{log_dir}
+chown -R %{name}:%{name} %{config_dir}
+chown -R %{name}:%{name} %{log_dir}
 
 # Apply PerformanceAnalyzer Settings
 chmod a+rw /tmp
@@ -232,7 +234,7 @@ exit 0
 # Service files
 %attr(0644, root, root) %{_prefix}/lib/systemd/system/%{name}.service
 %attr(0644, root, root) %{_prefix}/lib/systemd/system/%{name}-performance-analyzer.service
-%attr(0644, root, root) %{_sysconfdir}/init.d/%{name}
+%attr(0750, root, root) %{_sysconfdir}/init.d/%{name}
 %attr(0644, root, root) %config(noreplace) %{_prefix}/lib/sysctl.d/%{name}.conf
 %attr(0644, root, root) %config(noreplace) %{_prefix}/lib/tmpfiles.d/%{name}.conf
 
@@ -263,9 +265,11 @@ exit 0
 %attr(750, %{name}, %{name}) %{product_dir}/performance-analyzer-rca/bin/*
 
 %changelog
-* Wed Jun 19 2024 support <info@wazuh.com> - 4.10.0
+* Tue Aug 20 2024 support <info@wazuh.com> - 4.10.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-10-0.html
-* Thu Mar 28 2024 support <info@wazuh.com> - 4.9.0
+* Thu Aug 15 2024 support <info@wazuh.com> - 4.9.1
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-9-1.html
+* Thu Aug 15 2024 support <info@wazuh.com> - 4.9.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-9-0.html
 * Tue Jan 30 2024 support <info@wazuh.com> - 4.8.1
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-8-1.html
