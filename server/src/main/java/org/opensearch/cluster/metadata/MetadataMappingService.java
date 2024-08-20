@@ -283,7 +283,6 @@ public class MetadataMappingService {
                     // first, simulate: just call merge and ignore the result
                     existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
                 }
-
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
