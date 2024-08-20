@@ -1755,7 +1755,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (context.getQueryShardContext().isCacheable() == false) {
             return false;
         }
-        if (!(context.searcher().getIndexReader().getReaderCacheHelper() instanceof OpenSearchDirectoryReader.DelegatingCacheHelper)) {
+        if (!(context.searcher().getDirectoryReader().getReaderCacheHelper() instanceof OpenSearchDirectoryReader.DelegatingCacheHelper)) {
             return false;
         }
         return true;

@@ -812,8 +812,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
                         // sometimes throw an exception on timeout, rather than timing out gracefully.
                         Weight result = super.createWeight(searcher, scoreMode, boost);
                         try {
-                            // Pick 500 ms as it's the same duration used in SearchTimeoutIT.testSimpleTimeout() to ensure a timeout
-                            // (We can't directly reuse their ScriptQuery-based logic as it isn't cacheable)
                             Thread.sleep(500);
                         } catch (InterruptedException ignored) {}
                         return result;
