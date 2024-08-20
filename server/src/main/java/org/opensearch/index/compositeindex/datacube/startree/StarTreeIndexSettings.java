@@ -100,7 +100,7 @@ public class StarTreeIndexSettings {
         "index.composite_index.star_tree.field.default.metrics",
         Arrays.asList(
             MetricStat.AVG.toString(),
-            MetricStat.COUNT.toString(),
+            MetricStat.VALUE_COUNT.toString(),
             MetricStat.SUM.toString(),
             MetricStat.MAX.toString(),
             MetricStat.MIN.toString()

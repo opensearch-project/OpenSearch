@@ -415,7 +415,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
                     List<MetricStat> expectedMetrics = Arrays.asList(
                         MetricStat.AVG,
-                        MetricStat.COUNT,
+                        MetricStat.VALUE_COUNT,
                         MetricStat.SUM,
                         MetricStat.MAX,
                         MetricStat.MIN
@@ -502,7 +502,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
                     List<MetricStat> expectedMetrics = Arrays.asList(
                         MetricStat.AVG,
-                        MetricStat.COUNT,
+                        MetricStat.VALUE_COUNT,
                         MetricStat.SUM,
                         MetricStat.MAX,
                         MetricStat.MIN
