@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `reactor-netty` from 1.1.21 to 1.1.22 ([#15262](https://github.com/opensearch-project/OpenSearch/pull/15262))
 - Bump `org.apache.kerby:kerb-admin` from 2.0.3 to 2.1.0 ([#15301](https://github.com/opensearch-project/OpenSearch/pull/15301))
 - Bump `com.azure:azure-core-http-netty` from 1.15.1 to 1.15.3 ([#15300](https://github.com/opensearch-project/OpenSearch/pull/15300))
+- Bump `com.gradle.develocity` from 3.17.6 to 3.18 ([#15297](https://github.com/opensearch-project/OpenSearch/pull/15297))
 
 ### Changed
 - Add lower limit for primary and replica batch allocators timeout ([#14979](https://github.com/opensearch-project/OpenSearch/pull/14979))
