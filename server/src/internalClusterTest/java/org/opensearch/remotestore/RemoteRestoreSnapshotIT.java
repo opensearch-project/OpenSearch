@@ -890,8 +890,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCloneShallowCopyV2() throws Exception {
 
-        //Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
-        Settings snapshotSettings = Settings.builder().put("snapshot.max_concurrent_operations", 1000).build();
+        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
         internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
         internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
         internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
@@ -935,7 +934,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName1).setWaitForCompletion(true)
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
             .get();
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -958,7 +958,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setIndices(indexName1)
             .get();
         System.out.println(cloneResponse);
-
 
     }
 
