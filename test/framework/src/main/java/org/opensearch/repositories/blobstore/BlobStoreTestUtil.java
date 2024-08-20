@@ -304,8 +304,8 @@ public final class BlobStoreTestUtil {
                                     String.format(Locale.ROOT, BlobStoreRepository.SHALLOW_SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
                                 )
                                     || shardPathContents.containsKey(
-                                    String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
-                                )
+                                        String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
+                                    )
                             );
                         }
 

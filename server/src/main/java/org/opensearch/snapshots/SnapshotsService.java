@@ -601,16 +601,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         long timestampToPin,
         ActionListener<RepositoryData> listener
     ) {
-        listener.onResponse(repositoryData);
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
-            snapshot.getRepository() + "__" + snapshot.getSnapshotId(),
+            snapshot.getRepository() + "__" + snapshot.getSnapshotId().getUUID(),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
                     logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
                     listener.onResponse(repositoryData);
                 }
+
                 @Override
                 public void onFailure(Exception e) {
                     logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
@@ -622,12 +622,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void removeSnapshotPinnedTimestamp(
-        RepositoryData repositoryData,
-        Snapshot snapshot,
-        long timestampToPin,
+        SnapshotId snapshotId,
+        String repository,
+        long timestampToUnpin,
         ActionListener<RepositoryData> listener
     ) {
+        remoteStorePinnedTimestampService.unpinTimestamp(
+            timestampToUnpin,
+            repository + "__" + snapshotId.getUUID(),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.debug("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    listener.onResponse(null);
+                }
 
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        "Failed to unpin timestamp {} for snapshot {} with exception {}",
+                        timestampToUnpin,
+                        snapshotId.getName(),
+                        e
+                    );
+                    listener.onFailure(e);
+
+                }
+            }
+        );
     }
 
     private static void ensureSnapshotNameNotRunning(
@@ -2477,7 +2499,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // SEE https://github.com/opensearch-project/OpenSearch/issues/8610
             final boolean remoteStoreShallowCopyEnabled = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
             if (remoteStoreShallowCopyEnabled) {
-                List<SnapshotId> snapshotsWithPinnedTimestamp = Collections.synchronizedList(new ArrayList<>());
+                Map<SnapshotId, Long> snapshotsWithPinnedTimestamp = new ConcurrentHashMap<>();
                 List<SnapshotId> snapshotsWithLockFiles = Collections.synchronizedList(new ArrayList<>());
 
                 CountDownLatch latch = new CountDownLatch(1);
@@ -2488,7 +2510,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             try {
                                 SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
                                 if (snapshotInfo.getPinnedTimestamp() > 0) {
-                                    snapshotsWithPinnedTimestamp.add(snapshotId);
+                                    snapshotsWithPinnedTimestamp.put(snapshotId, snapshotInfo.getPinnedTimestamp());
                                 } else {
                                     snapshotsWithLockFiles.add(snapshotId);
                                 }
@@ -2505,9 +2527,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     latch.await();
                     if (snapshotsWithLockFiles.size() > 0) {
                         repository.deleteSnapshotsAndReleaseLockFiles(
-                            snapshotIds,
+                            snapshotsWithLockFiles,
                             repositoryData.getGenId(),
-                            minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                            minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithLockFiles),
                             remoteStoreLockManagerFactory,
                             false,
                             ActionListener.wrap(updatedRepoData -> {
@@ -2517,16 +2539,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         );
                     }
                     if (snapshotsWithPinnedTimestamp.size() > 0) {
+                        final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
+                        pinnedTimestampListener.whenComplete(
+                            updatedRepoData -> { removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData); },
+                            ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)
+                        );
+
                         repository.deleteSnapshotsAndReleaseLockFiles(
-                            snapshotIds,
+                            snapshotsWithPinnedTimestamp.keySet(),
                             repositoryData.getGenId(),
-                            minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                            minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithPinnedTimestamp.keySet()),
                             null,
                             true,
                             ActionListener.wrap(updatedRepoData -> {
                                 logger.info("snapshots {} deleted", snapshotsWithPinnedTimestamp);
-                                // removeSnapshotPinnedTimestamp();
-                                removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                                removeSnapshotsPinnedTimestamp(
+                                    snapshotsWithPinnedTimestamp,
+                                    repository,
+                                    updatedRepoData,
+                                    pinnedTimestampListener
+                                );
                             }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
                         );
                     }
@@ -2549,6 +2581,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 );
             }
         }
+    }
+
+    private void removeSnapshotsPinnedTimestamp(
+        Map<SnapshotId, Long> snapshotsWithPinnedTimestamp,
+        Repository repository,
+        RepositoryData repositoryData,
+        ActionListener<RepositoryData> pinnedTimestampListener
+    ) {
+        // Create a GroupedActionListener to aggregate the results of all unpin operations
+        GroupedActionListener<RepositoryData> groupedListener = new GroupedActionListener<>(
+            ActionListener.wrap(
+                // This is called once all operations have succeeded
+                ignored -> pinnedTimestampListener.onResponse(repositoryData),
+                // This is called if any operation fails
+                pinnedTimestampListener::onFailure
+            ),
+            snapshotsWithPinnedTimestamp.size()
+        );
+
+        snapshotsWithPinnedTimestamp.forEach((snapshotId, pinnedTimestamp) -> {
+            removeSnapshotPinnedTimestamp(snapshotId, repository.getMetadata().name(), pinnedTimestamp, groupedListener);
+        });
     }
 
     /**
