@@ -229,7 +229,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return settings();
     }
 
-
     public Map<String, Context> contexts() {
         return contexts;
     }

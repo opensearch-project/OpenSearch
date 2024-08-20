@@ -62,6 +62,7 @@ public class GetIndexResponse {
     private Map<String, Settings> settings;
     private Map<String, Settings> defaultSettings;
     private Map<String, String> dataStreams;
+    private Map<String, Context> contexts;
     private String[] indices;
 
     GetIndexResponse(
@@ -70,7 +71,8 @@ public class GetIndexResponse {
         Map<String, List<AliasMetadata>> aliases,
         Map<String, Settings> settings,
         Map<String, Settings> defaultSettings,
-        Map<String, String> dataStreams
+        Map<String, String> dataStreams,
+        Map<String, Context> contexts
     ) {
         this.indices = indices;
         // to have deterministic order
@@ -89,6 +91,9 @@ public class GetIndexResponse {
         }
         if (dataStreams != null) {
             this.dataStreams = dataStreams;
+        }
+        if (contexts != null) {
+            this.contexts = contexts;
         }
     }
 
@@ -189,6 +194,7 @@ public class GetIndexResponse {
                         break;
                     case "context":
                         context = Context.fromXContent(parser);
+                        break;
                     default:
                         parser.skipChildren();
                 }
@@ -271,6 +277,6 @@ public class GetIndexResponse {
                 parser.nextToken();
             }
         }
-        return new GetIndexResponse(indices.toArray(new String[0]), mappings, aliases, settings, defaultSettings, dataStreams);
+        return new GetIndexResponse(indices.toArray(new String[0]), mappings, aliases, settings, defaultSettings, dataStreams, contexts);
     }
 }

@@ -87,7 +87,11 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         }
     }
 
-    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS, Feature.CONTEXT };
+    private static final Feature[] DEFAULT_FEATURES = new Feature[] {
+        Feature.ALIASES,
+        Feature.MAPPINGS,
+        Feature.SETTINGS,
+        Feature.CONTEXT };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;

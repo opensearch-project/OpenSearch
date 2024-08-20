@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -180,6 +179,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams, contexts));
+        listener.onResponse(
+            new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams, contexts)
+        );
     }
 }
