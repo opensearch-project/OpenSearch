@@ -8,62 +8,71 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.apache.lucene.util.NumericUtils;
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
-import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
-public class SumValueAggregatorTests extends OpenSearchTestCase {
+public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
 
     private SumValueAggregator aggregator;
 
-    @Before
-    public void setup() {
-        aggregator = new SumValueAggregator(StarTreeNumericType.LONG);
+    public SumValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
+        super(starTreeNumericType);
     }
 
-    public void testGetAggregationType() {
-        assertEquals(MetricStat.SUM.getTypeName(), aggregator.getAggregationType().getTypeName());
-    }
-
-    public void testGetAggregatedValueType() {
-        assertEquals(SumValueAggregator.VALUE_AGGREGATOR_TYPE, aggregator.getAggregatedValueType());
-    }
-
-    public void testGetInitialAggregatedValueForSegmentDocValue() {
-        assertEquals(1.0, aggregator.getInitialAggregatedValueForSegmentDocValue(1L), 0.0);
-        assertThrows(NullPointerException.class, () -> aggregator.getInitialAggregatedValueForSegmentDocValue(null));
+    @Override
+    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
+        aggregator = new SumValueAggregator(starTreeNumericType);
+        return aggregator;
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
-        aggregator.getInitialAggregatedValue(2.0);
-        assertEquals(5.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
+        double randomDouble = randomDouble();
+        Long randomLong = randomLong();
+        aggregator.getInitialAggregatedValue(randomDouble);
+        assertEquals(
+            randomDouble + starTreeNumericType.getDoubleValue(randomLong),
+            aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
+            0.0
+        );
     }
 
     public void testMergeAggregatedValueAndSegmentValue_nullSegmentDocValue() {
-        aggregator.getInitialAggregatedValue(2.0);
-        assertThrows(NullPointerException.class, () -> aggregator.mergeAggregatedValueAndSegmentValue(2.0, null));
+        double randomDouble1 = randomDouble();
+        Long randomLong = randomLong();
+        aggregator.getInitialAggregatedValue(randomDouble1);
+        assertEquals(randomDouble1, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, null), 0.0);
+        assertEquals(
+            randomDouble1 + starTreeNumericType.getDoubleValue(randomLong),
+            aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, randomLong),
+            0.0
+        );
+    }
+
+    public void testMergeAggregatedValueAndSegmentValue_nullInitialDocValue() {
+        Long randomLong = randomLong();
+        aggregator.getInitialAggregatedValue(null);
+        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
     }
 
     public void testMergeAggregatedValues() {
-        aggregator.getInitialAggregatedValue(3.0);
-        assertEquals(5.0, aggregator.mergeAggregatedValues(2.0, 3.0), 0.0);
+        double randomDouble1 = randomDouble();
+        double randomDouble2 = randomDouble();
+        aggregator.getInitialAggregatedValue(randomDouble1);
+        assertEquals(randomDouble1, aggregator.mergeAggregatedValues(null, randomDouble1), 0.0);
+        assertEquals(randomDouble1 + randomDouble2, aggregator.mergeAggregatedValues(randomDouble2, randomDouble1), 0.0);
     }
 
     public void testGetInitialAggregatedValue() {
-        assertEquals(3.14, aggregator.getInitialAggregatedValue(3.14), 0.0);
+        double randomDouble = randomDouble();
+        assertEquals(randomDouble, aggregator.getInitialAggregatedValue(randomDouble), 0.0);
     }
 
-    public void testGetMaxAggregatedValueByteSize() {
-        assertEquals(Double.BYTES, aggregator.getMaxAggregatedValueByteSize());
+    public void testToAggregatedValueType() {
+        long randomLong = randomLong();
+        assertEquals(aggregator.toAggregatedValueType(randomLong), aggregator.toAggregatedValueType(randomLong), 0.0);
     }
 
-    public void testToLongValue() {
-        assertEquals(NumericUtils.doubleToSortableLong(3.14), aggregator.toLongValue(3.14), 0.0);
+    public void testIdentityMetricValue() {
+        assertEquals(0.0, aggregator.getIdentityMetricValue(), 0);
     }
 
-    public void testToStarTreeNumericTypeValue() {
-        assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L), 0.0);
-    }
 }

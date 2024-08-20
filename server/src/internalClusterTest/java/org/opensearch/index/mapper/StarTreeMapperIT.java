@@ -267,7 +267,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
                     List<MetricStat> expectedMetrics = Arrays.asList(
                         MetricStat.AVG,
-                        MetricStat.COUNT,
+                        MetricStat.VALUE_COUNT,
                         MetricStat.SUM,
                         MetricStat.MAX,
                         MetricStat.MIN
@@ -275,7 +275,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
                     assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
                     assertEquals(
-                        StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP,
+                        StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP,
                         starTreeFieldType.getStarTreeConfig().getBuildMode()
                     );
                     assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
@@ -351,7 +351,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
                     List<MetricStat> expectedMetrics = Arrays.asList(
                         MetricStat.AVG,
-                        MetricStat.COUNT,
+                        MetricStat.VALUE_COUNT,
                         MetricStat.SUM,
                         MetricStat.MAX,
                         MetricStat.MIN
@@ -359,7 +359,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
                     assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
                     assertEquals(
-                        StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP,
+                        StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP,
                         starTreeFieldType.getStarTreeConfig().getBuildMode()
                     );
                     assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
