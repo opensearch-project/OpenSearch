@@ -55,7 +55,8 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
+import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
+import org.opensearch.search.aggregations.bucket.filterrewrite.RangeAggregatorBridge;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -66,8 +67,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.AggregatorBridge.segmentMatchAll;
 
 /**
  * Aggregate all docs that match given ranges.
@@ -249,7 +252,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     final double[] maxTo;
 
-    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+    private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     public RangeAggregator(
         String name,
@@ -279,13 +282,23 @@ public class RangeAggregator extends BucketsAggregator {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
-            context,
-            new FastFilterRewriteHelper.RangeAggregationType(config, ranges)
-        );
-        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildRanges(Objects.requireNonNull(config.fieldType()));
-        }
+        RangeAggregatorBridge bridge = new RangeAggregatorBridge() {
+            @Override
+            protected boolean canOptimize() {
+                return canOptimize(config, ranges);
+            }
+
+            @Override
+            protected void prepare() {
+                buildRanges(ranges);
+            }
+
+            @Override
+            protected Function<Object, Long> bucketOrdProducer() {
+                return (activeIndex) -> subBucketOrdinal(0, (int) activeIndex);
+            }
+        };
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
 
     @Override
@@ -298,12 +311,9 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = fastFilterContext.tryFastFilterAggregation(
-            ctx,
-            this::incrementBucketDocCount,
-            (activeIndex) -> subBucketOrdinal(0, (int) activeIndex)
-        );
-        if (optimized) throw new CollectionTerminatedException();
+        if (segmentMatchAll(context, ctx) && filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false)) {
+            throw new CollectionTerminatedException();
+        }
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
@@ -452,11 +462,6 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        if (fastFilterContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
-            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
-            add.accept("leaf_visited", fastFilterContext.leaf);
-            add.accept("inner_visited", fastFilterContext.inner);
-        }
+        filterRewriteOptimizationContext.populateDebugInfo(add);
     }
 }
