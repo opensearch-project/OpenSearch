@@ -9,17 +9,11 @@
 package org.opensearch.plugin.wlm.rest;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupResponse;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,15 +48,10 @@ public class RestDeleteQueryGroupAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DeleteQueryGroupRequest deleteQueryGroupRequest = new DeleteQueryGroupRequest(request.param("name"));
-        return channel -> client.execute(DeleteQueryGroupAction.INSTANCE, deleteQueryGroupRequest, deleteQueryGroupResponse(channel));
-    }
-
-    private RestResponseListener<DeleteQueryGroupResponse> deleteQueryGroupResponse(final RestChannel channel) {
-        return new RestResponseListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(final DeleteQueryGroupResponse response) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, response.toXContent(channel.newBuilder(), ToXContent.EMPTY_PARAMS));
-            }
-        };
+        deleteQueryGroupRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", deleteQueryGroupRequest.clusterManagerNodeTimeout())
+        );
+        deleteQueryGroupRequest.timeout(request.paramAsTime("timeout", deleteQueryGroupRequest.timeout()));
+        return channel -> client.execute(DeleteQueryGroupAction.INSTANCE, deleteQueryGroupRequest, new RestToXContentListener<>(channel));
     }
 }

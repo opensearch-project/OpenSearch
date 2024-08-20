@@ -9,6 +9,8 @@
 package org.opensearch.plugin.wlm.service;
 
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -21,14 +23,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupResponse;
+import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,11 +60,11 @@ import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.SOU
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
 
@@ -331,83 +332,28 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     /**
      * Tests DeleteInClusterStateMetadata function
      */
-    public void testDeleteInClusterStateMetadata() {
+    @SuppressWarnings("unchecked")
+    public void testDeleteInClusterStateMetadata() throws Exception {
+        DeleteQueryGroupRequest request = new DeleteQueryGroupRequest(NAME_ONE);
         ClusterService clusterService = mock(ClusterService.class);
-        @SuppressWarnings("unchecked")
-        ActionListener<DeleteQueryGroupResponse> listener = mock(ActionListener.class);
-        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
-            clusterService,
-            QueryGroupTestUtils.settings(),
-            clusterSettings()
-        );
 
-        Metadata oldMetadata = mock(Metadata.class);
-        ClusterState oldState = mock(ClusterState.class);
-        when(oldState.metadata()).thenReturn(oldMetadata);
-        when(oldMetadata.queryGroups()).thenReturn(Map.of(NAME_ONE, queryGroupOne));
-
-        Metadata newMetadata = mock(Metadata.class);
-        ClusterState newState = mock(ClusterState.class);
-        when(newState.metadata()).thenReturn(newMetadata);
-        when(newMetadata.queryGroups()).thenReturn(new HashMap<>());
-
-        ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        doAnswer(invocation -> {
-            ClusterStateUpdateTask task = invocation.getArgument(1);
-            task.clusterStateProcessed(SOURCE, oldState, newState);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), captor.capture());
-        queryGroupPersistenceService.deleteInClusterStateMetadata(NAME_ONE, listener);
-
-        verify(clusterService).submitStateUpdateTask(eq(SOURCE), any(ClusterStateUpdateTask.class));
-        ClusterStateUpdateTask capturedTask = captor.getValue();
-        assertEquals(queryGroupPersistenceService.deleteQueryGroupThrottlingKey, capturedTask.getClusterManagerThrottlingKey());
-        ArgumentCaptor<DeleteQueryGroupResponse> responseCaptor = ArgumentCaptor.forClass(DeleteQueryGroupResponse.class);
-        verify(listener).onResponse(responseCaptor.capture());
-        DeleteQueryGroupResponse response = responseCaptor.getValue();
-        assertNotNull(response);
-        assertEquals(queryGroupOne, response.getQueryGroup());
-        assertFalse(newState.metadata().queryGroups().containsValue(queryGroupOne));
-    }
-
-    /**
-     * Tests DeleteInClusterStateMetadata function with failure
-     */
-    public void testDeleteInClusterStateMetadataFailure() {
-        ClusterService clusterService = mock(ClusterService.class);
-        @SuppressWarnings("unchecked")
-        ActionListener<DeleteQueryGroupResponse> listener = mock(ActionListener.class);
+        ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
         QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
             clusterService,
             QueryGroupTestUtils.settings(),
             clusterSettings()
         );
         doAnswer(invocation -> {
-            ClusterStateUpdateTask task = invocation.getArgument(1);
-            Exception exception = new RuntimeException("Test Exception");
-            task.onFailure(SOURCE, exception);
+            AckedClusterStateUpdateTask<?> task = invocation.getArgument(1);
+            ClusterState initialState = clusterState();
+            ClusterState newState = task.execute(initialState);
+            assertNotNull(newState);
+            assertEquals(queryGroupPersistenceService.deleteQueryGroupThrottlingKey, task.getClusterManagerThrottlingKey());
+            task.onAllNodesAcked(null);
+            verify(listener).onResponse(argThat(response -> response.isAcknowledged()));
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
-        queryGroupPersistenceService.deleteInClusterStateMetadata(NAME_ONE, listener);
-        verify(listener).onFailure(any(RuntimeException.class));
-    }
-
-    /**
-     * Tests DeleteInClusterStateMetadata function with failure
-     */
-    public void testDeleteInClusterStateMetadataGroupNotFound() {
-        ClusterService clusterService = mock(ClusterService.class);
-        @SuppressWarnings("unchecked")
-        ActionListener<DeleteQueryGroupResponse> listener = mock(ActionListener.class);
-        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
-            clusterService,
-            QueryGroupTestUtils.settings(),
-            clusterSettings()
-        );
-        Metadata oldMetadata = mock(Metadata.class);
-        ClusterState oldState = mock(ClusterState.class);
-        when(oldState.metadata()).thenReturn(oldMetadata);
-        when(oldMetadata.queryGroups()).thenReturn(Collections.emptyMap());
-        queryGroupPersistenceService.deleteInClusterStateMetadata(NAME_ONE, listener);
+        queryGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
+        verify(clusterService).submitStateUpdateTask(eq(SOURCE), any(AckedClusterStateUpdateTask.class));
     }
 }

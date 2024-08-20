@@ -32,7 +32,7 @@ public class DeleteQueryGroupRequestTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test case to verify the validate logic of DeleteQueryGroupRequest.
+     * Test case to validate a DeleteQueryGroupRequest.
      */
     public void testSerializationWithNull() throws IOException {
         DeleteQueryGroupRequest request = new DeleteQueryGroupRequest((String) null);

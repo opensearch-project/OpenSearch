@@ -11,10 +11,13 @@ package org.opensearch.plugin.wlm.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler.ThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -25,7 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupResponse;
+import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 import org.opensearch.search.ResourceType;
 
 import java.util.Collection;
@@ -219,41 +222,27 @@ public class QueryGroupPersistenceService {
 
     /**
      * Modify cluster state to delete the QueryGroup
-     * @param name - the name for QueryGroup to be deleted
-     * @param listener - ActionListener for DeleteQueryGroupResponse
+     * @param deleteQueryGroupRequest - request to delete a QueryGroup
+     * @param listener - ActionListener for AcknowledgedResponse
      */
-    public void deleteInClusterStateMetadata(String name, ActionListener<DeleteQueryGroupResponse> listener) {
-        clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.NORMAL) {
+    public void deleteInClusterStateMetadata(
+        DeleteQueryGroupRequest deleteQueryGroupRequest,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(SOURCE, new AckedClusterStateUpdateTask<>(deleteQueryGroupRequest, listener) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return deleteQueryGroupInClusterState(name, currentState);
+            public ClusterState execute(ClusterState currentState) {
+                return deleteQueryGroupInClusterState(deleteQueryGroupRequest.getName(), currentState);
             }
 
             @Override
-            public ThrottlingKey getClusterManagerThrottlingKey() {
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                 return deleteQueryGroupThrottlingKey;
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
-                logger.warn("Failed to delete QueryGroup due to error: {}, for source: {}", e.getMessage(), source);
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                final QueryGroup queryGroupToRemove = oldState.metadata()
-                    .queryGroups()
-                    .values()
-                    .stream()
-                    .filter(queryGroup -> queryGroup.getName().equals(name))
-                    .findAny()
-                    .orElseThrow(() -> new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name));
-
-                assert !newState.metadata().queryGroups().containsValue(queryGroupToRemove);
-
-                DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(queryGroupToRemove, RestStatus.OK);
-                listener.onResponse(response);
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
             }
         });
     }

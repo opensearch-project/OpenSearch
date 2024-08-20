@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.wlm.action;
 
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -20,7 +20,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class DeleteQueryGroupRequest extends ActionRequest {
+public class DeleteQueryGroupRequest extends AcknowledgedRequest<DeleteQueryGroupRequest> {
     private final String name;
 
     /**

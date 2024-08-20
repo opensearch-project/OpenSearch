@@ -9,13 +9,14 @@
 package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Transport action for delete QueryGroup
  *
  * @opensearch.experimental
  */
-public class DeleteQueryGroupAction extends ActionType<DeleteQueryGroupResponse> {
+public class DeleteQueryGroupAction extends ActionType<AcknowledgedResponse> {
 
     /**
      /**
@@ -32,6 +33,6 @@ public class DeleteQueryGroupAction extends ActionType<DeleteQueryGroupResponse>
      * Default constructor
      */
     private DeleteQueryGroupAction() {
-        super(NAME, DeleteQueryGroupResponse::new);
+        super(NAME, AcknowledgedResponse::new);
     }
 }

@@ -46,7 +46,7 @@ public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test case to verify the toXContent method of CreateQueryGroupResponse.
+     * Test case to validate the toXContent method of CreateQueryGroupResponse.
      */
     public void testToXContentCreateQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
