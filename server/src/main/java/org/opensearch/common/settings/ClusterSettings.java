@@ -142,7 +142,6 @@ import org.opensearch.node.Node;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
-import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
@@ -759,9 +758,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
-                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL,
 
-                RemoteStorePinnedTimestampService.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL,
+                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,

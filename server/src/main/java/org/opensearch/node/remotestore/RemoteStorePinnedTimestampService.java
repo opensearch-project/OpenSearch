@@ -15,7 +15,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
@@ -24,6 +23,7 @@ import org.opensearch.gateway.remote.model.RemotePinnedTimestamps;
 import org.opensearch.gateway.remote.model.RemotePinnedTimestamps.PinnedTimestamps;
 import org.opensearch.gateway.remote.model.RemoteStorePinnedTimestampsBlobStore;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -61,29 +61,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     private BlobStoreTransferService blobStoreTransferService;
     private RemoteStorePinnedTimestampsBlobStore pinnedTimestampsBlobStore;
     private AsyncUpdatePinnedTimestampTask asyncUpdatePinnedTimestampTask;
-    private volatile TimeValue pinnedTimestampsSchedulerInterval;
     private final Semaphore updateTimetampPinningSemaphore = new Semaphore(1);
-
-    /**
-     * Controls pinned timestamp scheduler interval
-     */
-    public static final Setting<TimeValue> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL = Setting.timeSetting(
-        "cluster.remote_store.pinned_timestamps.scheduler_interval",
-        TimeValue.timeValueMinutes(3),
-        TimeValue.timeValueMinutes(1),
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Controls allowed timestamp values to be pinned from past
-     */
-    public static final Setting<TimeValue> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL = Setting.timeSetting(
-        "cluster.remote_store.pinned_timestamps.lookback_interval",
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueMinutes(5),
-        Setting.Property.NodeScope
-    );
 
     public RemoteStorePinnedTimestampService(
         Supplier<RepositoriesService> repositoriesService,
@@ -95,8 +73,6 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         this.settings = settings;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-
-        pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
     }
 
     /**
@@ -107,7 +83,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     public void start() {
         validateRemoteStoreConfiguration();
         initializeComponents();
-        startAsyncUpdateTask();
+        startAsyncUpdateTask(RemoteStoreSettings.getPinnedTimestampsSchedulerInterval());
     }
 
     private void validateRemoteStoreConfiguration() {
@@ -132,7 +108,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         );
     }
 
-    private void startAsyncUpdateTask() {
+    private void startAsyncUpdateTask(TimeValue pinnedTimestampsSchedulerInterval) {
         asyncUpdatePinnedTimestampTask = new AsyncUpdatePinnedTimestampTask(logger, threadPool, pinnedTimestampsSchedulerInterval, true);
     }
 
@@ -147,8 +123,8 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     public void pinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) {
         // If a caller uses current system time to pin the timestamp, following check will almost always fail.
         // So, we allow pinning timestamp in the past upto some buffer
-        long lookbackIntervalInMills = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings).millis();
-        if (timestamp < TimeUnit.NANOSECONDS.toMillis(System.nanoTime()) - lookbackIntervalInMills) {
+        long lookbackIntervalInMills = RemoteStoreSettings.getPinnedTimestampsLookbackInterval().millis();
+        if (timestamp < (System.currentTimeMillis() - lookbackIntervalInMills)) {
             throw new IllegalArgumentException(
                 "Timestamp to be pinned is less than current timestamp - value of cluster.remote_store.pinned_timestamps.lookback_interval"
             );
@@ -256,17 +232,12 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         asyncUpdatePinnedTimestampTask.close();
     }
 
-    // Visible for testing
-    public void setPinnedTimestampsSchedulerInterval(TimeValue pinnedTimestampsSchedulerInterval) {
-        this.pinnedTimestampsSchedulerInterval = pinnedTimestampsSchedulerInterval;
-        rescheduleAsyncUpdatePinnedTimestampTask();
-    }
-
-    private void rescheduleAsyncUpdatePinnedTimestampTask() {
+    // Used in integ tests
+    public void rescheduleAsyncUpdatePinnedTimestampTask(TimeValue pinnedTimestampsSchedulerInterval) {
         if (pinnedTimestampsSchedulerInterval != null) {
             pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
             asyncUpdatePinnedTimestampTask.close();
-            startAsyncUpdateTask();
+            startAsyncUpdateTask(pinnedTimestampsSchedulerInterval);
         }
     }
 
