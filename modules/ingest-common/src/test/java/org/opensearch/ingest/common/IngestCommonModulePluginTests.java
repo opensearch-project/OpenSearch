@@ -36,6 +36,27 @@ public class IngestCommonModulePluginTests extends OpenSearchTestCase {
         }
     }
 
+    public void testInvalidAllowList() throws IOException {
+        List<String> invalidAllowList = List.of("geoip");
+        final Settings settings = Settings.builder()
+            .putList(IngestCommonModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), invalidAllowList)
+            .build();
+        try (IngestCommonModulePlugin plugin = new IngestCommonModulePlugin()) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> plugin.getProcessors(createParameters(settings))
+            );
+            assertEquals(
+                "Processor(s) "
+                    + invalidAllowList
+                    + " were defined in ["
+                    + IngestCommonModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey()
+                    + "] but do not exist",
+                e.getMessage()
+            );
+        }
+    }
+
     public void testAllowlistNotSpecified() throws IOException {
         final Settings.Builder builder = Settings.builder();
         builder.remove(IngestCommonModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey());
