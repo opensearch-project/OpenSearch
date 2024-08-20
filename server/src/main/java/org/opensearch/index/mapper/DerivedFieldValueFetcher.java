@@ -74,9 +74,4 @@ public class DerivedFieldValueFetcher implements ValueFetcher {
             throw new RuntimeException(e);
         }
     }
-
-    @Override
-    public DerivedFieldValueFetcher clone() {
-        return new DerivedFieldValueFetcher(derivedFieldScriptFactory, valueForDisplay);
-    }
 }
