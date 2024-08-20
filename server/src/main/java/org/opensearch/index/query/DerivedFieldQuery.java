@@ -88,7 +88,12 @@ public final class DerivedFieldQuery extends Query {
             public Scorer scorer(LeafReaderContext context) {
                 DocIdSetIterator approximation;
                 approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                valueFetcher.setNextReader(context);
+
+                // Create a new ValueFetcher per thread.
+                // ValueFetcher.setNextReader creates a DerivedFieldScript and internally SourceLookup and these objects are not
+                // thread safe.
+                final DerivedFieldValueFetcher valueFetcherPerThread = valueFetcher.clone();
+                valueFetcherPerThread.setNextReader(context);
                 LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(context);
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
@@ -96,7 +101,7 @@ public final class DerivedFieldQuery extends Query {
                         leafSearchLookup.source().setSegmentAndDocument(context, approximation.docID());
                         List<IndexableField> indexableFields;
                         try {
-                            indexableFields = valueFetcher.getIndexableField(leafSearchLookup.source(), indexableFieldGenerator);
+                            indexableFields = valueFetcherPerThread.getIndexableField(leafSearchLookup.source(), indexableFieldGenerator);
                         } catch (Exception e) {
                             if (ignoreMalformed) {
                                 return false;
