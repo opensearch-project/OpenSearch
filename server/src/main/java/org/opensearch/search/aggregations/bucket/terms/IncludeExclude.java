@@ -429,16 +429,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             return next;
         }
 
-        private interface LongLongBiconsumer {
+        private interface LongBiConsumer {
             void accept(long a, long b);
         }
 
-        private static void process(
-            SortedSetDocValues globalOrdinals,
-            long length,
-            SortedSet<BytesRef> prefixes,
-            LongLongBiconsumer consumer
-        ) throws IOException {
+        private static void process(SortedSetDocValues globalOrdinals, long length, SortedSet<BytesRef> prefixes, LongBiConsumer consumer)
+            throws IOException {
             for (BytesRef prefix : prefixes) {
                 long startOrd = globalOrdinals.lookupTerm(prefix);
                 if (startOrd < 0) {

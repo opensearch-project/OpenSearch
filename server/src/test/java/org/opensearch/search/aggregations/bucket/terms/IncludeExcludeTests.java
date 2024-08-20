@@ -355,7 +355,6 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             false };
 
         LongAdder lookupCount = new LongAdder();
-        LongAdder termsEnumAcceptCount = new LongAdder();
         SortedSetDocValues sortedSetDocValues = new AbstractSortedSetDocValues() {
             @Override
             public boolean advanceExact(int target) {
@@ -391,7 +390,6 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
         for (int i = 0; i < expectedFilter.length; i++) {
             assertEquals(expectedFilter[i], acceptedOrds.get(i));
         }
-        assertEquals(0, termsEnumAcceptCount.longValue());
 
         // Now repeat, but this time, the prefix optimization won't work (because of the .+ on the exclude filter)
         includeExclude = new IncludeExclude("(color|length|size):.*", "color:g.+");
@@ -452,5 +450,99 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             bytesRefs.add(new BytesRef(string));
         }
         return bytesRefs;
+    }
+
+    private static SortedSetDocValues toDocValues(BytesRef[] bytesRefs) {
+        return new AbstractSortedSetDocValues() {
+            @Override
+            public boolean advanceExact(int target) {
+                return false;
+            }
+
+            @Override
+            public long nextOrd() {
+                return 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                int ordIndex = Math.toIntExact(ord);
+                return bytesRefs[ordIndex];
+            }
+
+            @Override
+            public long getValueCount() {
+                return bytesRefs.length;
+            }
+        };
+    }
+
+    public void testOnlyIncludeExcludePrefix() throws IOException {
+        String incExcString = "(color:g|width:).*";
+        IncludeExclude excludeOnly = new IncludeExclude(null, incExcString);
+
+        OrdinalsFilter ordinalsFilter = excludeOnly.convertToOrdinalsFilter(DocValueFormat.RAW);
+        // Which of the following match the filter or not?
+        BytesRef[] bytesRefs = toBytesRefArray(
+            "color:blue", // true
+            "color:crimson", // true
+            "color:green", // false (excluded)
+            "color:gray", // false (excluded)
+            "depth:10in", // true
+            "depth:12in", // true
+            "depth:17in", // true
+            "length:long", // true
+            "length:medium", // true
+            "length:short", // true
+            "material:cotton", // true
+            "material:linen", // true
+            "material:polyester", // true
+            "size:large", // true
+            "size:medium", // true
+            "size:small", // true
+            "width:13in", // false
+            "width:27in", // false
+            "width:55in" // false
+        );
+        boolean[] expectedFilter = new boolean[] {
+            true,
+            true,
+            false,
+            false,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            false,
+            false,
+            false };
+        LongBitSet longBitSet = ordinalsFilter.acceptedGlobalOrdinals(toDocValues(bytesRefs));
+
+        for (int i = 0; i < expectedFilter.length; i++) {
+            assertEquals(expectedFilter[i], longBitSet.get(i));
+        }
+
+        // Now repeat, but this time include only.
+        IncludeExclude includeOnly = new IncludeExclude(incExcString, null);
+        ordinalsFilter = includeOnly.convertToOrdinalsFilter(DocValueFormat.RAW);
+        longBitSet = ordinalsFilter.acceptedGlobalOrdinals(toDocValues(bytesRefs));
+
+        // The previously excluded ordinals should be included and vice versa.
+        for (int i = 0; i < expectedFilter.length; i++) {
+            assertEquals(!expectedFilter[i], longBitSet.get(i));
+        }
     }
 }
