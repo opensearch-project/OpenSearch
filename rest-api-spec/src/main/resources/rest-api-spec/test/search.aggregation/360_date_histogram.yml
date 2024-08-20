@@ -105,6 +105,10 @@ setup:
 
 ---
 "Date histogram aggregation w/ shared field range test":
+  - skip:
+      version: " - 2.16.99"
+      reason: "Bugfix not backported to 2.16"
+
   - do:
       bulk:
         refresh: true
