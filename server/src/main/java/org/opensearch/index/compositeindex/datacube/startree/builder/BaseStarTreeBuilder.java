@@ -244,7 +244,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         if (numStarTreeDocs == 0) {
             // serialize the star tree data
-            serializeStarTree(numStarTreeDocument);
+            serializeStarTree(numStarTreeDocument, numStarTreeDocs);
             return;
         }
 
@@ -264,7 +264,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         createSortedDocValuesIndices(starTreeDocValuesConsumer, fieldNumberAcrossStarTrees);
 
         // serialize star-tree
-        serializeStarTree(numStarTreeDocument);
+        serializeStarTree(numStarTreeDocument, numStarTreeDocs);
     }
 
     void appendDocumentsToStarTree(Iterator<StarTreeDocument> starTreeDocumentIterator) throws IOException {
@@ -273,7 +273,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
     }
 
-    private void serializeStarTree(int numSegmentStarTreeDocument) throws IOException {
+    private void serializeStarTree(int numSegmentStarTreeDocument, int numStarTreeDocs) throws IOException {
         // serialize the star tree data
         long dataFilePointer = dataOut.getFilePointer();
         long totalStarTreeDataLength = StarTreeWriter.writeStarTree(dataOut, rootNode, numStarTreeNodes, starTreeField.getName());
@@ -284,6 +284,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             starTreeField,
             metricAggregatorInfos,
             numSegmentStarTreeDocument,
+            numStarTreeDocs,
             dataFilePointer,
             totalStarTreeDataLength
         );

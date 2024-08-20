@@ -35,6 +35,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     private final List<String> dimensionFields;
     private final List<MetricEntry> metricEntries;
     private final Integer segmentAggregatedDocCount;
+    private final Integer starTreeDocCount;
     private final Integer maxLeafDocs;
     private final Set<String> skipStarNodeCreationInDims;
     private final StarTreeFieldConfiguration.StarTreeBuildMode starTreeBuildMode;
@@ -59,6 +60,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
             this.dimensionFields = readStarTreeDimensions();
             this.metricEntries = readMetricEntries();
             this.segmentAggregatedDocCount = readSegmentAggregatedDocCount();
+            this.starTreeDocCount = readStarTreeDocCount();
             this.maxLeafDocs = readMaxLeafDocs();
             this.skipStarNodeCreationInDims = readSkipStarNodeCreationInDims();
             this.starTreeBuildMode = readBuildMode();
@@ -80,6 +82,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * @param dimensionFields list of dimension fields
      * @param metricEntries list of metric entries
      * @param segmentAggregatedDocCount segment aggregated doc count
+     * @param starTreeDocCount        the total number of star tree documents for the segment
      * @param maxLeafDocs max leaf docs
      * @param skipStarNodeCreationInDims set of dimensions to skip star node creation
      * @param starTreeBuildMode star tree build mode
@@ -93,6 +96,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         List<String> dimensionFields,
         List<MetricEntry> metricEntries,
         Integer segmentAggregatedDocCount,
+        Integer starTreeDocCount,
         Integer maxLeafDocs,
         Set<String> skipStarNodeCreationInDims,
         StarTreeFieldConfiguration.StarTreeBuildMode starTreeBuildMode,
@@ -106,6 +110,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         this.dimensionFields = dimensionFields;
         this.metricEntries = metricEntries;
         this.segmentAggregatedDocCount = segmentAggregatedDocCount;
+        this.starTreeDocCount = starTreeDocCount;
         this.maxLeafDocs = maxLeafDocs;
         this.skipStarNodeCreationInDims = skipStarNodeCreationInDims;
         this.starTreeBuildMode = starTreeBuildMode;
@@ -146,6 +151,10 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     }
 
     private int readSegmentAggregatedDocCount() throws IOException {
+        return meta.readVInt();
+    }
+
+    private Integer readStarTreeDocCount() throws IOException {
         return meta.readVInt();
     }
 
@@ -222,6 +231,15 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      */
     public Integer getSegmentAggregatedDocCount() {
         return segmentAggregatedDocCount;
+    }
+
+    /**
+     * Returns the total number of star tree documents in the segment
+     *
+     * @return the number of star tree documents in the segment
+     */
+    public Integer getStarTreeDocCount() {
+        return starTreeDocCount;
     }
 
     /**

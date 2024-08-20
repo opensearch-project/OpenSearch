@@ -23,4 +23,9 @@ public class CompositeIndexConstants {
      */
     public static final String SEGMENT_DOCS_COUNT = "segmentDocsCount";
 
+    /**
+     * Represents the key to fetch number of total star tree documents in a segment.
+     */
+    public static final String STAR_TREE_DOCS_COUNT = "starTreeDocsCount";
+
 }

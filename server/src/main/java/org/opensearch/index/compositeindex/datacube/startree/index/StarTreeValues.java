@@ -36,6 +36,7 @@ import java.util.Set;
 
 import static org.opensearch.index.codec.composite.composite99.Composite99DocValuesReader.getSortedNumericDocValues;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
+import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 
@@ -149,6 +150,7 @@ public class StarTreeValues implements CompositeIndexValues {
         // create star-tree attributes map
         attributes = new HashMap<>();
         attributes.put(SEGMENT_DOCS_COUNT, String.valueOf(starTreeMetadata.getSegmentAggregatedDocCount()));
+        attributes.put(STAR_TREE_DOCS_COUNT, String.valueOf(starTreeMetadata.getStarTreeDocCount()));
 
     }
 

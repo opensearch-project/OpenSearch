@@ -49,12 +49,13 @@ public class StarTreeWriter {
     /**
      * Write star tree metadata to index output stream
      *
-     * @param metaOut                meta index output
-     * @param starTreeField          star tree field
-     * @param metricAggregatorInfos  metric aggregator infos
-     * @param segmentAggregatedCount segment aggregated count
-     * @param dataFilePointer        data file pointer
-     * @param dataFileLength         data file length
+     * @param metaOut                 meta index output
+     * @param starTreeField           star tree field
+     * @param metricAggregatorInfos   metric aggregator infos
+     * @param segmentAggregatedCount  segment aggregated count
+     * @param numStarTreeDocs           the total number of star tree documents for the segment
+     * @param dataFilePointer         data file pointer
+     * @param dataFileLength          data file length
      * @throws IOException when star-tree data serialization fails
      */
     public static void writeStarTreeMetadata(
@@ -62,6 +63,7 @@ public class StarTreeWriter {
         StarTreeField starTreeField,
         List<MetricAggregatorInfo> metricAggregatorInfos,
         Integer segmentAggregatedCount,
+        Integer numStarTreeDocs,
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
@@ -70,6 +72,7 @@ public class StarTreeWriter {
             starTreeField,
             metricAggregatorInfos,
             segmentAggregatedCount,
+            numStarTreeDocs,
             dataFilePointer,
             dataFileLength
         );

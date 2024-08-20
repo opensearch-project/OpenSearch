@@ -245,6 +245,7 @@ public class StarTreeTestUtils {
         }
 
         assertEquals(expectedStarTreeMetadata.getSegmentAggregatedDocCount(), resultStarTreeMetadata.getSegmentAggregatedDocCount());
+        assertEquals(expectedStarTreeMetadata.getStarTreeDocCount(), resultStarTreeMetadata.getStarTreeDocCount());
         assertEquals(expectedStarTreeMetadata.getMaxLeafDocs(), resultStarTreeMetadata.getMaxLeafDocs());
         assertEquals(
             expectedStarTreeMetadata.getSkipStarNodeCreationInDims().size(),
