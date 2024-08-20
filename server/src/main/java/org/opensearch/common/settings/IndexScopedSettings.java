@@ -249,6 +249,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 StarTreeIndexSettings.DEFAULT_DATE_INTERVALS,
                 StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING,
 
+                IndexSettings.INDEX_CONTEXT_CREATED_VERSION,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();

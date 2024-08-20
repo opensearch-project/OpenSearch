@@ -26,7 +26,7 @@ import java.util.Objects;
  * Class encapsulating the context metadata associated with an index template/index.
  */
 @ExperimentalApi
-public class Context extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
+public class Context extends AbstractDiffable<Context> implements ToXContentObject {
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField VERSION = new ParseField("version");
@@ -103,9 +103,9 @@ public class Context extends AbstractDiffable<ComposableIndexTemplate> implement
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), this.name);
-        builder.field("version", this.version);
+        builder.field(VERSION.getPreferredName(), this.version);
         if (params != null) {
-            builder.field("params", this.params);
+            builder.field(PARAMS.getPreferredName(), this.params);
         }
         builder.endObject();
         return builder;

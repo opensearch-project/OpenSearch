@@ -128,11 +128,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
@@ -425,7 +425,6 @@ public class MetadataCreateIndexService {
         if (sourceMetadata != null) {
             // If source metadata was provided, it means we're recovering from an existing index,
             // in which case templates don't apply, so create the index from the source metadata
-            // QUESTION: Should we apply context in this case?
             return applyCreateIndexRequestWithExistingMetadata(currentState, request, silent, sourceMetadata, metadataTransformer);
         } else {
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
@@ -499,21 +498,30 @@ public class MetadataCreateIndexService {
         final IndexMetadata sourceMetadata,
         final IndexMetadata temporaryIndexMeta,
         final List<Map<String, Object>> mappings,
-        final Function<IndexService, List<AliasMetadata>> aliasSupplier,
+        final BiFunction<IndexService, Map<String, AliasMetadata>, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
-            try {
+            Settings.Builder tmpSettingsBuilder = Settings.builder().put(temporaryIndexMeta.getSettings());
 
-                updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
+            List<Map<String, Object>> updatedMappings = new ArrayList<>();
+            updatedMappings.addAll(mappings);
+
+            Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
+
+            try {
+                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
             }
 
-            final List<AliasMetadata> aliases = aliasSupplier.apply(indexService);
+            final List<AliasMetadata> aliases = aliasSupplier.apply(
+                indexService,
+                Optional.ofNullable(contextTemplate).map(Template::aliases).orElse(Map.of())
+            );
 
             final IndexMetadata indexMetadata;
             try {
@@ -521,7 +529,7 @@ public class MetadataCreateIndexService {
                     request.index(),
                     aliases,
                     indexService.mapperService()::documentMapper,
-                    temporaryIndexMeta.getSettings(),
+                    tmpSettingsBuilder.build(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
@@ -545,6 +553,33 @@ public class MetadataCreateIndexService {
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
             return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, allocationService::reroute, metadataTransformer);
         });
+    }
+
+    private Template applyContext(
+        CreateIndexClusterStateUpdateRequest request,
+        ClusterState currentState,
+        List<Map<String, Object>> mappings,
+        Settings.Builder settingsBuilder
+    ) throws IOException {
+        if (request.context() != null) {
+            String contextTemplate = MetadataIndexTemplateService.findContextTemplate(currentState.metadata(), request.context());
+            ComponentTemplate componentTemplate = currentState.metadata().componentTemplates().get(contextTemplate);
+
+            if (componentTemplate.template().mappings() != null) {
+                // Mappings added at last (priority to mappings provided)
+                mappings.add(MapperService.parseMapping(xContentRegistry, componentTemplate.template().mappings().toString()));
+            }
+
+            if (componentTemplate.template().settings() != null) {
+                // Settings applied at last
+                settingsBuilder.put(componentTemplate.template().settings());
+            }
+
+            settingsBuilder.put(IndexSettings.INDEX_CONTEXT_CREATED_VERSION.getKey(), componentTemplate.version());
+
+            return componentTemplate.template();
+        }
+        return null;
     }
 
     /**
@@ -625,25 +660,17 @@ public class MetadataCreateIndexService {
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
         );
 
-        final List<Map<String, Object>> mappings = List.of(
-            Collections.unmodifiableMap(
-                parseV1Mappings(
-                    request.mappings(),
-                    templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
-                    xContentRegistry
-                )
+        final Map<String, Object> mappings = Collections.unmodifiableMap(
+            parseV1Mappings(
+                request.mappings(),
+                templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
+                xContentRegistry
             )
         );
-        Optional<Template> context = applyContext(request, currentState, mappings);
-        Settings aggregateSettings = Settings.builder()
-            .put(MetadataIndexTemplateService.resolveSettings(templates))
-            .put(context.isPresent() ? context.get().settings() : Settings.EMPTY)
-            .build();
-
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,
-            aggregateSettings,
+            MetadataIndexTemplateService.resolveSettings(templates),
             null,
             settings,
             indexScopedSettings,
@@ -654,21 +681,17 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
-        List<Map<String, AliasMetadata>> aliasMeta = new ArrayList<>();
-        aliasMeta.addAll(MetadataIndexTemplateService.resolveAliases(templates));
-        context.map(Template::aliases).ifPresent(aliasMeta::add);
-
         return applyCreateIndexWithTemporaryService(
             currentState,
             request,
             silent,
             null,
             tmpImd,
-            mappings,
-            indexService -> resolveAndValidateAliases(
+            Collections.singletonList(mappings),
+            (indexService, contextAlias) -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
-                aliasMeta,
+                Stream.concat(Stream.of(contextAlias), MetadataIndexTemplateService.resolveAliases(templates).stream()).collect(toList()),
                 currentState.metadata(),
                 aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
@@ -709,17 +732,10 @@ public class MetadataCreateIndexService {
             xContentRegistry,
             request.index()
         );
-
-        Optional<Template> context = applyContext(request, currentState, mappings);
-        Settings aggregateSettings = Settings.builder()
-            .put(MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName))
-            .put(context.isPresent() ? context.get().settings() : Settings.EMPTY)
-            .build();
-
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,
-            aggregateSettings,
+            MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
             null,
             settings,
             indexScopedSettings,
@@ -730,9 +746,6 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
-        List<Map<String, AliasMetadata>> aliasMeta = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName);
-        context.map(Template::aliases).ifPresent(aliasMeta::add);
-
         return applyCreateIndexWithTemporaryService(
             currentState,
             request,
@@ -740,10 +753,13 @@ public class MetadataCreateIndexService {
             null,
             tmpImd,
             mappings,
-            indexService -> resolveAndValidateAliases(
+            (indexService, contextAlias) -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
-                aliasMeta,
+                Stream.concat(
+                    Stream.of(contextAlias),
+                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName).stream()
+                ).collect(toList()),
                 currentState.metadata(),
                 aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
@@ -754,20 +770,6 @@ public class MetadataCreateIndexService {
             Collections.singletonList(templateName),
             metadataTransformer
         );
-    }
-
-    private Optional<Template> applyContext(
-        CreateIndexClusterStateUpdateRequest request,
-        ClusterState currentState,
-        List<Map<String, Object>> mappings
-    ) throws IOException {
-        if (request.context() != null) {
-            String contextTemplate = MetadataIndexTemplateService.findContextTemplate(currentState.metadata(), request.context());
-            ComponentTemplate componentTemplate = currentState.metadata().componentTemplates().get(contextTemplate);
-            mappings.add(MapperService.parseMapping(xContentRegistry, componentTemplate.template().mappings().toString()));
-            return Optional.of(componentTemplate.template());
-        }
-        return Optional.empty();
     }
 
     public static List<Map<String, Object>> collectV2Mappings(
@@ -835,7 +837,7 @@ public class MetadataCreateIndexService {
             sourceMetadata,
             tmpImd,
             Collections.singletonList(mappings),
-            indexService -> resolveAndValidateAliases(
+            (indexService, contextTemplate) -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
                 Collections.emptyList(),
