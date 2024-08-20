@@ -24,6 +24,8 @@ public class WorkloadManagementPluginModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        // Bind QueryGroupPersistenceService as a singleton to ensure a single instance is used,
+        // preventing multiple throttling key registrations in the constructor.
         bind(QueryGroupPersistenceService.class).in(Singleton.class);
     }
 }

@@ -6,18 +6,11 @@
  * compatible open source license.
  */
 
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
 package org.opensearch.plugin.wlm.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
@@ -249,17 +242,17 @@ public class QueryGroupPersistenceService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                final Optional<QueryGroup> queryGroupToRemove = oldState.metadata()
+                final QueryGroup queryGroupToRemove = oldState.metadata()
                     .queryGroups()
                     .values()
                     .stream()
                     .filter(queryGroup -> queryGroup.getName().equals(name))
-                    .findFirst();
+                    .findAny()
+                    .orElseThrow(() -> new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name));
 
-                assert queryGroupToRemove.isPresent();
-                assert !newState.metadata().queryGroups().containsValue(queryGroupToRemove.get());
+                assert !newState.metadata().queryGroups().containsValue(queryGroupToRemove);
 
-                DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(queryGroupToRemove.get(), RestStatus.OK);
+                DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(queryGroupToRemove, RestStatus.OK);
                 listener.onResponse(response);
             }
         });
@@ -276,16 +269,10 @@ public class QueryGroupPersistenceService {
             .values()
             .stream()
             .filter(queryGroup -> queryGroup.getName().equals(name))
-            .findFirst()
-            .orElse(null);
-        if (queryGroupToRemove != null) {
-            return ClusterState.builder(currentClusterState)
-                .metadata(Metadata.builder(metadata).remove(queryGroupToRemove).build())
-                .build();
-        } else {
-            logger.error("The QueryGroup with provided name {} doesn't exist", name);
-            throw new IllegalArgumentException("No QueryGroup exists with the provided name: " + name);
-        }
+            .findAny()
+            .orElseThrow(() -> new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name));
+
+        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(queryGroupToRemove).build()).build();
     }
 
     /**
