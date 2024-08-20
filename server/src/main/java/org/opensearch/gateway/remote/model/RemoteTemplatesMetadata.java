@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -31,7 +31,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
 /**
  * Wrapper class for uploading/downloading {@link TemplatesMetadata} to/from remote blob store
  */
-public class RemoteTemplatesMetadata extends AbstractRemoteWritableBlobEntity<TemplatesMetadata> {
+public class RemoteTemplatesMetadata extends AbstractClusterMetadataWriteableBlobEntity<TemplatesMetadata> {
 
     public static final String TEMPLATES_METADATA = "templates";
 

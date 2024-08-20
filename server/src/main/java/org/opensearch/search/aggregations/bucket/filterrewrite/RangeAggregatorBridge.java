@@ -80,7 +80,6 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
         Ranges ranges
     ) throws IOException {
         int size = Integer.MAX_VALUE;
-
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
             long bucketOrd = bucketOrdProducer().apply(activeIndex);
             incrementDocCount.accept(bucketOrd, (long) docCount);

@@ -12,7 +12,7 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
@@ -30,7 +30,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
  * Represents a incremental difference between {@link org.opensearch.cluster.routing.RoutingTable} objects that can be serialized and deserialized.
  * This class is responsible for writing and reading the differences between RoutingTables to and from an input/output stream.
  */
-public class RemoteRoutingTableDiff extends AbstractRemoteWritableBlobEntity<RoutingTableIncrementalDiff> {
+public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlobEntity<RoutingTableIncrementalDiff> {
     private final RoutingTableIncrementalDiff routingTableIncrementalDiff;
 
     private long term;

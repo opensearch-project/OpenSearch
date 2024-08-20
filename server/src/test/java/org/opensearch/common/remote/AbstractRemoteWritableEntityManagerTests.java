@@ -24,7 +24,7 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         String knownEntityType = "knownType";
         RemoteWritableEntityStore mockStore = mock(RemoteWritableEntityStore.class);
         manager.remoteWritableEntityStores.put(knownEntityType, mockStore);
-        AbstractRemoteWritableBlobEntity mockEntity = mock(AbstractRemoteWritableBlobEntity.class);
+        AbstractClusterMetadataWriteableBlobEntity mockEntity = mock(AbstractClusterMetadataWriteableBlobEntity.class);
         when(mockEntity.getType()).thenReturn(knownEntityType);
 
         RemoteWritableEntityStore store = manager.getStore(mockEntity);
@@ -35,7 +35,7 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
     public void testGetStoreWithUnknownEntityType() {
         AbstractRemoteWritableEntityManager manager = new ConcreteRemoteWritableEntityManager();
         String unknownEntityType = "unknownType";
-        AbstractRemoteWritableBlobEntity mockEntity = mock(AbstractRemoteWritableBlobEntity.class);
+        AbstractClusterMetadataWriteableBlobEntity mockEntity = mock(AbstractClusterMetadataWriteableBlobEntity.class);
         when(mockEntity.getType()).thenReturn(unknownEntityType);
 
         assertThrows(IllegalArgumentException.class, () -> manager.getStore(mockEntity));
@@ -46,7 +46,7 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         @Override
         protected ActionListener<Void> getWrappedWriteListener(
             String component,
-            AbstractRemoteWritableBlobEntity remoteEntity,
+            AbstractClusterMetadataWriteableBlobEntity remoteEntity,
             ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
         ) {
             return null;
@@ -55,7 +55,7 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         @Override
         protected ActionListener<Object> getWrappedReadListener(
             String component,
-            AbstractRemoteWritableBlobEntity remoteEntity,
+            AbstractClusterMetadataWriteableBlobEntity remoteEntity,
             ActionListener<RemoteReadResult> listener
         ) {
             return null;
