@@ -6,16 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.query_group;
+package org.opensearch.wlm;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
 /**
- * Main class to declare the QueryGroup feature related settings
+ * Main class to declare Workload Management related settings
  */
-public class QueryGroupServiceSettings {
+public class WorkloadManagementSettings {
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_REJECTION_THRESHOLD = 0.8;
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = 0.9;
     private static final Double DEFAULT_NODE_LEVEL_CPU_REJECTION_THRESHOLD = 0.8;
@@ -33,7 +33,7 @@ public class QueryGroupServiceSettings {
     /**
      * Setting name for node level memory based rejection threshold for QueryGroup service
      */
-    public static final String NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.memory_rejection_threshold";
+    public static final String NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.memory_rejection_threshold";
     /**
      * Setting to control the memory based rejection threshold
      */
@@ -46,7 +46,7 @@ public class QueryGroupServiceSettings {
     /**
      * Setting name for node level cpu based rejection threshold for QueryGroup service
      */
-    public static final String NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_rejection_threshold";
+    public static final String NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.cpu_rejection_threshold";
     /**
      * Setting to control the cpu based rejection threshold
      */
@@ -59,7 +59,7 @@ public class QueryGroupServiceSettings {
     /**
      * Setting name for node level memory based cancellation threshold for QueryGroup service
      */
-    public static final String NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.memory_cancellation_threshold";
+    public static final String NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.memory_cancellation_threshold";
     /**
      * Setting to control the memory based cancellation threshold
      */
@@ -72,7 +72,7 @@ public class QueryGroupServiceSettings {
     /**
      * Setting name for node level cpu based cancellation threshold for QueryGroup service
      */
-    public static final String NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_cancellation_threshold";
+    public static final String NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.cpu_cancellation_threshold";
     /**
      * Setting to control the cpu based cancellation threshold
      */
@@ -88,7 +88,7 @@ public class QueryGroupServiceSettings {
      * @param settings - QueryGroup service settings
      * @param clusterSettings - QueryGroup cluster settings
      */
-    public QueryGroupServiceSettings(Settings settings, ClusterSettings clusterSettings) {
+    public WorkloadManagementSettings(Settings settings, ClusterSettings clusterSettings) {
         nodeLevelMemoryCancellationThreshold = NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelMemoryRejectionThreshold = NODE_LEVEL_MEMORY_REJECTION_THRESHOLD.get(settings);
         nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
@@ -129,7 +129,7 @@ public class QueryGroupServiceSettings {
     public void setNodeLevelMemoryCancellationThreshold(Double nodeLevelMemoryCancellationThreshold) {
         if (Double.compare(nodeLevelMemoryCancellationThreshold, NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be greater than 0.95 as it pose a threat of node drop"
+                NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.95 as it can result in a node drop"
             );
         }
 
@@ -159,7 +159,7 @@ public class QueryGroupServiceSettings {
     public void setNodeLevelCpuCancellationThreshold(Double nodeLevelCpuCancellationThreshold) {
         if (Double.compare(nodeLevelCpuCancellationThreshold, NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be greater than 0.95 as it pose a threat of node drop"
+                NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.95 as it can result in a node drop"
             );
         }
 
@@ -189,7 +189,7 @@ public class QueryGroupServiceSettings {
     public void setNodeLevelMemoryRejectionThreshold(Double nodeLevelMemoryRejectionThreshold) {
         if (Double.compare(nodeLevelMemoryRejectionThreshold, NODE_LEVEL_MEMORY_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
+                NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.90 as it can result in a node drop"
             );
         }
 
@@ -219,7 +219,7 @@ public class QueryGroupServiceSettings {
     public void setNodeLevelCpuRejectionThreshold(Double nodeLevelCpuRejectionThreshold) {
         if (Double.compare(nodeLevelCpuRejectionThreshold, NODE_LEVEL_CPU_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
+                NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.90 as it can result in a node drop"
             );
         }
 

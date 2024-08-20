@@ -159,7 +159,6 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
-import org.opensearch.search.query_group.QueryGroupServiceSettings;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -174,6 +173,7 @@ import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportSettings;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -769,11 +769,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
 
-                // QueryGroup settings
-                QueryGroupServiceSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
-                QueryGroupServiceSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
-                QueryGroupServiceSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
-                QueryGroupServiceSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD
+                // WorkloadManagement settings
+                WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD
             )
         )
     );
