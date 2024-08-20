@@ -9,6 +9,7 @@
 package org.opensearch.index.codec.composite;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
+import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -83,7 +84,7 @@ public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
             new FieldInfos(new FieldInfo[0]),
             newIOContext(random())
         );
-        CompositeDocValuesProducer producer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
+        DocValuesProducer producer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             segmentReadState,
             dataCodec,
@@ -93,8 +94,8 @@ public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
         );
 
         assertNotNull(producer);
-        assertEquals("org.apache.lucene.codecs.lucene90.Lucene90DocValuesProducer", producer.getDocValuesProducer().getClass().getName());
-        producer.getDocValuesProducer().close();
+        assertEquals("org.apache.lucene.codecs.lucene90.Lucene90DocValuesProducer", producer.getClass().getName());
+        producer.close();
     }
 
     public void testGetDocValuesProducerForCompositeCodec_InvalidCodec() {

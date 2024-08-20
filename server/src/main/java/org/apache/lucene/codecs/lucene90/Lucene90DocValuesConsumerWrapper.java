@@ -11,6 +11,7 @@ package org.apache.lucene.codecs.lucene90;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.index.SegmentWriteState;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -20,7 +21,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class Lucene90DocValuesConsumerWrapper {
+public class Lucene90DocValuesConsumerWrapper implements Closeable {
 
     private final Lucene90DocValuesConsumer lucene90DocValuesConsumer;
 
@@ -36,5 +37,10 @@ public class Lucene90DocValuesConsumerWrapper {
 
     public Lucene90DocValuesConsumer getLucene90DocValuesConsumer() {
         return lucene90DocValuesConsumer;
+    }
+
+    @Override
+    public void close() throws IOException {
+        lucene90DocValuesConsumer.close();
     }
 }

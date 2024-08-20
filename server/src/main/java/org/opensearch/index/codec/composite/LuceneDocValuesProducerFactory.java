@@ -18,12 +18,18 @@ import java.io.IOException;
 /**
  * A factory class that provides a factory method for creating {@link DocValuesProducer} instances
  * based on the specified composite codec.
+ * <p>
+ * In producers, we want to ensure compatibility with older codec versions during the segment reads.
+ * This approach allows for writing with only the latest codec while maintaining
+ * the ability to read data encoded with any codec version present in the segment.
+ * <p>
+ * This design ensures backward compatibility for reads across different codec versions.
  *
  * @opensearch.experimental
  */
 public class LuceneDocValuesProducerFactory {
 
-    public static CompositeDocValuesProducer getDocValuesProducerForCompositeCodec(
+    public static DocValuesProducer getDocValuesProducerForCompositeCodec(
         String compositeCodec,
         SegmentReadState state,
         String dataCodec,
@@ -34,7 +40,17 @@ public class LuceneDocValuesProducerFactory {
 
         switch (compositeCodec) {
             case Composite99Codec.COMPOSITE_INDEX_CODEC_NAME:
-                return new Lucene90DocValuesProducerWrapper(state, dataCodec, dataExtension, metaCodec, metaExtension);
+                try (
+                    Lucene90DocValuesProducerWrapper lucene90DocValuesProducerWrapper = new Lucene90DocValuesProducerWrapper(
+                        state,
+                        dataCodec,
+                        dataExtension,
+                        metaCodec,
+                        metaExtension
+                    )
+                ) {
+                    return lucene90DocValuesProducerWrapper.getLucene90DocValuesProducer();
+                }
             default:
                 throw new IllegalStateException("Invalid composite codec " + "[" + compositeCodec + "]");
         }
