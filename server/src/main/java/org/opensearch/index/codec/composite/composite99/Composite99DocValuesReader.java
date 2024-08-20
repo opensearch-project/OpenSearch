@@ -29,7 +29,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.DocValuesProvider;
 import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.MetricEntry;
@@ -65,13 +64,12 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
     private final Map<String, IndexInput> compositeIndexInputMap = new LinkedHashMap<>();
     private final Map<String, CompositeIndexMetadata> compositeIndexMetadataMap = new LinkedHashMap<>();
     private final List<String> fields;
-    private DocValuesProvider compositeDocValuesProducer;
+    private DocValuesProducer compositeDocValuesProducer;
     private final List<CompositeIndexFieldInfo> compositeFieldInfos = new ArrayList<>();
-    private final SegmentReadState readState;
+    private SegmentReadState readState;
 
     public Composite99DocValuesReader(DocValuesProducer producer, SegmentReadState readState) throws IOException {
         this.delegate = producer;
-        this.readState = readState;
         this.fields = new ArrayList<>();
 
         String metaFileName = IndexFileNames.segmentFileName(
@@ -178,18 +176,13 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
                 // populates the dummy list of field infos to fetch doc id set iterators for respective fields.
                 // the dummy field info is used to fetch the doc id set iterators for respective fields based on field name
                 FieldInfos fieldInfos = new FieldInfos(getFieldInfoList(fields));
-                SegmentReadState segmentReadState = new SegmentReadState(
-                    readState.directory,
-                    readState.segmentInfo,
-                    fieldInfos,
-                    readState.context
-                );
+                this.readState = new SegmentReadState(readState.directory, readState.segmentInfo, fieldInfos, readState.context);
 
                 // initialize star-tree doc values producer
 
                 compositeDocValuesProducer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
                     Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
-                    segmentReadState,
+                    this.readState,
                     Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
                     Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
                     Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -246,7 +239,7 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
         boolean success = false;
         try {
             IOUtils.close(metaIn, dataIn);
-            IOUtils.close(compositeDocValuesProducer.getDocValuesProducer());
+            IOUtils.close(compositeDocValuesProducer);
             success = true;
         } finally {
             if (!success) {
@@ -273,7 +266,8 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
                 return new StarTreeValues(
                     compositeIndexMetadataMap.get(compositeIndexFieldInfo.getField()),
                     compositeIndexInputMap.get(compositeIndexFieldInfo.getField()),
-                    compositeDocValuesProducer
+                    compositeDocValuesProducer,
+                    this.readState
                 );
 
             default:

@@ -1760,7 +1760,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             expectedStarTreeMetadata.getMetricEntries()
         );
 
-        Lucene90DocValuesProducerWrapper compositeDocValuesProducer = (Lucene90DocValuesProducerWrapper) LuceneDocValuesProducerFactory
+        DocValuesProducer compositeDocValuesProducer = LuceneDocValuesProducerFactory
             .getDocValuesProducerForCompositeCodec(
                 Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
                 readState,
@@ -1773,7 +1773,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         IndexInput dataIn = readState.directory.openInput(dataFileName, IOContext.DEFAULT);
         IndexInput metaIn = readState.directory.openInput(metaFileName, IOContext.DEFAULT);
 
-        StarTreeValues starTreeValues = new StarTreeValues(expectedStarTreeMetadata, dataIn, compositeDocValuesProducer);
+        StarTreeValues starTreeValues = new StarTreeValues(expectedStarTreeMetadata, dataIn, compositeDocValuesProducer, readState);
         List<StarTreeNumericType> starTreeNumericTypes = new ArrayList<>();
         builder.metricAggregatorInfos.forEach(
             metricAggregatorInfo -> starTreeNumericTypes.add(metricAggregatorInfo.getValueAggregators().getAggregatedValueType())
@@ -1791,7 +1791,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
 
         dataIn.close();
         metaIn.close();
-        compositeDocValuesProducer.getDocValuesProducer().close();
+        compositeDocValuesProducer.close();
     }
 
     private static Map<Integer, Map<Long, Double>> getExpectedDimToValueMap() {
@@ -2032,22 +2032,22 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
     }
 
     public void testFlushFlowBuild() throws IOException {
-        List<Long> dimList = new ArrayList<>(101);
-        List<Integer> docsWithField = new ArrayList<>(101);
+        List<Long> dimList = new ArrayList<>(100);
+        List<Integer> docsWithField = new ArrayList<>(100);
         for (int i = 0; i < 100; i++) {
             dimList.add((long) i);
             docsWithField.add(i);
         }
 
-        List<Long> dimList2 = new ArrayList<>(101);
-        List<Integer> docsWithField2 = new ArrayList<>(101);
+        List<Long> dimList2 = new ArrayList<>(100);
+        List<Integer> docsWithField2 = new ArrayList<>(100);
         for (int i = 0; i < 100; i++) {
             dimList2.add((long) i);
             docsWithField2.add(i);
         }
 
-        List<Long> metricsList = new ArrayList<>(101);
-        List<Integer> metricsWithField = new ArrayList<>(101);
+        List<Long> metricsList = new ArrayList<>(100);
+        List<Integer> metricsWithField = new ArrayList<>(100);
         for (int i = 0; i < 100; i++) {
             metricsList.add(getLongFromDouble(i * 10.0));
             metricsWithField.add(i);
@@ -2064,7 +2064,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
 
-        writeState = getWriteState(101);
+        writeState = getWriteState(100);
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -2079,7 +2079,6 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         DocValuesProducer d2vp = getDocValuesProducer(d2sndv);
         DocValuesProducer m1vp = getDocValuesProducer(m1sndv);
         Map<String, DocValuesProducer> fieldProducerMap = Map.of("field1", d1vp, "field3", d2vp, "field2", m1vp);
-        // builder.build(starTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
         builder.build(fieldProducerMap, new AtomicInteger(), docValuesConsumer);
         /**
          * Asserting following dim / metrics [ dim1, dim2 / Sum [ metric] ]
@@ -2096,10 +2095,10 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
          */
         List<StarTreeDocument> starTreeDocuments = builder.getStarTreeDocuments();
         for (StarTreeDocument starTreeDocument : starTreeDocuments) {
-            // assertEquals(
-            // starTreeDocument.dimensions[1] != null ? starTreeDocument.dimensions[1] * 10.0 : 49500.0,
-            // starTreeDocument.metrics[0]
-            // );
+             assertEquals(
+             starTreeDocument.dimensions[1] != null ? starTreeDocument.dimensions[1] * 10.0 : 49500.0,
+             starTreeDocument.metrics[0]
+             );
         }
         validateStarTree(builder.getRootNode(), 2, 1, builder.getStarTreeDocuments());
 
@@ -2113,12 +2112,12 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             mock(IndexInput.class),
             List.of("field1", "field3"),
             List.of(new MetricEntry("field2", MetricStat.SUM)),
-            101,
+            100,
             1,
             Set.of(),
             getBuildMode(),
             0,
-            6715
+            6781
         );
 
         validateStarTreeFileFormats(

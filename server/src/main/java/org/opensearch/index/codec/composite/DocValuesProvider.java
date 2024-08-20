@@ -9,9 +9,6 @@
 package org.opensearch.index.codec.composite;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.index.SortedNumericDocValues;
-
-import java.io.IOException;
 
 /**
  * An interface that provides access to document values for a specific field.
@@ -20,14 +17,14 @@ import java.io.IOException;
  */
 public interface DocValuesProvider {
 
-    /**
-     * Returns the sorted numeric document values for the specified field.
-     *
-     * @param fieldName The name of the field for which to retrieve the sorted numeric document values.
-     * @return The sorted numeric document values for the specified field.
-     * @throws IOException If an error occurs while retrieving the sorted numeric document values.
-     */
-    SortedNumericDocValues getSortedNumeric(String fieldName) throws IOException;
+    // /**
+    // * Returns the sorted numeric document values for the specified field.
+    // *
+    // * @param fieldName The name of the field for which to retrieve the sorted numeric document values.
+    // * @return The sorted numeric document values for the specified field.
+    // * @throws IOException If an error occurs while retrieving the sorted numeric document values.
+    // */
+    // SortedNumericDocValues getSortedNumeric(String fieldName) throws IOException;
 
     /**
      * Returns the DocValuesProducer instance.

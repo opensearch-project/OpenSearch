@@ -10,7 +10,6 @@ package org.apache.lucene.codecs.lucene90;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.opensearch.index.codec.composite.DocValuesProvider;
 
 import java.io.IOException;
@@ -25,7 +24,6 @@ import java.io.IOException;
 public class Lucene90DocValuesProducerWrapper implements DocValuesProvider {
 
     private final Lucene90DocValuesProducer lucene90DocValuesProducer;
-    private final SegmentReadState state;
 
     public Lucene90DocValuesProducerWrapper(
         SegmentReadState state,
@@ -35,13 +33,6 @@ public class Lucene90DocValuesProducerWrapper implements DocValuesProvider {
         String metaExtension
     ) throws IOException {
         lucene90DocValuesProducer = new Lucene90DocValuesProducer(state, dataCodec, dataExtension, metaCodec, metaExtension);
-        this.state = state;
-    }
-
-    // returns the field doc id set iterator based on field name
-    @Override
-    public SortedNumericDocValues getSortedNumeric(String fieldName) throws IOException {
-        return this.lucene90DocValuesProducer.getSortedNumeric(state.fieldInfos.fieldInfo(fieldName));
     }
 
     @Override
