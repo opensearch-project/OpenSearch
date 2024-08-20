@@ -16,6 +16,7 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
@@ -1374,6 +1375,79 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         enableV2Thread.join();
         createV1SnapshotThread.join();
+    }
+
+    public void testCloneShallowCopyV2() throws Exception {
+
+        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String indexName3 = "testindex3";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        String snapshotName2 = "test-create-snapshot2";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        Client client = client();
+
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                )
+        );
+
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
+
+        indexDocuments(client, indexName2, 10);
+        indexDocuments(client, indexName1, 10);
+        createIndex(indexName3);
+        indexDocuments(client, indexName3, 10);
+        CreateSnapshotResponse cloneSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
+            .setWaitForCompletion(true)
+            .get();
+        AcknowledgedResponse cloneResponse = client().admin()
+            .cluster()
+            .prepareCloneSnapshot(snapshotRepoName, snapshotName1, "test_clone_snapshot")
+            .setIndices(indexName1)
+            .get();
+        System.out.println(cloneResponse);
+
     }
 
     private Settings pinnedTimestampSettings() {
