@@ -157,7 +157,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             );
             fieldProducerMap.put(fields.get(i), docValuesProducer);
         }
-        writeState = getWriteState(5);
+        writeState = getWriteState(5, UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8));
 
         dataFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,
@@ -270,7 +270,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         return new SegmentReadState(segmentInfo.dir, segmentInfo, new FieldInfos(fields), writeState.context);
     }
 
-    private SegmentWriteState getWriteState(int numDocs) {
+    private SegmentWriteState getWriteState(int numDocs, byte[] id) {
         FieldInfos fieldInfos = new FieldInfos(fieldsInfo);
         SegmentInfo segmentInfo = new SegmentInfo(
             directory,
@@ -282,7 +282,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             false,
             new Lucene99Codec(),
             new HashMap<>(),
-            UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
+            id,
             new HashMap<>(),
             null
         );
@@ -1869,7 +1869,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         SortedNumericDocValues m2sndv = getSortedNumericMock(metricsList, metricsWithField);
 
-        writeState = getWriteState(6);
+        writeState = getWriteState(6, writeState.segmentInfo.getId());
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         SequentialDocValuesIterator[] dimDvs = { new SequentialDocValuesIterator(d1sndv), new SequentialDocValuesIterator(d2sndv) };
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.sortAndAggregateSegmentDocuments(
@@ -1963,7 +1963,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         SortedNumericDocValues m2sndv = getSortedNumericMock(metricsList, metricsWithField);
 
-        writeState = getWriteState(6);
+        writeState = getWriteState(6, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -2062,10 +2062,11 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
 
-        writeState = getWriteState(100);
+        writeState = getWriteState(100, writeState.segmentInfo.getId());
+        SegmentWriteState consumerWriteState = getWriteState(DocIdSetIterator.NO_MORE_DOCS, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
-            writeState,
+            consumerWriteState,
             Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
             Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
             Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -2115,7 +2116,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             Set.of(),
             getBuildMode(),
             0,
-            6781
+            6715
         );
 
         validateStarTreeFileFormats(
@@ -2214,7 +2215,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "6"
         );
-        writeState = getWriteState(6);
+        writeState = getWriteState(6, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -2303,7 +2304,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "6"
         );
-        writeState = getWriteState(6);
+        writeState = getWriteState(6, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -2420,7 +2421,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "4"
         );
-        writeState = getWriteState(4);
+        writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -2518,7 +2519,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             sf,
             "4"
         );
-        builder = getStarTreeBuilder(metaOut, dataOut, sf, getWriteState(4), mapperService);
+        builder = getStarTreeBuilder(metaOut, dataOut, sf, getWriteState(4, writeState.segmentInfo.getId()), mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
         /**
          * Asserting following dim / metrics [ dim1, dim2 / Count [ metric] ]
@@ -2578,7 +2579,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "4"
         );
-        writeState = getWriteState(4);
+        writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -2677,10 +2678,11 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "4"
         );
-        writeState = getWriteState(4);
+        writeState = getWriteState(4, writeState.segmentInfo.getId());
+        SegmentWriteState consumerWriteState = getWriteState(DocIdSetIterator.NO_MORE_DOCS, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
-            writeState,
+            consumerWriteState,
             Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
             Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
             Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -2777,7 +2779,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "4"
         );
-        writeState = getWriteState(4);
+        writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -2881,7 +2883,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "4"
         );
-        writeState = getWriteState(4);
+        writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,
@@ -3071,7 +3073,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             compositeField,
             "0"
         );
-        writeState = getWriteState(0);
+        writeState = getWriteState(0, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
             writeState,

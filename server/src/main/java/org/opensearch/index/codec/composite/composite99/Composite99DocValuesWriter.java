@@ -17,9 +17,12 @@ import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -75,7 +78,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
-        for (FieldInfo fi : segmentWriteState.fieldInfos) {
+        for (FieldInfo fi : this.state.fieldInfos) {
             if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())) {
                 segmentFieldSet.add(fi.name);
             }
@@ -86,9 +89,34 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
 
         boolean success = false;
         try {
+
+            SegmentInfo segmentInfo = new SegmentInfo(
+                segmentWriteState.segmentInfo.dir,
+                segmentWriteState.segmentInfo.getVersion(),
+                segmentWriteState.segmentInfo.getMinVersion(),
+                segmentWriteState.segmentInfo.name,
+                DocIdSetIterator.NO_MORE_DOCS,
+                segmentWriteState.segmentInfo.getUseCompoundFile(),
+                segmentWriteState.segmentInfo.getHasBlocks(),
+                segmentWriteState.segmentInfo.getCodec(),
+                segmentWriteState.segmentInfo.getDiagnostics(),
+                segmentWriteState.segmentInfo.getId(),
+                segmentWriteState.segmentInfo.getAttributes(),
+                segmentWriteState.segmentInfo.getIndexSort()
+            );
+
+            SegmentWriteState consumerWriteState = new SegmentWriteState(
+                segmentWriteState.infoStream,
+                segmentWriteState.directory,
+                segmentInfo,
+                segmentWriteState.fieldInfos,
+                segmentWriteState.segUpdates,
+                segmentWriteState.context
+            );
+
             this.composite99DocValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
                 Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
-                segmentWriteState,
+                consumerWriteState,
                 Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
                 Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
                 Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -96,31 +124,31 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             );
 
             String dataFileName = IndexFileNames.segmentFileName(
-                segmentWriteState.segmentInfo.name,
-                segmentWriteState.segmentSuffix,
+                this.state.segmentInfo.name,
+                this.state.segmentSuffix,
                 Composite99DocValuesFormat.DATA_EXTENSION
             );
-            dataOut = segmentWriteState.directory.createOutput(dataFileName, segmentWriteState.context);
+            dataOut = this.state.directory.createOutput(dataFileName, this.state.context);
             CodecUtil.writeIndexHeader(
                 dataOut,
                 Composite99DocValuesFormat.DATA_CODEC_NAME,
                 Composite99DocValuesFormat.VERSION_CURRENT,
-                segmentWriteState.segmentInfo.getId(),
-                segmentWriteState.segmentSuffix
+                this.state.segmentInfo.getId(),
+                this.state.segmentSuffix
             );
 
             String metaFileName = IndexFileNames.segmentFileName(
-                segmentWriteState.segmentInfo.name,
-                segmentWriteState.segmentSuffix,
+                this.state.segmentInfo.name,
+                this.state.segmentSuffix,
                 Composite99DocValuesFormat.META_EXTENSION
             );
-            metaOut = segmentWriteState.directory.createOutput(metaFileName, segmentWriteState.context);
+            metaOut = this.state.directory.createOutput(metaFileName, this.state.context);
             CodecUtil.writeIndexHeader(
                 metaOut,
                 Composite99DocValuesFormat.META_CODEC_NAME,
                 Composite99DocValuesFormat.VERSION_CURRENT,
-                segmentWriteState.segmentInfo.getId(),
-                segmentWriteState.segmentSuffix
+                this.state.segmentInfo.getId(),
+                this.state.segmentSuffix
             );
 
             success = true;
