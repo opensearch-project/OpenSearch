@@ -57,8 +57,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -250,7 +250,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, String rewriteOverride) {
         this(fieldName, supplier);
         this.rewriteOverride = rewriteOverride;
-      
+    }
+
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, ValueType valueType) {
         this(fieldName, supplier);
         this.valueType = valueType;
@@ -497,7 +498,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     queryName = parser.text();
                 } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
                     rewriteOverride = parser.textOrNull();
-                }
                 } else if (VALUE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     valueTypeStr = parser.text();
                 } else {
@@ -535,7 +535,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
         }
 
-        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType).rewriteOverride(rewriteOverride);
+        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost)
+            .queryName(queryName)
+            .valueType(valueType)
+            .rewriteOverride(rewriteOverride);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -644,7 +647,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 supplier.set(list);
                 return null;
             })));
-            return new TermsQueryBuilder(this.fieldName, supplier::get, valueType, rewriteOverride);
+            return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
         }
 
         if (values == null || values.isEmpty()) {
