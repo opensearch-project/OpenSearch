@@ -38,6 +38,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -50,6 +51,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.InvalidIndexNameException;
@@ -118,6 +120,35 @@ public class IndexNameExpressionResolver {
     public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(), true);
         return concreteIndexNames(context, request.indices());
+    }
+
+    /**
+     * Returns the concrete indices that match the provided tiering state.
+     *
+     * @param state cluster state
+     * @param request indices request
+     * @param tieringState the tiering state of indices
+     * @return array of concrete indices resolved having the provided tiering state
+     */
+    @ExperimentalApi
+    public Index[] concreteIndicesInTier(ClusterState state, IndicesRequest request, IndexModule.TieringState tieringState) {
+        Context context = new Context(
+            state,
+            request.indicesOptions(),
+            false,
+            false,
+            request.includeDataStreams(),
+            isSystemIndexAccessAllowed()
+        );
+        final Index[] concreteIndices = concreteIndices(context, request.indices());
+        final Set<Index> indicesWithTargetTier = new HashSet<>();
+        for (Index index : concreteIndices) {
+            IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
+            if (indexMetadata.isIndexInTier(tieringState)) {
+                indicesWithTargetTier.add(index);
+            }
+        }
+        return indicesWithTargetTier.toArray(Index.EMPTY_ARRAY);
     }
 
     /**
