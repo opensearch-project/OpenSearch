@@ -561,7 +561,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     metadataForSnapshot(currentState.metadata(), request.includeGlobalState(), false, dataStreams, indexIds),
                     snapshotInfo,
                     version,
-                    state -> stateWithoutSnapshot(state, snapshot),
+                    state -> state,
                     new ActionListener<RepositoryData>() {
                         @Override
                         public void onResponse(RepositoryData repositoryData) {
@@ -601,24 +601,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ActionListener<RepositoryData> listener
     ) {
         listener.onResponse(repositoryData);
-        // remoteStorePinnedTimestampService.pinTimestamp(
-        // timestampToPin,
-        // snapshot.getRepository() + "__" + snapshot.getSnapshotId(),
-        // new ActionListener<Void>() {
-        // @Override
-        // public void onResponse(Void unused) {
-        // logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
-        // listener.onResponse(repositoryData);
-        // }
-        //
-        // @Override
-        // public void onFailure(Exception e) {
-        // logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
-        // listener.onFailure(e);
-        //
-        // }
-        // }
-        // );
+        remoteStorePinnedTimestampService.pinTimestamp(
+            timestampToPin,
+            snapshot.getRepository() + "__" + snapshot.getSnapshotId(),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
+                    listener.onResponse(repositoryData);
+                }
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
+                    listener.onFailure(e);
+
+                }
+            }
+        );
     }
 
     private static void ensureSnapshotNameNotRunning(
