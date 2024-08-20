@@ -23,6 +23,7 @@ import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -130,8 +131,10 @@ public class QueryGroupTestUtils {
         return new Tuple<QueryGroupPersistenceService, ClusterState>(queryGroupPersistenceService, clusterState);
     }
 
-    public static void assertEqualQueryGroups(List<QueryGroup> listOne, List<QueryGroup> listTwo) {
-        assertEquals(listOne.size(), listTwo.size());
+    public static void assertEqualQueryGroups(Collection<QueryGroup> collectionOne, Collection<QueryGroup> collectionTwo) {
+        assertEquals(collectionOne.size(), collectionTwo.size());
+        List<QueryGroup> listOne = new ArrayList<>(collectionOne);
+        List<QueryGroup> listTwo = new ArrayList<>(collectionTwo);
         listOne.sort(Comparator.comparing(QueryGroup::getName));
         listTwo.sort(Comparator.comparing(QueryGroup::getName));
         for (int i = 0; i < listOne.size(); i++) {
