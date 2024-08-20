@@ -62,10 +62,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         Objects.requireNonNull(resourceLimits, "QueryGroup.resourceLimits can't be null");
         Objects.requireNonNull(resiliencyMode, "QueryGroup.resiliencyMode can't be null");
         Objects.requireNonNull(_id, "QueryGroup._id can't be null");
-
-        if (name.length() > MAX_CHARS_ALLOWED_IN_NAME || name.isEmpty()) {
-            throw new IllegalArgumentException("QueryGroup.name shouldn't be empty or more than 50 chars long");
-        }
+        validateName(name);
 
         if (resourceLimits.isEmpty()) {
             throw new IllegalArgumentException("QueryGroup.resourceLimits should at least have 1 resource limit");
@@ -109,6 +106,12 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         out.writeString(resiliencyMode.getName());
         out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeDouble);
         out.writeLong(updatedAtInMillis);
+    }
+
+    public static void validateName(String name) {
+        if (name == null || name.isEmpty() || name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
+            throw new IllegalArgumentException("QueryGroup.name shouldn't be null, empty or more than 50 chars long");
+        }
     }
 
     private void validateResourceLimits(Map<ResourceType, Double> resourceLimits) {

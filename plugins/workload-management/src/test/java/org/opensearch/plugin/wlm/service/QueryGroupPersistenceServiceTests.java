@@ -29,6 +29,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.mockito.ArgumentCaptor;
 
@@ -42,6 +44,7 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettings;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettingsSet;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterState;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.preparePersistenceServiceSetup;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
@@ -243,5 +246,56 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
         queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
         verify(listener).onFailure(any(RuntimeException.class));
+    }
+
+    /**
+     * Tests getting a single QueryGroup
+     */
+    public void testGetSingleQueryGroup() {
+        Collection<QueryGroup> groupsCollections = QueryGroupPersistenceService.getFromClusterStateMetadata(NAME_ONE, clusterState());
+        List<QueryGroup> groups = new ArrayList<>(groupsCollections);
+        assertEquals(1, groups.size());
+        QueryGroup queryGroup = groups.get(0);
+        List<QueryGroup> listOne = new ArrayList<>();
+        List<QueryGroup> listTwo = new ArrayList<>();
+        listOne.add(QueryGroupTestUtils.queryGroupOne);
+        listTwo.add(queryGroup);
+        QueryGroupTestUtils.assertEqualQueryGroups(listOne, listTwo);
+    }
+
+    /**
+     * Tests getting all QueryGroups
+     */
+    public void testGetAllQueryGroups() {
+        assertEquals(2, QueryGroupTestUtils.clusterState().metadata().queryGroups().size());
+        Collection<QueryGroup> groupsCollections = QueryGroupPersistenceService.getFromClusterStateMetadata(null, clusterState());
+        List<QueryGroup> res = new ArrayList<>(groupsCollections);
+        assertEquals(2, res.size());
+        Set<String> currentNAME = res.stream().map(QueryGroup::getName).collect(Collectors.toSet());
+        assertTrue(currentNAME.contains(QueryGroupTestUtils.NAME_ONE));
+        assertTrue(currentNAME.contains(QueryGroupTestUtils.NAME_TWO));
+        QueryGroupTestUtils.assertEqualQueryGroups(QueryGroupTestUtils.queryGroupList(), res);
+    }
+
+    /**
+     * Tests getting a QueryGroup with invalid name
+     */
+    public void testGetNonExistedQueryGroups() {
+        Collection<QueryGroup> groupsCollections = QueryGroupPersistenceService.getFromClusterStateMetadata(
+            NAME_NONE_EXISTED,
+            clusterState()
+        );
+        List<QueryGroup> groups = new ArrayList<>(groupsCollections);
+        assertEquals(0, groups.size());
+    }
+
+    /**
+     * Tests setting maxQueryGroupCount
+     */
+    public void testMaxQueryGroupCount() {
+        assertThrows(IllegalArgumentException.class, () -> QueryGroupTestUtils.queryGroupPersistenceService().setMaxQueryGroupCount(-1));
+        QueryGroupPersistenceService queryGroupPersistenceService = QueryGroupTestUtils.queryGroupPersistenceService();
+        queryGroupPersistenceService.setMaxQueryGroupCount(50);
+        assertEquals(50, queryGroupPersistenceService.getMaxQueryGroupCount());
     }
 }
