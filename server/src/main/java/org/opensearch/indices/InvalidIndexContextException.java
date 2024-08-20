@@ -10,13 +10,21 @@ package org.opensearch.indices;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception when the context provided in the creation of an index is invalid.
+ */
 public class InvalidIndexContextException extends OpenSearchException {
 
+    /**
+     *
+     * @param indexName name of the index
+     * @param name context name provided
+     * @param description error message
+     */
     public InvalidIndexContextException(String indexName, String name, String description) {
         super("Invalid context name [{}] provide for index: {}, [{}]", name, indexName, description);
     }

@@ -91,7 +91,6 @@ import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
-import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.remote.RemoteStoreCustomMetadataResolver;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
@@ -101,10 +100,8 @@ import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.indices.InvalidIndexContextException;
 import org.opensearch.indices.InvalidIndexNameException;
-import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
@@ -628,15 +625,18 @@ public class MetadataCreateIndexService {
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
         );
 
-        final List<Map<String, Object>> mappings = List.of(Collections.unmodifiableMap(
-            parseV1Mappings(
-                request.mappings(),
-                templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
-                xContentRegistry
+        final List<Map<String, Object>> mappings = List.of(
+            Collections.unmodifiableMap(
+                parseV1Mappings(
+                    request.mappings(),
+                    templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
+                    xContentRegistry
+                )
             )
-        ));
+        );
         Optional<Template> context = applyContext(request, currentState, mappings);
-        Settings aggregateSettings = Settings.builder().put(MetadataIndexTemplateService.resolveSettings(templates))
+        Settings aggregateSettings = Settings.builder()
+            .put(MetadataIndexTemplateService.resolveSettings(templates))
             .put(context.isPresent() ? context.get().settings() : Settings.EMPTY)
             .build();
 
@@ -711,7 +711,8 @@ public class MetadataCreateIndexService {
         );
 
         Optional<Template> context = applyContext(request, currentState, mappings);
-        Settings aggregateSettings = Settings.builder().put(MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName))
+        Settings aggregateSettings = Settings.builder()
+            .put(MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName))
             .put(context.isPresent() ? context.get().settings() : Settings.EMPTY)
             .build();
 
@@ -755,8 +756,11 @@ public class MetadataCreateIndexService {
         );
     }
 
-    private Optional<Template> applyContext(CreateIndexClusterStateUpdateRequest request, ClusterState currentState,
-                              List<Map<String, Object>> mappings) throws IOException {
+    private Optional<Template> applyContext(
+        CreateIndexClusterStateUpdateRequest request,
+        ClusterState currentState,
+        List<Map<String, Object>> mappings
+    ) throws IOException {
         if (request.context() != null) {
             String contextTemplate = MetadataIndexTemplateService.findContextTemplate(currentState.metadata(), request.context());
             ComponentTemplate componentTemplate = currentState.metadata().componentTemplates().get(contextTemplate);
@@ -1733,7 +1737,6 @@ public class MetadataCreateIndexService {
         }
 
     }
-
 
     static void validateContext(CreateIndexClusterStateUpdateRequest request, ClusterState clusterState) {
         final boolean isContextAllowed = FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES);
