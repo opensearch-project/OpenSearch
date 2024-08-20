@@ -230,9 +230,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = null;
     }
 
-    private TermsQueryBuilder(String fieldName, Iterable<?> values, ValueType valueType) {
+    private TermsQueryBuilder(String fieldName, Iterable<?> values, ValueType valueType, String rewriteOverride) {
         this(fieldName, values);
         this.valueType = valueType;
+        this.rewriteOverride = rewriteOverride;
     }
 
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
@@ -242,19 +243,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = supplier;
     }
 
-    private TermsQueryBuilder(String fieldName, Iterable<?> values, String rewriteOverride) {
-        this(fieldName, values);
-        this.rewriteOverride = rewriteOverride;
-    }
-
-    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, String rewriteOverride) {
-        this(fieldName, supplier);
-        this.rewriteOverride = rewriteOverride;
-    }
-
-    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, ValueType valueType) {
+    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, ValueType valueType, String rewriteOverride) {
         this(fieldName, supplier);
         this.valueType = valueType;
+        this.rewriteOverride = rewriteOverride;
     }
 
     /**
@@ -647,7 +639,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 supplier.set(list);
                 return null;
             })));
-            return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
+            return new TermsQueryBuilder(this.fieldName, supplier::get, valueType, rewriteOverride);
         }
 
         if (values == null || values.isEmpty()) {
