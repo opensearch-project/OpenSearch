@@ -1107,6 +1107,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             isSystem = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
                 context = in.readOptionalWriteable(Context::new);
+            } else {
+                context = null;
             }
         }
 
@@ -1240,6 +1242,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isSystem() {
         return isSystem;
+    }
+
+    public Context context() {
+        return context;
     }
 
     public boolean isRemoteSnapshot() {

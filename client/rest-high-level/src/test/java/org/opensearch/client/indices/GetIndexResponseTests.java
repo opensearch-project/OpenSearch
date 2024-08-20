@@ -97,7 +97,8 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
             aliases,
             settings,
             defaultSettings,
-            dataStreams
+            dataStreams,
+            null
         );
     }
 

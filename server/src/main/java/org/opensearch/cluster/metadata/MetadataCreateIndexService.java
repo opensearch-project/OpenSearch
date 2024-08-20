@@ -533,7 +533,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    temporaryIndexMeta.getCustomData()
+                    temporaryIndexMeta.getCustomData(),
+                    temporaryIndexMeta.context()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -607,6 +608,10 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
         addRemoteStoreCustomMetadata(tmpImdBuilder, true);
+
+        if (request.context() != null) {
+            tmpImdBuilder.context(request.context());
+        }
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -1280,7 +1285,8 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData
+        Map<String, DiffableStringMap> customData,
+        Context context
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1304,6 +1310,8 @@ public class MetadataCreateIndexService {
         for (Map.Entry<String, DiffableStringMap> entry : customData.entrySet()) {
             indexMetadataBuilder.putCustom(entry.getKey(), entry.getValue());
         }
+
+        indexMetadataBuilder.context(context);
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
         return indexMetadataBuilder.build();

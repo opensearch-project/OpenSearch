@@ -104,7 +104,7 @@ public class Context extends AbstractDiffable<Context> implements ToXContentObje
         builder.startObject();
         builder.field(NAME.getPreferredName(), this.name);
         builder.field(VERSION.getPreferredName(), this.version);
-        if (params != null) {
+        if (this.params != null) {
             builder.field(PARAMS.getPreferredName(), this.params);
         }
         builder.endObject();
