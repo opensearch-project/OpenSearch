@@ -68,6 +68,7 @@ import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -1752,6 +1753,9 @@ public class IndicesService extends AbstractLifecycleComponent
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
         if (context.getQueryShardContext().isCacheable() == false) {
+            return false;
+        }
+        if (!(context.searcher().getIndexReader().getReaderCacheHelper() instanceof OpenSearchDirectoryReader.DelegatingCacheHelper)) {
             return false;
         }
         return true;

@@ -34,6 +34,12 @@ package org.opensearch.indices;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -56,7 +62,10 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.request.RequestCacheStats;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
@@ -65,6 +74,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZoneId;
@@ -766,6 +776,61 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertTrue(stats.getMemorySizeInBytes() == 0);
         stats = getNodeCacheStats(client(node_2));
         assertTrue(stats.getMemorySizeInBytes() == 0);
+    }
+
+    public void testTimedOutQuery() throws Exception {
+        // A timed out query should be cached and then invalidated
+        Client client = client();
+        String index = "index";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping("k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        // Disable index refreshing to avoid cache being invalidated mid-test
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+                )
+                .get()
+        );
+        indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
+        ensureSearchable(index);
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        forceMerge(client, index);
+
+        QueryBuilder timeoutQueryBuilder = new TermQueryBuilder("k", "hello") {
+            @Override
+            protected Query doToQuery(QueryShardContext context) {
+                return new TermQuery(new Term("k", "hello")) {
+                    @Override
+                    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                        // Create the weight before sleeping. Otherwise, TermStates.build() (in the call to super.createWeight()) will
+                        // sometimes throw an exception on timeout, rather than timing out gracefully.
+                        Weight result = super.createWeight(searcher, scoreMode, boost);
+                        try {
+                            // Pick 500 ms as it's the same duration used in SearchTimeoutIT.testSimpleTimeout() to ensure a timeout
+                            // (We can't directly reuse their ScriptQuery-based logic as it isn't cacheable)
+                            Thread.sleep(500);
+                        } catch (InterruptedException ignored) {}
+                        return result;
+                    }
+                };
+            }
+        };
+
+        SearchResponse resp = client.prepareSearch(index)
+            .setRequestCache(true)
+            .setQuery(timeoutQueryBuilder)
+            .setTimeout(TimeValue.ZERO)
+            .get();
+        assertTrue(resp.isTimedOut());
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
+        // The cache should be empty as the timed-out query was invalidated
+        assertEquals(0, requestCacheStats.getMemorySizeInBytes());
     }
 
     private Path[] shardDirectory(String server, Index index, int shard) {
