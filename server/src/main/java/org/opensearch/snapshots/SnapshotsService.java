@@ -647,6 +647,139 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             .distinct()
             .collect(Collectors.toMap(IndexId::getName, Function.identity()));
     }
+    public void cloneSnapshotV2(CloneSnapshotRequest request, ActionListener<Void> listener) {
+        final String repositoryName = request.repository();
+        Repository repository = repositoriesService.repository(repositoryName);
+        if (repository.isReadOnly()) {
+            listener.onFailure(new RepositoryException(repositoryName, "cannot create snapshot in a readonly repository"));
+            return;
+        }
+        final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.target());
+        validate(repositoryName, snapshotName);
+        ClusterState currentState = clusterService.state();
+
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
+        final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        try {
+            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+            repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
+
+            repositoryDataListener.whenComplete(repositoryData -> {
+                ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
+                ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
+                ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
+                validate(repositoryName, snapshotName, currentState);
+
+                final SnapshotId sourceSnapshotId = repositoryData.getSnapshotIds()
+                    .stream()
+                    .filter(src -> src.getName().equals(request.source()))
+                    .findAny()
+                    .orElseThrow(() -> new SnapshotMissingException(repositoryName, request.source()));
+                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
+                    SnapshotDeletionsInProgress.TYPE,
+                    SnapshotDeletionsInProgress.EMPTY
+                );
+                if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(sourceSnapshotId))) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repositoryName,
+                        sourceSnapshotId.getName(),
+                        "cannot clone from snapshot that is being deleted"
+                    );
+                }
+                final List<String> indicesForSnapshot = new ArrayList<>();
+                for (IndexId indexId : repositoryData.getIndices().values()) {
+                    if (repositoryData.getSnapshots(indexId).contains(sourceSnapshotId)) {
+                        indicesForSnapshot.add(indexId.getName());
+                    }
+                }
+                final List<String> matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
+                if (matchingIndices.isEmpty()) {
+                    throw new SnapshotException(
+                        new Snapshot(repositoryName, sourceSnapshotId),
+                        "No indices in the source snapshot ["
+                            + sourceSnapshotId
+                            + "] matched requested pattern ["
+                            + Strings.arrayToCommaDelimitedString(request.indices())
+                            + "]"
+                    );
+                }
+                SnapshotsInProgress.Entry newEntry = SnapshotsInProgress.startClone(
+                    snapshot,
+                    sourceSnapshotId,
+                    repositoryData.resolveIndices(matchingIndices),
+                    threadPool.absoluteTimeInMillis(),
+                    repositoryData.getGenId(),
+                    minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null)
+                );
+
+                final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
+                final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+                executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
+                // TODO : fail if pinned timestamp file is absent for source snapshot
+
+                ShardGenerations shardGenerations = repositoryData.shardGenerations();
+
+                final SnapshotInfo snapshotInfo = new SnapshotInfo(
+                    snapshot.getSnapshotId(),
+                    repositoryData.resolveIndices(matchingIndices),
+                    newEntry.dataStreams(),
+                    startTime,
+                    null,
+                    System.currentTimeMillis(),
+                    shardGenerations.totalShards(),
+                    Collections.emptyList(),
+                    newEntry.includeGlobalState(),
+                    newEntry.userMetadata(),
+                    remoteStoreIndexShallowCopy,
+                    pinnedTimestamp
+                );
+                if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                    throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
+                }
+                final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
+                pinnedTimestampListener.whenComplete(repoData -> { listener.onResponse(snapshotInfo); }, listener::onFailure);
+                repository.finalizeSnapshot(
+                    shardGenerations,
+                    repositoryData.getGenId(),
+                    metadataForSnapshot(currentState.metadata(), newEntry.includeGlobalState(), false, newEntry.dataStreams(), newEntry.indices()),
+                    snapshotInfo,
+                    version,
+                    state -> stateWithoutSnapshot(state, snapshot),
+                    new ActionListener<RepositoryData>() {
+                        @Override
+                        public void onResponse(RepositoryData repositoryData) {
+                            if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                                failSnapshotCompletionListeners(
+                                    snapshot,
+                                    new SnapshotException(snapshot, "Aborting Snapshot, no longer cluster manager")
+                                );
+                                listener.onFailure(
+                                    new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager")
+                                );
+                                return;
+                            }
+                            updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("Failed to upload files to snapshot repo {} for snapshot {} ", repositoryName, snapshotName);
+                            listener.onFailure(e);
+                        }
+                    }
+                );
+
+            },listener::onFailure);
+        } catch (Exception e) {
+            assert false : new AssertionError(e);
+            logger.error("Snapshot {} creation failed with exception {}", snapshot.getSnapshotId().getName(), e);
+            listener.onFailure(e);
+        }
+
+    }
 
     // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
     // for repository metadata and loading it has predictable performance
