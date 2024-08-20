@@ -10,7 +10,6 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene90.Lucene90DocValuesProducerWrapper;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
@@ -1048,7 +1047,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             List.of(
                 new MetricEntry("field2", MetricStat.SUM),
                 new MetricEntry("field4", MetricStat.SUM),
-                new MetricEntry("field6", MetricStat.COUNT),
+                new MetricEntry("field6", MetricStat.VALUE_COUNT),
                 new MetricEntry("field9", MetricStat.MIN),
                 new MetricEntry("field10", MetricStat.MAX)
             ),
@@ -1163,7 +1162,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             List.of(
                 new MetricEntry("field2", MetricStat.SUM),
                 new MetricEntry("field4", MetricStat.SUM),
-                new MetricEntry("field6", MetricStat.COUNT),
+                new MetricEntry("field6", MetricStat.VALUE_COUNT),
                 new MetricEntry("field9", MetricStat.MIN),
                 new MetricEntry("field10", MetricStat.MAX)
             ),
@@ -1268,7 +1267,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             List.of(
                 new MetricEntry("field2", MetricStat.SUM),
                 new MetricEntry("field4", MetricStat.SUM),
-                new MetricEntry("field6", MetricStat.COUNT),
+                new MetricEntry("field6", MetricStat.VALUE_COUNT),
                 new MetricEntry("field9", MetricStat.MIN),
                 new MetricEntry("field10", MetricStat.MAX)
             ),
@@ -1446,7 +1445,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             List.of(
                 new MetricEntry("field2", MetricStat.SUM),
                 new MetricEntry("field4", MetricStat.SUM),
-                new MetricEntry("field6", MetricStat.COUNT),
+                new MetricEntry("field6", MetricStat.VALUE_COUNT),
                 new MetricEntry("field9", MetricStat.MIN),
                 new MetricEntry("field10", MetricStat.MAX)
             ),
@@ -1554,7 +1553,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             List.of(
                 new MetricEntry("field2", MetricStat.SUM),
                 new MetricEntry("field4", MetricStat.SUM),
-                new MetricEntry("field6", MetricStat.COUNT),
+                new MetricEntry("field6", MetricStat.VALUE_COUNT),
                 new MetricEntry("field9", MetricStat.MIN),
                 new MetricEntry("field10", MetricStat.MAX)
             ),
@@ -1760,15 +1759,14 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             expectedStarTreeMetadata.getMetricEntries()
         );
 
-        DocValuesProducer compositeDocValuesProducer = LuceneDocValuesProducerFactory
-            .getDocValuesProducerForCompositeCodec(
-                Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
-                readState,
-                Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-                Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-                Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-                Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
-            );
+        DocValuesProducer compositeDocValuesProducer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
+            Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
+            readState,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+        );
 
         IndexInput dataIn = readState.directory.openInput(dataFileName, IOContext.DEFAULT);
         IndexInput metaIn = readState.directory.openInput(metaFileName, IOContext.DEFAULT);
@@ -1925,7 +1923,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.SUM), new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.SUM), new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             6,
             1000,
             Set.of(),
@@ -2014,7 +2012,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.SUM), new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.SUM), new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             6,
             1000,
             Set.of(),
@@ -2095,10 +2093,10 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
          */
         List<StarTreeDocument> starTreeDocuments = builder.getStarTreeDocuments();
         for (StarTreeDocument starTreeDocument : starTreeDocuments) {
-             assertEquals(
-             starTreeDocument.dimensions[1] != null ? starTreeDocument.dimensions[1] * 10.0 : 49500.0,
-             starTreeDocument.metrics[0]
-             );
+            assertEquals(
+                starTreeDocument.dimensions[1] != null ? starTreeDocument.dimensions[1] * 10.0 : 49500.0,
+                starTreeDocument.metrics[0]
+            );
         }
         validateStarTree(builder.getRootNode(), 2, 1, builder.getStarTreeDocuments());
 
@@ -2180,8 +2178,6 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         );
         when(documentMapper.mappers()).thenReturn(fieldMappers);
         testMergeFlowWithSum();
-        builder.close();
-        testMergeFlowWithCount();
     }
 
     public void testMergeFlowWithSum() throws IOException {
@@ -2351,7 +2347,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             6,
             1000,
             Set.of(),
@@ -2472,7 +2468,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             9,
             1000,
             Set.of(),
@@ -2631,7 +2627,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             10,
             1000,
             Set.of(),
@@ -2731,7 +2727,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             6,
             1000,
             Set.of(),
@@ -2835,7 +2831,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             7,
             1000,
             Set.of(),
@@ -2935,7 +2931,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             10,
             1000,
             Set.of(),
@@ -3033,7 +3029,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             10,
             1000,
             Set.of(),
@@ -3119,7 +3115,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             STAR_TREE,
             mock(IndexInput.class),
             List.of("field1", "field3"),
-            List.of(new MetricEntry("field2", MetricStat.COUNT)),
+            List.of(new MetricEntry("field2", MetricStat.VALUE_COUNT)),
             6,
             1000,
             Set.of(),

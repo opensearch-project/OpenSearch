@@ -124,10 +124,7 @@ public class StarTreeValues implements CompositeIndexValues {
                 }
             }
 
-            dimensionDocValuesIteratorMap.put(
-                dimension,
-                getSortedNumericDocValues(dimensionSortedNumericDocValues)
-            );
+            dimensionDocValuesIteratorMap.put(dimension, getSortedNumericDocValues(dimensionSortedNumericDocValues));
         }
 
         // get doc id set iterators for metrics
@@ -145,10 +142,7 @@ public class StarTreeValues implements CompositeIndexValues {
                     metricSortedNumericDocValues = compositeDocValuesProducer.getSortedNumeric(metricFieldInfo);
                 }
             }
-            metricDocValuesIteratorMap.put(
-                metricFullName,
-                getSortedNumericDocValues(metricSortedNumericDocValues)
-            );
+            metricDocValuesIteratorMap.put(metricFullName, getSortedNumericDocValues(metricSortedNumericDocValues));
 
         }
 
