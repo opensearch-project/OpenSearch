@@ -68,7 +68,7 @@ import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader.DelegatingCacheHelper;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -1755,11 +1755,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (context.getQueryShardContext().isCacheable() == false) {
             return false;
         }
-        if (!(context.searcher().getDirectoryReader().getReaderCacheHelper() instanceof OpenSearchDirectoryReader.DelegatingCacheHelper)) {
-            return false;
-        }
-        return true;
-
+        return context.searcher().getDirectoryReader().getReaderCacheHelper() instanceof DelegatingCacheHelper;
     }
 
     /**
