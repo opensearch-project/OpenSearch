@@ -17,6 +17,18 @@ jobs:
           java-version: ${{ matrix.java }}
           distribution: temurin
           cache: gradle
-      - name: Run Gradle (precommit)
+      - name: Set up JDK 17
+        # See please https://docs.gradle.org/8.10/userguide/upgrading_version_8.html#minimum_daemon_jvm_version
+        if: matrix.java == 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+      - name: Set JAVA${{ matrix.java }}_HOME
+        shell: bash
         run: |
-          ./gradlew javadoc precommit --parallel
+          echo "JAVA${{ matrix.java }}_HOME=$JAVA_HOME_${{ matrix.java }}_${{ runner.arch }}" >> $GITHUB_ENV
+      - name: Run Gradle (precommit)
+        shell: bash
+        run: |
+          ./gradlew javadoc precommit --parallel -Druntime.java=${{ matrix.java }}
