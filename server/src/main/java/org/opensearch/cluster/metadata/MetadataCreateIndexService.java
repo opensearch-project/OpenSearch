@@ -952,7 +952,8 @@ public class MetadataCreateIndexService {
             }
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
         }
-        if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
+        if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false
+            || indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, DEFAULT_REPLICA_COUNT_SETTING.get(currentState.metadata().settings()));
         }
         if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {

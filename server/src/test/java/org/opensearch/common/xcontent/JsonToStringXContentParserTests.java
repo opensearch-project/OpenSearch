@@ -19,7 +19,6 @@ import java.io.IOException;
 public class JsonToStringXContentParserTests extends OpenSearchTestCase {
 
     private String flattenJsonString(String fieldName, String in) throws IOException {
-        String transformed;
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 xContentRegistry(),
@@ -33,10 +32,11 @@ public class JsonToStringXContentParserTests extends OpenSearchTestCase {
                 parser,
                 fieldName
             );
-            // Skip the START_OBJECT token:
+            // Point to the first token (should be START_OBJECT)
             jsonToStringXContentParser.nextToken();
 
             XContentParser transformedParser = jsonToStringXContentParser.parseObject();
+            assertSame(XContentParser.Token.END_OBJECT, jsonToStringXContentParser.currentToken());
             try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
                 jsonBuilder.copyCurrentStructure(transformedParser);
                 return jsonBuilder.toString();
@@ -110,4 +110,57 @@ public class JsonToStringXContentParserTests extends OpenSearchTestCase {
         );
     }
 
+    public void testArrayOfObjects() throws IOException {
+        String jsonExample = "{"
+            + "\"field\": {"
+            + "  \"detail\": {"
+            + "    \"foooooooooooo\": ["
+            + "      {\"name\":\"baz\"},"
+            + "      {\"name\":\"baz\"}"
+            + "    ]"
+            + "  }"
+            + "}}";
+
+        assertEquals(
+            "{"
+                + "\"flat\":[\"field\",\"detail\",\"foooooooooooo\",\"name\",\"name\"],"
+                + "\"flat._value\":[\"baz\",\"baz\"],"
+                + "\"flat._valueAndPath\":["
+                + "\"flat.field.detail.foooooooooooo.name=baz\","
+                + "\"flat.field.detail.foooooooooooo.name=baz\""
+                + "]}",
+            flattenJsonString("flat", jsonExample)
+        );
+    }
+
+    public void testArraysOfObjectsAndValues() throws IOException {
+        String jsonExample = "{"
+            + "\"field\": {"
+            + "  \"detail\": {"
+            + "    \"foooooooooooo\": ["
+            + "      {\"name\":\"baz\"},"
+            + "      {\"name\":\"baz\"}"
+            + "    ]"
+            + "  },"
+            + "  \"numbers\" : ["
+            + "    1,"
+            + "    2,"
+            + "    3"
+            + "  ]"
+            + "}}";
+
+        assertEquals(
+            "{"
+                + "\"flat\":[\"field\",\"detail\",\"foooooooooooo\",\"name\",\"name\",\"numbers\"],"
+                + "\"flat._value\":[\"baz\",\"baz\",\"1\",\"2\",\"3\"],"
+                + "\"flat._valueAndPath\":["
+                + "\"flat.field.detail.foooooooooooo.name=baz\","
+                + "\"flat.field.detail.foooooooooooo.name=baz\","
+                + "\"flat.field.numbers=1\","
+                + "\"flat.field.numbers=2\","
+                + "\"flat.field.numbers=3\""
+                + "]}",
+            flattenJsonString("flat", jsonExample)
+        );
+    }
 }
