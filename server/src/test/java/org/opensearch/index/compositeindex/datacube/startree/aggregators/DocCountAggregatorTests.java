@@ -54,8 +54,7 @@ public class DocCountAggregatorTests extends AbstractValueAggregatorTests {
 
     public void testToStarTreeNumericTypeValue() {
         long randomLong = randomLong();
-        assertEquals(randomLong, aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
-        assertNull(aggregator.toStarTreeNumericTypeValue(null));
+        assertEquals(randomLong, (long) aggregator.toAggregatedValueType(randomLong));
     }
 
     public void testIdentityMetricValue() {
@@ -66,5 +65,14 @@ public class DocCountAggregatorTests extends AbstractValueAggregatorTests {
     public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
         aggregator = new DocCountAggregator();
         return aggregator;
+    }
+
+    @Override
+    public void testGetInitialAggregatedValueForSegmentDocValue() {
+        long randomLong = randomLong();
+        assertEquals(
+            randomLong,
+            (long) aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong)
+        );
     }
 }

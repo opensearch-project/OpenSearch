@@ -41,10 +41,10 @@ public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
         assertEquals(randomLong, aggregator.getInitialAggregatedValue(randomLong), 0.0);
     }
 
-    public void testToStarTreeNumericTypeValue() {
+    public void testToAggregatedValueType() {
         long randomLong = randomLong();
-        assertEquals(randomLong, aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
-        assertNull(aggregator.toStarTreeNumericTypeValue(null));
+        assertEquals(randomLong, aggregator.toAggregatedValueType(randomLong), 0.0);
+        assertNull(aggregator.toAggregatedValueType(null));
     }
 
     public void testIdentityMetricValue() {

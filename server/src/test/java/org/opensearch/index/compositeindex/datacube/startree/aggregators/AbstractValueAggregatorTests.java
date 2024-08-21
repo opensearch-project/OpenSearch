@@ -21,7 +21,7 @@ import java.util.List;
 public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     private ValueAggregator aggregator;
-    private StarTreeNumericType starTreeNumericType;
+    protected StarTreeNumericType starTreeNumericType;
 
     public AbstractValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
         this.starTreeNumericType = starTreeNumericType;
@@ -61,6 +61,9 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
         long randomLong = randomLong();
-        assertEquals(aggregator.toStarTreeNumericTypeValue(randomLong), aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
+        assertEquals(
+            starTreeNumericType.getDoubleValue(randomLong),
+            aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong)
+        );
     }
 }

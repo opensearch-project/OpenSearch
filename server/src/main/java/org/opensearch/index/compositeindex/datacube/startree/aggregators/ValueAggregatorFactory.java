@@ -30,7 +30,7 @@ public class ValueAggregatorFactory {
             // avg aggregator will be covered in the part of query (using count and sum)
             case SUM:
                 return new SumValueAggregator(starTreeNumericType);
-            case COUNT:
+            case VALUE_COUNT:
                 return new CountValueAggregator();
             case MIN:
                 return new MinValueAggregator(starTreeNumericType);

@@ -93,7 +93,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         metrics = List.of(
             new Metric("field2", List.of(MetricStat.SUM)),
             new Metric("field4", List.of(MetricStat.SUM)),
-            new Metric("field6", List.of(MetricStat.COUNT)),
+            new Metric("field6", List.of(MetricStat.VALUE_COUNT)),
             new Metric("field9", List.of(MetricStat.MIN)),
             new Metric("field10", List.of(MetricStat.MAX)),
             new Metric("_doc_count", List.of(MetricStat.DOC_COUNT))
@@ -1585,7 +1585,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         Dimension d1 = new NumericDimension("field1");
         Dimension d2 = new NumericDimension("field3");
         Metric m1 = new Metric("field2", List.of(MetricStat.SUM));
-        Metric m2 = new Metric("field2", List.of(MetricStat.COUNT));
+        Metric m2 = new Metric("field2", List.of(MetricStat.VALUE_COUNT));
         List<Dimension> dims = List.of(d1, d2);
         List<Metric> metrics = List.of(m1, m2);
         StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(
@@ -1595,6 +1595,42 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         );
         StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
         return sf;
+    }
+
+    public void testMergeFlow_randomNumberTypes() throws Exception {
+
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        Settings settings = Settings.builder().put(settings(org.opensearch.Version.CURRENT).build()).build();
+        NumberFieldMapper numberFieldMapper1 = new NumberFieldMapper.Builder(
+            "field1",
+            randomFrom(NumberFieldMapper.NumberType.values()),
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper2 = new NumberFieldMapper.Builder(
+            "field2",
+            randomFrom(NumberFieldMapper.NumberType.values()),
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper3 = new NumberFieldMapper.Builder(
+            "field3",
+            randomFrom(NumberFieldMapper.NumberType.values()),
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        MappingLookup fieldMappers = new MappingLookup(
+            Set.of(numberFieldMapper1, numberFieldMapper2, numberFieldMapper3),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            0,
+            null
+        );
+        when(documentMapper.mappers()).thenReturn(fieldMappers);
+        testMergeFlowWithSum();
+        builder.close();
+        testMergeFlowWithCount();
     }
 
     public void testMergeFlowWithSum() throws IOException {
@@ -1667,7 +1703,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
         List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -1747,7 +1783,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -1809,7 +1845,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -1869,7 +1905,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -1931,7 +1967,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -1994,7 +2030,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -2061,7 +2097,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -2124,7 +2160,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
@@ -2178,7 +2214,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
         List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
 
-        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeField sf = getStarTreeField(MetricStat.VALUE_COUNT);
         StarTreeValues starTreeValues = getStarTreeValues(
             getSortedNumericMock(dimList, docsWithField),
             getSortedNumericMock(dimList2, docsWithField2),
