@@ -22,18 +22,20 @@ import java.util.stream.Collectors;
 
 /**
  * Represents an abstract task selection strategy.
- * This class implements the TaskSelectionStrategy interface and provides a method to select tasks for cancellation based on a sorting condition.
+ * This class implements the DefaultTaskSelectionStrategy interface and provides a method to select tasks for cancellation based on a sorting condition.
  * The specific sorting condition depends on the implementation.
  */
-public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStrategy {
+public class DefaultTaskSelectionStrategy {
 
     /**
      * Returns a comparator that defines the sorting condition for tasks.
-     * The specific sorting condition depends on the implementation.
+     * This is the default implementation since the longest running tasks are the ones that consume the most resources.
      *
      * @return The comparator
      */
-    public abstract Comparator<Task> sortingCondition();
+    public Comparator<Task> sortingCondition() {
+        return Comparator.comparingLong(Task::getStartTime);
+    }
 
     /**
      * Selects tasks for cancellation based on the provided limit and resource type.
@@ -45,7 +47,6 @@ public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStra
      * @return The list of selected tasks
      * @throws IllegalArgumentException If the limit is less than zero
      */
-    @Override
     public List<TaskCancellation> selectTasksForCancellation(
         QueryGroup querygroup,
         List<Task> tasks,

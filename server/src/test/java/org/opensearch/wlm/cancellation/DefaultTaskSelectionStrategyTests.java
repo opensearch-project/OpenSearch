@@ -22,21 +22,13 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-public class TaskSelectionStrategyTests extends OpenSearchTestCase {
-
-    public static class TestTaskSelectionStrategy extends AbstractTaskSelectionStrategy {
-        @Override
-        public Comparator<Task> sortingCondition() {
-            return Comparator.comparingLong(Task::getId);
-        }
-    }
+public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
-        TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
+        DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
         long thresholdInLong = 100L;
         Double threshold = 0.1;
         long reduceBy = 50L;
@@ -51,7 +43,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
             1L
         );
 
-        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(
+        List<TaskCancellation> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(
             queryGroup,
             tasks,
             reduceBy,
@@ -67,7 +59,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsLesserThanZero() {
-        TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
+        DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
         long thresholdInLong = 100L;
         Double threshold = 0.1;
         long reduceBy = -50L;
@@ -82,7 +74,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         );
 
         try {
-            testTaskSelectionStrategy.selectTasksForCancellation(queryGroup, tasks, reduceBy, resourceType);
+            testDefaultTaskSelectionStrategy.selectTasksForCancellation(queryGroup, tasks, reduceBy, resourceType);
         } catch (Exception e) {
             assertTrue(e instanceof IllegalArgumentException);
             assertEquals("limit has to be greater than zero", e.getMessage());
@@ -90,7 +82,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsEqualToZero() {
-        TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
+        DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
         long thresholdInLong = 100L;
         Double threshold = 0.1;
         long reduceBy = 0;
@@ -104,7 +96,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
             1L
         );
 
-        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(
+        List<TaskCancellation> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(
             queryGroup,
             tasks,
             reduceBy,
