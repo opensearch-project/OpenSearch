@@ -262,7 +262,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         // since for moves, it creates an iterator over shards which interleaves between nodes, hence
         // for shardsToMove=6, it will have 2 shards from node1, node2, node3 each attempting to move with only
         // shards from node1 can actually move. Hence, total moves that will be executed is 2 (6/3).
-        int shardsToMove = 5; // such that time out is never breached
+        int shardsToMove = 6; // such that time out is never breached
         BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings, new CountDownLatch(shardsToMove));
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDecidersForExcludeAPI(settings),
