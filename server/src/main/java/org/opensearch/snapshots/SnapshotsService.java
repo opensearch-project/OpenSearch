@@ -270,18 +270,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot completion listener
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        startCreateSnapshot(request, listener);
-    }
-
-    /**
-     * This method calls {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} to create snapshot if snapshot
-     * V2 is not enabled.
-     * For V2 enabled snapshots, {@link #createSnapshotV2(CreateSnapshotRequest, ActionListener)} is called and
-     * appropriate listeners are mapped
-     * @param request snapshot request
-     * @param listener snapshot completion listener
-     */
-    public void startCreateSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         Repository repository = repositoriesService.repository(request.repository());
         boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
         logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);

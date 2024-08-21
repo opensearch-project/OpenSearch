@@ -107,7 +107,7 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
         if (request.waitForCompletion() || isSnapshotV2) {
             snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {
-            snapshotsService.startCreateSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
+            snapshotsService.createSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
         }
     }
 }
