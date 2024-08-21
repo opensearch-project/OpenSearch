@@ -1756,7 +1756,7 @@
 "search with rewrite_override":
   - skip:
       features: [ "headers" ]
-      version: " - 2.16.99"
+      version: " - 2.99.99"
       reason: "rewrite_override parameter was added in 2.17.0"
   - do:
       indices.create:
