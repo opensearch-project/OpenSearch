@@ -24,6 +24,7 @@ import java.util.Objects;
  *     "queryGroupID": {
  *          "completions": 1233234234,
  *          "rejections": 1243545,
+ *          "failures": 97,
  *          "CPU": { "current_usage": 49.6, "cancellation": 432 },
  *          "MEMORY": { "current_usage": 39.6, "cancellation": 42 }
  *     },

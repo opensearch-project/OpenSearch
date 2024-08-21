@@ -474,7 +474,6 @@ import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
-import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
