@@ -7,6 +7,6 @@
  */
 
 /**
- * QueryGroup resource cancellation artifacts
+ * Workload management resource based cancellation artifacts
  */
 package org.opensearch.wlm.cancellation;

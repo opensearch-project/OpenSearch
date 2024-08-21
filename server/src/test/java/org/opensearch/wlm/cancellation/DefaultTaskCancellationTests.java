@@ -11,11 +11,8 @@ package org.opensearch.wlm.cancellation;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.ResourceType;
-import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
@@ -28,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,17 +37,12 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
     private static class TestTaskCancellationImpl extends DefaultTaskCancellation {
 
         public TestTaskCancellationImpl(
-            TaskSelectionStrategy taskSelectionStrategy,
+            DefaultTaskSelectionStrategy defaultTaskSelectionStrategy,
             Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelViews,
-            Set<QueryGroup> activeQueryGroups
+            Set<QueryGroup> activeQueryGroups,
+            BooleanSupplier isNodeInDuress
         ) {
-            super(
-                taskSelectionStrategy,
-                queryGroupLevelViews,
-                activeQueryGroups,
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
+            super(defaultTaskSelectionStrategy, queryGroupLevelViews, activeQueryGroups, isNodeInDuress);
         }
     }
 
@@ -62,9 +55,10 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         queryGroupLevelViews = new HashMap<>();
         activeQueryGroups = new HashSet<>();
         taskCancellation = new TestTaskCancellationImpl(
-            new TaskSelectionStrategyTests.TestTaskSelectionStrategy(),
+            new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
-            activeQueryGroups
+            activeQueryGroups,
+            () -> false
         );
     }
 
@@ -150,9 +144,10 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         activeQueryGroups.add(queryGroup1);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
-            new TaskSelectionStrategyTests.TestTaskSelectionStrategy(),
+            new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
-            activeQueryGroups
+            activeQueryGroups,
+            () -> false
         );
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasksFrom(QueryGroup.ResiliencyMode.SOFT);
@@ -177,9 +172,10 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         activeQueryGroups.add(queryGroup1);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
-            new TaskSelectionStrategyTests.TestTaskSelectionStrategy(),
+            new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
-            activeQueryGroups
+            activeQueryGroups,
+            () -> false
         );
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasksFrom(QueryGroup.ResiliencyMode.ENFORCED);
@@ -220,14 +216,11 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         Collections.addAll(activeQueryGroups, queryGroup1, queryGroup2);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
-            new TaskSelectionStrategyTests.TestTaskSelectionStrategy(),
+            new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
-            activeQueryGroups
+            activeQueryGroups,
+            () -> true
         );
-
-        NodeDuressTrackers mock = mock(NodeDuressTrackers.class);
-        when(mock.isNodeInDuress()).thenReturn(true);
-        taskCancellation.nodeDuressTrackers = mock;
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasksFrom(QueryGroup.ResiliencyMode.ENFORCED);
         assertEquals(2, cancellableTasksFrom.size());

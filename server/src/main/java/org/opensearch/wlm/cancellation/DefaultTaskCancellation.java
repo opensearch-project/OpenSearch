@@ -9,28 +9,24 @@
 package org.opensearch.wlm.cancellation;
 
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.ResourceType;
-import org.opensearch.search.backpressure.settings.NodeDuressSettings;
-import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.TRACKED_RESOURCES;
 
 /**
  * Manages the cancellation of tasks enforced by QueryGroup thresholds on resource usage criteria.
- * This class utilizes a strategy pattern through {@link TaskSelectionStrategy} to identify tasks that exceed
+ * This class utilizes a strategy pattern through {@link DefaultTaskSelectionStrategy} to identify tasks that exceed
  * predefined resource usage limits and are therefore eligible for cancellation.
  *
  * <p>The cancellation process is initiated by evaluating the resource usage of each QueryGroup against its
@@ -41,30 +37,29 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * views, a set of active QueryGroups, and a task selection strategy. These components collectively facilitate the
  * identification and cancellation of tasks that threaten to breach QueryGroup resource limits.</p>
  *
- * @see TaskSelectionStrategy
+ * @see DefaultTaskSelectionStrategy
  * @see QueryGroup
  * @see ResourceType
  */
 public class DefaultTaskCancellation {
     private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
 
-    protected final TaskSelectionStrategy taskSelectionStrategy;
+    protected final DefaultTaskSelectionStrategy defaultTaskSelectionStrategy;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     protected final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
     protected final Set<QueryGroup> activeQueryGroups;
-    protected NodeDuressTrackers nodeDuressTrackers;
+    protected BooleanSupplier isNodeInDuress;
 
     public DefaultTaskCancellation(
-        TaskSelectionStrategy taskSelectionStrategy,
+        DefaultTaskSelectionStrategy defaultTaskSelectionStrategy,
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
         Set<QueryGroup> activeQueryGroups,
-        Settings settings,
-        ClusterSettings clusterSettings
+        BooleanSupplier isNodeInDuress
     ) {
-        this.taskSelectionStrategy = taskSelectionStrategy;
+        this.defaultTaskSelectionStrategy = defaultTaskSelectionStrategy;
         this.queryGroupLevelResourceUsageViews = queryGroupLevelResourceUsageViews;
         this.activeQueryGroups = activeQueryGroups;
-        this.nodeDuressTrackers = setupNodeDuressTracker(settings, clusterSettings);
+        this.isNodeInDuress = isNodeInDuress;
     }
 
     /**
@@ -73,7 +68,7 @@ public class DefaultTaskCancellation {
     public final void cancelTasks() {
         cancelTasksForMode(QueryGroup.ResiliencyMode.ENFORCED);
 
-        if (nodeDuressTrackers.isNodeInDuress()) {
+        if (isNodeInDuress.getAsBoolean()) {
             cancelTasksForMode(QueryGroup.ResiliencyMode.SOFT);
         }
     }
@@ -146,7 +141,7 @@ public class DefaultTaskCancellation {
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
-        return taskSelectionStrategy.selectTasksForCancellation(
+        return defaultTaskSelectionStrategy.selectTasksForCancellation(
             queryGroup,
             // get the active tasks in the query group
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
@@ -193,27 +188,5 @@ public class DefaultTaskCancellation {
         long resourceUsageInMillis = resourceUsage / 1_000_000;
         // Check if resource usage is breaching the threshold
         return resourceUsageInMillis > convertThresholdIntoLong(resourceType, resourceThresholdInPercentage);
-    }
-
-    private NodeDuressTrackers setupNodeDuressTracker(Settings settings, ClusterSettings clusterSettings) {
-        NodeDuressSettings nodeDuressSettings = new NodeDuressSettings(settings, clusterSettings);
-        return new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
-            {
-                put(
-                    ResourceType.CPU,
-                    new NodeDuressTrackers.NodeDuressTracker(
-                        () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= nodeDuressSettings.getCpuThreshold(),
-                        nodeDuressSettings::getNumSuccessiveBreaches
-                    )
-                );
-                put(
-                    ResourceType.MEMORY,
-                    new NodeDuressTrackers.NodeDuressTracker(
-                        () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= nodeDuressSettings.getHeapThreshold(),
-                        nodeDuressSettings::getNumSuccessiveBreaches
-                    )
-                );
-            }
-        });
     }
 }
