@@ -81,6 +81,57 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(0, node1Recoveries + node2Recoveries + node3Recoveries);
     }
 
+    public void testAllocatePartialPrimaryShardsUntilTimedOut() {
+        int numberOfIndices = 2;
+        int numberOfShards = 5;
+        int numberOfReplicas = 1;
+        int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
+        Settings.Builder settings = Settings.builder();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        int shardsToAllocate = randomIntBetween(1, numberOfShards * numberOfIndices);
+        // passing shards to allocate for timed out latch such that only few primary shards are allocated in this reroute round
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(
+            settings.build(),
+            clusterSettings,
+            new CountDownLatch(shardsToAllocate)
+        );
+        RoutingAllocation allocation = buildRoutingAllocation(yesAllocationDeciders(), numberOfIndices, numberOfShards, numberOfReplicas);
+        allocator.allocate(allocation);
+        List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
+        int node1Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node1.getId());
+        int node2Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node2.getId());
+        int node3Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node3.getId());
+        assertEquals(shardsToAllocate, initializingShards.size());
+        assertEquals(totalShardCount - shardsToAllocate, allocation.routingNodes().unassigned().ignored().size());
+        assertEquals(shardsToAllocate, node1Recoveries + node2Recoveries + node3Recoveries);
+    }
+
+    public void testAllocateAllPrimaryShardsAndPartialReplicaShardsUntilTimedOut() {
+        int numberOfIndices = 2;
+        int numberOfShards = 5;
+        int numberOfReplicas = 1;
+        int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
+        Settings.Builder settings = Settings.builder();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        int shardsToAllocate = randomIntBetween(numberOfShards * numberOfIndices, totalShardCount);
+        // passing shards to allocate for timed out latch such that all primary shards and few replica shards are allocated in this reroute
+        // round
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(
+            settings.build(),
+            clusterSettings,
+            new CountDownLatch(shardsToAllocate)
+        );
+        RoutingAllocation allocation = buildRoutingAllocation(yesAllocationDeciders(), numberOfIndices, numberOfShards, numberOfReplicas);
+        allocator.allocate(allocation);
+        List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
+        int node1Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node1.getId());
+        int node2Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node2.getId());
+        int node3Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node3.getId());
+        assertEquals(shardsToAllocate, initializingShards.size());
+        assertEquals(totalShardCount - shardsToAllocate, allocation.routingNodes().unassigned().ignored().size());
+        assertEquals(numberOfShards * numberOfIndices, node1Recoveries + node2Recoveries + node3Recoveries);
+    }
+
     private RoutingAllocation buildRoutingAllocation(
         AllocationDeciders deciders,
         int numberOfIndices,
