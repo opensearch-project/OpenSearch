@@ -60,6 +60,47 @@ public class DateDimensionTests extends OpenSearchTestCase {
         assertEquals(4, dateDimension.getNumSubDimensions());
     }
 
+    public void testSetDimensionValuesForHalfAndQuarterHour() {
+        List<DateTimeUnitRounding> intervals = Arrays.asList(
+            ExtendedDateTimeUnit.HALF_HOUR_OF_DAY,
+            ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY
+        );
+        DateDimension dateDimension = new DateDimension("timestamp", intervals, DateFieldMapper.Resolution.MILLISECONDS);
+        Long[] dims = new Long[2];
+        long testValue = 1724230620123L; // August 21, 2024 8:57:00.123 UTC
+
+        int nextIndex = dateDimension.setDimensionValues(testValue, dims, 0);
+
+        assertEquals(2, nextIndex);
+        assertEquals(1724229900000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:45:00 UTC
+        assertEquals(1724229000000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+        assertEquals(2, dateDimension.getNumSubDimensions());
+
+        dims = new Long[2];
+        testValue = 1724229899234L; // Wed, 21 Aug 2024 08:44:59 GMT
+        dateDimension.setDimensionValues(testValue, dims, 0);
+        assertEquals(2, nextIndex);
+        assertEquals(1724229000000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+        assertEquals(1724229000000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+        assertEquals(2, dateDimension.getNumSubDimensions());
+
+        dims = new Long[2];
+        testValue = 1724229000123L; // Wed, 21 Aug 2024 08:30:00 GMT
+        dateDimension.setDimensionValues(testValue, dims, 0);
+        assertEquals(2, nextIndex);
+        assertEquals(1724229000000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+        assertEquals(1724229000000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+        assertEquals(2, dateDimension.getNumSubDimensions());
+
+        dims = new Long[2];
+        testValue = 1724228940000L; // Wed, 21 Aug 2024 08:29:00 GMT
+        dateDimension.setDimensionValues(testValue, dims, 0);
+        assertEquals(2, nextIndex);
+        assertEquals(1724228100000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:15:00 UTC
+        assertEquals(1724227200000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:00:00 UTC
+        assertEquals(2, dateDimension.getNumSubDimensions());
+    }
+
     public void testRoundingAndSortingAllDateTimeUnitsNanos() {
         List<DateTimeUnitRounding> allUnits = getAllTimeUnits();
 
