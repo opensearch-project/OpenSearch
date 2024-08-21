@@ -474,7 +474,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Repository repository = repositoriesService.repository(request.repository());
 
         if (repository.isReadOnly()) {
-            listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
+            listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot-v2 in a readonly repository"));
             return;
         }
 
@@ -503,7 +503,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new ConcurrentSnapshotExecutionException(
                         repositoryName,
                         snapshotName,
-                        "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]"
+                        "cannot snapshot-v2 while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]"
                     );
                 }
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
@@ -516,7 +516,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     request.indices()
                 );
 
-                logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
+                logger.trace("[{}][{}] creating snapshot-v2 for indices [{}]", repositoryName, snapshotName, indices);
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
                     indices,
@@ -551,7 +551,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     pinnedTimestamp
                 );
                 if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
-                    throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
+                    throw new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2, no longer cluster manager");
                 }
                 final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
                 pinnedTimestampListener.whenComplete(repoData -> { listener.onResponse(snapshotInfo); }, listener::onFailure);
@@ -568,10 +568,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
                                 failSnapshotCompletionListeners(
                                     snapshot,
-                                    new SnapshotException(snapshot, "Aborting Snapshot, no longer cluster manager")
+                                    new SnapshotException(snapshot, "Aborting snapshot-v2, no longer cluster manager")
                                 );
                                 listener.onFailure(
-                                    new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager")
+                                    new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2, no longer cluster manager")
                                 );
                                 return;
                             }
@@ -580,7 +580,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error("Failed to upload files to snapshot repo {} for snapshot {} ", repositoryName, snapshotName);
+                            logger.error("Failed to upload files to snapshot repo {} for snapshot-v2 {} ", repositoryName, snapshotName);
                             listener.onFailure(e);
                         }
                     }
@@ -589,7 +589,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }, listener::onFailure);
         } catch (Exception e) {
             assert false : new AssertionError(e);
-            logger.error("Snapshot {} creation failed with exception {}", snapshot.getSnapshotId().getName(), e);
+            logger.error("Snapshot-v2 {} creation failed with exception {}", snapshot.getSnapshotId().getName(), e);
             listener.onFailure(e);
         }
     }
@@ -603,7 +603,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         listener.onResponse(repositoryData);
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
-            snapshot.getRepository() + "__" + snapshot.getSnapshotId(),
+            snapshot.getRepository() + "__" + snapshot.getSnapshotId().getUUID(),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
