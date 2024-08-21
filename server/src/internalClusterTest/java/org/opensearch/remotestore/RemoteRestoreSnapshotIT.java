@@ -781,8 +781,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
 
-        // TODO - verify pinned timestamp
         indexDocuments(client, indexName1, 10);
         indexDocuments(client, indexName2, 20);
 
@@ -801,8 +801,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
-
-        // TODO - verify pinned timestamp
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
 
     }
 

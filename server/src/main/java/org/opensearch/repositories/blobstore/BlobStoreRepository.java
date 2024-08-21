@@ -65,6 +65,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.Priority;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -2315,7 +2316,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final StepListener<Long> setPendingStep = new StepListener<>();
         clusterService.submitStateUpdateTask(
             "set pending repository generation [" + metadata.name() + "][" + expectedGen + "]",
-            new ClusterStateUpdateTask() {
+            new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
                 private long newGen;
 
@@ -2453,7 +2454,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Step 3: Update CS to reflect new repository generation.
             clusterService.submitStateUpdateTask(
                 "set safe repository generation [" + metadata.name() + "][" + newGen + "]",
-                new ClusterStateUpdateTask() {
+                new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final RepositoryMetadata meta = getRepoMetadata(currentState);
