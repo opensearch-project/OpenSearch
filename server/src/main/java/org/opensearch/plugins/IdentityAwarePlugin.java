@@ -27,8 +27,8 @@ public interface IdentityAwarePlugin {
     /**
      * Passes necessary classes for this plugin to operate as an IdentityAwarePlugin
      *
-     * @param pluginSystemSubject A subject for running transport actions in the plugin system context for system index
+     * @param pluginSubject A subject for running transport actions in the plugin context for system index
      *                      interaction
      */
-    default void assignSubject(PluginSubject pluginSystemSubject) {}
+    default void assignSubject(PluginSubject pluginSubject) {}
 }
