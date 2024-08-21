@@ -194,7 +194,7 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
     }
 
     public AllocationService createRemoteCapableAllocationService(String excludeNodes) {
-        Settings settings = Settings.builder().put("cluster.routing.allocation.exclude.node_id", excludeNodes).build();
+        Settings settings = Settings.builder().put("cluster.routing.allocation.exclude._id", excludeNodes).build();
         return new MockAllocationService(
             randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
             new TestGatewayAllocator(),
