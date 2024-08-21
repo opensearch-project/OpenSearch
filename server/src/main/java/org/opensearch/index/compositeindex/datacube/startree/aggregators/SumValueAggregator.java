@@ -87,12 +87,12 @@ class SumValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public Double toStarTreeNumericTypeValue(Long value) {
+    public Double toAggregatedValueType(Long value) {
         try {
             if (value == null) {
                 return getIdentityMetricValue();
             }
-            return starTreeNumericType.getDoubleValue(value);
+            return VALUE_AGGREGATOR_TYPE.getDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }

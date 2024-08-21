@@ -70,7 +70,7 @@ dependencies {
   api 'com.google.code.gson:gson:2.11.0'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api 'commons-cli:commons-cli:1.8.0'
+  api 'commons-cli:commons-cli:1.9.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
