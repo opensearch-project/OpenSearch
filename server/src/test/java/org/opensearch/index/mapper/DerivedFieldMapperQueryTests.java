@@ -24,6 +24,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.Index;
 import org.opensearch.geometry.Rectangle;
+import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -544,6 +545,13 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 query = QueryBuilders.matchPhraseQuery("object_field.text_field", "document number 11").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
                 assertEquals(0, topDocs.totalHits.value);
+
+                // Multi Phrase Query
+                query = QueryBuilders.multiMatchQuery("GET", "object_field.nested_field.sub_field_1", "object_field.keyword_field")
+                    .type(MultiMatchQueryBuilder.Type.PHRASE)
+                    .toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(7, topDocs.totalHits.value);
 
                 // Range queries of types - date, long and double
                 query = QueryBuilders.rangeQuery("object_field.date_field").from("2024-03-20T14:20:50").toQuery(queryShardContext);
