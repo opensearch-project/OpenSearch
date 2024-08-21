@@ -8,26 +8,26 @@
 
 package org.opensearch.search.fetch.serde;
 
-import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.SearchHits;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class FetchSearchResultsSerDe implements SerDe.StreamSerializer<FetchSearchResult>, SerDe.StreamDeserializer<FetchSearchResult> {
-    SearchHitsSerDe searchHitsSerDe;
+public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerDe.StreamDeserializer<SearchHits> {
+    SearchHitSerDe searchHitSerDe;
 
     @Override
-    public FetchSearchResult deserialize(StreamInput in) {
+    public SearchHits deserialize(StreamInput in) {
         try {
-            return new FetchSearchResult(in);
+            return new SearchHits(in);
         } catch (IOException e) {
             throw new SerDe.SerializationException("Failed to deserialize FetchSearchResult", e);
         }
     }
 
     @Override
-    public void serialize(FetchSearchResult object, StreamOutput out) throws SerDe.SerializationException {
+    public void serialize(SearchHits object, StreamOutput out) throws SerDe.SerializationException {
         try {
             object.writeTo(out);
         } catch (IOException e) {
