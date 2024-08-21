@@ -53,6 +53,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -76,6 +77,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.QueryStringQueryParser;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -98,6 +101,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.apache.lucene.document.LongPoint.pack;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -863,7 +867,29 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     private IndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {
-        Query query = LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper);
+        Query query = new ApproximateScoreQuery(
+            new PointRangeQuery(
+                DATE_FIELD_NAME,
+                pack(new long[] { lower }).bytes,
+                pack(new long[] { upper }).bytes,
+                new long[] { lower }.length
+            ) {
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            },
+            new ApproximatePointRangeQuery(
+                DATE_FIELD_NAME,
+                pack(new long[] { lower }).bytes,
+                pack(new long[] { upper }).bytes,
+                new long[] { lower }.length
+            ) {
+                @Override
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            }
+        );
         Query dv = SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper);
         return new IndexOrDocValuesQuery(query, dv);
     }

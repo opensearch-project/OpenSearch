@@ -51,11 +51,13 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -246,6 +248,45 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null
+        );
+    }
+
+    public void testDateRangeQueryUsingMappingFormatLegacy() {
+        assumeThat("Using legacy datetime format as default", FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING), is(false));
+
+        QueryShardContext context = createContext();
+        RangeFieldType strict = new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
+        // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
+        ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT, () -> randomFrom(ShapeRelation.values()));
+
+        // dates will break the default format, month/day of month is turned around in the format
+        final String from = "2016-15-06T15:29:50+08:00";
+        final String to = "2016-16-06T15:29:50+08:00";
+
+        OpenSearchParseException ex = expectThrows(
+            OpenSearchParseException.class,
+            () -> strict.rangeQuery(from, to, true, true, relation, null, null, context)
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
+        );
+
+        // setting mapping format which is compatible with those dates
+        final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm:ssZZZZZ");
+        assertEquals(1465975790000L, formatter.parseMillis(from));
+        assertEquals(1466062190000L, formatter.parseMillis(to));
+
+        RangeFieldType fieldType = new RangeFieldType("field", formatter);
+        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
+        assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", ((IndexOrDocValuesQuery) query).getIndexQuery().toString());
+
+        // compare lower and upper bounds with what we would get on a `date` field
+        DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
+        final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
+        assertEquals(
+            "field:[1465975790000 TO 1466062190999]",
+            ((ApproximateScoreQuery) ((IndexOrDocValuesQuery) queryOnDateField).getIndexQuery()).getOriginalQuery().toString()
         );
     }
 
