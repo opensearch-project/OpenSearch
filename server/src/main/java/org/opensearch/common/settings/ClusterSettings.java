@@ -172,6 +172,7 @@ import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportSettings;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -756,7 +757,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
-                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING
+                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+
+                // WorkloadManagement settings
+                WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD
             )
         )
     );
