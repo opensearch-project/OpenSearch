@@ -68,7 +68,7 @@ abstract class TermVersionRequest extends TransportRequest implements Writeable 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        sourceNode.writeTo(out);
+        sourceNode.writeToWithAttribute(out);
         out.writeLong(term);
         out.writeLong(version);
     }

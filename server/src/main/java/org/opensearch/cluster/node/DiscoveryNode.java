@@ -143,6 +143,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
+    private static final String ZONE = "zone";
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -358,17 +359,37 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeToUtil(out, false);
+    }
+
+    public void writeToWithAttribute(StreamOutput out) throws IOException {
+        writeToUtil(out, true);
+    }
+
+    private void writeToUtil(StreamOutput out, boolean includeAllAttributes) throws IOException {
         out.writeString(nodeName);
         out.writeString(nodeId);
         out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (includeAllAttributes) {
+            serializeAttributes(attributes, out);
+        } else {
+            // Serialize only remote store and zone (needed for SearchWeightedRouting) attributes if present.
+            final Map<String, String> filteredAttributes = attributes.entrySet()
+                .stream()
+                .filter(
+                    entry -> entry.getKey().startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)
+                        || entry.getKey().equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)
+                        || entry.getKey().equals(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)
+                        || entry.getKey().equals(ZONE)
+                )
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            serializeAttributes(filteredAttributes, out);
         }
+
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
@@ -377,6 +398,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeBoolean(compatibleRole.canContainData());
         }
         out.writeVersion(version);
+    }
+
+    private void serializeAttributes(final Map<String, String> attributes, final StreamOutput out) throws IOException {
+        out.writeVInt(attributes.size());
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
+        }
     }
 
     /**

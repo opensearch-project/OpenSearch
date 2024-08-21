@@ -139,8 +139,12 @@ public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlob
     @Override
     public InputStream serialize() throws IOException {
         assert routingTableIncrementalDiff != null;
-        return REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(routingTableIncrementalDiff, generateBlobFileName(), getCompressor())
-            .streamInput();
+        return REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(
+            (out, routingTableDiff) -> routingTableDiff.writeTo(out),
+            routingTableIncrementalDiff,
+            generateBlobFileName(),
+            getCompressor()
+        ).streamInput();
     }
 
     @Override

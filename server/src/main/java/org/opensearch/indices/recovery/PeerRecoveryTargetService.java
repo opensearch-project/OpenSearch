@@ -294,6 +294,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 logger.debug("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             }
         }
+
         transportService.sendRequest(
             startRequest.sourceNode(),
             actionName,

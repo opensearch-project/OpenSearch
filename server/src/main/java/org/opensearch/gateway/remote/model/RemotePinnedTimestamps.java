@@ -122,7 +122,12 @@ public class RemotePinnedTimestamps extends RemoteWriteableBlobEntity<RemotePinn
 
     @Override
     public InputStream serialize() throws IOException {
-        return PINNED_TIMESTAMPS_FORMAT.serialize(pinnedTimestamps, generateBlobFileName(), getCompressor()).streamInput();
+        return PINNED_TIMESTAMPS_FORMAT.serialize(
+            (out, timestamps) -> timestamps.writeTo(out),
+            pinnedTimestamps,
+            generateBlobFileName(),
+            getCompressor()
+        ).streamInput();
     }
 
     @Override

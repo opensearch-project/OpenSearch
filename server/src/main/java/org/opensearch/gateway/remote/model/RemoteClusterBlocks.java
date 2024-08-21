@@ -83,7 +83,8 @@ public class RemoteClusterBlocks extends AbstractClusterMetadataWriteableBlobEnt
 
     @Override
     public InputStream serialize() throws IOException {
-        return CLUSTER_BLOCKS_FORMAT.serialize(clusterBlocks, generateBlobFileName(), getCompressor()).streamInput();
+        return CLUSTER_BLOCKS_FORMAT.serialize((out, blocks) -> blocks.writeTo(out), clusterBlocks, generateBlobFileName(), getCompressor())
+            .streamInput();
     }
 
     @Override

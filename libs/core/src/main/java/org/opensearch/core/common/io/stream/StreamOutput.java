@@ -969,9 +969,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
+        writeOptionalWriteable((out, writable)-> writable.writeTo(out), writeable);
+    }
+
+    public <T extends Writeable> void writeOptionalWriteable(final Writer<T> writer, @Nullable T writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
-            writeable.writeTo(this);
+            writer.write(this, writeable);
         } else {
             writeBoolean(false);
         }

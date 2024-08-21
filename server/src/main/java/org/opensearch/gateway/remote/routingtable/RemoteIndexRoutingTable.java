@@ -104,7 +104,12 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
 
     @Override
     public InputStream serialize() throws IOException {
-        return INDEX_ROUTING_TABLE_FORMAT.serialize(indexRoutingTable, generateBlobFileName(), getCompressor()).streamInput();
+        return INDEX_ROUTING_TABLE_FORMAT.serialize(
+            (out, routingTable) -> routingTable.writeTo(out),
+            indexRoutingTable,
+            generateBlobFileName(),
+            getCompressor()
+        ).streamInput();
     }
 
     @Override

@@ -1112,7 +1112,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     "custom",
                     is -> readFrom(is, namedWriteableRegistry, addedCustom.getWriteableName())
                 );
-                BytesReference bytes = customMetadataFormat.serialize(addedCustom, "custom-md2-file__1", compressor);
+                BytesReference bytes = customMetadataFormat.serialize(
+                    (out, customClusterState) -> customClusterState.writeTo(out),
+                    addedCustom,
+                    "custom-md2-file__1",
+                    compressor
+                );
                 return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
             });
         }
@@ -1131,6 +1136,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
             when(blobContainer.readBlob(HASHES_OF_CONSISTENT_SETTINGS_FILENAME)).thenAnswer(i -> {
                 BytesReference bytes = HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(
+                    (out, settingsHash) -> settingsHash.writeTo(out),
                     hashesOfConsistentSettings,
                     HASHES_OF_CONSISTENT_SETTINGS_FILENAME,
                     compressor
@@ -1172,7 +1178,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             diffManifestBuilder.discoveryNodesUpdated(true);
             manifestBuilder.discoveryNodesMetadata(new UploadedMetadataAttribute(DISCOVERY_NODES, DISCOVERY_NODES_FILENAME));
             when(blobContainer.readBlob(DISCOVERY_NODES_FILENAME)).thenAnswer(invocationOnMock -> {
-                BytesReference bytes = DISCOVERY_NODES_FORMAT.serialize(nodesBuilder.build(), DISCOVERY_NODES_FILENAME, compressor);
+                BytesReference bytes = DISCOVERY_NODES_FORMAT.serialize(
+                    (out, nodes) -> nodes.writeToWithAttribute(out),
+                    nodesBuilder.build(),
+                    DISCOVERY_NODES_FILENAME,
+                    compressor
+                );
                 return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
             });
         }
@@ -1183,7 +1194,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             diffManifestBuilder.clusterBlocksUpdated(true);
             manifestBuilder.clusterBlocksMetadata(new UploadedMetadataAttribute(CLUSTER_BLOCKS, CLUSTER_BLOCKS_FILENAME));
             when(blobContainer.readBlob(CLUSTER_BLOCKS_FILENAME)).thenAnswer(invocationOnMock -> {
-                BytesReference bytes = CLUSTER_BLOCKS_FORMAT.serialize(newClusterBlock, CLUSTER_BLOCKS_FILENAME, compressor);
+                BytesReference bytes = CLUSTER_BLOCKS_FORMAT.serialize(
+                    (out, clusterBlock) -> clusterBlock.writeTo(out),
+                    newClusterBlock,
+                    CLUSTER_BLOCKS_FILENAME,
+                    compressor
+                );
                 return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
             });
 
@@ -3254,6 +3270,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 String fileName = entry.getValue();
                 when(blobContainer.readBlob(fileName)).thenAnswer((invocation) -> {
                     BytesReference bytesReference = customMetadataFormat.serialize(
+                        (out, customState) -> customState.writeTo(out),
                         metadata.custom(custom),
                         fileName,
                         blobStoreRepository.getCompressor()

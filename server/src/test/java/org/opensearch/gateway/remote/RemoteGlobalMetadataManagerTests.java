@@ -359,7 +359,12 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             compressor
         );
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(hashesOfConsistentSettings, fileName, compressor).streamInput()
+            HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(
+                (out, hashesOfConsistentSetting) -> hashesOfConsistentSetting.writeTo(out),
+                hashesOfConsistentSettings,
+                fileName,
+                compressor
+            ).streamInput()
         );
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -490,7 +495,12 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             namedWriteableRegistry
         );
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            customMetadataForDownload.customBlobStoreFormat.serialize(customMetadata, fileName, compressor).streamInput()
+            customMetadataForDownload.customBlobStoreFormat.serialize(
+                (out, metadata) -> metadata.writeTo(out),
+                customMetadata,
+                fileName,
+                compressor
+            ).streamInput()
         );
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);

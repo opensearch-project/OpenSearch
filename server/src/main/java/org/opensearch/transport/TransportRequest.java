@@ -63,6 +63,8 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         }
     }
 
+    private boolean includeAllAttributes = false;
+
     /**
      * Parent of this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "no parent".
      */
@@ -93,5 +95,13 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         parentTaskId.writeTo(out);
+    }
+
+    public void setIncludeAllAttributes(boolean includeAllAttributes) {
+        this.includeAllAttributes = includeAllAttributes;
+    }
+
+    public boolean shouldIncludeAllAttribute() {
+        return includeAllAttributes;
     }
 }

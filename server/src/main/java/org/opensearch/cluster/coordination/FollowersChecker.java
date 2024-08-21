@@ -503,7 +503,7 @@ public class FollowersChecker {
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(term);
-            sender.writeTo(out);
+            sender.writeToWithAttribute(out);
         }
 
         @Override

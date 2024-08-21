@@ -781,7 +781,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         out.writeString(stateUUID);
         metadata.writeTo(out);
         routingTable.writeTo(out);
-        nodes.writeTo(out);
+        nodes.writeToWithAttribute(out);
         blocks.writeTo(out);
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
@@ -859,11 +859,21 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             out.writeString(toUuid);
             out.writeLong(toVersion);
             routingTable.writeTo(out);
-            nodes.writeTo(out);
+            nodesWriteToWithAttributes(nodes, out);
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
             out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
+        }
+
+        private void nodesWriteToWithAttributes(Diff<DiscoveryNodes> nodes, StreamOutput out) throws IOException {
+            DiscoveryNodes part = nodes.apply(null);
+            if (part != null) {
+                out.writeBoolean(true);
+                part.writeToWithAttribute(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override

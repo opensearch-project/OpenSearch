@@ -140,7 +140,12 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
         DiscoveryNodes discoveryNodes = getDiscoveryNodes();
         String fileName = randomAlphaOfLength(10);
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            DISCOVERY_NODES_FORMAT.serialize(discoveryNodes, fileName, compressor).streamInput()
+            DISCOVERY_NODES_FORMAT.serialize(
+                (out, discoveryNode) -> discoveryNode.writeToWithAttribute(out),
+                discoveryNodes,
+                fileName,
+                compressor
+            ).streamInput()
         );
         RemoteDiscoveryNodes remoteObjForDownload = new RemoteDiscoveryNodes(fileName, "cluster-uuid", compressor);
         CountDownLatch latch = new CountDownLatch(1);
@@ -190,7 +195,7 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
         ClusterBlocks clusterBlocks = randomClusterBlocks();
         String fileName = randomAlphaOfLength(10);
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            CLUSTER_BLOCKS_FORMAT.serialize(clusterBlocks, fileName, compressor).streamInput()
+            CLUSTER_BLOCKS_FORMAT.serialize((out, blocks) -> blocks.writeTo(out), clusterBlocks, fileName, compressor).streamInput()
         );
         RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(fileName, "cluster-uuid", compressor);
         CountDownLatch latch = new CountDownLatch(1);
@@ -261,7 +266,12 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
             namedWriteableRegistry
         );
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            remoteClusterStateCustoms.clusterStateCustomsFormat.serialize(custom, fileName, compressor).streamInput()
+            remoteClusterStateCustoms.clusterStateCustomsFormat.serialize(
+                (out, customState) -> customState.writeTo(out),
+                custom,
+                fileName,
+                compressor
+            ).streamInput()
         );
         TestCapturingListener<RemoteReadResult> capturingListener = new TestCapturingListener<>();
         final CountDownLatch latch = new CountDownLatch(1);

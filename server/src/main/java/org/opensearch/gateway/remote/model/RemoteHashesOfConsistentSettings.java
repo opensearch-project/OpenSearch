@@ -83,8 +83,12 @@ public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWri
 
     @Override
     public InputStream serialize() throws IOException {
-        return HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(hashesOfConsistentSettings, generateBlobFileName(), getCompressor())
-            .streamInput();
+        return HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(
+            (out, settingsHash) -> settingsHash.writeTo(out),
+            hashesOfConsistentSettings,
+            generateBlobFileName(),
+            getCompressor()
+        ).streamInput();
     }
 
     @Override

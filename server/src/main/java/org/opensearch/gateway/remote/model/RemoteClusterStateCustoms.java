@@ -113,7 +113,12 @@ public class RemoteClusterStateCustoms extends AbstractClusterMetadataWriteableB
 
     @Override
     public InputStream serialize() throws IOException {
-        return clusterStateCustomsFormat.serialize(custom, generateBlobFileName(), getCompressor()).streamInput();
+        return clusterStateCustomsFormat.serialize(
+            (out, customClusterState) -> customClusterState.writeTo(out),
+            custom,
+            generateBlobFileName(),
+            getCompressor()
+        ).streamInput();
     }
 
     @Override

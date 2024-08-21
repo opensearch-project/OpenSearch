@@ -144,7 +144,12 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
-        out.writeOptionalArray(concreteNodes);
+        if (shouldIncludeAllAttribute()) {
+            out.writeOptionalArray((output, value) -> value.writeToWithAttribute(output), concreteNodes);
+        } else {
+            out.writeOptionalArray(concreteNodes);
+        }
+
         out.writeOptionalTimeValue(timeout);
     }
 }
