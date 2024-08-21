@@ -167,6 +167,39 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
+    public SearchHit(int docId,
+                     float score,
+                     long seqNo,
+                     long version,
+                     long primaryTerm,
+                     Text id,
+                     BytesReference source,
+                     Explanation explanation,
+                     SearchSortValues sortValues,
+                     SearchHit.NestedIdentity nestedIdentity,
+                     Map<String, DocumentField> documentFields,
+                     Map<String, DocumentField> metaFields,
+                     Map<String, HighlightField> highlightFields,
+                     Map<String, Float> matchedQueries,
+                     Map<String, SearchHits> innerHits
+    ) throws IOException {
+        this.docId = docId;
+        this.score = score;
+        this.seqNo = seqNo;
+        this.version = version;
+        this.primaryTerm = primaryTerm;
+        this.id = id;
+        this.source = source;
+        this.explanation = explanation;
+        this.sortValues = sortValues;
+        this.nestedIdentity = nestedIdentity;
+        this.documentFields = documentFields == null ? Collections.emptyMap() : documentFields;
+        this.metaFields = metaFields == null ? Collections.emptyMap() : metaFields;
+        this.highlightFields = highlightFields == null ? Collections.emptyMap() : highlightFields;
+        this.matchedQueries = matchedQueries == null ? Collections.emptyMap() : matchedQueries;
+        this.innerHits = innerHits == null ? Collections.emptyMap() : innerHits;
+    }
+
     public SearchHit(StreamInput in) throws IOException {
         docId = -1;
         score = in.readFloat();
