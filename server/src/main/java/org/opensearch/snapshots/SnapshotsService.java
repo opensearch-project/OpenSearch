@@ -474,7 +474,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Repository repository = repositoriesService.repository(request.repository());
 
         if (repository.isReadOnly()) {
-            listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot-v2 in a readonly repository"));
+            listener.onFailure(
+                new RepositoryException(repository.getMetadata().name(), "cannot create snapshot-v2 in a readonly repository")
+            );
             return;
         }
 
@@ -610,6 +612,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
                     listener.onResponse(repositoryData);
                 }
+
                 @Override
                 public void onFailure(Exception e) {
                     logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
