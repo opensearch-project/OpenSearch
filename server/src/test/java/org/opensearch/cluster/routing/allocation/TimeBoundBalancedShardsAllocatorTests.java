@@ -22,8 +22,14 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -312,6 +318,94 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(totalShardCount / 3, relocatingShards.size());
+    }
+
+    public void testClusterNotRebalancedWhenTimedOut() {
+        int numberOfIndices = 1;
+        int numberOfShards = 15;
+        int numberOfReplicas = 1;
+        int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
+        Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
+        RoutingTable routingTable = buildRoutingTable(metadata);
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        MockAllocationService allocationService = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build()
+        ); // such that no shards are allocated to node1
+        state = applyStartedShardsUntilNoChange(state, allocationService);
+        int node1ShardCount = state.getRoutingNodes().node("node1").size();
+        // check all shards allocated
+        assertEquals(0, state.getRoutingNodes().shardsWithState(INITIALIZING).size());
+        assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
+        assertEquals(0, node1ShardCount);
+        Settings newSettings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "").build();
+        int shardsToMove = 0; // such that it never balances anything
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(newSettings, new CountDownLatch(shardsToMove));
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDecidersForExcludeAPI(newSettings),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            null,
+            System.nanoTime()
+        );
+        allocator.allocate(allocation);
+        List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
+        assertEquals(0, relocatingShards.size());
+    }
+
+    public void testClusterPartialRebalancedWhenTimedOut() {
+        int numberOfIndices = 1;
+        int numberOfShards = 15;
+        int numberOfReplicas = 1;
+        int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
+        Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
+        RoutingTable routingTable = buildRoutingTable(metadata);
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        MockAllocationService allocationService = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build()
+        ); // such that no shards are allocated to node1
+        state = applyStartedShardsUntilNoChange(state, allocationService);
+        int node1ShardCount = state.getRoutingNodes().node("node1").size();
+        // check all shards allocated
+        assertEquals(0, state.getRoutingNodes().shardsWithState(INITIALIZING).size());
+        assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
+        assertEquals(0, node1ShardCount);
+        Settings newSettings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "").build();
+
+        // making custom set of allocation deciders such that it never attempts to move shards but always attempts to rebalance
+        List<AllocationDecider> allocationDeciders = Arrays.asList(new AllocationDecider() {
+            @Override
+            public Decision canMoveAnyShard(RoutingAllocation allocation) {
+                return Decision.NO;
+            }
+        }, new AllocationDecider() {
+            @Override
+            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return Decision.YES;
+            }
+        }, new SameShardAllocationDecider(newSettings, new ClusterSettings(newSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        int shardsToMove = 3; // such that it only partially balances few shards
+        // adding +1 as during rebalance we do per index timeout check and then per node check
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(newSettings, new CountDownLatch(shardsToMove + 1));
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(allocationDeciders),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            null,
+            System.nanoTime()
+        );
+        allocator.allocate(allocation);
+        List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
+        assertEquals(3, relocatingShards.size());
     }
 
     private RoutingTable buildRoutingTable(Metadata metadata) {
