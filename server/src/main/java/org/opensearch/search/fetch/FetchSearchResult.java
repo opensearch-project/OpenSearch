@@ -50,7 +50,7 @@ import java.io.IOException;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class FetchSearchResult extends SearchPhaseResult {
+public class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
     // client side counter
@@ -67,6 +67,18 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
         this.contextId = id;
         setSearchShardTarget(shardTarget);
+    }
+
+    public interface SerializationAccess {
+        ShardSearchContextId getShardSearchContextId();
+        SearchHits getHits();
+    }
+
+    public SerializationAccess getSerAccess() {
+        return new SerializationAccess() {
+            public ShardSearchContextId getShardSearchContextId() { return contextId; }
+            public SearchHits getHits() { return hits; }
+        };
     }
 
     @Override

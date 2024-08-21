@@ -45,6 +45,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,6 +102,20 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.sortFields = sortFields;
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
+    }
+
+    public interface SerializationAccess {
+        TotalHits getTotalHits();
+        float getMaxScore();
+        SearchHit[] getHits();
+    }
+
+    public SearchHits.SerializationAccess getSerAccess() {
+        return new SearchHits.SerializationAccess() {
+            public TotalHits getTotalHits() { return totalHits; }
+            public float getMaxScore() { return maxScore; }
+            public SearchHit[] getHits() { return hits; }
+        };
     }
 
     public SearchHits(StreamInput in) throws IOException {

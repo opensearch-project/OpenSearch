@@ -33,6 +33,7 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
@@ -234,6 +235,44 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             innerHits = null;
         }
+    }
+
+    public interface SerializationAccess {
+        float getScore();
+        Text getId();
+        NestedIdentity getNestedIdentity();
+        long getVersion();
+        long getSeqNo();
+        long getPrimaryTerm();
+        BytesReference getSource();
+        Explanation getExplanation();
+        Map<String, DocumentField> getDocumentFields();
+        Map<String, DocumentField> getMetaFields();
+        Map<String, HighlightField> getHighlightedFields();
+        SearchSortValues getSortValues();
+        Map<String, Float> getMatchedQueries();
+        SearchShardTarget getShard();
+        Map<String, SearchHits> getInnerHits();
+    }
+
+    public SearchHit.SerializationAccess getSerAccess() {
+        return new SearchHit.SerializationAccess() {
+            public float getScore() { return score; }
+            public Text getId() { return id; }
+            public NestedIdentity getNestedIdentity() { return nestedIdentity; }
+            public long getVersion() { return version; }
+            public long getSeqNo() { return seqNo; }
+            public long getPrimaryTerm() { return primaryTerm; }
+            public BytesReference getSource() { return source; }
+            public Explanation getExplanation() { return explanation; }
+            public Map<String, DocumentField> getDocumentFields() { return documentFields; }
+            public Map<String, DocumentField> getMetaFields() { return metaFields; }
+            public Map<String, HighlightField> getHighlightedFields() { return highlightFields; }
+            public SearchSortValues getSortValues() { return sortValues; }
+            public Map<String, Float> getMatchedQueries() { return matchedQueries; }
+            public SearchShardTarget getShard() { return shard; }
+            public Map<String, SearchHits> getInnerHits() { return innerHits; }
+        };
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
