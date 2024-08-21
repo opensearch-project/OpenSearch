@@ -89,7 +89,7 @@ public class JoinRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        sourceNode.writeTo(out);
+        sourceNode.writeToWithAttribute(out);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             out.writeLong(minimumTerm);
         }

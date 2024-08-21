@@ -701,6 +701,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeToUtil((output, value) -> value.writeTo(output), out);
+    }
+
+    public void writeToWithAttribute(StreamOutput out) throws IOException {
+        writeToUtil((output, value) -> value.writeToWithAttribute(output), out);
+    }
+
+    private void writeToUtil(final Writer<DiscoveryNode> writer, StreamOutput out) throws IOException {
         if (clusterManagerNodeId == null) {
             out.writeBoolean(false);
         } else {
@@ -709,7 +717,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
         out.writeVInt(nodes.size());
         for (DiscoveryNode node : this) {
-            node.writeTo(out);
+            writer.write(out, node);
         }
     }
 
