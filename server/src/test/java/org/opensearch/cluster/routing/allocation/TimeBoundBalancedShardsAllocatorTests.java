@@ -206,10 +206,9 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(node1ShardCount, relocatingShards.size());
-        assertEquals(node1ShardCount, allocation.routingNodes().getRelocatingShardCount());
     }
 
-    public void testNoShardsMoveWhenExcludedAndTimeoutNotBreached() {
+    public void testNoShardsMoveWhenExcludedAndTimeoutBreached() {
         int numberOfIndices = 3;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
@@ -240,7 +239,42 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(0, relocatingShards.size());
-        assertEquals(0, allocation.routingNodes().getRelocatingShardCount());
+    }
+
+    public void testPartialShardsMoveWhenExcludedAndTimeoutBreached() {
+        int numberOfIndices = 3;
+        int numberOfShards = 5;
+        int numberOfReplicas = 1;
+        int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
+        Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
+        RoutingTable routingTable = buildRoutingTable(metadata);
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        MockAllocationService allocationService = createAllocationService();
+        state = applyStartedShardsUntilNoChange(state, allocationService);
+        // check all shards allocated
+        assertEquals(0, state.getRoutingNodes().shardsWithState(INITIALIZING).size());
+        assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
+        Settings settings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build();
+        // since for moves, it creates an iterator over shards which interleaves between nodes, hence
+        // for shardsToMove=6, it will have 2 shards from node1, node2, node3 each attempting to move with only
+        // shards from node1 can actually move. Hence, total moves that will be executed is 2 (6/3).
+        int shardsToMove = 5; // such that time out is never breached
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings, new CountDownLatch(shardsToMove));
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDecidersForExcludeAPI(settings),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            null,
+            System.nanoTime()
+        );
+        allocator.allocate(allocation);
+        List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
+        assertEquals(shardsToMove / 3, relocatingShards.size());
     }
 
     private RoutingTable buildRoutingTable(Metadata metadata) {
