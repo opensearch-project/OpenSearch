@@ -68,6 +68,7 @@ dependencies {
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
+  api project(":libs:opensearch-task-commons")
 
 
   compileOnly project(':libs:opensearch-plugin-classloader')
@@ -124,6 +125,9 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+
+  // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
+  implementation 'org.roaringbitmap:RoaringBitmap:1.1.0'
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

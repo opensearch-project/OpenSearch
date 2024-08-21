@@ -16,8 +16,9 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
+import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -26,7 +27,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteCoordinationMetadata;
 import org.opensearch.gateway.remote.model.RemoteCustomMetadata;
 import org.opensearch.gateway.remote.model.RemoteGlobalMetadata;
@@ -85,72 +85,79 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.remoteWritableEntityStores.put(
             RemoteGlobalMetadata.GLOBAL_METADATA,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemoteCoordinationMetadata.COORDINATION_METADATA,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemotePersistentSettingsMetadata.SETTING_METADATA,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemoteTemplatesMetadata.TEMPLATES_METADATA,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemoteCustomMetadata.CUSTOM_METADATA,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
@@ -159,7 +166,7 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
     @Override
     protected ActionListener<Void> getWrappedWriteListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
@@ -171,7 +178,7 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
     @Override
     protected ActionListener<Object> getWrappedReadListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<RemoteReadResult> listener
     ) {
         return ActionListener.wrap(

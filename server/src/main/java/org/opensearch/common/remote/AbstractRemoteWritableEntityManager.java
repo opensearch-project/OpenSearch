@@ -31,7 +31,7 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
      * @return the remote writable entity store for the given entity
      * @throws IllegalArgumentException if the entity type is unknown
      */
-    protected RemoteWritableEntityStore getStore(AbstractRemoteWritableBlobEntity entity) {
+    protected RemoteWritableEntityStore getStore(AbstractClusterMetadataWriteableBlobEntity entity) {
         RemoteWritableEntityStore remoteStore = remoteWritableEntityStores.get(entity.getType());
         if (remoteStore == null) {
             throw new IllegalArgumentException("Unknown entity type [" + entity.getType() + "]");
@@ -49,7 +49,7 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
      */
     protected abstract ActionListener<Void> getWrappedWriteListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     );
 
@@ -64,21 +64,21 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
      */
     protected abstract ActionListener<Object> getWrappedReadListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<RemoteReadResult> listener
     );
 
     @Override
     public void writeAsync(
         String component,
-        AbstractRemoteWritableBlobEntity entity,
+        AbstractClusterMetadataWriteableBlobEntity entity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         getStore(entity).writeAsync(entity, getWrappedWriteListener(component, entity, listener));
     }
 
     @Override
-    public void readAsync(String component, AbstractRemoteWritableBlobEntity entity, ActionListener<RemoteReadResult> listener) {
+    public void readAsync(String component, AbstractClusterMetadataWriteableBlobEntity entity, ActionListener<RemoteReadResult> listener) {
         getStore(entity).readAsync(entity, getWrappedReadListener(component, entity, listener));
     }
 }

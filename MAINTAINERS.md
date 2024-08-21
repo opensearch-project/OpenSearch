@@ -9,6 +9,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
+| Ankit Jain               | [jainankitk](https://github.com/jainankitk)             | Amazon      |
 | Ashish Singh             | [ashking94](https://github.com/ashking94)               | Amazon      |
 | Bukhtawar Khan           | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
 | Charlotte Henkle         | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
@@ -21,7 +22,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Varun Bansal             | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
 | Marc Handalian           | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh             | [msfroh](https://github.com/msfroh)                     | Amazon      |
-| Nick Knize               | [nknize](https://github.com/nknize)                     | Amazon      |
+| Nick Knize               | [nknize](https://github.com/nknize)                     | Lucenia     |
 | Owais Kazi               | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Peter Nied               | [peternied](https://github.com/peternied)               | Amazon      |
 | Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |

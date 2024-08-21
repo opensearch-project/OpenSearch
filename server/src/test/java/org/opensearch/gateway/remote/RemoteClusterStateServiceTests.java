@@ -42,7 +42,7 @@ import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.network.NetworkModule;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -3464,7 +3464,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         return DiscoveryNodes.builder().clusterManagerNodeId("cluster-manager-id").localNodeId("cluster-manager-id").add(localNode).build();
     }
 
-    private class BlobNameMatcher implements ArgumentMatcher<AbstractRemoteWritableBlobEntity> {
+    private class BlobNameMatcher implements ArgumentMatcher<AbstractClusterMetadataWriteableBlobEntity> {
         private final String expectedBlobName;
 
         BlobNameMatcher(String expectedBlobName) {
@@ -3472,7 +3472,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public boolean matches(AbstractRemoteWritableBlobEntity argument) {
+        public boolean matches(AbstractClusterMetadataWriteableBlobEntity argument) {
             return argument != null && expectedBlobName.equals(argument.getFullBlobName());
         }
 

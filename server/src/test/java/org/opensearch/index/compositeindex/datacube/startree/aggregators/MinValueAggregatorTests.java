@@ -22,21 +22,13 @@ public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         double randomDouble = randomDouble();
         assertEquals(
-            Math.min(aggregator.toStarTreeNumericTypeValue(randomLong), randomDouble),
+            Math.min(starTreeNumericType.getDoubleValue(randomLong), randomDouble),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
-        assertEquals(
-            aggregator.toStarTreeNumericTypeValue(randomLong),
-            aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
-            0.0
-        );
+        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
         assertEquals(randomDouble, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, null), 0.0);
-        assertEquals(
-            Math.min(2.0, aggregator.toStarTreeNumericTypeValue(3L)),
-            aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L),
-            0.0
-        );
+        assertEquals(Math.min(2.0, starTreeNumericType.getDoubleValue(3L)), aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
     }
 
     public void testMergeAggregatedValues() {
@@ -52,10 +44,10 @@ public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
         assertEquals(randomDouble, aggregator.getInitialAggregatedValue(randomDouble), 0.0);
     }
 
-    public void testToStarTreeNumericTypeValue() {
+    public void testToAggregatedValueType() {
         MinValueAggregator aggregator = new MinValueAggregator(StarTreeNumericType.DOUBLE);
         long randomLong = randomLong();
-        assertEquals(NumericUtils.sortableLongToDouble(randomLong), aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
+        assertEquals(NumericUtils.sortableLongToDouble(randomLong), aggregator.toAggregatedValueType(randomLong), 0.0);
     }
 
     public void testIdentityMetricValue() {
