@@ -47,7 +47,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader.DelegatingCacheHelper;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -654,7 +654,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         when(searcher.getDirectoryReader()).thenReturn(reader);
         when(searcher.getIndexReader()).thenReturn(reader);
         IndexReader.CacheHelper notDelegatingCacheHelper = mock(IndexReader.CacheHelper.class);
-        OpenSearchDirectoryReader.DelegatingCacheHelper delegatingCacheHelper = mock(OpenSearchDirectoryReader.DelegatingCacheHelper.class);
+        DelegatingCacheHelper delegatingCacheHelper = mock(DelegatingCacheHelper.class);
 
         for (boolean useDelegatingCacheHelper : new boolean[] { true, false }) {
             IndexReader.CacheHelper cacheHelper = useDelegatingCacheHelper ? delegatingCacheHelper : notDelegatingCacheHelper;
