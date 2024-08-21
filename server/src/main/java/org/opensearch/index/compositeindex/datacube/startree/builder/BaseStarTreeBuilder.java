@@ -164,7 +164,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             // actual indexing field they're based on
             metrics[i] = metricAggregatorInfos.get(i)
                 .getValueAggregators()
-                .toStarTreeNumericTypeValue(metricDocValuesIterator.value(currentDocId));
+                .toAggregatedValueType(metricDocValuesIterator.value(currentDocId));
             i++;
         }
         return new StarTreeDocument(dims, metrics);

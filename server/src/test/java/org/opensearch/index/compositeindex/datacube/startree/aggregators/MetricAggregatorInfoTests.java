@@ -27,12 +27,12 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
 
     public void testCountStarConstructor() {
         MetricAggregatorInfo pair = new MetricAggregatorInfo(
-            MetricStat.COUNT,
+            MetricStat.VALUE_COUNT,
             "anything",
             "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE
         );
-        assertEquals(MetricStat.COUNT, pair.getMetricStat());
+        assertEquals(MetricStat.VALUE_COUNT, pair.getMetricStat());
         assertEquals("anything", pair.getField());
     }
 
@@ -62,7 +62,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
         assertEquals(pair1, pair2);
         assertNotEquals(
             pair1,
-            new MetricAggregatorInfo(MetricStat.COUNT, "column1", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE)
+            new MetricAggregatorInfo(MetricStat.VALUE_COUNT, "column1", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE)
         );
         assertNotEquals(
             pair1,
@@ -100,7 +100,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             IndexNumericFieldData.NumericType.DOUBLE
         );
         MetricAggregatorInfo pair3 = new MetricAggregatorInfo(
-            MetricStat.COUNT,
+            MetricStat.VALUE_COUNT,
             "column1",
             "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE

@@ -33,7 +33,7 @@ public class ValueAggregatorFactoryTests extends OpenSearchTestCase {
     }
 
     public void testGetValueAggregatorForCountType() {
-        ValueAggregator aggregator = ValueAggregatorFactory.getValueAggregator(MetricStat.COUNT, StarTreeNumericType.LONG);
+        ValueAggregator aggregator = ValueAggregatorFactory.getValueAggregator(MetricStat.VALUE_COUNT, StarTreeNumericType.LONG);
         assertNotNull(aggregator);
         assertEquals(CountValueAggregator.class, aggregator.getClass());
     }
