@@ -54,7 +54,7 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         remoteStorePinnedTimestampService.pinTimestamp(timestamp2, "ss3", noOpActionListener);
         remoteStorePinnedTimestampService.pinTimestamp(timestamp3, "ss4", noOpActionListener);
 
-        remoteStorePinnedTimestampService.setPinnedTimestampsSchedulerInterval(TimeValue.timeValueSeconds(1));
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
 
         assertBusy(() -> {
             Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp_2 = RemoteStorePinnedTimestampService.getPinnedTimestamps();
@@ -63,7 +63,7 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
             assertEquals(Set.of(timestamp1, timestamp2, timestamp3), pinnedTimestampWithFetchTimestamp_2.v2());
         });
 
-        remoteStorePinnedTimestampService.setPinnedTimestampsSchedulerInterval(TimeValue.timeValueMinutes(3));
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
 
         // This should be a no-op as pinning entity is different
         remoteStorePinnedTimestampService.unpinTimestamp(timestamp1, "no-snapshot", noOpActionListener);
@@ -72,7 +72,7 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         // Adding different entity to already pinned timestamp
         remoteStorePinnedTimestampService.pinTimestamp(timestamp3, "ss5", noOpActionListener);
 
-        remoteStorePinnedTimestampService.setPinnedTimestampsSchedulerInterval(TimeValue.timeValueSeconds(1));
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
 
         assertBusy(() -> {
             Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp_3 = RemoteStorePinnedTimestampService.getPinnedTimestamps();
@@ -81,6 +81,6 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
             assertEquals(Set.of(timestamp1, timestamp3), pinnedTimestampWithFetchTimestamp_3.v2());
         });
 
-        remoteStorePinnedTimestampService.setPinnedTimestampsSchedulerInterval(TimeValue.timeValueMinutes(3));
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
     }
 }

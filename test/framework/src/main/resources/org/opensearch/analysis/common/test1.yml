@@ -15,6 +15,18 @@ index :
       dict_dec :
         type : dictionary_decompounder
         word_list : [donau, dampf, schiff, spargel, creme, suppe]
+      hyphen_dec :
+        type : hyphenation_decompounder
+        word_list : [læse, hest]
+        hyphenation_patterns_path: "da_UTF8.xml"
+      hyphen_dec_no_sub_matches :
+        type : hyphenation_decompounder
+        word_list : [basketball, basket, ball, kurv]
+        hyphenation_patterns_path: "da_UTF8.xml"
+        only_longest_match: False
+        no_sub_matches: True
+        no_overlapping_matches: False
+
     analyzer :
       standard :
         type : standard
@@ -37,3 +49,9 @@ index :
       decompoundingAnalyzer :
         tokenizer : standard
         filter : [dict_dec]
+      hyphenationAnalyzer :
+        tokenizer : standard
+        filter : [hyphen_dec]
+      hyphenationAnalyzerNoSubMatches :
+        tokenizer : standard
+        filter : [hyphen_dec_no_sub_matches]
