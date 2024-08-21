@@ -21,30 +21,19 @@ public class QueryGroupStateTests extends OpenSearchTestCase {
         queryGroupState = new QueryGroupState();
         List<Thread> updaterThreads = new ArrayList<>();
 
-        for (int i=0; i<25; i++) {
+        for (int i = 0; i < 25; i++) {
             if (i % 5 == 0) {
-                updaterThreads.add(new Thread(
-                    () -> queryGroupState.incrementCompletions()
-                ));
+                updaterThreads.add(new Thread(() -> queryGroupState.incrementCompletions()));
             } else if (i % 5 == 1) {
-                updaterThreads.add(new Thread(
-                    () -> queryGroupState.incrementRejections()
-                ));
+                updaterThreads.add(new Thread(() -> queryGroupState.incrementRejections()));
             } else if (i % 5 == 2) {
-                updaterThreads.add(new Thread(
-                    () -> queryGroupState.incrementFailures()
-                ));
+                updaterThreads.add(new Thread(() -> queryGroupState.incrementFailures()));
             } else if (i % 5 == 3) {
-                updaterThreads.add(new Thread(
-                    () -> queryGroupState.getResourceState().get(ResourceType.CPU).incrementCancellations()
-                ));
+                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.CPU).incrementCancellations()));
             } else {
-                updaterThreads.add(new Thread(
-                    () -> queryGroupState.getResourceState().get(ResourceType.MEMORY).incrementCancellations()
-                ));
+                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.MEMORY).incrementCancellations()));
             }
         }
-
 
         // trigger the updates
         updaterThreads.forEach(Thread::start);

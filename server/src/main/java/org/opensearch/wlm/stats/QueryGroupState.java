@@ -83,14 +83,12 @@ public class QueryGroupState {
         completions.incrementAndGet();
     }
 
-
     /**
      * this is a call back to increment rejections for a query group at incoming request
      */
     public void incrementRejections() {
         rejections.incrementAndGet();
     }
-
 
     /**
      * this is a call back to increment failures for a query group

@@ -43,23 +43,20 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         stats = in.readMap(StreamInput::readString, QueryGroupStatsHolder::new);
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(stats, StreamOutput::writeString, QueryGroupStatsHolder::writeTo);
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<String, QueryGroupStatsHolder> queryGroupStats: stats.entrySet()) {
+        for (Map.Entry<String, QueryGroupStatsHolder> queryGroupStats : stats.entrySet()) {
             builder.startObject(queryGroupStats.getKey());
             queryGroupStats.getValue().toXContent(builder, params);
             builder.endObject();
         }
         return builder;
     }
-
 
     @Override
     public boolean equals(Object o) {
@@ -109,18 +106,16 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             out.writeMap(statsHolder.resourceStats, (o, val) -> o.writeString(val.getName()), ResourceStats::writeTo);
         }
 
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             QueryGroupStatsHolder.writeTo(out, this);
         }
 
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(COMPLETIONS, completions);
             builder.field(REJECTIONS, rejections);
-            for (Map.Entry<ResourceType, ResourceStats> resourceStat: resourceStats.entrySet()) {
+            for (Map.Entry<ResourceType, ResourceStats> resourceStat : resourceStats.entrySet()) {
                 ResourceType resourceType = resourceStat.getKey();
                 ResourceStats resourceStats1 = resourceStat.getValue();
                 builder.startObject(resourceType.getName());
@@ -179,7 +174,6 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             ResourceStats.writeTo(out, this);
         }
 
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(CURRENT_USAGE, currentUsage);
@@ -192,7 +186,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ResourceStats that = (ResourceStats) o;
-            return (currentUsage- that.currentUsage) < 1e-9 && cancellations == that.cancellations;
+            return (currentUsage - that.currentUsage) < 1e-9 && cancellations == that.cancellations;
         }
 
         @Override
