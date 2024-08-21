@@ -103,7 +103,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         value = in.readString();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             rewriteOverride = in.readOptionalString();
         }
     }
@@ -114,7 +114,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         out.writeString(value);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
-        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalString(rewriteOverride);
         }
     }

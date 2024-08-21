@@ -113,7 +113,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         value = in.readString();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
-        if (in.getVersion().after(Version.V_2_17_0)) {
+        if (in.getVersion().after(Version.V_3_0_0)) {
             rewriteOverride = in.readOptionalString();
         }
     }
@@ -124,7 +124,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeString(value);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
-        if (out.getVersion().after(Version.V_2_17_0)) {
+        if (out.getVersion().after(Version.V_3_0_0)) {
             out.writeOptionalString(rewriteOverride);
         }
     }

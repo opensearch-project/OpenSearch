@@ -186,7 +186,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         maxExpansions = in.readVInt();
         transpositions = in.readBoolean();
         rewrite = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             rewriteOverride = in.readOptionalString();
         }
     }
@@ -200,7 +200,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         out.writeVInt(this.maxExpansions);
         out.writeBoolean(this.transpositions);
         out.writeOptionalString(this.rewrite);
-        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalString(rewriteOverride);
         }
     }

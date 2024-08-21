@@ -122,7 +122,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 throw new IllegalArgumentException("[range] query does not support relation [" + relationString + "]");
             }
         }
-        if (in.getVersion().after(Version.V_2_17_0)) {
+        if (in.getVersion().after(Version.V_3_0_0)) {
             rewriteOverride = in.readOptionalString();
         }
     }
@@ -145,7 +145,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             relationString = this.relation.getRelationName();
         }
         out.writeOptionalString(relationString);
-        if (out.getVersion().after(Version.V_2_17_0)) {
+        if (out.getVersion().after(Version.V_3_0_0)) {
             out.writeOptionalString(rewriteOverride);
         }
     }

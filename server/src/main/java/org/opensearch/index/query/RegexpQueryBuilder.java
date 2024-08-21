@@ -117,7 +117,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         maxDeterminizedStates = in.readVInt();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
-        if (in.getVersion().after(Version.V_2_17_0)) {
+        if (in.getVersion().after(Version.V_3_0_0)) {
             rewriteOverride = in.readOptionalString();
         }
     }
@@ -130,7 +130,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         out.writeVInt(maxDeterminizedStates);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
-        if (out.getVersion().after(Version.V_2_17_0)) {
+        if (out.getVersion().after(Version.V_3_0_0)) {
             out.writeOptionalString(rewriteOverride);
         }
     }
