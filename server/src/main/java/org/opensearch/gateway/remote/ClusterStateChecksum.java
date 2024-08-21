@@ -373,6 +373,9 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * Builder for ClusterStateChecksum
+     */
     public static class Builder {
         long routingTableChecksum;
         long nodesChecksum;
