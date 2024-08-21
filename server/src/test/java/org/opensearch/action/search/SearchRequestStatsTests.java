@@ -25,6 +25,41 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchRequestStatsTests extends OpenSearchTestCase {
+    public void testSearchRequestStats_OnRequestFailure() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchPhaseContext mockSearchPhaseContext = mock(SearchPhaseContext.class);
+        SearchRequestContext mockSearchRequestContext = mock(SearchRequestContext.class);
+
+        testRequestStats.onRequestStart(mockSearchRequestContext);
+        assertEquals(1, testRequestStats.getTookCurrent());
+        testRequestStats.onRequestFailure(mockSearchPhaseContext, mockSearchRequestContext);
+        assertEquals(0, testRequestStats.getTookCurrent());
+        assertEquals(0, testRequestStats.getTookTotal());
+    }
+
+    public void testSearchRequestStats_OnRequestEnd() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchPhaseContext mockSearchPhaseContext = mock(SearchPhaseContext.class);
+        SearchRequestContext mockSearchRequestContext = mock(SearchRequestContext.class);
+
+        // Start request
+        testRequestStats.onRequestStart(mockSearchRequestContext);
+        assertEquals(1, testRequestStats.getTookCurrent());
+
+        // Mock start time
+        long tookTimeInMillis = randomIntBetween(1, 10);
+        long startTimeInNanos = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
+        when(mockSearchRequestContext.getAbsoluteStartNanos()).thenReturn(startTimeInNanos);
+
+        // End request
+        testRequestStats.onRequestEnd(mockSearchPhaseContext, mockSearchRequestContext);
+        assertEquals(0, testRequestStats.getTookCurrent());
+        assertEquals(1, testRequestStats.getTookTotal());
+        assertThat(testRequestStats.getTookMetric(), greaterThanOrEqualTo(tookTimeInMillis));
+    }
+
     public void testSearchRequestPhaseFailure() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
@@ -60,7 +95,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
                 ctx,
                 new SearchRequestContext(
                     new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                    new SearchRequest()
+                    new SearchRequest(),
+                    () -> null
                 )
             );
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
@@ -120,7 +156,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
                         ctx,
                         new SearchRequestContext(
                             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                            new SearchRequest()
+                            new SearchRequest(),
+                            () -> null
                         )
                     );
                     countDownLatch.countDown();

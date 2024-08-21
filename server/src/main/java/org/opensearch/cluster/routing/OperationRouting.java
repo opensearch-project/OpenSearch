@@ -42,6 +42,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
@@ -242,10 +243,15 @@ public class OperationRouting {
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
             IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
-            if (IndexModule.Type.REMOTE_SNAPSHOT.match(
-                indexMetadataForShard.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-            ) && (preference == null || preference.isEmpty())) {
+            if (indexMetadataForShard.isRemoteSnapshot() && (preference == null || preference.isEmpty())) {
                 preference = Preference.PRIMARY.type();
+            }
+
+            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)
+                && IndexModule.DataLocalityType.PARTIAL.name()
+                    .equals(indexMetadataForShard.getSettings().get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()))
+                && (preference == null || preference.isEmpty())) {
+                preference = Preference.PRIMARY_FIRST.type();
             }
 
             ShardIterator iterator = preferenceActiveShardIterator(

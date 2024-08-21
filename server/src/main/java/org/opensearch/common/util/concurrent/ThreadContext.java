@@ -45,11 +45,13 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.secure_sm.ThreadContextPermission;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -110,6 +112,12 @@ public final class ThreadContext implements Writeable {
      * Name for the {@link #stashWithOrigin origin} attribute.
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+
+    // thread context permissions
+
+    private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
+    private static final Permission STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashAndMergeHeaders");
+    private static final Permission STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashWithOrigin");
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -205,8 +213,19 @@ public final class ThreadContext implements Writeable {
      * For example, a user might not have permission to GET from the tasks index
      * but the tasks API will perform a get on their behalf using this method
      * if it can't find the task in memory.
+     *
+     * Usage of stashWithOrigin is guarded by a ThreadContextPermission. In order to use
+     * stashWithOrigin, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
      */
     public StoredContext stashWithOrigin(String origin) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
@@ -216,8 +235,19 @@ public final class ThreadContext implements Writeable {
      * Removes the current context and resets a new context that contains a merge of the current headers and the given headers.
      * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
      * that are already existing are preserved unless they are defaults.
+     *
+     * Usage of stashAndMergeHeaders is guarded by a ThreadContextPermission. In order to use
+     * stashAndMergeHeaders, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
      */
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
@@ -484,6 +514,16 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Update the {@code value} for the specified {@code key}
+     *
+     * @param key         the header name
+     * @param value       the header value
+     */
+    public void updateResponseHeader(final String key, final String value) {
+        updateResponseHeader(key, value, v -> v);
+    }
+
+    /**
      * Add the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
      * {@code value} after applying {@code uniqueValue} is ignored.
      *
@@ -492,7 +532,19 @@ public final class ThreadContext implements Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, false));
+    }
+
+    /**
+     * Update the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
+     * {@code value} after applying {@code uniqueValue} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
+     * @param uniqueValue the function that produces de-duplication values
+     */
+    public void updateResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, true));
     }
 
     /**
@@ -532,8 +584,19 @@ public final class ThreadContext implements Writeable {
     /**
      * Marks this thread context as an internal system context. This signals that actions in this context are issued
      * by the system itself rather than by a user action.
+     *
+     * Usage of markAsSystemContext is guarded by a ThreadContextPermission. In order to use
+     * markAsSystemContext, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
      */
     public void markAsSystemContext() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION);
+        }
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 
@@ -717,7 +780,8 @@ public final class ThreadContext implements Writeable {
             final String value,
             final Function<String, String> uniqueValue,
             final int maxWarningHeaderCount,
-            final long maxWarningHeaderSize
+            final long maxWarningHeaderSize,
+            final boolean replaceExistingKey
         ) {
             assert value != null;
             long newWarningHeaderSize = warningHeadersSize;
@@ -759,8 +823,13 @@ public final class ThreadContext implements Writeable {
                 if (existingValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
-                // preserve insertion order
-                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
+                Set<String> newValues;
+                if (replaceExistingKey) {
+                    newValues = Stream.of(value).collect(LINKED_HASH_SET_COLLECTOR);
+                } else {
+                    // preserve insertion order
+                    newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
+                }
                 newResponseHeaders = new HashMap<>(responseHeaders);
                 newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {

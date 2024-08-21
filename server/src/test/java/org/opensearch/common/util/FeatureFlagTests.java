@@ -39,12 +39,6 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         assertFalse(FeatureFlags.isEnabled(javaVersionProperty));
     }
 
-    public void testBooleanFeatureFlagWithDefaultSetToTrue() {
-        final String testFlag = DATETIME_FORMATTER_CACHING;
-        assertNotNull(testFlag);
-        assertTrue(FeatureFlags.isEnabled(testFlag));
-    }
-
     public void testBooleanFeatureFlagWithDefaultSetToFalse() {
         final String testFlag = IDENTITY;
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
@@ -52,17 +46,17 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         assertFalse(FeatureFlags.isEnabled(testFlag));
     }
 
-    public void testBooleanFeatureFlagInitializedWithEmptySettingsAndDefaultSetToTrue() {
+    public void testBooleanFeatureFlagInitializedWithEmptySettingsAndDefaultSetToFalse() {
         final String testFlag = DATETIME_FORMATTER_CACHING;
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
         assertNotNull(testFlag);
-        assertTrue(FeatureFlags.isEnabled(testFlag));
+        assertFalse(FeatureFlags.isEnabled(testFlag));
     }
 
     public void testInitializeFeatureFlagsWithExperimentalSettings() {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(IDENTITY, true).build());
         assertTrue(FeatureFlags.isEnabled(IDENTITY));
-        assertTrue(FeatureFlags.isEnabled(DATETIME_FORMATTER_CACHING));
+        assertFalse(FeatureFlags.isEnabled(DATETIME_FORMATTER_CACHING));
         assertFalse(FeatureFlags.isEnabled(EXTENSIONS));
         // reset FeatureFlags to defaults
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);

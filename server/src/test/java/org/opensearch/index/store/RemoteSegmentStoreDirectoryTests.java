@@ -10,7 +10,6 @@ package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -23,34 +22,25 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -64,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -87,95 +76,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
-    private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectoryTests.class);
-    private RemoteDirectory remoteDataDirectory;
-    private RemoteDirectory remoteMetadataDirectory;
-    private RemoteStoreMetadataLockManager mdLockManager;
-
-    private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
-    private TestUploadListener testUploadTracker;
-    private IndexShard indexShard;
-    private SegmentInfos segmentInfos;
-    private ThreadPool threadPool;
-
-    private final String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        23,
-        34,
-        1,
-        1,
-        "node-1"
-    );
-
-    private final String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        23,
-        34,
-        2,
-        1,
-        "node-2"
-    );
-    private final String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        13,
-        34,
-        1,
-        1,
-        "node-1"
-    );
-    private final String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        10,
-        38,
-        34,
-        1,
-        1,
-        "node-1"
-    );
-    private final String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        10,
-        36,
-        34,
-        1,
-        1,
-        "node-1"
-    );
+public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDirectoryTests {
 
     @Before
     public void setup() throws IOException {
-        remoteDataDirectory = mock(RemoteDirectory.class);
-        remoteMetadataDirectory = mock(RemoteDirectory.class);
-        mdLockManager = mock(RemoteStoreMetadataLockManager.class);
-        threadPool = mock(ThreadPool.class);
-        testUploadTracker = new TestUploadListener();
-
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
-        ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
-
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
-            remoteDataDirectory,
-            remoteMetadataDirectory,
-            mdLockManager,
-            threadPool,
-            indexShard.shardId()
-        );
-        try (Store store = indexShard.store()) {
-            segmentInfos = store.readLastCommittedSegmentsInfo();
-        }
-
-        when(threadPool.executor(ThreadPool.Names.REMOTE_PURGE)).thenReturn(executorService);
-        when(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY)).thenReturn(executorService);
-        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(executorService);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        indexShard.close("test tearDown", true, false);
-        super.tearDown();
+        setupRemoteSegmentStoreDirectory();
     }
 
     public void testUploadedSegmentMetadataToString() {
@@ -254,60 +159,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             List.of(metadataFilename, metadataFilenameDup)
         );
         assertThrows(IllegalStateException.class, () -> remoteSegmentStoreDirectory.init());
-    }
-
-    private Map<String, Map<String, String>> populateMetadata() throws IOException {
-        List<String> metadataFiles = new ArrayList<>();
-
-        metadataFiles.add(metadataFilename);
-        metadataFiles.add(metadataFilename2);
-        metadataFiles.add(metadataFilename3);
-
-        when(
-            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
-                METADATA_FILES_TO_FETCH
-            )
-        ).thenReturn(List.of(metadataFilename));
-        when(
-            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
-                Integer.MAX_VALUE
-            )
-        ).thenReturn(metadataFiles);
-
-        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
-            metadataFilename,
-            getDummyMetadata("_0", 1),
-            metadataFilename2,
-            getDummyMetadata("_0", 1),
-            metadataFilename3,
-            getDummyMetadata("_0", 1)
-        );
-
-        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenAnswer(
-            I -> createMetadataFileBytes(
-                metadataFilenameContentMapping.get(metadataFilename),
-                indexShard.getLatestReplicationCheckpoint(),
-                segmentInfos
-            )
-        );
-        when(remoteMetadataDirectory.getBlobStream(metadataFilename2)).thenAnswer(
-            I -> createMetadataFileBytes(
-                metadataFilenameContentMapping.get(metadataFilename2),
-                indexShard.getLatestReplicationCheckpoint(),
-                segmentInfos
-            )
-        );
-        when(remoteMetadataDirectory.getBlobStream(metadataFilename3)).thenAnswer(
-            I -> createMetadataFileBytes(
-                metadataFilenameContentMapping.get(metadataFilename3),
-                indexShard.getLatestReplicationCheckpoint(),
-                segmentInfos
-            )
-        );
-
-        return metadataFilenameContentMapping;
     }
 
     public void testInit() throws IOException {
@@ -639,7 +490,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {}
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
         storeDirectory.close();
@@ -683,7 +534,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 latch.countDown();
             }
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 

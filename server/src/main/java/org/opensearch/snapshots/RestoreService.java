@@ -125,12 +125,11 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
-import static org.opensearch.index.store.remote.filecache.FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
-import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
  * Service responsible for restoring snapshots
@@ -204,6 +203,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterManagerTaskThrottler.ThrottlingKey restoreSnapshotTaskKey;
 
+    private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
+
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
     public RestoreService(
@@ -214,7 +215,8 @@ public class RestoreService implements ClusterStateApplier {
         MetadataIndexUpgradeService metadataIndexUpgradeService,
         ShardLimitValidator shardLimitValidator,
         IndicesService indicesService,
-        Supplier<ClusterInfo> clusterInfoSupplier
+        Supplier<ClusterInfo> clusterInfoSupplier,
+        Supplier<Double> dataToFileCacheSizeRatioSupplier
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -228,6 +230,7 @@ public class RestoreService implements ClusterStateApplier {
         this.shardLimitValidator = shardLimitValidator;
         this.indicesService = indicesService;
         this.clusterInfoSupplier = clusterInfoSupplier;
+        this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
@@ -399,9 +402,7 @@ public class RestoreService implements ClusterStateApplier {
                                 if (isRemoteSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
                                 }
-                                final boolean isSearchableSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(
-                                    snapshotIndexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-                                );
+                                final boolean isSearchableSnapshot = snapshotIndexMetadata.isRemoteSnapshot();
                                 final boolean isRemoteStoreShallowCopy = Boolean.TRUE.equals(
                                     snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()
                                 ) && metadata.index(index).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
@@ -472,7 +473,7 @@ public class RestoreService implements ClusterStateApplier {
                                             .put(snapshotIndexMetadata.getSettings())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                                     );
-                                    createIndexService.addRemoteStorePathStrategyInCustomData(indexMdBuilder, false);
+                                    createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, false);
                                     shardLimitValidator.validateShardLimit(
                                         renamedIndexName,
                                         snapshotIndexMetadata.getSettings(),
@@ -698,7 +699,7 @@ public class RestoreService implements ClusterStateApplier {
                             clusterService.state(),
                             clusterSettings,
                             clusterService.getSettings(),
-                            request.getDescription()
+                            String.join(",", request.indices())
                         );
                         return settingsBuilder.build();
                     }
@@ -855,7 +856,7 @@ public class RestoreService implements ClusterStateApplier {
 
                     private void validateSearchableSnapshotRestorable(long totalRestorableRemoteIndexesSize) {
                         ClusterInfo clusterInfo = clusterInfoSupplier.get();
-                        double remoteDataToFileCacheRatio = DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.get(clusterService.getSettings());
+                        final double remoteDataToFileCacheRatio = dataToFileCacheSizeRatioSupplier.get();
                         Map<String, FileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
                         if (nodeFileCacheStats.isEmpty() || remoteDataToFileCacheRatio <= 0.01f) {
                             return;
@@ -869,7 +870,7 @@ public class RestoreService implements ClusterStateApplier {
                             .sum();
 
                         Predicate<ShardRouting> isRemoteSnapshotShard = shardRouting -> shardRouting.primary()
-                            && indicesService.indexService(shardRouting.index()).getIndexSettings().isRemoteSnapshot();
+                            && clusterService.state().getMetadata().getIndexSafe(shardRouting.index()).isRemoteSnapshot();
 
                         ShardsIterator shardsIterator = clusterService.state()
                             .routingTable()

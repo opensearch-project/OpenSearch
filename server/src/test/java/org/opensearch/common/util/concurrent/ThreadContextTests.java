@@ -206,7 +206,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         }
 
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
-        try (ThreadContext.StoredContext storedContext = threadContext.stashWithOrigin(origin)) {
+        try (ThreadContext.StoredContext storedContext = ThreadContextAccess.doPrivileged(() -> threadContext.stashWithOrigin(origin))) {
             assertEquals(origin, threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getTransient("foo"));
             assertNull(threadContext.getTransient("bar"));
@@ -231,7 +231,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("foo", "baz");
         toMerge.put("simon", "says");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        try (ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(() -> threadContext.stashAndMergeHeaders(toMerge))) {
             assertEquals("bar", threadContext.getHeader("foo"));
             assertEquals("says", threadContext.getHeader("simon"));
             assertNull(threadContext.getTransient("ctx.foo"));
@@ -344,11 +344,11 @@ public class ThreadContextTests extends OpenSearchTestCase {
         }
 
         final String value = HeaderWarning.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
+        threadContext.updateResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
             final String duplicateValue = HeaderWarning.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
+            threadContext.updateResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");
@@ -493,7 +493,13 @@ public class ThreadContextTests extends OpenSearchTestCase {
         ThreadContext threadContext = new ThreadContext(build);
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("default", "2");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        ThreadContext finalThreadContext1 = threadContext;
+        HashMap<String, String> finalToMerge1 = toMerge;
+        try (
+            ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(
+                () -> finalThreadContext1.stashAndMergeHeaders(finalToMerge1)
+            )
+        ) {
             assertEquals("2", threadContext.getHeader("default"));
         }
 
@@ -502,7 +508,13 @@ public class ThreadContextTests extends OpenSearchTestCase {
         threadContext.putHeader("default", "4");
         toMerge = new HashMap<>();
         toMerge.put("default", "2");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        ThreadContext finalThreadContext2 = threadContext;
+        HashMap<String, String> finalToMerge2 = toMerge;
+        try (
+            ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(
+                () -> finalThreadContext2.stashAndMergeHeaders(finalToMerge2)
+            )
+        ) {
             assertEquals("4", threadContext.getHeader("default"));
         }
     }
@@ -565,7 +577,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
             threadContext.putHeader("foo", "bar");
             boolean systemContext = randomBoolean();
             if (systemContext) {
-                threadContext.markAsSystemContext();
+                ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             }
             threadContext.putTransient("foo", "bar_transient");
             withContext = threadContext.preserveContext(new AbstractRunnable() {
@@ -736,7 +748,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertFalse(threadContext.isSystemContext());
         try (ThreadContext.StoredContext context = threadContext.stashContext()) {
             assertFalse(threadContext.isSystemContext());
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             assertTrue(threadContext.isSystemContext());
         }
         assertFalse(threadContext.isSystemContext());
@@ -761,7 +773,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
         assertEquals("bar", threadContext.getHeader("foo"));
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));
             assertEquals("1", threadContext.getHeader("default"));
@@ -793,7 +805,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         threadContext.writeTo(out);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             threadContext.writeTo(outFromSystemContext);
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));

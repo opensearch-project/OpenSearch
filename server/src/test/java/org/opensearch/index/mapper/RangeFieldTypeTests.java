@@ -67,8 +67,10 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assume.assumeThat;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
@@ -291,6 +293,12 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testDateRangeQueryUsingMappingFormat() {
+        assumeThat(
+            "Using experimental datetime format as default",
+            FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING),
+            is(true)
+        );
+
         QueryShardContext context = createContext();
         RangeFieldType strict = new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with

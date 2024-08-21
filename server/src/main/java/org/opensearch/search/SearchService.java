@@ -35,6 +35,7 @@ package org.opensearch.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
@@ -77,9 +78,8 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.mapper.DerivedField;
-import org.opensearch.index.mapper.DerivedFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.DerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -138,6 +138,7 @@ import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -275,7 +276,32 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // value 0 means rewrite filters optimization in aggregations will be disabled
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
         "search.max_aggregation_rewrite_filters",
-        72,
+        3000,
+        0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
+        "indices.query.bool.max_clause_count",
+        1024,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> CLUSTER_ALLOW_DERIVED_FIELD_SETTING = Setting.boolSetting(
+        "search.derived_field.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // value 0 can disable dynamic pruning optimization in cardinality aggregation
+    public static final Setting<Integer> CARDINALITY_AGGREGATION_PRUNING_THRESHOLD = Setting.intSetting(
+        "search.dynamic_pruning.cardinality_aggregation.max_allowed_cardinality",
+        100,
         0,
         Property.Dynamic,
         Property.NodeScope
@@ -318,6 +344,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile int maxOpenPitContext;
 
+    private volatile boolean allowDerivedField;
+
     private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -330,6 +358,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final AtomicInteger openPitContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
     private final Executor indexSearcherExecutor;
+    private final TaskResourceTrackingService taskResourceTrackingService;
 
     public SearchService(
         ClusterService clusterService,
@@ -341,7 +370,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        Executor indexSearcherExecutor
+        Executor indexSearcherExecutor,
+        TaskResourceTrackingService taskResourceTrackingService
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -358,6 +388,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
         );
         this.indexSearcherExecutor = indexSearcherExecutor;
+        this.taskResourceTrackingService = taskResourceTrackingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
         setPitKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_PIT_KEEPALIVE_SETTING.get(settings));
@@ -389,6 +420,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
+
+        allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -455,6 +492,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setMaxOpenScrollContext(int maxOpenScrollContext) {
         this.maxOpenScrollContext = maxOpenScrollContext;
+    }
+
+    private void setAllowDerivedField(boolean allowDerivedField) {
+        this.allowDerivedField = allowDerivedField;
     }
 
     private void setMaxOpenPitContext(int maxOpenPitContext) {
@@ -543,6 +584,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             logger.trace("Dfs phase failed", e);
             processFailure(readerContext, e);
             throw e;
+        } finally {
+            taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
         }
     }
 
@@ -645,6 +688,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             logger.trace("Query phase failed", e);
             processFailure(readerContext, e);
             throw e;
+        } finally {
+            taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
         }
     }
 
@@ -690,6 +735,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 logger.trace("Query phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -722,6 +769,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 logger.trace("Query phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -771,6 +820,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 logger.trace("Fetch phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -801,6 +852,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -1078,28 +1131,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
             QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
-            if (request.source() != null
-                && request.source().size() != 0
-                && (request.source().getDerivedFieldsObject() != null || request.source().getDerivedFields() != null)) {
-                Map<String, MappedFieldType> derivedFieldTypeMap = new HashMap<>();
-                if (request.source().getDerivedFieldsObject() != null) {
-                    Map<String, Object> derivedFieldObject = new HashMap<>();
-                    derivedFieldObject.put(DerivedFieldMapper.CONTENT_TYPE, request.source().getDerivedFieldsObject());
-                    derivedFieldTypeMap.putAll(
-                        DerivedFieldMapper.getAllDerivedFieldTypeFromObject(derivedFieldObject, searchContext.mapperService())
-                    );
-                }
-                if (request.source().getDerivedFields() != null) {
-                    for (DerivedField derivedField : request.source().getDerivedFields()) {
-                        derivedFieldTypeMap.put(
-                            derivedField.getName(),
-                            DerivedFieldMapper.getDerivedFieldType(derivedField, searchContext.mapperService())
-                        );
-                    }
-                }
-                context.setDerivedFieldTypes(derivedFieldTypeMap);
-                searchContext.getQueryShardContext().setDerivedFieldTypes(derivedFieldTypeMap);
-            }
+            DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                searchContext.getQueryShardContext(),
+                Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFieldsObject).orElse(Collections.emptyMap()),
+                Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFields).orElse(Collections.emptyList()),
+                context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
+            );
+            context.setDerivedFieldResolver(derivedFieldResolver);
+            searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
             Rewriteable.rewrite(request.getRewriteable(), context, true);
             assert searchContext.getQueryShardContext().isCacheable();
             success = true;
@@ -1748,6 +1787,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBoolean(canMatch);
             out.writeOptionalWriteable(estimatedMinAndMax);
         }

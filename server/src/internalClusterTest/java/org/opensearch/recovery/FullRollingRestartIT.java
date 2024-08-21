@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -45,6 +46,8 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -251,6 +254,146 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
                 "relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "-- \nbefore: \n" + state,
                 recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false
             );
+        }
+    }
+
+    public void testFullRollingRestart_withNoRecoveryPayloadAndSource() throws Exception {
+        internalCluster().startNode();
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_source")
+            .field("enabled")
+            .value(false)
+            .field("recovery_source_enabled")
+            .value(false)
+            .endObject()
+            .endObject();
+        CreateIndexResponse response = prepareCreate("test").setMapping(builder).get();
+        logger.info("Create index response is : {}", response);
+
+        final String healthTimeout = "1m";
+
+        for (int i = 0; i < 1000; i++) {
+            client().prepareIndex("test")
+                .setId(Long.toString(i))
+                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map())
+                .execute()
+                .actionGet();
+        }
+
+        for (int i = 1000; i < 2000; i++) {
+            client().prepareIndex("test")
+                .setId(Long.toString(i))
+                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map())
+                .execute()
+                .actionGet();
+        }
+        // ensuring all docs are committed to file system
+        flush();
+
+        logger.info("--> now start adding nodes");
+        internalCluster().startNode();
+        internalCluster().startNode();
+
+        // make sure the cluster state is green, and all has been recovered
+        assertTimeout(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("3")
+        );
+
+        logger.info("--> add two more nodes");
+        internalCluster().startNode();
+        internalCluster().startNode();
+
+        // make sure the cluster state is green, and all has been recovered
+        assertTimeout(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("5")
+        );
+
+        logger.info("--> refreshing and checking data");
+        refreshAndWaitForReplication();
+        for (int i = 0; i < 10; i++) {
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+        }
+
+        // now start shutting nodes down
+        internalCluster().stopRandomDataNode();
+        // make sure the cluster state is green, and all has been recovered
+        assertTimeout(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("4")
+        );
+
+        internalCluster().stopRandomDataNode();
+        // make sure the cluster state is green, and all has been recovered
+        assertTimeout(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("3")
+        );
+
+        logger.info("--> stopped two nodes, verifying data");
+        refreshAndWaitForReplication();
+        for (int i = 0; i < 10; i++) {
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+        }
+
+        // closing the 3rd node
+        internalCluster().stopRandomDataNode();
+        // make sure the cluster state is green, and all has been recovered
+        assertTimeout(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("2")
+        );
+
+        internalCluster().stopRandomDataNode();
+
+        // make sure the cluster state is yellow, and all has been recovered
+        assertTimeout(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForYellowStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("1")
+        );
+
+        logger.info("--> one node left, verifying data");
+        refreshAndWaitForReplication();
+        for (int i = 0; i < 10; i++) {
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
     }
 }

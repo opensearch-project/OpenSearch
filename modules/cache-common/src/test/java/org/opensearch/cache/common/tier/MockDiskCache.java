@@ -16,11 +16,15 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.Serializer;
+import org.opensearch.common.cache.stats.CacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.stats.NoopCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,12 +36,19 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     long delay;
 
     private final RemovalListener<ICacheKey<K>, V> removalListener;
+    private final CacheStatsHolder statsHolder; // Only update for number of entries; this is only used to test statsTrackingEnabled logic
+                                                // in TSC
 
-    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener) {
+    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener, boolean statsTrackingEnabled) {
         this.maxSize = maxSize;
         this.delay = delay;
         this.removalListener = removalListener;
         this.cache = new ConcurrentHashMap<ICacheKey<K>, V>();
+        if (statsTrackingEnabled) {
+            this.statsHolder = new DefaultCacheStatsHolder(List.of(), "mock_disk_cache");
+        } else {
+            this.statsHolder = NoopCacheStatsHolder.getInstance();
+        }
     }
 
     @Override
@@ -50,6 +61,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     public void put(ICacheKey<K> key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
             this.removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EVICTED));
+            this.statsHolder.decrementItems(List.of());
         }
         try {
             Thread.sleep(delay);
@@ -57,6 +69,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             throw new RuntimeException(e);
         }
         this.cache.put(key, value);
+        this.statsHolder.incrementItems(List.of());
     }
 
     @Override
@@ -73,6 +86,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public void invalidate(ICacheKey<K> key) {
+        removalListener.onRemoval(new RemovalNotification<>(key, cache.get(key), RemovalReason.INVALIDATED));
         this.cache.remove(key);
     }
 
@@ -96,7 +110,9 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public ImmutableCacheStatsHolder stats() {
-        return null;
+        // To allow testing of statsTrackingEnabled logic in TSC, return a dummy ImmutableCacheStatsHolder with the
+        // right number of entries, unless statsTrackingEnabled is false
+        return statsHolder.getImmutableCacheStatsHolder(null);
     }
 
     @Override
@@ -114,20 +130,27 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         public static final String NAME = "mockDiskCache";
         final long delay;
         final int maxSize;
+        final boolean statsTrackingEnabled;
 
-        public MockDiskCacheFactory(long delay, int maxSize) {
+        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled) {
             this.delay = delay;
             this.maxSize = maxSize;
+            this.statsTrackingEnabled = statsTrackingEnabled;
         }
 
         @Override
         @SuppressWarnings({ "unchecked" })
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
+            // As we can't directly IT with the tiered cache and ehcache, check that we receive non-null serializers, as an ehcache disk
+            // cache would require.
+            assert config.getKeySerializer() != null;
+            assert config.getValueSerializer() != null;
             return new Builder<K, V>().setKeySerializer((Serializer<K, byte[]>) config.getKeySerializer())
                 .setValueSerializer((Serializer<V, byte[]>) config.getValueSerializer())
                 .setMaxSize(maxSize)
                 .setDeliberateDelay(delay)
                 .setRemovalListener(config.getRemovalListener())
+                .setStatsTrackingEnabled(config.getStatsTrackingEnabled())
                 .build();
         }
 
@@ -146,7 +169,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
         @Override
         public ICache<K, V> build() {
-            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener());
+            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener(), getStatsTrackingEnabled());
         }
 
         public Builder<K, V> setMaxSize(int maxSize) {

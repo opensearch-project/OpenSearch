@@ -80,6 +80,14 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
         this.cache.deleteShard(shardId);
     }
 
+    public boolean hasEmptyCache() {
+        return this.cache.getCache().isEmpty();
+    }
+
+    public AsyncShardFetchCache<T> getCache() {
+        return this.cache;
+    }
+
     /**
      * Cache implementation of transport actions returning batch of shards related data in the response.
      * Store node level responses of transport actions like {@link TransportNodesListGatewayStartedShardsBatch} or

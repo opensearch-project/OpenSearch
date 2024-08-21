@@ -46,6 +46,7 @@ import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -74,6 +75,35 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             randomNonNegativeLong(),
             randomBoolean()
         );
+    }
+
+    public void testClone() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest clonedRequest = searchRequest.deepCopy();
+        assertEquals(searchRequest.hashCode(), clonedRequest.hashCode());
+        assertNotSame(searchRequest, clonedRequest);
+
+        String[] includes = new String[] { "field1.*" };
+        String[] excludes = new String[] { "field2.*" };
+        FetchSourceContext fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(fetchSourceContext);
+        SearchRequest complexSearchRequest = createSearchRequest().source(source);
+        complexSearchRequest.requestCache(false);
+        complexSearchRequest.scroll(new TimeValue(1000));
+        SearchRequest clonedComplexRequest = complexSearchRequest.deepCopy();
+        assertEquals(complexSearchRequest.hashCode(), clonedComplexRequest.hashCode());
+        assertNotSame(complexSearchRequest, clonedComplexRequest);
+        assertEquals(fetchSourceContext, clonedComplexRequest.source().fetchSource());
+        assertNotSame(fetchSourceContext, clonedComplexRequest.source().fetchSource());
+        // Change the value of the original includes array and excludes array
+        includes[0] = "new_field1.*";
+        excludes[0] = "new_field2.*";
+        // Values in the original fetchSource object should be updated
+        assertEquals("new_field1.*", complexSearchRequest.source().fetchSource().includes()[0]);
+        assertEquals("new_field2.*", complexSearchRequest.source().fetchSource().excludes()[0]);
+        // Values in the cloned fetchSource object should not be updated
+        assertEquals("field1.*", clonedComplexRequest.source().fetchSource().includes()[0]);
+        assertEquals("field2.*", clonedComplexRequest.source().fetchSource().excludes()[0]);
     }
 
     public void testWithLocalReduction() {

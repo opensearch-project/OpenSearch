@@ -40,8 +40,11 @@ import org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedRespon
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * The portion of an HTTP request to OpenSearch that can be
@@ -53,18 +56,21 @@ public final class RequestOptions {
      */
     public static final RequestOptions DEFAULT = new Builder(
         Collections.emptyList(),
+        Collections.emptyMap(),
         HeapBufferedResponseConsumerFactory.DEFAULT,
         null,
         null
     ).build();
 
     private final List<Header> headers;
+    private final Map<String, String> parameters;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
     private final WarningsHandler warningsHandler;
     private final RequestConfig requestConfig;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
+        this.parameters = Collections.unmodifiableMap(new HashMap<>(builder.parameters));
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
         this.warningsHandler = builder.warningsHandler;
         this.requestConfig = builder.requestConfig;
@@ -74,7 +80,7 @@ public final class RequestOptions {
      * Create a builder that contains these options but can be modified.
      */
     public Builder toBuilder() {
-        return new Builder(headers, httpAsyncResponseConsumerFactory, warningsHandler, requestConfig);
+        return new Builder(headers, parameters, httpAsyncResponseConsumerFactory, warningsHandler, requestConfig);
     }
 
     /**
@@ -82,6 +88,14 @@ public final class RequestOptions {
      */
     public List<Header> getHeaders() {
         return headers;
+    }
+
+    /**
+     * Query parameters to attach to the request. Any parameters present here
+     * will override matching parameters in the {@link Request}, if they exist.
+     */
+    public Map<String, String> getParameters() {
+        return parameters;
     }
 
     /**
@@ -142,6 +156,12 @@ public final class RequestOptions {
                 b.append(headers.get(h).toString());
             }
         }
+        if (parameters.size() > 0) {
+            if (comma) b.append(", ");
+            comma = true;
+            b.append("parameters=");
+            b.append(parameters.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(",")));
+        }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
             if (comma) b.append(", ");
             comma = true;
@@ -170,6 +190,7 @@ public final class RequestOptions {
 
         RequestOptions other = (RequestOptions) obj;
         return headers.equals(other.headers)
+            && parameters.equals(other.parameters)
             && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
             && Objects.equals(warningsHandler, other.warningsHandler);
     }
@@ -179,7 +200,7 @@ public final class RequestOptions {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(headers, httpAsyncResponseConsumerFactory, warningsHandler);
+        return Objects.hash(headers, parameters, httpAsyncResponseConsumerFactory, warningsHandler);
     }
 
     /**
@@ -189,17 +210,20 @@ public final class RequestOptions {
      */
     public static class Builder {
         private final List<Header> headers;
+        private final Map<String, String> parameters;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
         private WarningsHandler warningsHandler;
         private RequestConfig requestConfig;
 
         private Builder(
             List<Header> headers,
+            Map<String, String> parameters,
             HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
             WarningsHandler warningsHandler,
             RequestConfig requestConfig
         ) {
             this.headers = new ArrayList<>(headers);
+            this.parameters = new HashMap<>(parameters);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
             this.warningsHandler = warningsHandler;
             this.requestConfig = requestConfig;
@@ -223,6 +247,21 @@ public final class RequestOptions {
             Objects.requireNonNull(name, "header name cannot be null");
             Objects.requireNonNull(value, "header value cannot be null");
             this.headers.add(new ReqHeader(name, value));
+            return this;
+        }
+
+        /**
+         * Add the provided query parameter to the request. Any parameters added here
+         * will override matching parameters in the {@link Request}, if they exist.
+         *
+         * @param name  the query parameter name
+         * @param value the query parameter value
+         * @throws NullPointerException if {@code name} or {@code value} is null.
+         */
+        public Builder addParameter(String name, String value) {
+            Objects.requireNonNull(name, "query parameter name cannot be null");
+            Objects.requireNonNull(value, "query parameter value cannot be null");
+            this.parameters.put(name, value);
             return this;
         }
 

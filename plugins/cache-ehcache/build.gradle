@@ -24,6 +24,7 @@ versions << [
 
 dependencies {
   api "org.ehcache:ehcache:${versions.ehcache}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
 }
 
 thirdPartyAudit {
@@ -78,10 +79,9 @@ thirdPartyAudit {
     'org.osgi.framework.BundleActivator',
     'org.osgi.framework.BundleContext',
     'org.osgi.framework.ServiceReference',
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory',
-    'org.slf4j.Marker',
-    'org.slf4j.event.Level'
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder'
   )
 }
 
@@ -89,14 +89,4 @@ tasks.named("bundlePlugin").configure {
   from('config/cache-ehcache') {
     into 'config'
   }
-}
-
-test {
-  // TODO: Adding permission in plugin-security.policy doesn't seem to work.
-  systemProperty 'tests.security.manager', 'false'
-}
-
-internalClusterTest {
-  // TODO: Remove this later once we have a way.
-  systemProperty 'tests.security.manager', 'false'
 }

@@ -7,7 +7,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
-    if: ${{ github.actor == 'dependabot[bot]' }}
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
       - name: GitHub App token
         id: github_app_token
@@ -21,6 +21,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ steps.github_app_token.outputs.token }}
+
+      # See please https://docs.gradle.org/8.10/userguide/upgrading_version_8.html#minimum_daemon_jvm_version
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
 
       - name: Update Gradle SHAs
         run: |
