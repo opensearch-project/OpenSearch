@@ -28,10 +28,10 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
     protected QueryGroupStats createTestInstance() {
         Map<String, QueryGroupStats.QueryGroupStatsHolder> stats = new HashMap<>();
         stats.put(randomAlphaOfLength(10), new QueryGroupStats.QueryGroupStatsHolder(
-            randomLong(),
-            randomLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             Map.of(
-                ResourceType.CPU, new QueryGroupStats.ResourceStats(randomDoubleBetween(0.0, 0.90, false), randomLong())
+                ResourceType.CPU, new QueryGroupStats.ResourceStats(randomDoubleBetween(0.0, 0.90, false), randomNonNegativeLong())
             )));
         return new QueryGroupStats(stats);
     }

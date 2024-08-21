@@ -17,6 +17,7 @@ import org.opensearch.search.ResourceType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * {
@@ -56,6 +57,20 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             builder.endObject();
         }
         return builder;
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        QueryGroupStats that = (QueryGroupStats) o;
+        return Objects.equals(stats, that.stats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(stats);
     }
 
     /**
@@ -113,6 +128,19 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             }
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            QueryGroupStatsHolder that = (QueryGroupStatsHolder) o;
+            return completions == that.completions && rejections == that.rejections && Objects.equals(resourceStats, that.resourceStats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(completions, rejections, resourceStats);
+        }
     }
 
     /**
@@ -156,6 +184,19 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             builder.field(CURRENT_USAGE, currentUsage);
             builder.field(CANCELLATIONS, cancellations);
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ResourceStats that = (ResourceStats) o;
+            return (currentUsage- that.currentUsage) < 1e-9 && cancellations == that.cancellations;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(currentUsage, cancellations);
         }
     }
 }

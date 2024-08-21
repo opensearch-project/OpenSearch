@@ -42,16 +42,14 @@ import static org.mockito.Mockito.when;
 
 public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCase {
     TestThreadPool threadPool;
-    TaskManager taskManager;
     TaskResourceTrackingService mockTaskResourceTrackingService;
     QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService;
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(taskManager, mockTaskResourceTrackingService);
+        queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(mockTaskResourceTrackingService);
     }
 
     @After

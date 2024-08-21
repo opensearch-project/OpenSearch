@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * This class will keep the point in time view of the query group stats
  */
-public class QueryGroupsState {
+public class QueryGroupState {
     /**
      * completions at the query group level, this is a cumulative counter since the Opensearch start time
      */
@@ -29,22 +29,43 @@ public class QueryGroupsState {
     private final AtomicLong rejections = new AtomicLong();
 
     /**
+     * this will track the cumulative failures in a query group
+     */
+    private final AtomicLong failures = new AtomicLong();
+
+    /**
      * This is used to store the resource type state both for CPU and MEMORY
      */
     private final Map<ResourceType, ResourceTypeState> resourceState;
 
-    public QueryGroupsState() {
+    public QueryGroupState() {
         resourceState = new EnumMap<>(ResourceType.class);
         resourceState.put(ResourceType.CPU, new ResourceTypeState(ResourceType.CPU));
         resourceState.put(ResourceType.MEMORY, new ResourceTypeState(ResourceType.MEMORY));
     }
 
+    /**
+     *
+     * @return completions in the query group
+     */
     public long getCompletions() {
         return completions.get();
     }
 
+    /**
+     *
+     * @return rejections in the query group
+     */
     public long getRejections() {
         return rejections.get();
+    }
+
+    /**
+     *
+     * @return failures in the query group
+     */
+    public long getFailures() {
+        return failures.get();
     }
 
     /**
@@ -68,6 +89,14 @@ public class QueryGroupsState {
      */
     public void incrementRejections() {
         rejections.incrementAndGet();
+    }
+
+
+    /**
+     * this is a call back to increment failures for a query group
+     */
+    public void incrementFailures() {
+        failures.incrementAndGet();
     }
 
     /**
