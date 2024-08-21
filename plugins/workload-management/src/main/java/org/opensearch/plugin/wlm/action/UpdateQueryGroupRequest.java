@@ -75,11 +75,8 @@ public class UpdateQueryGroupRequest extends ActionRequest {
         } else {
             resourceLimits = new HashMap<>();
         }
-        if (in.readBoolean()) {
-            resiliencyMode = ResiliencyMode.fromName(in.readString());
-        } else {
-            resiliencyMode = null;
-        }
+        String updatedResiliencyMode = in.readOptionalString();
+        resiliencyMode = updatedResiliencyMode == null ? null : ResiliencyMode.fromName(updatedResiliencyMode);
         updatedAtInMillis = in.readLong();
     }
 
@@ -141,12 +138,7 @@ public class UpdateQueryGroupRequest extends ActionRequest {
             out.writeBoolean(true);
             out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeDouble);
         }
-        if (resiliencyMode == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(resiliencyMode.getName());
-        }
+        out.writeOptionalString(resiliencyMode == null ? null : resiliencyMode.getName());
         out.writeLong(updatedAtInMillis);
     }
 }
