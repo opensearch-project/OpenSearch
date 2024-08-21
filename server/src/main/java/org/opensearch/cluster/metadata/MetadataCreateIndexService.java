@@ -77,6 +77,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -148,7 +149,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
-import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findContextTemplate;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findContextTemplateName;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
@@ -563,7 +564,7 @@ public class MetadataCreateIndexService {
         Settings.Builder settingsBuilder
     ) throws IOException {
         if (request.context() != null) {
-            String contextTemplate = MetadataIndexTemplateService.findContextTemplate(currentState.metadata(), request.context());
+            String contextTemplate = MetadataIndexTemplateService.findContextTemplateName(currentState.metadata(), request.context());
             ComponentTemplate componentTemplate = currentState.metadata().componentTemplates().get(contextTemplate);
 
             if (componentTemplate.template().mappings() != null) {
@@ -572,15 +573,34 @@ public class MetadataCreateIndexService {
             }
 
             if (componentTemplate.template().settings() != null) {
+                validateOverlap(settingsBuilder.keys(), componentTemplate.template().settings(), request.index()).ifPresent(message -> {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationError(message);
+                    throw validationException;
+                });
                 // Settings applied at last
                 settingsBuilder.put(componentTemplate.template().settings());
             }
 
             settingsBuilder.put(IndexSettings.INDEX_CONTEXT_CREATED_VERSION.getKey(), componentTemplate.version());
+            settingsBuilder.put(IndexSettings.INDEX_CONTEXT_CURRENT_VERSION.getKey(), componentTemplate.version());
 
             return componentTemplate.template();
         }
         return null;
+    }
+
+    static Optional<String> validateOverlap(Set<String> requestSettings, Settings contextTemplateSettings, String indexName) {
+        if (requestSettings.stream().anyMatch(contextTemplateSettings::hasValue)) {
+            return Optional.of(
+                "Cannot apply context template as user provide settings have overlap with the included context template."
+                    + "Please remove the settings ["
+                    + Sets.intersection(requestSettings, contextTemplateSettings.keySet())
+                    + "] to continue using the context for index: "
+                    + indexName
+            );
+        }
+        return Optional.empty();
     }
 
     /**
@@ -1760,7 +1780,7 @@ public class MetadataCreateIndexService {
             );
         }
 
-        if (request.context() != null && findContextTemplate(clusterState.metadata(), request.context()) == null) {
+        if (request.context() != null && findContextTemplateName(clusterState.metadata(), request.context()) == null) {
             throw new InvalidIndexContextException(
                 request.context().name(),
                 request.index(),

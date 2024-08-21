@@ -742,6 +742,15 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Long> INDEX_CONTEXT_CURRENT_VERSION = Setting.longSetting(
+        "index.context.current_version",
+        0,
+        0,
+        Property.PrivateIndex,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
