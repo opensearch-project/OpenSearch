@@ -83,7 +83,7 @@ public interface Writeable {
 
         public static void registerClassAlias(final Class<?> classInstance, final Class<?> classGeneric) {
             if (WRITER_CUSTOM_CLASS_MAP.putIfAbsent(classInstance, classGeneric) != null) {
-                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getClass() + "]");
+                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance + "]");
             }
         }
 
