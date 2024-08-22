@@ -174,6 +174,7 @@ import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportSettings;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -762,6 +763,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
+
+                // WorkloadManagement settings
+                WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING
