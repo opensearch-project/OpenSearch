@@ -46,7 +46,7 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
     @Override
     public void serialize(SearchHit object, StreamOutput out) throws SerDe.SerializationException {
         try {
-            object.writeTo(out);
+            toStream(object, out);
         } catch (IOException e) {
             throw new SerDe.SerializationException("Failed to serialize FetchSearchResult", e);
         }
