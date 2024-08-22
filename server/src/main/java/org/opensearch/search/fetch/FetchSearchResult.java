@@ -40,6 +40,8 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.fetch.serde.FetchSearchResultsSerDe;
+import org.opensearch.search.fetch.serde.SearchHitsSerDe;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 
@@ -59,10 +61,22 @@ public class FetchSearchResult extends SearchPhaseResult {
 
     public FetchSearchResult() {}
 
+    /**
+     * Preserving for compatibility.
+     * Going forward deserialize with dedicated FetchSearchResultsSerDe.
+     */
     public FetchSearchResult(StreamInput in) throws IOException {
-        super(in);
-        contextId = new ShardSearchContextId(in);
-        hits = new SearchHits(in);
+        this(new FetchSearchResultsSerDe().deserialize(in));
+    }
+
+    public FetchSearchResult(FetchSearchResult result) {
+        this.contextId = result.contextId;
+        this.hits = result.hits;
+    }
+
+    public FetchSearchResult(ShardSearchContextId id, SearchHits hits) throws IOException {
+        this.contextId = id;
+        this.hits = hits;
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -128,9 +142,13 @@ public class FetchSearchResult extends SearchPhaseResult {
         return counter++;
     }
 
+    /**
+     * Preserving for compatibility.
+     * Going forward serialize with dedicated FetchSearchResultsSerDe.
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        contextId.writeTo(out);
-        hits.writeTo(out);
+        FetchSearchResultsSerDe serDe = new FetchSearchResultsSerDe();
+        serDe.serialize(this, out);
     }
 }

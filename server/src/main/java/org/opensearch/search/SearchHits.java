@@ -171,7 +171,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     /**
      * Preserving for compatibility.
-     * Going forward deserialize with dedicated SearchHitSerDe.
+     * Going forward deserialize with dedicated SearchHitsSerDe.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
