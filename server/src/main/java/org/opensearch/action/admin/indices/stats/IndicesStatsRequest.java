@@ -58,8 +58,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     private CommonStatsFlags flags = new CommonStatsFlags();
 
-    private boolean isCancellationTaskRequired = false;
-
     public IndicesStatsRequest() {
         super((String[]) null);
     }
@@ -109,13 +107,9 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
-    public void setIsCancellationTaskRequired(boolean isCancellationTaskRequired) {
-        this.isCancellationTaskRequired = isCancellationTaskRequired;
-    }
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        if (this.isCancellationTaskRequired) {
+        if (this.getShouldCancelOnTimeout()) {
             return new ClusterAdminTask(id, type, action, parentTaskId, headers);
         } else {
             return super.createTask(id, type, action, parentTaskId, headers);

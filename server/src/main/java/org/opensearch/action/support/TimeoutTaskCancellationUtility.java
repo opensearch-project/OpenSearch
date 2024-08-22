@@ -38,13 +38,14 @@ public class TimeoutTaskCancellationUtility {
 
     private static final Logger logger = LogManager.getLogger(TimeoutTaskCancellationUtility.class);
 
+    private static final AtomicBoolean executeResponseOrFailureOnce = new AtomicBoolean(true);
+
     /**
      * Wraps a listener with a timeout listener {@link TimeoutRunnableListener} to schedule the task cancellation for provided tasks on
      * generic thread pool
      * @param client - {@link NodeClient}
      * @param taskToCancel - task to schedule cancellation for
      * @param timeout - {@link TimeValue}
-     * @param failWhenTaskCancelled - boolean to indicate if exception should be thrown when task is cancelled
      * @param listener - original listener associated with the task
      * @return wrapped listener
      */
@@ -52,8 +53,8 @@ public class TimeoutTaskCancellationUtility {
         NodeClient client,
         CancellableTask taskToCancel,
         TimeValue timeout,
-        boolean failWhenTaskCancelled,
-        ActionListener<Response> listener
+        ActionListener<Response> listener,
+        ActionListener<Response> cancelListener
     ) {
         final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? timeout : taskToCancel.getCancellationTimeout();
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
@@ -79,9 +80,7 @@ public class TimeoutTaskCancellationUtility {
                                 timeoutInterval,
                                 cancelTasksRequest.getTaskId()
                             );
-                            if (failWhenTaskCancelled) {
-                                listener.onFailure(new TaskCancelledException(cancelTasksRequest.getReason()));
-                            }
+                            cancelListener.onFailure(new TaskCancelledException(cancelTasksRequest.getReason()));
                         }
 
                         @Override
@@ -107,24 +106,23 @@ public class TimeoutTaskCancellationUtility {
     }
 
     /**
-    * Wraps a listener with a timeout listener {@link TimeoutRunnableListener} to schedule the task cancellation for provided tasks on
-    * generic thread pool
-    * @param task - {@link CancellableTask}
-    * @param listener - original listener associated with the task
-    * @return wrapped listener
+     * Wraps a listener with a check to execute the response or failure only once
+     * @param <T> - response type
+     * @param listener - original listener associated with the task
+     * @return wrapped listener
     */
-    public static <T> ActionListener<T> wrapWithCancellationCheck(CancellableTask task, ActionListener<T> listener) {
+    public static <T> ActionListener<T> wrapWithSingleExecution(ActionListener<T> listener) {
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {
-                if (!task.isCancelled()) {
+                if (executeResponseOrFailureOnce.compareAndSet(true, false)) {
                     listener.onResponse(response);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (!task.isCancelled()) {
+                if (executeResponseOrFailureOnce.compareAndSet(true, false)) {
                     listener.onFailure(e);
                 }
             }
@@ -175,6 +173,7 @@ public class TimeoutTaskCancellationUtility {
                 if (executeRunnable.compareAndSet(true, false)) {
                     timeoutRunnable.run();
                 } // else do nothing since either response/failure is already sent to client
+
             } catch (Exception ex) {
                 // ignore the exception
                 logger.error(

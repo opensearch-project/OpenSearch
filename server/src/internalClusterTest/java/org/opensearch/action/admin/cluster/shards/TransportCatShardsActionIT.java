@@ -13,6 +13,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -26,8 +27,6 @@ import java.util.concurrent.CountDownLatch;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.fail;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
 public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
@@ -103,20 +102,22 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         }).start();
 
         final CatShardsRequest shardsRequest = new CatShardsRequest();
-        shardsRequest.setCancelAfterTimeInterval(timeValueMillis(1000));
+        TimeValue timeoutInterval = timeValueMillis(1000);
+        shardsRequest.setCancelAfterTimeInterval(timeoutInterval);
         shardsRequest.setClusterManagerNodeTimeout(timeValueMillis(2500));
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
         client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
             @Override
             public void onResponse(CatShardsResponse catShardsResponse) {
                 // onResponse should not be called.
-                fail();
                 latch.countDown();
+                throw new AssertionError("The cat shards action is expected to fail with a TaskCancelledException, but it received a successful response instead.");
             }
 
             @Override
             public void onFailure(Exception e) {
                 assertSame(e.getClass(), TaskCancelledException.class);
+                assertEquals(e.getMessage(), "Cancellation timeout of " + timeoutInterval + " is expired");
                 latch.countDown();
             }
         });

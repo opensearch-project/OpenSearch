@@ -40,31 +40,33 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
     @Override
     public void doExecute(Task parentTask, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.setIsCancellationTaskRequired(true);
+        clusterStateRequest.setShouldCancelOnTimeout(true);
         clusterStateRequest.local(shardsRequest.getLocal());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.getClusterManagerNodeTimeout());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
 
         clusterStateRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
-        listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+
+        ActionListener<CatShardsResponse> cancellableListener = TimeoutTaskCancellationUtility.wrapWithSingleExecution(
+            listener
+        );
+        ActionListener<CatShardsResponse> cancellableListenerTemp = cancellableListener;
+        cancellableListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
             client,
             (CancellableTask) parentTask,
             ((CancellableTask) parentTask).getCancellationTimeout(),
-            true,
-            listener
+            cancellableListener,
+            ActionListener.wrap(r -> {}, cancellableListenerTemp::onFailure)
         );
         CatShardsResponse catShardsResponse = new CatShardsResponse();
-        ActionListener<CatShardsResponse> cancellableListener = TimeoutTaskCancellationUtility.wrapWithCancellationCheck(
-            (CancellableTask) parentTask,
-            listener
-        );
+        ActionListener<CatShardsResponse> finalCancellableListener = cancellableListener;
         try {
             client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
                 @Override
                 public void onResponse(ClusterStateResponse clusterStateResponse) {
                     catShardsResponse.setClusterStateResponse(clusterStateResponse);
                     IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                    indicesStatsRequest.setIsCancellationTaskRequired(true);
+                    indicesStatsRequest.setShouldCancelOnTimeout(true);
                     indicesStatsRequest.all();
                     indicesStatsRequest.indices(shardsRequest.getIndices());
                     indicesStatsRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
@@ -73,26 +75,26 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 catShardsResponse.setIndicesStatsResponse(indicesStatsResponse);
-                                cancellableListener.onResponse(catShardsResponse);
+                                finalCancellableListener.onResponse(catShardsResponse);
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                cancellableListener.onFailure(e);
+                                finalCancellableListener.onFailure(e);
                             }
                         });
                     } catch (Exception e) {
-                        cancellableListener.onFailure(e);
+                        finalCancellableListener.onFailure(e);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    cancellableListener.onFailure(e);
+                    finalCancellableListener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            cancellableListener.onFailure(e);
+            finalCancellableListener.onFailure(e);
         }
 
     }

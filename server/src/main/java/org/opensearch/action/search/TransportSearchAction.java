@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -313,8 +314,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 client,
                 (CancellableTask) task,
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
-                false,
-                listener
+                listener,
+                ActionListener.wrap(r->{}, e->{})
             );
         }
         executeRequest(task, searchRequest, this::searchAsyncAction, listener);

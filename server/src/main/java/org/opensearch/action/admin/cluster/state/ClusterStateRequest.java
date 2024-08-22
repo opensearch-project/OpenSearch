@@ -68,8 +68,6 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    private boolean isCancellationTaskRequired = false;
-
     public ClusterStateRequest() {}
 
     public ClusterStateRequest(StreamInput in) throws IOException {
@@ -218,13 +216,9 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         return this;
     }
 
-    public void setIsCancellationTaskRequired(boolean isCancellationTaskRequired) {
-        this.isCancellationTaskRequired = isCancellationTaskRequired;
-    }
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        if (this.isCancellationTaskRequired) {
+        if (this.getShouldCancelOnTimeout()) {
             return new ClusterAdminTask(id, type, action, parentTaskId, headers);
         } else {
             return super.createTask(id, type, action, parentTaskId, headers);

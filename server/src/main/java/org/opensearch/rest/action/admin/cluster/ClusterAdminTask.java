@@ -22,7 +22,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "2.17.0")
 public class ClusterAdminTask extends CancellableTask {
 
     public ClusterAdminTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
