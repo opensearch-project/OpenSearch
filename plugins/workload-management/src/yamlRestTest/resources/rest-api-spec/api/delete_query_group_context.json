@@ -1,0 +1,22 @@
+{
+  "delete_query_group_context": {
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_wlm/query_group/{name}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "QueryGroup name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}
