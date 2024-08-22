@@ -263,7 +263,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
-        TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
@@ -294,7 +293,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                             null
                         )
                     );
-                    tc.increment();
                 }
                 stream.end();
                 lastOffset += offset.endOffset();
