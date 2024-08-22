@@ -66,6 +66,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.search.fetch.serde.SearchHitSerDe;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.transport.RemoteClusterAware;
@@ -204,74 +205,35 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         shard(shardTarget);
     }
 
-    public SearchHit(StreamInput in) throws IOException {
-        docId = -1;
-        score = in.readFloat();
-        id = in.readOptionalText();
-        if (in.getVersion().before(Version.V_2_0_0)) {
-            in.readOptionalText();
-        }
-        nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
-        version = in.readLong();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        source = in.readBytesReference();
-        if (source.length() == 0) {
-            source = null;
-        }
-        if (in.readBoolean()) {
-            explanation = readExplanation(in);
-        }
-        documentFields = in.readMap(StreamInput::readString, DocumentField::new);
-        metaFields = in.readMap(StreamInput::readString, DocumentField::new);
+    public SearchHit(SearchHit hit
+    ) throws IOException {
+        this.docId = hit.docId;
+        this.score = hit.score;
+        this.seqNo = hit.seqNo;
+        this.version = hit.version;
+        this.primaryTerm = hit.primaryTerm;
+        this.id = hit.id;
+        this.source = hit.source;
+        this.explanation = hit.explanation;
+        this.sortValues = hit.sortValues;
+        this.nestedIdentity = hit.nestedIdentity;
+        this.documentFields = hit.documentFields == null ? Collections.emptyMap() : hit.documentFields;
+        this.metaFields = hit.metaFields == null ? Collections.emptyMap() : hit.metaFields;
+        this.highlightFields = hit.highlightFields == null ? Collections.emptyMap() : hit.highlightFields;
+        this.matchedQueries = hit.matchedQueries == null ? Collections.emptyMap() : hit.matchedQueries;
+        this.innerHits = hit.innerHits == null ? Collections.emptyMap() : hit.innerHits;
+        this.sourceAsMap = hit.sourceAsMap == null ? Collections.emptyMap() : hit.sourceAsMap;
 
-        int size = in.readVInt();
-        if (size == 0) {
-            highlightFields = emptyMap();
-        } else if (size == 1) {
-            HighlightField field = new HighlightField(in);
-            highlightFields = singletonMap(field.name(), field);
-        } else {
-            Map<String, HighlightField> highlightFields = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                HighlightField field = new HighlightField(in);
-                highlightFields.put(field.name(), field);
-            }
-            this.highlightFields = unmodifiableMap(highlightFields);
-        }
-
-        sortValues = new SearchSortValues(in);
-
-        size = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
-            if (size > 0) {
-                Map<String, Float> tempMap = in.readMap(StreamInput::readString, StreamInput::readFloat);
-                matchedQueries = tempMap.entrySet()
-                    .stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .collect(
-                        Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue, LinkedHashMap::new)
-                    );
-            }
-        } else {
-            matchedQueries = new LinkedHashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                matchedQueries.put(in.readString(), Float.NaN);
-            }
-        }
         // we call the setter here because that also sets the local index parameter
-        shard(in.readOptionalWriteable(SearchShardTarget::new));
-        size = in.readVInt();
-        if (size > 0) {
-            innerHits = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                String key = in.readString();
-                SearchHits value = new SearchHits(in);
-                innerHits.put(key, value);
-            }
-        } else {
-            innerHits = null;
-        }
+        shard(hit.shard);
+    }
+
+    /**
+     * Preserving this constructor for compatibility.
+     * Going forward deserialize with dedicated SearchHitSerDe object.
+     */
+    public SearchHit(StreamInput in) throws IOException {
+        this(new SearchHitSerDe().deserialize(in));
     }
 
     public interface SerializationAccess {
@@ -314,56 +276,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     public static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
+    /**
+     * Preserving for compatibility.
+     * Going forward serialize with dedicated SearchHitSerDe object.
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(score);
-        out.writeOptionalText(id);
-        if (out.getVersion().before(Version.V_2_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
-        out.writeOptionalWriteable(nestedIdentity);
-        out.writeLong(version);
-        out.writeZLong(seqNo);
-        out.writeVLong(primaryTerm);
-        out.writeBytesReference(source);
-        if (explanation == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            writeExplanation(out, explanation);
-        }
-        out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
-        out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
-        if (highlightFields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(highlightFields.size());
-            for (HighlightField highlightField : highlightFields.values()) {
-                highlightField.writeTo(out);
-            }
-        }
-        sortValues.writeTo(out);
-
-        out.writeVInt(matchedQueries.size());
-        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
-            if (!matchedQueries.isEmpty()) {
-                out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
-            }
-        } else {
-            for (String matchedFilter : matchedQueries.keySet()) {
-                out.writeString(matchedFilter);
-            }
-        }
-        out.writeOptionalWriteable(shard);
-        if (innerHits == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(innerHits.size());
-            for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        }
+        SearchHitSerDe serDe = new SearchHitSerDe();
+        serDe.serialize(this, out);
     }
 
     public int docId() {
