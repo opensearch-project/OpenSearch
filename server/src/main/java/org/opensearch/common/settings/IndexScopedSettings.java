@@ -238,6 +238,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
                 // Settings for concurrent segment search
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING,
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT,
                 IndexSettings.ALLOW_DERIVED_FIELDS,
 
                 // Settings for star tree index
