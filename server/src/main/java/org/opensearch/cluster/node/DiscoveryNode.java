@@ -70,7 +70,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "2.17.0")
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
@@ -369,6 +369,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
+
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
@@ -376,6 +377,26 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(compatibleRole.roleNameAbbreviation());
             out.writeBoolean(compatibleRole.canContainData());
         }
+
+        out.writeVersion(version);
+    }
+
+    public void writeToWithoutAttribute(StreamOutput out) throws IOException {
+        out.writeString(nodeName);
+        out.writeString(nodeId);
+        out.writeString(ephemeralId);
+        out.writeString(hostName);
+        out.writeString(hostAddress);
+        address.writeTo(out);
+        out.writeVInt(0);
+        out.writeVInt(roles.size());
+        for (final DiscoveryNodeRole role : roles) {
+            final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
+            out.writeString(compatibleRole.roleName());
+            out.writeString(compatibleRole.roleNameAbbreviation());
+            out.writeBoolean(compatibleRole.canContainData());
+        }
+
         out.writeVersion(version);
     }
 
@@ -572,7 +593,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
-
         builder.endObject();
         return builder;
     }
