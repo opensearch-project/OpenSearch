@@ -39,6 +39,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
@@ -886,6 +887,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setSnapshots(snapshotName2)
             .get();
         assertTrue(deleteResponse.isAcknowledged());
+
+        // test delete non-existent snapshot
+        assertThrows(
+            SnapshotMissingException.class,
+            () -> client().admin().cluster().prepareDeleteSnapshot(snapshotRepoName, "random-snapshot").setSnapshots(snapshotName2).get()
+        );
+
     }
 
 }
