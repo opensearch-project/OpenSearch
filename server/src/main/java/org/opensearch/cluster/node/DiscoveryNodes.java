@@ -47,7 +47,9 @@ import org.opensearch.core.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -55,6 +57,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Spliterators;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -698,6 +702,24 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         for (DiscoveryNode node : this) {
             node.writeTo(out);
         }
+    }
+
+    public void writeToSorted(StreamOutput out) throws IOException {
+        if (clusterManagerNodeId == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(clusterManagerNodeId);
+        }
+        out.writeVInt(nodes.size());
+
+        TreeSet<DiscoveryNode> sortedNodes = new TreeSet<>(Comparator.comparing(DiscoveryNode::getId));
+        sortedNodes.addAll(nodes.values());
+
+        for (DiscoveryNode node : sortedNodes) {
+            node.writeToSorted(out);
+        }
+
     }
 
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {

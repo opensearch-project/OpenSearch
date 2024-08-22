@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -147,6 +148,14 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         lastCommittedConfiguration.writeTo(out);
         lastAcceptedConfiguration.writeTo(out);
         out.writeCollection(votingConfigExclusions);
+    }
+
+    public void writeToSorted(StreamOutput out) throws IOException {
+        out.writeLong(term);
+        lastCommittedConfiguration.writeToSorted(out);
+        lastAcceptedConfiguration.writeToSorted(out);
+        List<VotingConfigExclusion> sortedList = votingConfigExclusions.stream().sorted(Comparator.comparing(VotingConfigExclusion::getNodeId)).collect(Collectors.toList());
+        out.writeCollection(sortedList);
     }
 
     @Override
@@ -389,6 +398,12 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringArray(nodeIds.toArray(new String[0]));
+        }
+
+        public void writeToSorted(StreamOutput out) throws IOException {
+            String[] nodeIds = this.nodeIds.toArray(new String[0]);
+            Arrays.sort(nodeIds);
+            out.writeStringArray(nodeIds);
         }
 
         public boolean hasQuorum(Collection<String> votes) {

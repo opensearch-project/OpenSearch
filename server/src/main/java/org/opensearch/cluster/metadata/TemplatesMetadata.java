@@ -17,6 +17,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +64,17 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
         for (final IndexTemplateMetadata cursor : templates.values()) {
             cursor.writeTo(out);
         }
+    }
+
+    public void writeToSorted(StreamOutput out) throws IOException {
+        out.writeVInt(templates.size());
+        templates.values().stream().sorted(Comparator.comparing(IndexTemplateMetadata::getName)).forEach(template -> {
+            try {
+                template.writeTo(out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override

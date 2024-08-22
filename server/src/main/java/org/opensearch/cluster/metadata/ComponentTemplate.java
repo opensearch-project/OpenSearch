@@ -133,6 +133,17 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
         }
     }
 
+    public void writeToSorted(StreamOutput out) throws IOException {
+        this.template.writeTo(out);
+        out.writeOptionalVLong(this.version);
+        if (this.metadata == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeMap(this.metadata);
+        }
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(template, version, metadata);

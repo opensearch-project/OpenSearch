@@ -20,6 +20,7 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Manifest;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
@@ -89,6 +90,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.opensearch.cluster.ClusterState.CUSTOM_VALUE_SERIALIZER;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
@@ -1353,8 +1355,8 @@ public class RemoteClusterStateService implements Closeable {
                 includeEphemeral
             );
 
-            if (checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
-                validateClusterStateFromChecksum(manifest.getClusterStateChecksum(), clusterState);
+            if (includeEphemeral && checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
+                validateClusterStateFromChecksum(manifest, clusterState, clusterName, localNodeId, true);
             }
             return clusterState;
         } else {
@@ -1470,25 +1472,102 @@ public class RemoteClusterStateService implements Closeable {
             .build();
 
         if (checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
-            validateClusterStateFromChecksum(manifest.getClusterStateChecksum(), clusterState);
+            validateClusterStateFromChecksum(manifest, clusterState, previousState.getClusterName().value(), localNodeId,false);
         }
         return clusterState;
     }
 
-    void validateClusterStateFromChecksum(ClusterStateChecksum clusterStateChecksum, ClusterState clusterState) {
+    void validateClusterStateFromChecksum(ClusterMetadataManifest manifest, ClusterState clusterState,String clusterName, String localNodeId,  boolean isFullStateDownload) throws IOException {
         ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
-        if (!newClusterStateChecksum.equals(clusterStateChecksum)) {
-            List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(clusterStateChecksum);
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}. Entities failing validation {}",
-                    clusterStateChecksum,
-                    newClusterStateChecksum,
-                    failedValidation
-                )
-            );
-            throw new IllegalStateException("Cluster state checksums do not match. Validation failed for " + failedValidation);
-        }
+            List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(manifest.getClusterStateChecksum());
+            if(!failedValidation.isEmpty()) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}. Entities failing validation {}",
+                        manifest.getClusterStateChecksum(),
+                        newClusterStateChecksum,
+                        failedValidation
+                    )
+                );
+                if(isFullStateDownload) {
+                    throw new IllegalStateException("Cluster state checksums do not match during full state read. Validation failed for " + failedValidation);
+                }
+                //download full cluster state and match against state created for the failing entities
+                ClusterState fullClusterState = readClusterStateInParallel(
+                    ClusterState.builder(new ClusterName(clusterName)).build(),
+                    manifest,
+                    manifest.getClusterUUID(),
+                    localNodeId,
+                    manifest.getIndices(),
+                    manifest.getCustomMetadataMap(),
+                    manifest.getCoordinationMetadata() != null,
+                    manifest.getSettingsMetadata() != null,
+                    manifest.getTransientSettingsMetadata() != null,
+                    manifest.getTemplatesMetadata() != null,
+                     manifest.getDiscoveryNodesMetadata() != null,
+                    manifest.getClusterBlocksMetadata() != null,
+                     manifest.getIndicesRouting(),
+                    manifest.getHashesOfConsistentSettings() != null,
+                    manifest.getClusterStateCustomMap() ,
+                    false,
+                    true
+                );
+                for(String failedEntity : failedValidation) {
+                    switch (failedEntity) {
+                        case ClusterStateChecksum.ROUTING_TABLE_CS:
+                            Diff<RoutingTable> routingTableDiff = fullClusterState.routingTable().diff(clusterState.routingTable());
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in routing table {}", routingTableDiff));
+                            break;
+                        case ClusterStateChecksum.NODES_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in discovery nodes {}",
+                                fullClusterState.nodes().diff(clusterState.nodes())));
+                            break;
+                        case ClusterStateChecksum.BLOCKS_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in cluster blocks {}",
+                                fullClusterState.blocks().diff(clusterState.blocks())));
+                            break;
+                        case ClusterStateChecksum.CUSTOMS_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in cluster state customs {}",
+                                DiffableUtils.diff(clusterState.customs(), fullClusterState.customs(), DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER)));
+                            break;
+                        case ClusterStateChecksum.COORDINATION_MD_CS :
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in coordination md. current md {}, full state md {}",
+                                clusterState.metadata().coordinationMetadata(), fullClusterState.metadata().coordinationMetadata()));
+                            break;
+                        case ClusterStateChecksum.TRANSIENT_SETTINGS_MD_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in transient settings md. current md {}, full state md {}",
+                                clusterState.metadata().transientSettings(), fullClusterState.metadata().transientSettings()));
+
+                            break;
+                        case ClusterStateChecksum.SETTINGS_MD_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in settings md. current md {}, full state md {}",
+                                clusterState.metadata().settings(), fullClusterState.metadata().settings()));
+
+                            break;
+                        case ClusterStateChecksum.HASHES_MD_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in hashes md {}",
+                                ((DiffableStringMap)fullClusterState.metadata().hashesOfConsistentSettings()).diff((DiffableStringMap)clusterState.metadata().hashesOfConsistentSettings())));
+                            break;
+                        case ClusterStateChecksum.TEMPLATES_MD_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in templates md{}",
+                                fullClusterState.metadata().templatesMetadata().diff(clusterState.metadata().templatesMetadata())));
+                            break;
+                        case ClusterStateChecksum.CUSTOM_MD_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in customs md {}",
+                                DiffableUtils.diff(clusterState.metadata().customs(), fullClusterState.metadata().customs(), DiffableUtils.getStringKeySerializer(), Metadata.CUSTOM_VALUE_SERIALIZER)));
+                            break;
+                        case ClusterStateChecksum.INDICES_CS:
+                            logger.error(() -> new ParameterizedMessage("Failing Diff in index md {}",
+                                DiffableUtils.diff(clusterState.metadata().indices(), fullClusterState.metadata().indices(), DiffableUtils.getStringKeySerializer())));
+                            break;
+                            default:
+                            logger.error(() -> new ParameterizedMessage("Unknown failed entity {}",
+                                failedEntity));
+                            break;
+                    }
+                }
+                throw new IllegalStateException("Cluster state checksums do not match during diff read. Validation failed for " + failedValidation);
+            }
     }
 
     /**

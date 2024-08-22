@@ -156,7 +156,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     }
 
-    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+    public static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
 
     public static final String UNKNOWN_UUID = "_na_";
 
@@ -837,6 +837,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             minimumClusterManagerNodesOnPublishingClusterManager = after.minimumClusterManagerNodesOnPublishingClusterManager;
+        }
+
+        @Override
+        public String toString() {
+            return "ClusterStateDiff{" +
+                "toVersion=" + toVersion +
+                ", fromUuid='" + fromUuid + '\'' +
+                ", toUuid='" + toUuid + '\'' +
+                ", clusterName=" + clusterName +
+                ", routingTable=" + routingTable +
+                ", nodes=" + nodes +
+                ", metadata=" + metadata +
+                ", blocks=" + blocks +
+                ", customs=" + customs +
+                ", minimumClusterManagerNodesOnPublishingClusterManager=" + minimumClusterManagerNodesOnPublishingClusterManager +
+                '}';
         }
 
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {

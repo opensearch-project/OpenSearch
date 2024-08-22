@@ -10,8 +10,10 @@ package org.opensearch.gateway.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.DiffableStringMap;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
@@ -25,8 +27,13 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 import com.jcraft.jzlib.JZlib;
 
@@ -44,7 +51,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
     static final String COORDINATION_MD_CS = "coordination_md";
     static final String SETTINGS_MD_CS = "settings_md";
     static final String TRANSIENT_SETTINGS_MD_CS = "transient_settings_md";
-    static final String TEMPLATES_MD_CS = "templated_md";
+    static final String TEMPLATES_MD_CS = "templates_md";
     static final String CUSTOM_MD_CS = "customs_md";
     static final String HASHES_MD_CS = "hashes_md";
     static final String INDICES_CS = "indices_md";
@@ -70,17 +77,18 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             BytesStreamOutput out = new BytesStreamOutput();
             BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out)
         ) {
-            clusterState.routingTable().writeTo(checksumOut);
+            clusterState.routingTable().writeToSorted(checksumOut);
             routingTableChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.nodes().writeTo(checksumOut);
+            clusterState.nodes().writeToSorted(checksumOut);
             nodesChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.coordinationMetadata().writeTo(checksumOut);
+            clusterState.coordinationMetadata().writeToSorted(checksumOut);
             coordinationMetadataChecksum = checksumOut.getChecksum();
 
+            //Settings create sortedMap by default, so no explicit sorting required here.
             checksumOut.reset();
             Settings.writeSettingsToStream(clusterState.metadata().persistentSettings(), checksumOut);
             settingMetadataChecksum = checksumOut.getChecksum();
@@ -90,13 +98,13 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             transientSettingsMetadataChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.metadata().templatesMetadata().writeTo(checksumOut);
+            clusterState.metadata().templatesMetadata().writeToSorted(checksumOut);
             templatesMetadataChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.metadata().customs().forEach((key, custom) -> {
+            clusterState.metadata().customs().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
                 try {
-                    custom.writeTo(checksumOut);
+                    entry.getValue().writeTo(checksumOut);
                 } catch (IOException e) {
                     logger.error("Failed to create checksum for custom metadata.", e);
                     throw new RemoteStateTransferException("Failed to create checksum for custom metadata.", e);
@@ -105,13 +113,13 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             customMetadataMapChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(checksumOut);
+            ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeToSorted(checksumOut);
             hashesOfConsistentSettingsChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.metadata().indices().forEach(((s, indexMetadata) -> {
+            clusterState.metadata().indices().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach((entry -> {
                 try {
-                    indexMetadata.writeTo(checksumOut);
+                    entry.getValue().writeToSorted(checksumOut);
                 } catch (IOException e) {
                     logger.error("Failed to create checksum for index metadata.", e);
                     throw new RemoteStateTransferException("Failed to create checksum for index metadata.", e);
@@ -124,9 +132,9 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             blocksChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.customs().forEach((key, value) -> {
+            clusterState.customs().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
                 try {
-                    checksumOut.writeNamedWriteable(value);
+                    checksumOut.writeNamedWriteable(entry.getValue());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -331,9 +339,27 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         );
     }
 
+    @Override
+    public String toString() {
+        return "ClusterStateChecksum{" +
+            "routingTableChecksum=" + routingTableChecksum +
+            ", nodesChecksum=" + nodesChecksum +
+            ", blocksChecksum=" + blocksChecksum +
+            ", clusterStateCustomsChecksum=" + clusterStateCustomsChecksum +
+            ", coordinationMetadataChecksum=" + coordinationMetadataChecksum +
+            ", settingMetadataChecksum=" + settingMetadataChecksum +
+            ", transientSettingsMetadataChecksum=" + transientSettingsMetadataChecksum +
+            ", templatesMetadataChecksum=" + templatesMetadataChecksum +
+            ", customMetadataMapChecksum=" + customMetadataMapChecksum +
+            ", hashesOfConsistentSettingsChecksum=" + hashesOfConsistentSettingsChecksum +
+            ", indicesChecksum=" + indicesChecksum +
+            ", clusterStateChecksum=" + clusterStateChecksum +
+            '}';
+    }
+
     public List<String> getMismatchEntities(ClusterStateChecksum otherClusterStateChecksum) {
         if (this.clusterStateChecksum == otherClusterStateChecksum.clusterStateChecksum) {
-            logger.info("No mismatch in checksums.");
+            logger.debug("No mismatch in checksums.");
             return List.of();
         }
         List<String> mismatches = new ArrayList<>();

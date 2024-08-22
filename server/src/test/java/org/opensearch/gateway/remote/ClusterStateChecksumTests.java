@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -24,6 +25,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -114,6 +116,30 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
         assertEquals(ClusterStateChecksum.INDICES_CS, mismatches.get(10));
     }
 
+    public void testGetMismatchEntitiesUnorderedInput() {
+        ClusterState state1 = generateClusterState();
+        DiscoveryNode node1 = DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1");
+        DiscoveryNode node2 = DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2");
+        DiscoveryNode node3 = DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9202), "node3");
+
+        DiscoveryNodes nodes1 = DiscoveryNodes.builder().clusterManagerNodeId("test-node")
+            .add(node1)
+            .add(node2)
+            .add(node3)
+            .build();
+        DiscoveryNodes nodes2 = DiscoveryNodes.builder().clusterManagerNodeId("test-node")
+            .add(node2)
+            .add(node3)
+            .build();
+        nodes2 = nodes2.newNode(node1);
+        ClusterState state2 = ClusterState.builder(state1).nodes(nodes1).build();
+        ClusterState state3 = ClusterState.builder(state1).nodes(nodes2).build();
+
+        ClusterStateChecksum checksum1 = new ClusterStateChecksum(state2);
+        ClusterStateChecksum checksum2 = new ClusterStateChecksum(state3);
+        assertEquals(checksum2, checksum1);
+    }
+    
     private ClusterState generateClusterState() {
         final Index index = new Index("test-index", "index-uuid");
         final Settings idxSettings = Settings.builder()
@@ -124,6 +150,16 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .build();
+        final Index index2 = new Index("test-index2", "index-uuid2");
+        final Settings idxSettings2 = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index2.getUUID())
+            .put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true)
+            .build();
+        final IndexMetadata indexMetadata2 = new IndexMetadata.Builder(index2.getName()).settings(idxSettings2)
+            .numberOfShards(1)
+            .numberOfReplicas(2)
             .build();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
         final Settings settings = Settings.builder().put("mock-settings", true).build();
@@ -156,7 +192,7 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
             .nodes(DiscoveryNodes.builder().clusterManagerNodeId("test-node").build())
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
             .customs(Map.of(clusterStateCustom1.getWriteableName(), clusterStateCustom1))
-            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).version(1L).build())
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).addAsNew(indexMetadata2).version(1L).build())
             .build();
     }
 }

@@ -87,6 +87,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -1209,6 +1210,66 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (final RolloverInfo cursor : rolloverInfos.values()) {
             cursor.writeTo(out);
         }
+        out.writeBoolean(isSystem);
+    }
+
+    public void writeToSorted(StreamOutput out) throws IOException {
+        out.writeString(index.getName()); // uuid will come as part of settings
+        out.writeLong(version);
+        out.writeVLong(mappingVersion);
+        out.writeVLong(settingsVersion);
+        out.writeVLong(aliasesVersion);
+        out.writeInt(routingNumShards);
+        out.writeByte(state.id());
+        writeSettingsToStream(settings, out);
+        out.writeVLongArray(primaryTerms);
+        out.writeVInt(mappings.size());
+        mappings.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            try {
+                entry.getValue().writeTo(out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        out.writeVInt(aliases.size());
+        aliases.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            try {
+                entry.getValue().writeTo(out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        out.writeVInt(customData.size());
+        customData.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            try {
+                out.writeString(entry.getKey());
+                entry.getValue().writeToSorted(out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        out.writeVInt(inSyncAllocationIds.size());
+        inSyncAllocationIds.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            try {
+                out.writeVInt(entry.getKey());
+                DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(entry.getValue()), out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        out.writeVInt(rolloverInfos.size());
+        rolloverInfos.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            try {
+                entry.getValue().writeTo(out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
         out.writeBoolean(isSystem);
     }
 

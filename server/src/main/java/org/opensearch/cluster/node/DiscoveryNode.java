@@ -47,6 +47,7 @@ import org.opensearch.node.Node;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -369,6 +370,33 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
+        out.writeVInt(roles.size());
+        for (final DiscoveryNodeRole role : roles) {
+            final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
+            out.writeString(compatibleRole.roleName());
+            out.writeString(compatibleRole.roleNameAbbreviation());
+            out.writeBoolean(compatibleRole.canContainData());
+        }
+        out.writeVersion(version);
+    }
+
+    public void writeToSorted(StreamOutput out) throws IOException {
+        out.writeString(nodeName);
+        out.writeString(nodeId);
+        out.writeString(ephemeralId);
+        out.writeString(hostName);
+        out.writeString(hostAddress);
+        address.writeTo(out);
+        out.writeVInt(attributes.size());
+        attributes.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            try {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());

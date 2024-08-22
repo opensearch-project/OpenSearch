@@ -46,6 +46,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -120,6 +121,20 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.componentTemplates, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+    }
+
+    public void writeToSorted(StreamOutput out) throws IOException {
+        out.writeVInt(this.componentTemplates.size());
+        this.componentTemplates.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEachOrdered(entry->
+        {
+            try {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        );
     }
 
     public static ComponentTemplateMetadata fromXContent(XContentParser parser) throws IOException {
