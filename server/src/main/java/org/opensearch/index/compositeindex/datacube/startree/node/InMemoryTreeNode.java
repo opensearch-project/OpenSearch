@@ -14,7 +14,6 @@ import java.util.Map;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
 /**
- * /**
  * Represents a node in a tree data structure, specifically designed for a star-tree implementation.
  * A star-tree node will represent both star and non-star nodes.
  *
@@ -62,6 +61,11 @@ public class InMemoryTreeNode {
      * A map containing the child nodes of this star-tree node, keyed by their dimension id.
      */
     public Map<Long, InMemoryTreeNode> children;
+
+    /**
+     * A map containing the child star node of this star-tree node.
+     */
+    public InMemoryTreeNode childStarNode;
 
     public long getDimensionValue() {
         return dimensionValue;

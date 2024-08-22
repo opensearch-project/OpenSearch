@@ -35,6 +35,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
     InMemoryTreeNode node;
     InMemoryTreeNode starChild;
     InMemoryTreeNode nullChild;
+    InMemoryTreeNode childWithMinus1;
     FixedLengthStarTreeNode starTreeNode;
 
     @Before
@@ -62,7 +63,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         starChild.aggregatedDocId = randomInt();
         starChild.nodeType = (byte) -2;
         starChild.children = new HashMap<>();
-        node.children.put(-1L, starChild);
+        node.childStarNode = starChild;
 
         nullChild = new InMemoryTreeNode();
         nullChild.dimensionId = node.dimensionId + 1;
@@ -74,6 +75,17 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         nullChild.nodeType = (byte) -1;
         nullChild.children = new HashMap<>();
         node.children.put(null, nullChild);
+
+        childWithMinus1 = new InMemoryTreeNode();
+        childWithMinus1.dimensionId = node.dimensionId + 1;
+        childWithMinus1.dimensionValue = -1;
+        childWithMinus1.startDocId = randomInt();
+        childWithMinus1.endDocId = randomInt();
+        childWithMinus1.childDimensionId = -1;
+        childWithMinus1.aggregatedDocId = randomInt();
+        childWithMinus1.nodeType = (byte) -1;
+        childWithMinus1.children = new HashMap<>();
+        node.children.put(-1L, childWithMinus1);
 
         for (int i = 1; i < randomIntBetween(2, 5); i++) {
             InMemoryTreeNode child = new InMemoryTreeNode();
@@ -88,10 +100,10 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
             node.children.put(child.dimensionValue, child);
         }
 
-        long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, node, 1 + node.children.size(), "star-tree");
+        long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, node, 2 + node.children.size(), "star-tree");
 
         // asserting on the actual length of the star tree data file
-        assertEquals(starTreeDataLength, 33L * node.children.size() + 33);
+        assertEquals(starTreeDataLength, 33L * node.children.size() + 2 * 33);
         dataOut.close();
 
         dataIn = directory.openInput("star-tree-data", IOContext.READONCE);
@@ -139,7 +151,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
     }
 
     public void testGetNumChildren() throws IOException {
-        assertEquals(node.children.size(), starTreeNode.getNumChildren());
+        assertEquals(node.children.size(), starTreeNode.getNumChildren() - 1);
     }
 
     public void testIsLeaf() {
@@ -151,8 +163,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
     }
 
     public void testGetChildForDimensionValue() throws IOException {
-        // TODO: Add a test to verify children with star node, null node and default node with default dimension value -1
-        long dimensionValue = randomIntBetween(0, node.children.size() - 3);
+        long dimensionValue = randomIntBetween(-1, node.children.size() - 3);
         FixedLengthStarTreeNode childNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(dimensionValue);
         assertNotNull(childNode);
         assertEquals(dimensionValue, childNode.getDimensionValue());

@@ -24,7 +24,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.fileformats.
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
 /**
- * Utility class for serializing a star-tree data structure.
+ * Utility class for serializing a star-tree data structure.x
  *
  * @opensearch.experimental
  */
@@ -66,21 +66,32 @@ public class StarTreeDataWriter {
         while (!queue.isEmpty()) {
             InMemoryTreeNode node = queue.remove();
 
-            if (node.children == null || node.children.isEmpty()) {
+            if ((node.children == null || node.children.isEmpty()) && node.childStarNode == null) {
                 writeStarTreeNode(output, node, ALL, ALL);
             } else {
 
-                // Sort all children nodes based on dimension value
-                List<InMemoryTreeNode> sortedChildren = new ArrayList<>(node.children.values());
-                sortedChildren.sort(
-                    Comparator.comparingInt(InMemoryTreeNode::getNodeType).thenComparingLong(InMemoryTreeNode::getDimensionValue)
-                );
-
+                int totalNumberOfChildren = 0;
                 int firstChildId = currentNodeId + queue.size() + 1;
-                int lastChildId = firstChildId + sortedChildren.size() - 1;
+
+                if (node.childStarNode != null) {
+                    totalNumberOfChildren++;
+                    queue.add(node.childStarNode);
+                }
+
+                if (node.children != null) {
+                    // Sort all children nodes based on dimension value
+                    List<InMemoryTreeNode> sortedChildren = new ArrayList<>(node.children.values());
+                    sortedChildren.sort(
+                        Comparator.comparingInt(InMemoryTreeNode::getNodeType).thenComparingLong(InMemoryTreeNode::getDimensionValue)
+                    );
+
+                    totalNumberOfChildren = totalNumberOfChildren + sortedChildren.size();
+                    queue.addAll(sortedChildren);
+                }
+
+                int lastChildId = firstChildId + totalNumberOfChildren - 1;
                 writeStarTreeNode(output, node, firstChildId, lastChildId);
 
-                queue.addAll(sortedChildren);
             }
 
             currentNodeId++;

@@ -733,7 +733,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         // Construct star-node if required
         if (!skipStarNodeCreationForDimensions.contains(childDimensionId) && children.size() > 1) {
-            children.put((long) ALL, constructStarNode(startDocId, endDocId, childDimensionId));
+            node.childStarNode = constructStarNode(startDocId, endDocId, childDimensionId);
+        }
+
+        // Further split star node if needed
+        if (node.childStarNode != null && (node.childStarNode.endDocId - node.childStarNode.startDocId > maxLeafDocuments)) {
+            constructStarTree(node.childStarNode, node.childStarNode.startDocId, node.childStarNode.endDocId);
         }
 
         // Further split on child nodes if required
@@ -742,6 +747,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 constructStarTree(child, child.startDocId, child.endDocId);
             }
         }
+
     }
 
     /**
@@ -815,9 +821,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     private StarTreeDocument createAggregatedDocs(InMemoryTreeNode node) throws IOException {
         StarTreeDocument aggregatedStarTreeDocument = null;
-        if (node.children == null) {
 
-            // For leaf node
+        // For leaf node
+        if (node.children == null && node.childStarNode == null) {
+
             if (node.startDocId == node.endDocId - 1) {
                 // If it has only one document, use it as the aggregated document
                 aggregatedStarTreeDocument = getStarTreeDocument(node.startDocId);
@@ -838,15 +845,13 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             }
         } else {
             // For non-leaf node
-            if (node.children.containsKey((long) ALL)) {
+            if (node.childStarNode != null) {
                 // If it has star child, use the star child aggregated document directly
+                aggregatedStarTreeDocument = createAggregatedDocs(node.childStarNode);
+                node.aggregatedDocId = node.childStarNode.aggregatedDocId;
+
                 for (InMemoryTreeNode child : node.children.values()) {
-                    if (child.nodeType == StarTreeNodeType.STAR.getValue()) {
-                        aggregatedStarTreeDocument = createAggregatedDocs(child);
-                        node.aggregatedDocId = child.aggregatedDocId;
-                    } else {
-                        createAggregatedDocs(child);
-                    }
+                    createAggregatedDocs(child);
                 }
             } else {
                 // If no star child exists, aggregate all aggregated documents from non-star children
