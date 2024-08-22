@@ -33,6 +33,9 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryData;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotRestoreException;
@@ -802,6 +805,182 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
         assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+
+    }
+
+    public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
+        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        int concurrentSnapshots = 5;
+
+        // Prepare threads for concurrent snapshot creation
+        List<Thread> threads = new ArrayList<>();
+
+        for (int i = 0; i < concurrentSnapshots; i++) {
+            int snapshotIndex = i;
+            Thread thread = new Thread(() -> {
+                try {
+                    String snapshotName = "snapshot-concurrent-" + snapshotIndex;
+                    CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+                        .cluster()
+                        .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+                        .get();
+                    SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+                    assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+                    assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+                    assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+                    assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName));
+                    assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+                } catch (Exception e) {}
+            });
+            threads.add(thread);
+        }
+        // start all threads
+        for (Thread thread : threads) {
+            thread.start();
+        }
+
+        // Wait for all threads to complete
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        // Validate that all snapshots have been created
+        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
+        PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
+        repository.getRepositoryData(repositoryDataPlainActionFuture);
+
+        RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
+        assertThat(repositoryData.getSnapshotIds().size(), equalTo(1));
+
+    }
+
+    public void testCreateSnapshotV2WithRedIndex() throws Exception {
+        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String indexName3 = "testindex3";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        internalCluster().ensureAtLeastNumDataNodes(0);
+        ensureRed(indexName1);
+        ensureRed(indexName2);
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .get();
+        SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+    }
+
+    public void testCreateSnapshotV2WithIndexingLoad() throws Exception {
+        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        Thread indexingThread = new Thread(() -> {
+            try {
+                for (int i = 0; i < 50; i++) {
+                    internalCluster().client().prepareIndex("test-index-load").setSource("field", "value" + i).execute().actionGet();
+                }
+            } catch (Exception e) {
+                fail("indexing failed due to exception: " + e.getMessage());
+            }
+        });
+
+        // Start indexing
+        indexingThread.start();
+
+        // Wait for a bit to let some documents be indexed
+
+        Thread.sleep(1000);
+
+        // Create a snapshot while indexing is ongoing
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .get();
+
+        SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+        assertTrue(snapshotInfo.indices().contains("test-index-load"));
+        assertTrue(snapshotInfo.indices().contains(indexName1));
+        assertTrue(snapshotInfo.indices().contains(indexName2));
+        indexingThread.join();
 
     }
 
