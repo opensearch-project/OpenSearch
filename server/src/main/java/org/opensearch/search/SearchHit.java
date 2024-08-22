@@ -174,6 +174,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                      long primaryTerm,
                      Text id,
                      BytesReference source,
+                     SearchShardTarget shardTarget,
                      Explanation explanation,
                      SearchSortValues sortValues,
                      SearchHit.NestedIdentity nestedIdentity,
@@ -198,6 +199,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.highlightFields = highlightFields == null ? Collections.emptyMap() : highlightFields;
         this.matchedQueries = matchedQueries == null ? Collections.emptyMap() : matchedQueries;
         this.innerHits = innerHits == null ? Collections.emptyMap() : innerHits;
+
+        // we call the setter here because that also sets the local index parameter
+        shard(shardTarget);
     }
 
     public SearchHit(StreamInput in) throws IOException {
@@ -1129,7 +1133,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             this.child = child;
         }
 
-        NestedIdentity(StreamInput in) throws IOException {
+        public NestedIdentity(StreamInput in) throws IOException {
             field = in.readOptionalText();
             offset = in.readInt();
             child = in.readOptionalWriteable(NestedIdentity::new);

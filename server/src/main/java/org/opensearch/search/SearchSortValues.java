@@ -89,7 +89,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         }
     }
 
-    SearchSortValues(StreamInput in) throws IOException {
+    public SearchSortValues(StreamInput in) throws IOException {
         this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
         this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
     }
