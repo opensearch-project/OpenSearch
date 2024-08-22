@@ -19,6 +19,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 
@@ -36,6 +37,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.fileformats.
 import static org.opensearch.index.mapper.CompositeMappedFieldType.CompositeFieldType.STAR_TREE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -186,19 +188,29 @@ public class StarTreeTestUtils {
             if (starTreeNode.getChildDimensionId() != -1) {
                 assertFalse(sortedChildren.isEmpty());
                 int childCount = 0;
+                boolean childStarNodeAsserted = false;
                 while (expectedChildrenIterator.hasNext()) {
                     StarTreeNode child = expectedChildrenIterator.next();
-                    InMemoryTreeNode resultChildNode = sortedChildren.get(childCount);
-
-                    assertNotNull(resultChildNode);
-                    assertNotNull(child);
-                    assertStarTreeNode(child, resultChildNode);
+                    InMemoryTreeNode resultChildNode = null;
+                    if (!childStarNodeAsserted && rootNode.childStarNode != null) {
+                        // check if star tree node exists
+                        resultChildNode = rootNode.childStarNode;
+                        assertNotNull(child);
+                        assertStarTreeNode(child, resultChildNode);
+                        childStarNodeAsserted = true;
+                    } else {
+                        resultChildNode = sortedChildren.get(childCount);
+                        assertNotNull(child);
+                        assertNotNull(resultChildNode);
+                        assertStarTreeNode(child, resultChildNode);
+                        assertNotEquals(child.getStarTreeNodeType(), StarTreeNodeType.STAR.getValue());
+                        childCount++;
+                    }
 
                     expectedTreeNodeQueue.add(child);
                     resultTreeNodeQueue.add(resultChildNode);
-
-                    childCount++;
                 }
+
                 assertEquals(childCount, rootNode.children.size());
             } else {
                 assertNull(rootNode.children);
@@ -221,7 +233,7 @@ public class StarTreeTestUtils {
         if (starTreeNode.getChildDimensionId() != -1) {
             assertFalse(starTreeNode.isLeaf());
             if (treeNode.children != null) {
-                assertEquals(starTreeNode.getNumChildren(), treeNode.children.values().size());
+                assertEquals(starTreeNode.getNumChildren(), treeNode.children.values().size() + (treeNode.childStarNode != null ? 1 : 0));
             }
         } else {
             assertTrue(starTreeNode.isLeaf());

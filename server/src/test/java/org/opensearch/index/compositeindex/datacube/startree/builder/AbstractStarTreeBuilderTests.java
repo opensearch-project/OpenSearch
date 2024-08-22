@@ -498,7 +498,6 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/14813")
     public void test_sortAndAggregateStarTreeDocuments_nullAndMinusOneInDimensionField() throws IOException {
         int noOfStarTreeDocuments = 5;
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];

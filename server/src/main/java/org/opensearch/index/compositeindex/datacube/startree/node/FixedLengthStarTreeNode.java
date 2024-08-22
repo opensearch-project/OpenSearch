@@ -12,8 +12,6 @@ import org.apache.lucene.store.RandomAccessInput;
 import java.io.IOException;
 import java.util.Iterator;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
-
 /**
  * Fixed Length implementation of {@link StarTreeNode}
  *
@@ -129,7 +127,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
 
     private FixedLengthStarTreeNode handleStarNode() throws IOException {
         FixedLengthStarTreeNode firstNode = new FixedLengthStarTreeNode(in, firstChildId);
-        if (firstNode.getDimensionValue() == ALL) {
+        if (firstNode.getStarTreeNodeType() == StarTreeNodeType.STAR.getValue()) {
             return firstNode;
         } else {
             return null;
