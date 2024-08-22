@@ -1422,7 +1422,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return queryGroups(existing);
         }
 
-        public Map<String, QueryGroup> getQueryGroups() {
+        public Builder remove(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
+            existing.remove(queryGroup.get_id());
+            return queryGroups(existing);
+        }
+
+        private Map<String, QueryGroup> getQueryGroups() {
             return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
                 .map(o -> (QueryGroupMetadata) o)
                 .map(QueryGroupMetadata::queryGroups)
@@ -1825,9 +1832,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
-                    Set<String> conflicts = indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the
-                                                                                                                               // char after
-                                                                                                                               // '-'
+                    Set<String> conflicts = indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".")
                         .keySet()
                         .stream()
                         .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())
