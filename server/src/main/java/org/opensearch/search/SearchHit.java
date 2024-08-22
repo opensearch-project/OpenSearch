@@ -38,6 +38,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -236,6 +237,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this(new SearchHitSerDe().deserialize(in));
     }
 
+    /**
+     * Internal access for serialization interface.
+     * @opensearch.api
+     */
+    @ExperimentalApi
     public interface SerializationAccess {
         float getScore();
         Text getId();

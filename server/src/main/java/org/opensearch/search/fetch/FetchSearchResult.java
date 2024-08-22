@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -69,6 +70,11 @@ public class FetchSearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
     }
 
+    /**
+     * Internal access for serialization interface.
+     * @opensearch.api
+     */
+    @ExperimentalApi
     public interface SerializationAccess {
         ShardSearchContextId getShardSearchContextId();
         SearchHits getHits();
