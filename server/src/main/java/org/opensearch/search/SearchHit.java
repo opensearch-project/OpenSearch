@@ -312,7 +312,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         };
     }
 
-    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
+    public static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.*;
 import static org.opensearch.common.lucene.Lucene.readExplanation;
+import static org.opensearch.common.lucene.Lucene.writeExplanation;
+import static org.opensearch.search.SearchHit.SINGLE_MAPPING_TYPE;
 
 public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.StreamDeserializer<SearchHit> {
 
@@ -153,5 +155,73 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
             matchedQueries,
             innerHits
         );
+    }
+
+    private void toStream(SearchHit object, StreamOutput out) throws IOException {
+        SearchHit.SerializationAccess serI = object.getSerAccess();
+        float score = serI.getScore();
+        long seqNo = serI.getSeqNo();
+        long version = serI.getVersion();
+        long primaryTerm = serI.getPrimaryTerm();
+        Text id = serI.getId();
+        BytesReference source = serI.getSource();
+        SearchShardTarget shard = serI.getShard();
+        Explanation explanation = serI.getExplanation();
+        SearchSortValues sortValues = serI.getSortValues();
+        SearchHit.NestedIdentity nestedIdentity = serI.getNestedIdentity();
+        Map<String, DocumentField> documentFields = serI.getDocumentFields();
+        Map<String, DocumentField> metaFields = serI.getMetaFields();
+        Map<String, HighlightField> highlightFields = serI.getHighlightedFields();
+        Map<String, Float> matchedQueries = serI.getMatchedQueries();
+        Map<String, SearchHits> innerHits = serI.getInnerHits();
+
+        out.writeFloat(score);
+        out.writeOptionalText(id);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeOptionalText(SINGLE_MAPPING_TYPE);
+        }
+        out.writeOptionalWriteable(nestedIdentity);
+        out.writeLong(version);
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
+        out.writeBytesReference(source);
+        if (explanation == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            writeExplanation(out, explanation);
+        }
+        out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        if (highlightFields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(highlightFields.size());
+            for (HighlightField highlightField : highlightFields.values()) {
+                highlightField.writeTo(out);
+            }
+        }
+        sortValues.writeTo(out);
+
+        out.writeVInt(matchedQueries.size());
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
+            if (!matchedQueries.isEmpty()) {
+                out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
+            }
+        } else {
+            for (String matchedFilter : matchedQueries.keySet()) {
+                out.writeString(matchedFilter);
+            }
+        }
+        out.writeOptionalWriteable(shard);
+        if (innerHits == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(innerHits.size());
+            for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
     }
 }
