@@ -8,6 +8,9 @@
 
 package org.opensearch.plugin.wlm.service;
 
+import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -20,6 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -39,6 +43,7 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MEMORY_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MONITOR_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
@@ -48,12 +53,14 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterState;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.preparePersistenceServiceSetup;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupPersistenceService;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
 import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.SOURCE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -297,5 +304,56 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         QueryGroupPersistenceService queryGroupPersistenceService = QueryGroupTestUtils.queryGroupPersistenceService();
         queryGroupPersistenceService.setMaxQueryGroupCount(50);
         assertEquals(50, queryGroupPersistenceService.getMaxQueryGroupCount());
+    }
+
+    /**
+     * Tests delete a single QueryGroup
+     */
+    public void testDeleteSingleQueryGroup() {
+        ClusterState newClusterState = queryGroupPersistenceService().deleteQueryGroupInClusterState(NAME_TWO, clusterState());
+        Map<String, QueryGroup> afterDeletionGroups = newClusterState.getMetadata().queryGroups();
+        assertFalse(afterDeletionGroups.containsKey(_ID_TWO));
+        assertEquals(1, afterDeletionGroups.size());
+        List<QueryGroup> oldQueryGroups = new ArrayList<>();
+        oldQueryGroups.add(queryGroupOne);
+        assertEqualQueryGroups(new ArrayList<>(afterDeletionGroups.values()), oldQueryGroups);
+    }
+
+    /**
+     * Tests delete a QueryGroup with invalid name
+     */
+    public void testDeleteNonExistedQueryGroup() {
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> queryGroupPersistenceService().deleteQueryGroupInClusterState(NAME_NONE_EXISTED, clusterState())
+        );
+    }
+
+    /**
+     * Tests DeleteInClusterStateMetadata function
+     */
+    @SuppressWarnings("unchecked")
+    public void testDeleteInClusterStateMetadata() throws Exception {
+        DeleteQueryGroupRequest request = new DeleteQueryGroupRequest(NAME_ONE);
+        ClusterService clusterService = mock(ClusterService.class);
+
+        ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
+        );
+        doAnswer(invocation -> {
+            AckedClusterStateUpdateTask<?> task = invocation.getArgument(1);
+            ClusterState initialState = clusterState();
+            ClusterState newState = task.execute(initialState);
+            assertNotNull(newState);
+            assertEquals(queryGroupPersistenceService.deleteQueryGroupThrottlingKey, task.getClusterManagerThrottlingKey());
+            task.onAllNodesAcked(null);
+            verify(listener).onResponse(argThat(response -> response.isAcknowledged()));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any());
+        queryGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
+        verify(clusterService).submitStateUpdateTask(eq(SOURCE), any(AckedClusterStateUpdateTask.class));
     }
 }

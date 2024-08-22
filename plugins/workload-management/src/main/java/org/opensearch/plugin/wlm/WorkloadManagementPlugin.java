@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -18,10 +19,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupAction;
+import org.opensearch.plugin.wlm.action.DeleteQueryGroupAction;
 import org.opensearch.plugin.wlm.action.GetQueryGroupAction;
 import org.opensearch.plugin.wlm.action.TransportCreateQueryGroupAction;
+import org.opensearch.plugin.wlm.action.TransportDeleteQueryGroupAction;
 import org.opensearch.plugin.wlm.action.TransportGetQueryGroupAction;
 import org.opensearch.plugin.wlm.rest.RestCreateQueryGroupAction;
+import org.opensearch.plugin.wlm.rest.RestDeleteQueryGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetQueryGroupAction;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
@@ -29,6 +33,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -46,7 +51,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionPlugin.ActionHandler<>(CreateQueryGroupAction.INSTANCE, TransportCreateQueryGroupAction.class),
-            new ActionPlugin.ActionHandler<>(GetQueryGroupAction.INSTANCE, TransportGetQueryGroupAction.class)
+            new ActionPlugin.ActionHandler<>(GetQueryGroupAction.INSTANCE, TransportGetQueryGroupAction.class),
+            new ActionPlugin.ActionHandler<>(DeleteQueryGroupAction.INSTANCE, TransportDeleteQueryGroupAction.class)
         );
     }
 
@@ -60,11 +66,16 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestCreateQueryGroupAction(), new RestGetQueryGroupAction());
+        return List.of(new RestCreateQueryGroupAction(), new RestGetQueryGroupAction(), new RestDeleteQueryGroupAction());
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(QueryGroupPersistenceService.MAX_QUERY_GROUP_COUNT);
+    }
+
+    @Override
+    public Collection<Module> createGuiceModules() {
+        return List.of(new WorkloadManagementPluginModule());
     }
 }
