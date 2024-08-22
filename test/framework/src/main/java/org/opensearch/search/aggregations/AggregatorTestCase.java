@@ -115,6 +115,7 @@ import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ObjectMapper.Nested;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
+import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
@@ -202,6 +203,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         denylist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
         denylist.add(DerivedFieldMapper.CONTENT_TYPE); // TODO support derived fields
+        denylist.add(StarTreeMapper.CONTENT_TYPE); // TODO evaluate support for star tree fields
         TYPE_TEST_DENYLIST = denylist;
     }
 

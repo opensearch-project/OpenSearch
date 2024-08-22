@@ -117,6 +117,7 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
@@ -767,7 +768,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
-                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
+
+                // Composite index settings
+                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING
             )
         )
     );
