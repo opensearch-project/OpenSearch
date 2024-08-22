@@ -41,7 +41,6 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.serde.FetchSearchResultsSerDe;
-import org.opensearch.search.fetch.serde.SearchHitsSerDe;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 

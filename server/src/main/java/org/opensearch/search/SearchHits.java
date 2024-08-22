@@ -38,7 +38,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -46,7 +45,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.opensearch.search.fetch.serde.SearchHitSerDe;
 import org.opensearch.search.fetch.serde.SearchHitsSerDe;
 
 import java.io.IOException;
@@ -106,12 +104,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     }
 
     public SearchHits(SearchHits SrchHits) {
-        this(SrchHits.hits,
-            SrchHits.totalHits,
-            SrchHits.maxScore,
-            SrchHits.sortFields,
-            SrchHits.collapseField,
-            SrchHits.collapseValues);
+        this(SrchHits.hits, SrchHits.totalHits, SrchHits.maxScore, SrchHits.sortFields, SrchHits.collapseField, SrchHits.collapseValues);
     }
 
     /**
