@@ -45,7 +45,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
 
     private long[] docCount = { 0 };
 
-    private final PointRangeQuery pointRangeQuery;
+    public final PointRangeQuery pointRangeQuery;
 
     protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims) {
         this(field, lowerPoint, upperPoint, numDims, 10_000, null);
@@ -425,6 +425,9 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
     @Override
     public boolean canApproximate(SearchContext context) {
         if (context == null) {
+            return false;
+        }
+        if (context.aggregations() != null) {
             return false;
         }
         if (!(context.query() instanceof IndexOrDocValuesQuery

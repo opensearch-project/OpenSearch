@@ -114,6 +114,14 @@ public final class ApproximateScoreQuery extends Query {
             public boolean isCacheable(LeafReaderContext leafReaderContext) {
                 return originalQueryWeight.isCacheable(leafReaderContext);
             }
+
+            @Override
+            public int count(LeafReaderContext leafReaderContext) throws IOException {
+                if (approximationQuery.canApproximate(context)) {
+                    return approximationQueryWeight.count(leafReaderContext);
+                }
+                return originalQueryWeight.count(leafReaderContext);
+            }
         };
     }
 

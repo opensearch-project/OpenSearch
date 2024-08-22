@@ -23,6 +23,8 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -123,6 +125,18 @@ final class Helper {
             final long[] indexBounds = getShardBounds(leaves, fieldName);
             if (indexBounds == null) return null;
             return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
+        } else if (cq instanceof ApproximateScoreQuery) {
+            final ApproximateScoreQuery asq = (ApproximateScoreQuery) cq;
+            final long[] indexBounds = getShardBounds(leaves, fieldName);
+            if (indexBounds == null) return null;
+            if ((asq.getApproximationQuery() instanceof ApproximatePointRangeQuery)) {
+                ApproximatePointRangeQuery aprq = (ApproximatePointRangeQuery) asq.getApproximationQuery();
+                if (aprq.canApproximate(context)) {
+                    return getBoundsWithRangeQuery(aprq.pointRangeQuery, fieldName, indexBounds);
+                }
+                final PointRangeQuery prq = (PointRangeQuery) asq.getOriginalQuery();
+                return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
+            }
         } else if (cq instanceof MatchAllDocsQuery) {
             return getShardBounds(leaves, fieldName);
         } else if (cq instanceof FieldExistsQuery) {
