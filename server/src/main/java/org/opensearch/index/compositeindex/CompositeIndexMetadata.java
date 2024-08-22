@@ -13,7 +13,7 @@ import org.opensearch.index.mapper.CompositeMappedFieldType;
 /**
  * This class represents the metadata of a Composite Index, which includes information about
  * the composite field name, type, and the specific metadata for the type of composite field
- * (e.g., Tree metadata).
+ * (e.g., Star Tree metadata).
  *
  * @opensearch.experimental
  */

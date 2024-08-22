@@ -19,7 +19,7 @@ public class CompositeIndexConstants {
     public static final long COMPOSITE_FIELD_MARKER = 0xC0950513F1E1DL; // Composite Field
 
     /**
-     * Represents the key to fetch number of documents in a segment.
+     * Represents the key to fetch number of non-star aggregated segment documents.
      */
     public static final String SEGMENT_DOCS_COUNT = "segmentDocsCount";
 

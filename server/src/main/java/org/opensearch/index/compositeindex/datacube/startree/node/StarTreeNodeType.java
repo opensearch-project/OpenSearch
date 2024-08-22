@@ -98,6 +98,6 @@ public enum StarTreeNodeType {
                 return nodeType;
             }
         }
-        return null;
+        throw new IllegalStateException("Unrecognized value byte to determine star-tree node type: [" + value + "]");
     }
 }

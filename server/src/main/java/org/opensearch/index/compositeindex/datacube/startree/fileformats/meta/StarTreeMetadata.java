@@ -29,22 +29,67 @@ import java.util.Set;
  */
 public class StarTreeMetadata extends CompositeIndexMetadata {
     private static final Logger logger = LogManager.getLogger(StarTreeMetadata.class);
+
+    /**
+     * The index input for reading metadata from the segment file.
+     */
     private final IndexInput meta;
+
+    /**
+     * The name of the star-tree field, used to identify the star-tree.
+     */
     private final String starTreeFieldName;
+
+    /**
+     * The type of the star-tree field, indicating the specific implementation or version.
+     * Here, STAR_TREE field.
+     */
     private final String starTreeFieldType;
+
+    /**
+     * List of dimension fields used in the star-tree.
+     */
     private final List<String> dimensionFields;
+
+    /**
+     * List of metric entries, containing field names and associated metric statistic.
+     */
     private final List<MetricEntry> metricEntries;
+
+    /**
+     * The total number of documents aggregated in this star-tree segment.
+     */
     private final Integer segmentAggregatedDocCount;
+
+    /**
+     * The maximum number of documents allowed in a leaf node.
+     */
     private final Integer maxLeafDocs;
+
+    /**
+     * Set of dimensions for which star node creation should be skipped.
+     */
     private final Set<String> skipStarNodeCreationInDims;
+
+    /**
+     * The build mode used for constructing the star-tree.
+     */
     private final StarTreeFieldConfiguration.StarTreeBuildMode starTreeBuildMode;
+
+    /**
+     * The file pointer to the start of the associated star-tree data in the (.cid) file
+     */
     private final long dataStartFilePointer;
+
+    /**
+     * The length of the star-tree data in bytes, used for reading the correct amount of data from (.cid) file
+     */
     private final long dataLength;
 
     /**
      * A star tree metadata constructor to initialize star tree metadata from the segment file (.cim) using index input.
      *
-     * @param metaIn an index input to read star-tree meta
+     * @param metaIn             an index input to read star-tree meta
      * @param compositeFieldName name of the composite field. Here, name of the star-tree field.
      * @param compositeFieldType type of the composite field. Here, STAR_TREE field.
      * @throws IOException if unable to read star-tree metadata from the file
@@ -74,17 +119,17 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * A star tree metadata constructor to initialize star tree metadata.
      * Used for testing.
      *
-     * @param meta an index input to read star-tree meta
-     * @param compositeFieldName name of the composite field. Here, name of the star-tree field.
-     * @param compositeFieldType type of the composite field. Here, STAR_TREE field.
-     * @param dimensionFields list of dimension fields
-     * @param metricEntries list of metric entries
-     * @param segmentAggregatedDocCount segment aggregated doc count
-     * @param maxLeafDocs max leaf docs
+     * @param meta                       an index input to read star-tree meta
+     * @param compositeFieldName         name of the composite field. Here, name of the star-tree field.
+     * @param compositeFieldType         type of the composite field. Here, STAR_TREE field.
+     * @param dimensionFields            list of dimension fields
+     * @param metricEntries              list of metric entries
+     * @param segmentAggregatedDocCount  segment aggregated doc count
+     * @param maxLeafDocs                max leaf docs
      * @param skipStarNodeCreationInDims set of dimensions to skip star node creation
-     * @param starTreeBuildMode star tree build mode
-     * @param dataStartFilePointer data start file pointer
-     * @param dataLength data length
+     * @param starTreeBuildMode          star tree build mode
+     * @param dataStartFilePointer       star file pointer to the associated star tree data in (.cid) file
+     * @param dataLength                 length of the corresponding star-tree data in (.cid) file
      */
     public StarTreeMetadata(
         String compositeFieldName,

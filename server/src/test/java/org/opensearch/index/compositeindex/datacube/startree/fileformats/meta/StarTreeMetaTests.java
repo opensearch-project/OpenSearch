@@ -120,7 +120,7 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
         metrics = List.of(
             new Metric("field2", List.of(MetricStat.SUM)),
             new Metric("field4", List.of(MetricStat.SUM)),
-            new Metric("field6", List.of(MetricStat.COUNT))
+            new Metric("field6", List.of(MetricStat.VALUE_COUNT))
         );
         int maxLeafDocs = randomNonNegativeInt();
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
