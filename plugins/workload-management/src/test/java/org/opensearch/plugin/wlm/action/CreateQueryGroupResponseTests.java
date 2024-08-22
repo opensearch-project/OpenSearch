@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
 
     /**
-     * Test case to verify the serialization and deserialization of CreateQueryGroupResponse.
+     * Test case to verify serialization and deserialization of CreateQueryGroupResponse.
      */
     public void testSerialization() throws IOException {
         CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
