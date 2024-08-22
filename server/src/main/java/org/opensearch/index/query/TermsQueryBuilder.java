@@ -261,7 +261,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (in.getVersion().after(Version.V_3_0_0)) {
             rewriteOverride = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             valueType = in.readEnum(ValueType.class);
         }
     }
@@ -277,7 +277,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (out.getVersion().after(Version.V_3_0_0)) {
             out.writeOptionalString(rewriteOverride);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeEnum(valueType);
         }
     }
