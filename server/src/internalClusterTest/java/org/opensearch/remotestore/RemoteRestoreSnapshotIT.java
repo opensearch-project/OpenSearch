@@ -13,6 +13,7 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Client;
@@ -34,6 +35,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -588,6 +590,24 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(restoreSnapshotResponse2.getRestoreInfo().failedShards() == 0);
         ensureGreen(restoredIndexName1);
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+
+        // ensure recovery details are non-zero
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(restoredIndexName1).execute().actionGet();
+        for (Map.Entry<String, List<RecoveryState>> entry : recoveryResponse.shardRecoveryStates().entrySet()) {
+            for (RecoveryState recoveryState : entry.getValue()) {
+                // ensure populated file details
+                assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
+                assertThat(recoveryState.getIndex().totalRecoverFiles(), greaterThan(0));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), greaterThan(0));
+                assertThat(recoveryState.getIndex().recoveredFilesPercent(), greaterThan(0f));
+
+                // ensure populated bytes details
+                assertThat(recoveryState.getIndex().recoveredBytes(), greaterThan(0L));
+                assertThat(recoveryState.getIndex().totalBytes(), greaterThan(0L));
+                assertThat(recoveryState.getIndex().totalRecoverBytes(), greaterThan(0L));
+                assertThat(recoveryState.getIndex().recoveredBytesPercent(), greaterThan(0f));
+            }
+        }
 
         // indexing some new docs and validating
         indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
