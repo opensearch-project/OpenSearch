@@ -10,10 +10,14 @@ package org.opensearch.plugin.wlm.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler.ThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -24,6 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 import org.opensearch.search.ResourceType;
 
 import java.util.Collection;
@@ -38,6 +43,7 @@ import java.util.stream.Collectors;
 public class QueryGroupPersistenceService {
     static final String SOURCE = "query-group-persistence-service";
     private static final String CREATE_QUERY_GROUP_THROTTLING_KEY = "create-query-group";
+    private static final String DELETE_QUERY_GROUP_THROTTLING_KEY = "delete-query-group";
     private static final Logger logger = LogManager.getLogger(QueryGroupPersistenceService.class);
     /**
      *  max QueryGroup count setting name
@@ -65,6 +71,7 @@ public class QueryGroupPersistenceService {
     private final ClusterService clusterService;
     private volatile int maxQueryGroupCount;
     final ThrottlingKey createQueryGroupThrottlingKey;
+    final ThrottlingKey deleteQueryGroupThrottlingKey;
 
     /**
      * Constructor for QueryGroupPersistenceService
@@ -81,6 +88,7 @@ public class QueryGroupPersistenceService {
     ) {
         this.clusterService = clusterService;
         this.createQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(CREATE_QUERY_GROUP_THROTTLING_KEY, true);
+        this.deleteQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(DELETE_QUERY_GROUP_THROTTLING_KEY, true);
         setMaxQueryGroupCount(MAX_QUERY_GROUP_COUNT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
     }
@@ -210,6 +218,50 @@ public class QueryGroupPersistenceService {
             .findAny()
             .stream()
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Modify cluster state to delete the QueryGroup
+     * @param deleteQueryGroupRequest - request to delete a QueryGroup
+     * @param listener - ActionListener for AcknowledgedResponse
+     */
+    public void deleteInClusterStateMetadata(
+        DeleteQueryGroupRequest deleteQueryGroupRequest,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(SOURCE, new AckedClusterStateUpdateTask<>(deleteQueryGroupRequest, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return deleteQueryGroupInClusterState(deleteQueryGroupRequest.getName(), currentState);
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return deleteQueryGroupThrottlingKey;
+            }
+
+            @Override
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
+            }
+        });
+    }
+
+    /**
+     * Modify cluster state to delete the QueryGroup, and return the new cluster state
+     * @param name - the name for QueryGroup to be deleted
+     * @param currentClusterState - current cluster state
+     */
+    ClusterState deleteQueryGroupInClusterState(final String name, final ClusterState currentClusterState) {
+        final Metadata metadata = currentClusterState.metadata();
+        final QueryGroup queryGroupToRemove = metadata.queryGroups()
+            .values()
+            .stream()
+            .filter(queryGroup -> queryGroup.getName().equals(name))
+            .findAny()
+            .orElseThrow(() -> new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name));
+
+        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(queryGroupToRemove).build()).build();
     }
 
     /**

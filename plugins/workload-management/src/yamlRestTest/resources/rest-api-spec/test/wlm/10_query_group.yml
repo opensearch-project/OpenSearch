@@ -106,3 +106,9 @@
   - match: { query_groups.0.resiliency_mode: "monitor" }
   - match: { query_groups.0.resource_limits.cpu: 0.35 }
   - match: { query_groups.0.resource_limits.memory: 0.25 }
+
+  - do:
+      delete_query_group_context:
+        name: "analytics2"
+
+  - match: { acknowledged: true }
