@@ -77,13 +77,19 @@ public class FetchSearchResult extends SearchPhaseResult {
     @ExperimentalApi
     public interface SerializationAccess {
         ShardSearchContextId getShardSearchContextId();
+
         SearchHits getHits();
     }
 
     public SerializationAccess getSerAccess() {
         return new SerializationAccess() {
-            public ShardSearchContextId getShardSearchContextId() { return contextId; }
-            public SearchHits getHits() { return hits; }
+            public ShardSearchContextId getShardSearchContextId() {
+                return contextId;
+            }
+
+            public SearchHits getHits() {
+                return hits;
+            }
         };
     }
 

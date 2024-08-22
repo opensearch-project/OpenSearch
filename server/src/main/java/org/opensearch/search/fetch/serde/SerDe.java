@@ -16,9 +16,17 @@ import org.opensearch.core.xcontent.XContentParser;
 public class SerDe {
 
     public static class SerializationException extends RuntimeException {
-        public SerializationException(String message) { super(message); }
-        public SerializationException(String message, Throwable cause) { super(message, cause); }
-        public SerializationException(Throwable cause) { super(cause); }
+        public SerializationException(String message) {
+            super(message);
+        }
+
+        public SerializationException(String message, Throwable cause) {
+            super(message, cause);
+        }
+
+        public SerializationException(Throwable cause) {
+            super(cause);
+        }
     }
 
     interface XContentSerializer<T> {

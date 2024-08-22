@@ -33,9 +33,7 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -81,13 +79,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.common.lucene.Lucene.readExplanation;
-import static org.opensearch.common.lucene.Lucene.writeExplanation;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -169,22 +162,23 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
-    public SearchHit(int docId,
-                     float score,
-                     long seqNo,
-                     long version,
-                     long primaryTerm,
-                     Text id,
-                     BytesReference source,
-                     SearchShardTarget shardTarget,
-                     Explanation explanation,
-                     SearchSortValues sortValues,
-                     SearchHit.NestedIdentity nestedIdentity,
-                     Map<String, DocumentField> documentFields,
-                     Map<String, DocumentField> metaFields,
-                     Map<String, HighlightField> highlightFields,
-                     Map<String, Float> matchedQueries,
-                     Map<String, SearchHits> innerHits
+    public SearchHit(
+        int docId,
+        float score,
+        long seqNo,
+        long version,
+        long primaryTerm,
+        Text id,
+        BytesReference source,
+        SearchShardTarget shardTarget,
+        Explanation explanation,
+        SearchSortValues sortValues,
+        SearchHit.NestedIdentity nestedIdentity,
+        Map<String, DocumentField> documentFields,
+        Map<String, DocumentField> metaFields,
+        Map<String, HighlightField> highlightFields,
+        Map<String, Float> matchedQueries,
+        Map<String, SearchHits> innerHits
     ) throws IOException {
         this.docId = docId;
         this.score = score;
@@ -206,8 +200,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         shard(shardTarget);
     }
 
-    public SearchHit(SearchHit hit
-    ) throws IOException {
+    public SearchHit(SearchHit hit) throws IOException {
         this.docId = hit.docId;
         this.score = hit.score;
         this.seqNo = hit.seqNo;
@@ -244,39 +237,97 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @ExperimentalApi
     public interface SerializationAccess {
         float getScore();
+
         Text getId();
+
         NestedIdentity getNestedIdentity();
+
         long getVersion();
+
         long getSeqNo();
+
         long getPrimaryTerm();
+
         BytesReference getSource();
+
         Explanation getExplanation();
+
         Map<String, DocumentField> getDocumentFields();
+
         Map<String, DocumentField> getMetaFields();
+
         Map<String, HighlightField> getHighlightedFields();
+
         SearchSortValues getSortValues();
+
         Map<String, Float> getMatchedQueries();
+
         SearchShardTarget getShard();
+
         Map<String, SearchHits> getInnerHits();
     }
 
     public SearchHit.SerializationAccess getSerAccess() {
         return new SearchHit.SerializationAccess() {
-            public float getScore() { return score; }
-            public Text getId() { return id; }
-            public NestedIdentity getNestedIdentity() { return nestedIdentity; }
-            public long getVersion() { return version; }
-            public long getSeqNo() { return seqNo; }
-            public long getPrimaryTerm() { return primaryTerm; }
-            public BytesReference getSource() { return source; }
-            public Explanation getExplanation() { return explanation; }
-            public Map<String, DocumentField> getDocumentFields() { return documentFields; }
-            public Map<String, DocumentField> getMetaFields() { return metaFields; }
-            public Map<String, HighlightField> getHighlightedFields() { return highlightFields; }
-            public SearchSortValues getSortValues() { return sortValues; }
-            public Map<String, Float> getMatchedQueries() { return matchedQueries; }
-            public SearchShardTarget getShard() { return shard; }
-            public Map<String, SearchHits> getInnerHits() { return innerHits; }
+            public float getScore() {
+                return score;
+            }
+
+            public Text getId() {
+                return id;
+            }
+
+            public NestedIdentity getNestedIdentity() {
+                return nestedIdentity;
+            }
+
+            public long getVersion() {
+                return version;
+            }
+
+            public long getSeqNo() {
+                return seqNo;
+            }
+
+            public long getPrimaryTerm() {
+                return primaryTerm;
+            }
+
+            public BytesReference getSource() {
+                return source;
+            }
+
+            public Explanation getExplanation() {
+                return explanation;
+            }
+
+            public Map<String, DocumentField> getDocumentFields() {
+                return documentFields;
+            }
+
+            public Map<String, DocumentField> getMetaFields() {
+                return metaFields;
+            }
+
+            public Map<String, HighlightField> getHighlightedFields() {
+                return highlightFields;
+            }
+
+            public SearchSortValues getSortValues() {
+                return sortValues;
+            }
+
+            public Map<String, Float> getMatchedQueries() {
+                return matchedQueries;
+            }
+
+            public SearchShardTarget getShard() {
+                return shard;
+            }
+
+            public Map<String, SearchHits> getInnerHits() {
+                return innerHits;
+            }
         };
     }
 
