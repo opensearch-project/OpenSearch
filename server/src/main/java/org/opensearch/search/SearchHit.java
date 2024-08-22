@@ -190,11 +190,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.explanation = explanation;
         this.sortValues = sortValues;
         this.nestedIdentity = nestedIdentity;
-        this.documentFields = documentFields == null ? Collections.emptyMap() : documentFields;
-        this.metaFields = metaFields == null ? Collections.emptyMap() : metaFields;
-        this.highlightFields = highlightFields == null ? Collections.emptyMap() : highlightFields;
-        this.matchedQueries = matchedQueries == null ? Collections.emptyMap() : matchedQueries;
-        this.innerHits = innerHits == null ? Collections.emptyMap() : innerHits;
+        this.documentFields = documentFields;
+        this.metaFields = metaFields;
+        this.highlightFields = highlightFields;
+        this.matchedQueries = matchedQueries;
+        this.innerHits = innerHits;
 
         // we call the setter here because that also sets the local index parameter
         shard(shardTarget);
@@ -211,12 +211,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.explanation = hit.explanation;
         this.sortValues = hit.sortValues;
         this.nestedIdentity = hit.nestedIdentity;
-        this.documentFields = hit.documentFields == null ? Collections.emptyMap() : hit.documentFields;
-        this.metaFields = hit.metaFields == null ? Collections.emptyMap() : hit.metaFields;
-        this.highlightFields = hit.highlightFields == null ? Collections.emptyMap() : hit.highlightFields;
-        this.matchedQueries = hit.matchedQueries == null ? Collections.emptyMap() : hit.matchedQueries;
-        this.innerHits = hit.innerHits == null ? Collections.emptyMap() : hit.innerHits;
-        this.sourceAsMap = hit.sourceAsMap == null ? Collections.emptyMap() : hit.sourceAsMap;
+        this.documentFields = hit.documentFields;
+        this.metaFields = hit.metaFields;
+        this.highlightFields = hit.highlightFields;
+        this.matchedQueries = hit.matchedQueries;
+        this.innerHits = hit.innerHits;
+        this.sourceAsMap = hit.sourceAsMap;
 
         // we call the setter here because that also sets the local index parameter
         shard(hit.shard);
