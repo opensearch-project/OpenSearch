@@ -20,6 +20,7 @@ import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
@@ -75,6 +76,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -593,21 +596,34 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // ensure recovery details are non-zero
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(restoredIndexName1).execute().actionGet();
-        for (Map.Entry<String, List<RecoveryState>> entry : recoveryResponse.shardRecoveryStates().entrySet()) {
-            for (RecoveryState recoveryState : entry.getValue()) {
-                // ensure populated file details
-                assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
-                assertThat(recoveryState.getIndex().totalRecoverFiles(), greaterThan(0));
-                assertThat(recoveryState.getIndex().recoveredFileCount(), greaterThan(0));
-                assertThat(recoveryState.getIndex().recoveredFilesPercent(), greaterThan(0f));
+        assertEquals(1, recoveryResponse.getTotalShards());
+        assertEquals(1, recoveryResponse.getSuccessfulShards());
+        assertEquals(0, recoveryResponse.getFailedShards());
+        assertEquals(1, recoveryResponse.shardRecoveryStates().size());
+        assertTrue(recoveryResponse.shardRecoveryStates().containsKey(restoredIndexName1));
+        assertEquals(1, recoveryResponse.shardRecoveryStates().get(restoredIndexName1).size());
 
-                // ensure populated bytes details
-                assertThat(recoveryState.getIndex().recoveredBytes(), greaterThan(0L));
-                assertThat(recoveryState.getIndex().totalBytes(), greaterThan(0L));
-                assertThat(recoveryState.getIndex().totalRecoverBytes(), greaterThan(0L));
-                assertThat(recoveryState.getIndex().recoveredBytesPercent(), greaterThan(0f));
-            }
-        }
+        RecoveryState recoveryState = recoveryResponse.shardRecoveryStates().get(restoredIndexName1).get(0);
+        assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
+        assertEquals(0, recoveryState.getShardId().getId());
+        assertTrue(recoveryState.getPrimary());
+        assertEquals(RecoverySource.Type.SNAPSHOT, recoveryState.getRecoverySource().getType());
+        assertThat(recoveryState.getIndex().time(), greaterThanOrEqualTo(0L));
+
+        // ensure populated file details
+        assertTrue(recoveryState.getIndex().totalFileCount() > 0);
+        assertTrue(recoveryState.getIndex().totalRecoverFiles() > 0);
+        assertTrue(recoveryState.getIndex().recoveredFileCount() > 0);
+        assertThat(recoveryState.getIndex().recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(recoveryState.getIndex().recoveredFilesPercent(), lessThanOrEqualTo(100.0f));
+        assertFalse(recoveryState.getIndex().fileDetails().isEmpty());
+
+        // ensure populated bytes details
+        assertTrue(recoveryState.getIndex().recoveredBytes() > 0L);
+        assertTrue(recoveryState.getIndex().totalBytes() > 0L);
+        assertTrue(recoveryState.getIndex().totalRecoverBytes() > 0L);
+        assertThat(recoveryState.getIndex().recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(recoveryState.getIndex().recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
 
         // indexing some new docs and validating
         indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
