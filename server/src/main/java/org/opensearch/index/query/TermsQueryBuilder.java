@@ -251,7 +251,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
         values = (List<?>) in.readGenericValue();
         this.supplier = null;
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             valueType = in.readEnum(ValueType.class);
         }
     }
@@ -264,7 +264,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
         out.writeGenericValue(values);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeEnum(valueType);
         }
     }
