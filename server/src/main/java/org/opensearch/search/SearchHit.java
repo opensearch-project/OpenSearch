@@ -224,7 +224,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     /**
      * Preserving this constructor for compatibility.
-     * Going forward deserialize with dedicated SearchHitSerDe object.
+     * Going forward deserialize with dedicated SearchHitSerDe.
      */
     public SearchHit(StreamInput in) throws IOException {
         this(new SearchHitSerDe().deserialize(in));
@@ -335,7 +335,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     /**
      * Preserving for compatibility.
-     * Going forward serialize with dedicated SearchHitSerDe object.
+     * Going forward serialize with dedicated SearchHitSerDe.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
