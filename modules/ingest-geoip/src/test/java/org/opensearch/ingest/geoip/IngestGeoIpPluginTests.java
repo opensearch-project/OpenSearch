@@ -35,10 +35,10 @@ package org.opensearch.ingest.geoip;
 import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.ingest.Processor;
+import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
 
