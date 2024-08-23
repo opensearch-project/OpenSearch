@@ -680,14 +680,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
-            if (e instanceof ExecutionException) {
-                e = (e.getCause() == null || e.getCause() instanceof Exception)
-                    ? (Exception) e.getCause()
-                    : new OpenSearchException(e.getCause());
+            Exception exception = e;
+            if (exception instanceof ExecutionException) {
+                exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
+                    ? (Exception) exception.getCause()
+                    : new OpenSearchException(exception.getCause());
             }
-            logger.trace("Query phase failed", e);
-            processFailure(readerContext, e);
-            throw e;
+            logger.trace("Query phase failed", exception);
+            processFailure(readerContext, exception);
+            throw exception;
         } finally {
             taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
         }
