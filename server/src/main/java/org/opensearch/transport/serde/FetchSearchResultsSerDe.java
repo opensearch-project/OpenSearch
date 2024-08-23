@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.fetch.serde;
+package org.opensearch.transport.serde;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -21,13 +21,11 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class FetchSearchResultsSerDe implements SerDe.StreamSerializer<FetchSearchResult>, SerDe.StreamDeserializer<FetchSearchResult> {
-    /**
-     * NOTE: FetchSearchResultSerDe should mirror class inheritence strucutre.
-     * TransportMessage -> TransportResponse -> SearchPhaseResult -> FetchSearchResult.
-     *
-     * Serialization of parent classes is currently a no-op so leaving as is for now.
-     */
     SearchHitsSerDe searchHitsSerDe;
+
+    public FetchSearchResultsSerDe () {
+        this.searchHitsSerDe = new SearchHitsSerDe();
+    }
 
     @Override
     public FetchSearchResult deserialize(StreamInput in) {
@@ -49,7 +47,7 @@ public class FetchSearchResultsSerDe implements SerDe.StreamSerializer<FetchSear
 
     private FetchSearchResult fromStream(StreamInput in) throws IOException {
         ShardSearchContextId contextId = new ShardSearchContextId(in);
-        SearchHits hits = new SearchHits(in);
+        SearchHits hits = searchHitsSerDe.deserialize(in);
         return new FetchSearchResult(contextId, hits);
     }
 
@@ -59,6 +57,6 @@ public class FetchSearchResultsSerDe implements SerDe.StreamSerializer<FetchSear
         SearchHits hits = serI.getHits();
 
         contextId.writeTo(out);
-        hits.writeTo(out);
+        searchHitsSerDe.serialize(hits, out);
     }
 }

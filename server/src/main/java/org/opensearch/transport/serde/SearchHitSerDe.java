@@ -6,9 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.fetch.serde;
+package org.opensearch.transport.serde;
 
+import com.google.protobuf.ByteString;
+import org.apache.commons.lang.SerializationUtils;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -22,8 +25,10 @@ import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -33,6 +38,15 @@ import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.lucene.Lucene.readExplanation;
 import static org.opensearch.common.lucene.Lucene.writeExplanation;
 import static org.opensearch.search.SearchHit.SINGLE_MAPPING_TYPE;
+
+import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.DocumentFieldProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.ExplanationProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.NestedIdentityProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.HighlightFieldProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.SearchSortValuesProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.SearchShardTargetProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitsProto;
 
 /**
  * Serialization/Deserialization implementations for SearchHit.
@@ -57,6 +71,134 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
             throw new SerDe.SerializationException("Failed to serialize FetchSearchResult", e);
         }
     }
+
+    public static SearchHitProto toProto(SearchHit searchHit) {
+        SearchHit.SerializationAccess serI = searchHit.getSerAccess();
+
+        SearchHitProto.Builder builder = SearchHitProto.newBuilder()
+            .setScore(serI.getScore())
+            .setId(serI.getId().string())
+            .setVersion(serI.getVersion())
+            .setSeqNo(serI.getSeqNo())
+            .setPrimaryTerm(serI.getPrimaryTerm());
+
+        if (serI.getSource() != null) {
+            builder.setSource(ByteString.copyFrom(serI.getSource().toBytesRef().bytes));
+        }
+
+        serI.getDocumentFields().forEach((key, value) ->
+            builder.putDocumentFields(key, documentFieldToProto(value))
+        );
+
+        serI.getMetaFields().forEach((key, value) ->
+            builder.putMetaFields(key, documentFieldToProto(value))
+        );
+
+        serI.getHighlightedFields().forEach((key, value) ->
+            builder.putHighlightFields(key, highlightFieldToProto(value))
+        );
+
+        serI.getMatchedQueries().forEach(builder::putMatchedQueries);
+
+        if (serI.getExplanation() != null) {
+            builder.setExplanation(explanationToProto(serI.getExplanation()));
+        }
+
+        if (serI.getSortValues() != null) {
+            builder.setSortValues(shardSearchValuesToProto(serI.getSortValues()));
+        }
+
+        if (serI.getNestedIdentity() != null) {
+            builder.setNestedIdentity(nestedIdentityToProto(serI.getNestedIdentity()));
+        }
+
+        if (serI.getShard() != null) {
+            builder.setShard(searchShardTargetToProto(serI.getShard()));
+        }
+
+        if (serI.getInnerHits() != null) {
+            serI.getInnerHits().forEach((key, value) ->
+                builder.putInnerHits(key, searchHitsToProto(value))
+            );
+        }
+
+        return builder.build();
+    }
+
+    private static DocumentFieldProto documentFieldToProto(DocumentField field) {
+        DocumentFieldProto.Builder builder = DocumentFieldProto.newBuilder().setName(field.getName());
+        List<Object> objList = field.getValues();
+
+        for (Object obj : objList) {
+            byte[] data = SerializationUtils.serialize((Serializable) obj);
+            String jsonString = objectMapper.writeValueAsString(obj);
+            return ByteString.copyFromUtf8(jsonString);
+
+//            DataOutputStream out = new DataOutputStream(new ByteArrayOutputStream());
+//            obj.serialize(out);
+            obj.
+            builder.addValues(SerializationUtils.serialize(obj));
+        }
+
+        return builder.build();
+    }
+
+//    private static ExplanationProto explanationToProto(Explanation explanation) {
+//        ExplanationProto.Builder builder = ExplanationProto.newBuilder()
+//            .setValue(explanation.getValue().floatValue())
+//            .setDescription(explanation.getDescription());
+//
+//        for (Explanation detail : explanation.getDetails()) {
+//            builder.addDetails(explanationToProto(detail));
+//        }
+//
+//        return builder.build();
+//    }
+//
+//    private static NestedIdentityProto nestedIdentityToProto(SearchHit.NestedIdentity nestedIdentity) {
+//        NestedIdentityProto.Builder builder = NestedIdentityProto.newBuilder()
+//            .setField(nestedIdentity.getField().string())
+//            .setOffset(nestedIdentity.getOffset());
+//
+//        if (nestedIdentity.getChild() != null) {
+//            builder.setChild(nestedIdentityToProto(nestedIdentity.getChild()));
+//        }
+//
+//        return builder.build();
+//    }
+//
+//    private static SearchShardTargetProto searchShardTargetToProto(SearchShardTarget shardTarget) {
+//        return SearchShardTargetProto.newBuilder()
+//            .setNodeId(shardTarget.getNodeId())
+//            .setIndex(shardTarget.getIndex())
+//            .setShardId(shardTarget.getShardId().getId())
+//            .setClusterAlias(shardTarget.getClusterAlias() != null ? shardTarget.getClusterAlias() : "")
+//            .build();
+//    }
+//
+//
+//    private static DocumentField documentFieldFromProto(SearchHitOuterClass.DocumentField protoField) {
+//        return new DocumentField(
+//            protoField.getName(),
+//            protoField.getValuesList().stream()
+//                .map(ByteString::toStringUtf8)
+//                .collect(Collectors.toList())
+//        );
+//    }
+//
+//    private static HighlightFieldProto highlightFieldToProto(HighlightField field) {
+//        return HighlightFieldProto.newBuilder()
+//            .setName(field.getName())
+//            .addAllFragments(field.getFragments())
+//            .build();
+//    }
+//
+//    private static HighlightField highlightFieldFromProto(SearchHitOuterClass.HighlightField protoField) {
+//        return new HighlightField(
+//            protoField.getName(),
+//            protoField.getFragmentsList().toArray(new String[0])
+//        );
+//    }
 
     private SearchHit fromStream(StreamInput in) throws IOException {
         int docId;

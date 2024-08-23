@@ -45,7 +45,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.opensearch.search.fetch.serde.SearchHitsSerDe;
+import org.opensearch.transport.serde.SearchHitsSerDe;
 
 import java.io.IOException;
 import java.util.ArrayList;

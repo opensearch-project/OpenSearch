@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.fetch.serde;
+package org.opensearch.transport.serde;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
@@ -17,6 +17,9 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 
 import java.io.IOException;
+import java.util.Arrays;
+
+import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitsProto;
 
 import static org.opensearch.search.SearchHits.EMPTY;
 
@@ -26,6 +29,10 @@ import static org.opensearch.search.SearchHits.EMPTY;
  */
 public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerDe.StreamDeserializer<SearchHits> {
     SearchHitSerDe searchHitSerDe;
+
+    public SearchHitsSerDe () {
+        this.searchHitSerDe = new SearchHitSerDe();
+    }
 
     @Override
     public SearchHits deserialize(StreamInput in) {
@@ -43,6 +50,31 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
         } catch (IOException e) {
             throw new SerDe.SerializationException("Failed to serialize FetchSearchResult", e);
         }
+    }
+
+    private SearchHitsProto toProto(SearchHits searchHits) {
+        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
+            .setTotalHits(searchHits.getTotalHits().value)
+            .setMaxScore(searchHits.getMaxScore());
+
+        // Assuming you have a SearchHitProtoUtils.toProto method
+        Arrays.stream(searchHits.getHits())
+            .map(SearchHitProtoUtils::toProto)
+            .forEach(builder::addHits);
+
+        return builder.build();
+    }
+
+    private SearchHits fromProto(SearchHitsProto protoSearchHits) {
+        SearchHit[] hits = protoSearchHits.getHitsList().stream()
+            .map(SearchHitProtoUtils::fromProto)
+            .toArray(SearchHit[]::new);
+
+        return new SearchHits(
+            hits,
+            new TotalHits(protoSearchHits.getTotalHits(), TotalHits.Relation.EQUAL_TO),
+            protoSearchHits.getMaxScore()
+        );
     }
 
     private SearchHits fromStream(StreamInput in) throws IOException {
@@ -66,7 +98,7 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = new SearchHit(in);
+                hits[i] = searchHitSerDe.deserialize(in);
             }
         }
         sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
@@ -94,7 +126,7 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
         out.writeVInt(hits.length);
         if (hits.length > 0) {
             for (SearchHit hit : hits) {
-                hit.writeTo(out);
+                searchHitSerDe.serialize(hit, out);
             }
         }
         out.writeOptionalArray(Lucene::writeSortField, sortFields);

@@ -7,4 +7,4 @@
  */
 
 /** Serialization/Deserialization implementations for the fetch package. */
-package org.opensearch.search.fetch.serde;
+package org.opensearch.transport.serde;

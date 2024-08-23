@@ -65,7 +65,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.opensearch.search.fetch.serde.SearchHitSerDe;
+import org.opensearch.transport.serde.SearchHitSerDe;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.transport.RemoteClusterAware;

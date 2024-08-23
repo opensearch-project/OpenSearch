@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+/*
+SearchHit[] hits
+TotalHits totalHits
+float maxScore
+ */
+message SearchHitsProto {
+  repeated SearchHitProto hits = 1;
+  int64 total_hits = 2;
+  float max_score = 3;
+}
+
+/**
+float score
+Text id
+NestedIdentity nestedIdentity
+long version
+long seqNo
+long primaryTerm
+BytesReference source
+Explanation explanation
+Map<String, DocumentField> documentFields
+Map<String, DocumentField> metaFields
+Map<String, HighlightField> highlightedFields
+SearchSortValues sortValues
+Map<String, Float> matchedQueries
+SearchShardTarget shard
+Map<String, SearchHits> innerHits
+*/
+message SearchHitProto {
+  float score = 1;
+  string id = 2;
+  NestedIdentityProto nested_identity = 3;
+  int64 version = 4;
+  int64 seq_no = 5;
+  int64 primary_term = 6;
+  bytes source = 7;
+  ExplanationProto explanation = 8;
+  map<string, DocumentFieldProto> document_fields = 9;
+  map<string, DocumentFieldProto> meta_fields = 10;
+  map<string, HighlightFieldProto> highlight_fields = 11;
+  SearchSortValuesProto sort_values = 12;
+  map<string, float> matched_queries = 13;
+  SearchShardTargetProto shard = 14;
+  map<string, SearchHitsProto> inner_hits = 15;
+}
+
+/*
+Text field;
+int offset;
+NestedIdentity child;
+ */
+message NestedIdentityProto {
+  string field = 1;
+  int32 offset = 2;
+  NestedIdentityProto child = 3;
+}
+
+/*
+String name
+List<Object> values
+ */
+message DocumentFieldProto {
+  string name = 1;
+  repeated bytes values = 2;
+}
+
+/*
+String name
+Text[] fragments
+ */
+message HighlightFieldProto {
+  string name = 1;
+  repeated string fragments = 2;
+}
+
+/*
+Object[] formattedSortValues
+Object[] rawSortValues
+ */
+message SearchSortValuesProto {
+  repeated bytes formatted_sort_values = 1;
+  repeated bytes raw_sort_values = 2;
+}
+
+/*
+boolean match
+Number value
+String description
+List<Explanation> details
+ */
+message ExplanationProto {
+  bool match = 1;
+  // value used as long
+  int64 value = 2;
+  string description = 3;
+  repeated ExplanationProto details = 4;
+}
+
+/*
+Text nodeId
+ShardId shardId
+String clusterAlias
+ */
+message SearchShardTargetProto {
+  string node_id = 1;
+  ShardIdProto shard_id = 2;
+  string cluster_alias = 3;
+}
+
+/*
+Index index
+int shardId
+int hashCode
+ */
+message ShardIdProto {
+  IndexProto index = 1;
+  int32 shard_id = 2;
+  int32 hash_code = 3;
+}
+
+/*
+String name
+String uuid
+ */
+message IndexProto {
+  string name = 1;
+  string uuid = 2;
+}
