@@ -979,6 +979,9 @@ public class RemoteClusterStateService implements Closeable {
         return blobStoreRepository.blobStore();
     }
 
+    AtomicReference<ClusterState> latestClusterState = new AtomicReference<>();
+    AtomicReference<ClusterMetadataManifest> latestClusterManifest = new AtomicReference<>();
+
     /**
      * Fetch latest ClusterState from remote, including global metadata, index metadata and cluster state version
      *
@@ -997,7 +1000,14 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
-        return getClusterStateForManifest(clusterName, clusterMetadataManifest.get(), nodeId, includeEphemeral);
+        if (latestClusterManifest.get().equals(clusterMetadataManifest.get())) {
+            return latestClusterState.get();
+        }
+
+        ClusterState state = getClusterStateForManifest(clusterName, clusterMetadataManifest.get(), nodeId, includeEphemeral);
+        latestClusterManifest.set(clusterMetadataManifest.get());
+        latestClusterState.set(state);
+        return state;
     }
 
     // package private for testing

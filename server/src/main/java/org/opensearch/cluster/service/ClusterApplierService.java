@@ -119,7 +119,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Map<TimeoutClusterStateListener, NotifyTimeout> timeoutClusterStateListeners = new ConcurrentHashMap<>();
-    private final AtomicReference<ClusterState> publishState; // last published state
+    private final AtomicReference<ClusterState> publishState = new AtomicReference<>(); // last published state
 
     private final AtomicReference<ClusterState> state; // last applied state
 
@@ -141,7 +141,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
-        this.publishState = new AtomicReference<>();
         this.state = new AtomicReference<>();
         this.nodeName = nodeName;
 

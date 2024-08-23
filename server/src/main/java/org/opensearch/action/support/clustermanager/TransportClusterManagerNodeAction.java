@@ -63,6 +63,7 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
@@ -96,6 +97,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final String executor;
+    protected RemoteClusterStateService remoteClusterStateService;
 
     protected TransportClusterManagerNodeAction(
         String actionName,
@@ -380,14 +382,31 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             );
                             if (isLatestClusterStatePresentOnLocalNode) {
                                 onLatestLocalState.accept(clusterState);
-                            } else {
-                                ClusterState publishState = clusterService.publishState();
-                                if (publishState != null && response.matches(publishState)) {
-                                    onLatestLocalState.accept(publishState);
-                                } else {
-                                    onStaleLocalState.accept(clusterManagerNode, clusterState);
+                                return;
+                            }
+                            ClusterState publishState = clusterService.publishState();
+                            if (publishState != null && response.matches(publishState)) {
+                                onLatestLocalState.accept(publishState);
+                                return;
+                            }
+                            if (remoteClusterStateService != null) {
+                                try {
+                                    ClusterState remoteState = remoteClusterStateService.getLatestClusterState(
+                                        clusterState.getClusterName().value(),
+                                        clusterState.getMetadata().clusterUUID(),
+                                        false
+                                    );
+                                    if (response.matches(remoteState)) {
+                                        onLatestLocalState.accept(remoteState);
+                                    }
+                                    return;
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
                                 }
                             }
+                            // fallback to clusterManager
+                            onStaleLocalState.accept(clusterManagerNode, clusterState);
+
                         }
 
                         @Override

@@ -50,6 +50,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -74,7 +75,6 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         }
     }
 
-    @Inject
     public TransportClusterStateAction(
         TransportService transportService,
         ClusterService clusterService,
@@ -92,6 +92,29 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             ClusterStateRequest::new,
             indexNameExpressionResolver
         );
+        this.localExecuteSupported = true;
+    }
+
+    @Inject
+    public TransportClusterStateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteClusterStateService remoteClusterStateService
+    ) {
+        super(
+            ClusterStateAction.NAME,
+            false,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ClusterStateRequest::new,
+            indexNameExpressionResolver
+        );
+        this.remoteClusterStateService = remoteClusterStateService;
         this.localExecuteSupported = true;
     }
 
