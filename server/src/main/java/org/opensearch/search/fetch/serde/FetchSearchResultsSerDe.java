@@ -21,15 +21,10 @@ import java.io.IOException;
  */
 public class FetchSearchResultsSerDe implements SerDe.StreamSerializer<FetchSearchResult>, SerDe.StreamDeserializer<FetchSearchResult> {
     /**
-     * TODO NOTE: FetchSearchResult inheritance structure is as follows.
+     * NOTE: FetchSearchResultSerDe should mirror class inheritence strucutre.
      * TransportMessage -> TransportResponse -> SearchPhaseResult -> FetchSearchResult.
-     * Serialization of parent classes is currently a no-op.
-     * For completeness these parent classes should be mirrored here respectively with:
-     * TransportMessageSerDe, TransportResponseSerDe, SearchPhaseResultSerDe.
-     * However, currently only SearchHitsSerDe is needed for serialization.
      *
-     * This is implicitely enforced by FetchSearchResult as well on the serialization side.
-     * writeTo doesn't call a parent implementation...
+     * Serialization of parent classes is currently a no-op so leaving as is for now.
      */
     SearchHitsSerDe searchHitsSerDe;
 
