@@ -15,6 +15,7 @@ import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregat
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Index settings for star tree fields. The settings are final as right now
@@ -93,16 +94,10 @@ public class StarTreeIndexSettings {
     /**
      * Default metrics for metrics as part of star tree fields
      */
-    public static final Setting<List<MetricStat>> DEFAULT_METRICS_LIST = Setting.listSetting(
+    public static final Setting<List<String>> DEFAULT_METRICS_LIST = Setting.listSetting(
         "index.composite_index.star_tree.field.default.metrics",
-        Arrays.asList(
-            MetricStat.AVG.toString(),
-            MetricStat.VALUE_COUNT.toString(),
-            MetricStat.SUM.toString(),
-            MetricStat.MAX.toString(),
-            MetricStat.MIN.toString()
-        ),
-        MetricStat::fromTypeName,
+        Arrays.asList(MetricStat.VALUE_COUNT.toString(), MetricStat.SUM.toString()),
+        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
