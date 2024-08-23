@@ -36,6 +36,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.settings.ClusterSettings;
@@ -238,6 +239,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                 ),
                 Version.CURRENT,
                 Function.identity(),
+                Priority.NORMAL,
                 f
             ));
 
@@ -265,6 +267,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                         ),
                         Version.CURRENT,
                         Function.identity(),
+                        Priority.NORMAL,
                         f
                     )
                 )
@@ -294,6 +297,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                     ),
                     Version.CURRENT,
                     Function.identity(),
+                    Priority.NORMAL,
                     f
                 )
             );

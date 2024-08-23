@@ -868,14 +868,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             thread.join();
         }
 
-        // Validate that all snapshots have been created
+        // Validate that only one snapshot has been created
         Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
         PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
         repository.getRepositoryData(repositoryDataPlainActionFuture);
 
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
         assertThat(repositoryData.getSnapshotIds().size(), equalTo(1));
-
     }
 
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
@@ -962,7 +961,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexingThread.start();
 
         // Wait for a bit to let some documents be indexed
-
         Thread.sleep(1000);
 
         // Create a snapshot while indexing is ongoing

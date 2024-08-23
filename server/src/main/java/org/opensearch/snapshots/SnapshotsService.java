@@ -552,6 +552,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotInfo,
                     version,
                     state -> state,
+                    Priority.IMMEDIATE,
                     new ActionListener<RepositoryData>() {
                         @Override
                         public void onResponse(RepositoryData repositoryData) {
@@ -1706,6 +1707,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotInfo,
                     entry.version(),
                     state -> stateWithoutSnapshot(state, snapshot),
+                    Priority.NORMAL,
                     ActionListener.wrap(newRepoData -> {
                         completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());

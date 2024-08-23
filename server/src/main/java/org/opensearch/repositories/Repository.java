@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
@@ -159,6 +160,7 @@ public interface Repository extends LifecycleComponent {
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     );
 

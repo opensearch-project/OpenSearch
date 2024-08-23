@@ -1047,6 +1047,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 repositoryStateId,
                 repoMetaVersion,
                 Function.identity(),
+                Priority.NORMAL,
                 ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
             );
         }, listener::onFailure);
@@ -1521,6 +1522,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryStateId,
                     repositoryMetaVersion,
                     Function.identity(),
+                    Priority.NORMAL,
                     ActionListener.wrap(
                         v -> cleanupStaleBlobs(
                             Collections.emptyList(),
@@ -1724,6 +1726,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
         final ActionListener<RepositoryData> listener
     ) {
         assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN : "Must finalize based on a valid repository generation but received ["
@@ -1760,6 +1763,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryStateId,
                     repositoryMetaVersion,
                     stateTransformer,
+                    repositoryUpdatePriority,
                     ActionListener.wrap(newRepoData -> {
                         cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
                         listener.onResponse(newRepoData);
@@ -2281,10 +2285,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Lastly, the {@link RepositoryMetadata} entry for this repository is updated to the new generation {@code P + 1} and thus
      * pending and safe generation are set to the same value marking the end of the update of the repository data.
      *
-     * @param repositoryData RepositoryData to write
-     * @param expectedGen    expected repository generation at the start of the operation
-     * @param version        version of the repository metadata to write
-     * @param stateFilter    filter for the last cluster state update executed by this method
+     * @param repositoryData            RepositoryData to write
+     * @param expectedGen               expected repository generation at the start of the operation
+     * @param version                   version of the repository metadata to write
+     * @param stateFilter               filter for the last cluster state update executed by this method
+     * @param repositoryUpdatePriority  priority for the cluster state update task
      * @param listener       completion listener
      */
     protected void writeIndexGen(
@@ -2292,6 +2297,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long expectedGen,
         Version version,
         Function<ClusterState, ClusterState> stateFilter,
+        Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     ) {
         assert isReadOnly() == false; // can not write to a read only repository
@@ -2316,7 +2322,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final StepListener<Long> setPendingStep = new StepListener<>();
         clusterService.submitStateUpdateTask(
             "set pending repository generation [" + metadata.name() + "][" + expectedGen + "]",
-            new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            new ClusterStateUpdateTask(repositoryUpdatePriority) {
 
                 private long newGen;
 
@@ -2454,7 +2460,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Step 3: Update CS to reflect new repository generation.
             clusterService.submitStateUpdateTask(
                 "set safe repository generation [" + metadata.name() + "][" + newGen + "]",
-                new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+                new ClusterStateUpdateTask(repositoryUpdatePriority) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final RepositoryMetadata meta = getRepoMetadata(currentState);
