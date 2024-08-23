@@ -568,11 +568,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         if (context.externalValueSet()) {
             String value = context.externalValue().toString();
             parseValueAddFields(context, value, fieldType().name());
-        } else if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-            context.parser().nextToken(); // This triggers an exception in DocumentParser.
-            // We could remove the above nextToken() call to skip the null value, but the existing
-            // behavior (since 2.7) throws the exception.
-        } else {
+        } else if (context.parser().currentToken() != XContentParser.Token.VALUE_NULL) {
             JsonToStringXContentParser jsonToStringParser = new JsonToStringXContentParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
