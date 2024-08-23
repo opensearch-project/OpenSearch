@@ -61,10 +61,8 @@ public class IngestUserAgentPluginTests extends OpenSearchTestCase {
 
     public void testInvalidAllowList() throws IOException {
         List<String> invalidAllowList = List.of("set");
-        final Settings settings = settingsBuilder.putList(
-            IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(),
-            invalidAllowList
-        ).build();
+        final Settings settings = settingsBuilder.putList(IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), invalidAllowList)
+            .build();
         try (IngestUserAgentPlugin plugin = new IngestUserAgentPlugin()) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -90,8 +88,7 @@ public class IngestUserAgentPluginTests extends OpenSearchTestCase {
     }
 
     private void runAllowListTest(List<String> allowList) throws IOException {
-        final Settings settings = settingsBuilder.putList(IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), allowList)
-            .build();
+        final Settings settings = settingsBuilder.putList(IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), allowList).build();
         try (IngestUserAgentPlugin plugin = new IngestUserAgentPlugin()) {
             assertEquals(Set.copyOf(allowList), plugin.getProcessors(createParameters(settings)).keySet());
         }
