@@ -183,6 +183,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterApplierService.state();
     }
 
+    public ClusterState publishState() {
+        return clusterApplierService.publishState();
+    }
+
     /**
      * Adds a high priority applier of updated cluster states.
      */

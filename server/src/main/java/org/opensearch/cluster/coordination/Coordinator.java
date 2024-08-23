@@ -464,6 +464,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
+            final ClusterState publishState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
+            applierState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(publishState) : publishState;
+            clusterApplier.onPublishClusterState(publishRequest.toString(), () -> publishState);
+
             if (sourceNode.equals(getLocalNode())) {
                 preVoteCollector.update(getPreVoteResponse(), getLocalNode());
             } else {

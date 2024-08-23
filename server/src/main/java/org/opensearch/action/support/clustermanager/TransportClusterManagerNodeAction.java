@@ -381,7 +381,12 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             if (isLatestClusterStatePresentOnLocalNode) {
                                 onLatestLocalState.accept(clusterState);
                             } else {
-                                onStaleLocalState.accept(clusterManagerNode, clusterState);
+                                ClusterState publishState = clusterService.publishState();
+                                if (publishState != null && response.matches(publishState)) {
+                                    onLatestLocalState.accept(publishState);
+                                } else {
+                                    onStaleLocalState.accept(clusterManagerNode, clusterState);
+                                }
                             }
                         }
 

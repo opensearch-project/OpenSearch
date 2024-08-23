@@ -49,6 +49,8 @@ public interface ClusterApplier {
      */
     void setInitialState(ClusterState initialState);
 
+    void onPublishClusterState(String source, Supplier<ClusterState> clusterStateSupplier);
+
     /**
      * Method to invoke when a new cluster state is available to be applied
      *
