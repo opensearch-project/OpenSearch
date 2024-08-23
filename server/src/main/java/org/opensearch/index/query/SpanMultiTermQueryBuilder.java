@@ -219,7 +219,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         if (multiTermQueryBuilder != null) {
-            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(multiTermQueryBuilder);
+            multiTermQueryBuilder.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
         }
     }
 }

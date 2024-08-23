@@ -196,7 +196,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         if (clauses.isEmpty() == false) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.SHOULD);
             for (QueryBuilder subQb : this.clauses) {
-                subVisitor.accept(subQb);
+                subQb.visit(subVisitor);
             }
         }
     }
