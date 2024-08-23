@@ -48,6 +48,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.codec.composite.Composite99Codec;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.similarity.SimilarityService;
@@ -58,6 +59,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,9 +79,21 @@ public class CodecTests extends OpenSearchTestCase {
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
     }
 
+    public void testDefaultWithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("default");
+        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
+        assert codec instanceof Composite99Codec;
+    }
+
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService(false).codec("best_compression");
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
+    }
+
+    public void testBestCompressionWithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("best_compression");
+        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
+        assert codec instanceof Composite99Codec;
     }
 
     public void testLZ4() throws Exception {
@@ -87,10 +102,27 @@ public class CodecTests extends OpenSearchTestCase {
         assert codec instanceof PerFieldMappingPostingFormatCodec;
     }
 
+    public void testLZ4WithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("lz4");
+        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
+        assert codec instanceof Composite99Codec;
+    }
+
     public void testZlib() throws Exception {
         Codec codec = createCodecService(false).codec("zlib");
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
         assert codec instanceof PerFieldMappingPostingFormatCodec;
+    }
+
+    public void testZlibWithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("zlib");
+        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
+        assert codec instanceof Composite99Codec;
+    }
+
+    public void testResolveDefaultCodecsWithCompositeIndex() throws Exception {
+        CodecService codecService = createCodecService(false, true);
+        assertThat(codecService.codec("default"), instanceOf(Composite99Codec.class));
     }
 
     public void testBestCompressionWithCompressionLevel() {
@@ -174,9 +206,16 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     private CodecService createCodecService(boolean isMapperServiceNull) throws IOException {
+        return createCodecService(isMapperServiceNull, false);
+    }
+
+    private CodecService createCodecService(boolean isMapperServiceNull, boolean isCompositeIndexPresent) throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         if (isMapperServiceNull) {
             return new CodecService(null, IndexSettingsModule.newIndexSettings("_na", nodeSettings), LogManager.getLogger("test"));
+        }
+        if (isCompositeIndexPresent) {
+            return buildCodecServiceWithCompositeIndex(nodeSettings);
         }
         return buildCodecService(nodeSettings);
     }
@@ -202,6 +241,14 @@ public class CodecTests extends OpenSearchTestCase {
             () -> false,
             null
         );
+    }
+
+    private CodecService buildCodecServiceWithCompositeIndex(Settings nodeSettings) throws IOException {
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
+        MapperService service = Mockito.mock(MapperService.class);
+        Mockito.when(service.isCompositeIndexPresent()).thenReturn(true);
+        return new CodecService(service, indexSettings, LogManager.getLogger("test"));
     }
 
     private SegmentReader getSegmentReader(Codec codec) throws IOException {
