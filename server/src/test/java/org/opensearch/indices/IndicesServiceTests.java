@@ -85,8 +85,8 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.test.TestSearchContext;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
