@@ -310,12 +310,11 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * @param cacheKey the cache key to invalidate
      */
     void invalidate(IndicesService.IndexShardCacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
-        assert reader.getReaderCacheHelper() != null;
-        String readerCacheKeyId = null;
-        if (reader instanceof OpenSearchDirectoryReader) {
-            IndexReader.CacheHelper cacheHelper = ((OpenSearchDirectoryReader) reader).getDelegatingCacheHelper();
-            readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
-        }
+        assert reader.getReaderCacheHelper() instanceof OpenSearchDirectoryReader.DelegatingCacheHelper;
+        OpenSearchDirectoryReader.DelegatingCacheHelper delegatingCacheHelper = (OpenSearchDirectoryReader.DelegatingCacheHelper) reader
+            .getReaderCacheHelper();
+        String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
+
         IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
         cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, System.identityHashCode(indexShard))));
     }
