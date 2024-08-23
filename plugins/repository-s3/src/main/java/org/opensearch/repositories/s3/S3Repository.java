@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.common.Priority;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
@@ -391,6 +392,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     ) {
         super.finalizeSnapshot(
@@ -400,6 +402,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             snapshotInfo,
             repositoryMetaVersion,
             stateTransformer,
+            repositoryUpdatePriority,
             listener
         );
     }
