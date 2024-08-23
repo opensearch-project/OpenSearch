@@ -55,4 +55,14 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
         request.useAggregatedNodeLevelResponses(useAggregatedNodeLevelResponses);
         return this;
     }
+
+    public ClusterStatsRequestBuilder includeMappingStats(boolean value) {
+        request.setIncludeMappingStats(value);
+        return this;
+    }
+
+    public ClusterStatsRequestBuilder includeAnalysisStats(boolean value) {
+        request.setIncludeAnalysisStats(value);
+        return this;
+    }
 }

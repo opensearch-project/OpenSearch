@@ -384,6 +384,49 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testIndicesStatsAnalysisAndMappingStatsInclusion() {
+        internalCluster().startNode();
+        ensureGreen();
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        client().admin()
+            .indices()
+            .prepareCreate("test2")
+            .setMapping(
+                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"},"
+                    + "\"eggplant\":{\"type\":\"integer\"}}}}}"
+            )
+            .get();
+
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .includeMappingStats(false)
+            .includeAnalysisStats(false)
+            .get();
+        assertNull(response.getIndicesStats().getMappings());
+        assertNull(response.getIndicesStats().getAnalysis());
+
+        response = client().admin().cluster().prepareClusterStats().useAggregatedNodeLevelResponses(randomBoolean()).get();
+        assertNotNull(response.getIndicesStats().getAnalysis());
+        assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
+        Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (IndexFeatureStats stat : stats) {
+            switch (stat.getName()) {
+                case "integer":
+                    assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+                    break;
+                case "keyword":
+                    assertThat(stat.getCount(), greaterThanOrEqualTo(3));
+                    break;
+                case "object":
+                    assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+                    break;
+            }
+        }
+    }
+
     public void testNodeRolesWithMasterLegacySettings() throws ExecutionException, InterruptedException {
         int total = 1;
         Settings legacyMasterSettings = Settings.builder()
