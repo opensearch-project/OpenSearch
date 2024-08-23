@@ -321,6 +321,8 @@ public abstract class PeerFinder {
             startProbe(discoveryNodeObjectCursor.getAddress());
         }
 
+        // The part above handles creating connections with previously known nodes, and storing the mapping in peersByAddress
+        // The part below handles finding new nodes through discovery and creating transport connections, and transport addr -> Peer object mappings
         configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {
             synchronized (mutex) {
                 lastResolvedAddresses = providedAddresses;
@@ -329,6 +331,7 @@ public abstract class PeerFinder {
             }
         });
 
+        // In the part below, we schedule a thread (after findPeersInterval seconds) that calls back this function
         transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {

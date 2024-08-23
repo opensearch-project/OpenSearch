@@ -405,6 +405,7 @@ public class FollowersChecker {
                             return;
                         }
 
+                        // maybe this shouldn't be called in disconnected case/when cache doesnt have the entry
                         failNode(reason);
                     }
 

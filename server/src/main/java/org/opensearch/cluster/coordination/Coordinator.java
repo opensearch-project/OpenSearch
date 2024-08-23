@@ -641,6 +641,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     // we are checking source node commission status here to reject any join request coming from a decommissioned node
                     // even before executing the join task to fail fast
                     JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
+
+                    // we are checking to see if the node is already there in latest accepted cluster state.
+                    // this can happen when a node-left is in progress and not completed.
+                    // in cases like this, we want to fail the join
+                    JoinTaskExecutor.ensureNodeNotAlreadyInClusterState(joinRequest.getSourceNode(), stateForJoinValidation.nodes());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
             } else {
@@ -1349,6 +1354,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 currentPublication = Optional.of(publication);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
+                // Should we move this leaderChecker one to some other code that happens after cluster state processing?
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
