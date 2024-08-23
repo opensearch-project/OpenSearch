@@ -178,7 +178,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         Map<String, DocumentField> metaFields,
         Map<String, HighlightField> highlightFields,
         Map<String, Float> matchedQueries,
-        Map<String, SearchHits> innerHits
+        Map<String, SearchHits> innerHits,
+        String index,
+        String clusterAlias
     ) throws IOException {
         this.docId = docId;
         this.score = score;
@@ -187,6 +189,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.primaryTerm = primaryTerm;
         this.id = id;
         this.source = source;
+        this.shard = shardTarget;
         this.explanation = explanation;
         this.sortValues = sortValues;
         this.nestedIdentity = nestedIdentity;
@@ -195,9 +198,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.highlightFields = highlightFields;
         this.matchedQueries = matchedQueries;
         this.innerHits = innerHits;
-
-        // we call the setter here because that also sets the local index parameter
-        shard(shardTarget);
+        this.index = index;
+        this.clusterAlias = clusterAlias;
     }
 
     public SearchHit(SearchHit hit) throws IOException {
@@ -208,6 +210,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.primaryTerm = hit.primaryTerm;
         this.id = hit.id;
         this.source = hit.source;
+        this.shard = hit.shard;
         this.explanation = hit.explanation;
         this.sortValues = hit.sortValues;
         this.nestedIdentity = hit.nestedIdentity;
@@ -217,9 +220,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.matchedQueries = hit.matchedQueries;
         this.innerHits = hit.innerHits;
         this.sourceAsMap = hit.sourceAsMap;
-
-        // we call the setter here because that also sets the local index parameter
-        shard(hit.shard);
+        this.index = hit.index;
+        this.clusterAlias = hit.clusterAlias;
     }
 
     /**

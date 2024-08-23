@@ -71,6 +71,8 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
         Map<String, HighlightField> highlightFields;
         Map<String, Float> matchedQueries = Map.of();
         Map<String, SearchHits> innerHits;
+        String index = null;
+        String clusterAlias = null;
 
         docId = -1;
         score = in.readFloat();
@@ -127,6 +129,11 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
             }
         }
         shard = in.readOptionalWriteable(SearchShardTarget::new);
+        if (shard != null) {
+            index = shard.getIndex();
+            clusterAlias = shard.getClusterAlias();
+        }
+
         size = in.readVInt();
         if (size > 0) {
             innerHits = new HashMap<>(size);
@@ -155,7 +162,9 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
             metaFields,
             highlightFields,
             matchedQueries,
-            innerHits
+            innerHits,
+            index,
+            clusterAlias
         );
     }
 
