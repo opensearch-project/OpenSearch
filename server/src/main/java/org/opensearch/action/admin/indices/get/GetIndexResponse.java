@@ -297,7 +297,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeOptionalString(indexEntry.getValue());
         }
 
-        if (out.getVersion().before(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeVInt(contexts.size());
             for (final Map.Entry<String, Context> indexEntry : contexts.entrySet()) {
                 out.writeString(indexEntry.getKey());

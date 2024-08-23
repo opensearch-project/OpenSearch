@@ -1704,7 +1704,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             4,
             sourceIndexMetadata,
             false,
-            new HashMap<>()
+            new HashMap<>(),
+            null
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
