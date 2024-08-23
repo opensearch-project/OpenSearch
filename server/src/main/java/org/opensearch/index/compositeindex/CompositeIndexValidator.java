@@ -35,10 +35,7 @@ public class CompositeIndexValidator {
     ) {
         if (!isCompositeFieldPresent && mapperService.isCompositeIndexPresent()) {
             throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "Composite fields must be specified during index creation, addition of new composite fields during update is not supported"
-                )
+                "Composite fields must be specified during index creation, addition of new composite fields during update is not supported"
             );
         }
         StarTreeValidator.validate(mapperService, compositeIndexSettings, indexSettings);
