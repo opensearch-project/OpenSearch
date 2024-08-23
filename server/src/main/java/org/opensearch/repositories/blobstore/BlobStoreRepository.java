@@ -267,6 +267,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<Boolean> REMOTE_STORE_INDEX_SHALLOW_COPY = Setting.boolSetting("remote_store_index_shallow_copy", false);
 
+    public static final Setting<Boolean> SNAPSHOT_V2 = Setting.boolSetting("snapshot_v2", false);
+
     /**
      * Setting to set batch size of stale snapshot shard blobs that will be deleted by snapshot workers as part of snapshot deletion.
      * For optimal performance the value of the setting should be equal to or close to repository's max # of keys that can be deleted in single operation

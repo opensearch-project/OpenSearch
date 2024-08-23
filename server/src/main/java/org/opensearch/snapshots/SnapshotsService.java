@@ -136,6 +136,7 @@ import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_V2;
 import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
 /**
@@ -201,17 +202,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    public static final Setting<Boolean> SNAPSHOT_V2 = Setting.boolSetting(
-        "snapshot.snapshot_v2",
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
     private volatile int maxConcurrentOperations;
-
-    private volatile boolean isSnapshotV2;
 
     public SnapshotsService(
         Settings settings,
@@ -244,22 +235,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
-            isSnapshotV2 = SNAPSHOT_V2.get(settings);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_V2, this::setSnapshotV2);
         }
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_SNAPSHOT_KEY, true);
         deleteSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SNAPSHOT_KEY, true);
         updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
-    }
-
-    private void setSnapshotV2(boolean isSnapshotV2) {
-        this.isSnapshotV2 = isSnapshotV2;
-    }
-
-    public boolean isSnapshotV2() {
-        return isSnapshotV2;
     }
 
     /**
@@ -273,6 +254,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Repository repository = repositoriesService.repository(request.repository());
         boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
         logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
+
+        boolean isSnapshotV2 = SNAPSHOT_V2.get(repository.getMetadata().settings());
+        logger.debug("snapshot_v2 is set as [{}]", isSnapshotV2);
 
         if (remoteStoreIndexShallowCopy
             && clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED)) {

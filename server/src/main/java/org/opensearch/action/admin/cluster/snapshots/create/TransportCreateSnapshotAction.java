@@ -42,11 +42,15 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_V2;
 
 /**
  * Transport action for create snapshot operation
@@ -56,12 +60,15 @@ import java.io.IOException;
 public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
     private final SnapshotsService snapshotsService;
 
+    private final RepositoriesService repositoriesService;
+
     @Inject
     public TransportCreateSnapshotAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
+        RepositoriesService repositoriesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -75,6 +82,7 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
             indexNameExpressionResolver
         );
         this.snapshotsService = snapshotsService;
+        this.repositoriesService = repositoriesService;
     }
 
     @Override
@@ -103,7 +111,8 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener
     ) {
-        Boolean isSnapshotV2 = clusterService.getClusterSettings().get(SnapshotsService.SNAPSHOT_V2);
+        Repository repository = repositoriesService.repository(request.repository());
+        boolean isSnapshotV2 = SNAPSHOT_V2.get(repository.getMetadata().settings());
         if (request.waitForCompletion() || isSnapshotV2) {
             snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {

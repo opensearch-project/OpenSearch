@@ -24,6 +24,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
@@ -36,6 +37,8 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotRestoreException;
@@ -753,10 +756,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCreateSnapshotV2() throws Exception {
 
-        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
@@ -765,7 +767,20 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                )
+        );
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -809,17 +824,29 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
-        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                )
+        );
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -878,10 +905,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
-        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
@@ -890,7 +916,20 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                )
+        );
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -921,10 +960,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2WithIndexingLoad() throws Exception {
-        Settings snapshotSettings = Settings.builder().put("snapshot.snapshot_v2", true).build();
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -932,7 +970,20 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                )
+        );
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
