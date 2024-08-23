@@ -9,15 +9,17 @@
 package org.opensearch.transport.serde;
 
 import com.google.protobuf.ByteString;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
@@ -25,10 +27,8 @@ import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -46,6 +46,8 @@ import org.opensearch.transport.serde.prototemp.SearchHits.NestedIdentityProto;
 import org.opensearch.transport.serde.prototemp.SearchHits.HighlightFieldProto;
 import org.opensearch.transport.serde.prototemp.SearchHits.SearchSortValuesProto;
 import org.opensearch.transport.serde.prototemp.SearchHits.SearchShardTargetProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.ShardIdProto;
+import org.opensearch.transport.serde.prototemp.SearchHits.IndexProto;
 import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitsProto;
 
 /**
@@ -53,6 +55,7 @@ import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitsProto;
  * @opensearch.internal
  */
 public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.StreamDeserializer<SearchHit> {
+    SearchHitsSerDe searchHitsSerDe = new SearchHitsSerDe();
 
     @Override
     public SearchHit deserialize(StreamInput in) {
@@ -72,7 +75,7 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
         }
     }
 
-    public static SearchHitProto toProto(SearchHit searchHit) {
+    SearchHitProto toProto(SearchHit searchHit) {
         SearchHit.SerializationAccess serI = searchHit.getSerAccess();
 
         SearchHitProto.Builder builder = SearchHitProto.newBuilder()
@@ -82,8 +85,16 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
             .setSeqNo(serI.getSeqNo())
             .setPrimaryTerm(serI.getPrimaryTerm());
 
+        if (serI.getNestedIdentity() != null) {
+            builder.setNestedIdentity(nestedIdentityToProto(serI.getNestedIdentity()));
+        }
+
         if (serI.getSource() != null) {
             builder.setSource(ByteString.copyFrom(serI.getSource().toBytesRef().bytes));
+        }
+
+        if (serI.getExplanation() != null) {
+            builder.setExplanation(explanationToProto(serI.getExplanation()));
         }
 
         serI.getDocumentFields().forEach((key, value) ->
@@ -98,19 +109,11 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
             builder.putHighlightFields(key, highlightFieldToProto(value))
         );
 
-        serI.getMatchedQueries().forEach(builder::putMatchedQueries);
-
-        if (serI.getExplanation() != null) {
-            builder.setExplanation(explanationToProto(serI.getExplanation()));
-        }
-
         if (serI.getSortValues() != null) {
-            builder.setSortValues(shardSearchValuesToProto(serI.getSortValues()));
+            builder.setSortValues(searchSortValuesToProto(serI.getSortValues()));
         }
 
-        if (serI.getNestedIdentity() != null) {
-            builder.setNestedIdentity(nestedIdentityToProto(serI.getNestedIdentity()));
-        }
+        serI.getMatchedQueries().forEach(builder::putMatchedQueries);
 
         if (serI.getShard() != null) {
             builder.setShard(searchShardTargetToProto(serI.getShard()));
@@ -118,87 +121,110 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
 
         if (serI.getInnerHits() != null) {
             serI.getInnerHits().forEach((key, value) ->
-                builder.putInnerHits(key, searchHitsToProto(value))
+                builder.putInnerHits(key, searchHitsSerDe.toProto(value))
             );
         }
 
         return builder.build();
     }
 
-    private static DocumentFieldProto documentFieldToProto(DocumentField field) {
-        DocumentFieldProto.Builder builder = DocumentFieldProto.newBuilder().setName(field.getName());
-        List<Object> objList = field.getValues();
+    static NestedIdentityProto nestedIdentityToProto(SearchHit.NestedIdentity nestedIdentity) {
+        NestedIdentityProto.Builder builder = NestedIdentityProto.newBuilder()
+            .setField(nestedIdentity.getField().string())
+            .setOffset(nestedIdentity.getOffset());
 
-        for (Object obj : objList) {
-            byte[] data = SerializationUtils.serialize((Serializable) obj);
-            String jsonString = objectMapper.writeValueAsString(obj);
-            return ByteString.copyFromUtf8(jsonString);
-
-//            DataOutputStream out = new DataOutputStream(new ByteArrayOutputStream());
-//            obj.serialize(out);
-            obj.
-            builder.addValues(SerializationUtils.serialize(obj));
+        if (nestedIdentity.getChild() != null) {
+            builder.setChild(nestedIdentityToProto(nestedIdentity.getChild()));
         }
 
         return builder.build();
     }
 
-//    private static ExplanationProto explanationToProto(Explanation explanation) {
-//        ExplanationProto.Builder builder = ExplanationProto.newBuilder()
-//            .setValue(explanation.getValue().floatValue())
-//            .setDescription(explanation.getDescription());
-//
-//        for (Explanation detail : explanation.getDetails()) {
-//            builder.addDetails(explanationToProto(detail));
-//        }
-//
-//        return builder.build();
-//    }
-//
-//    private static NestedIdentityProto nestedIdentityToProto(SearchHit.NestedIdentity nestedIdentity) {
-//        NestedIdentityProto.Builder builder = NestedIdentityProto.newBuilder()
-//            .setField(nestedIdentity.getField().string())
-//            .setOffset(nestedIdentity.getOffset());
-//
-//        if (nestedIdentity.getChild() != null) {
-//            builder.setChild(nestedIdentityToProto(nestedIdentity.getChild()));
-//        }
-//
-//        return builder.build();
-//    }
-//
-//    private static SearchShardTargetProto searchShardTargetToProto(SearchShardTarget shardTarget) {
-//        return SearchShardTargetProto.newBuilder()
-//            .setNodeId(shardTarget.getNodeId())
-//            .setIndex(shardTarget.getIndex())
-//            .setShardId(shardTarget.getShardId().getId())
-//            .setClusterAlias(shardTarget.getClusterAlias() != null ? shardTarget.getClusterAlias() : "")
-//            .build();
-//    }
-//
-//
-//    private static DocumentField documentFieldFromProto(SearchHitOuterClass.DocumentField protoField) {
-//        return new DocumentField(
-//            protoField.getName(),
-//            protoField.getValuesList().stream()
-//                .map(ByteString::toStringUtf8)
-//                .collect(Collectors.toList())
-//        );
-//    }
-//
-//    private static HighlightFieldProto highlightFieldToProto(HighlightField field) {
-//        return HighlightFieldProto.newBuilder()
-//            .setName(field.getName())
-//            .addAllFragments(field.getFragments())
-//            .build();
-//    }
-//
-//    private static HighlightField highlightFieldFromProto(SearchHitOuterClass.HighlightField protoField) {
-//        return new HighlightField(
-//            protoField.getName(),
-//            protoField.getFragmentsList().toArray(new String[0])
-//        );
-//    }
+    static ExplanationProto explanationToProto(Explanation explanation) {
+        ExplanationProto.Builder builder = ExplanationProto.newBuilder()
+            .setMatch(explanation.isMatch())
+            .setValue(explanation.getValue().longValue())
+            .setDescription(explanation.getDescription());
+
+        for (Explanation detail : explanation.getDetails()) {
+            builder.addDetails(explanationToProto(detail));
+        }
+
+        return builder.build();
+    }
+
+    // Experimenting with this object.
+    // Proto definition gives 'repeated bytes' for values.
+    // However since these are just byte arrays it might be easier to just write them all to one buffer at once
+    // and avoid the overhead of opening a new StreamOutput for each value.
+    static DocumentFieldProto documentFieldToProto(DocumentField field) {
+        DocumentFieldProto.Builder builder = DocumentFieldProto.newBuilder().setName(field.getName());
+
+        try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
+            docsOut.writeCollection(field.getValues(), StreamOutput::writeGenericValue);
+            builder.addValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
+        } catch (IOException e){
+            builder.addValues(ByteString.EMPTY);
+        }
+
+        return builder.build();
+    }
+
+    static HighlightFieldProto highlightFieldToProto(HighlightField field) {
+        HighlightFieldProto.Builder builder = HighlightFieldProto.newBuilder()
+            .setName(field.getName());
+
+        for (Text frag : field.getFragments()) {
+            builder.addFragments(frag.string());
+        }
+
+        return builder.build();
+    }
+
+    // Experimenting with this object.
+    // See above comment for documentFieldToProto.
+    static SearchSortValuesProto searchSortValuesToProto(SearchSortValues searchSortValues) {
+        SearchSortValuesProto.Builder builder = SearchSortValuesProto.newBuilder();
+
+        try (BytesStreamOutput formOut = new BytesStreamOutput()) {
+            formOut.writeArray(Lucene::writeSortValue, searchSortValues.getFormattedSortValues());
+            builder.addFormattedSortValues(ByteString.copyFrom(formOut.bytes().toBytesRef().bytes));
+        } catch (IOException e){
+            builder.addFormattedSortValues(ByteString.EMPTY);
+        }
+
+        try (BytesStreamOutput rawOut = new BytesStreamOutput()) {
+            rawOut.writeArray(Lucene::writeSortValue, searchSortValues.getFormattedSortValues());
+            builder.addRawSortValues(ByteString.copyFrom(rawOut.bytes().toBytesRef().bytes));
+        } catch (IOException e){
+            builder.addRawSortValues(ByteString.EMPTY);
+        }
+
+        return builder.build();
+    }
+
+    static SearchShardTargetProto searchShardTargetToProto(SearchShardTarget shardTarget) {
+        return SearchShardTargetProto.newBuilder()
+            .setNodeId(shardTarget.getNodeId())
+            .setShardId(shardIdToProto(shardTarget.getShardId()))
+            .setClusterAlias(shardTarget.getClusterAlias())
+            .build();
+    }
+
+    static ShardIdProto shardIdToProto(ShardId shardId) {
+        return ShardIdProto.newBuilder()
+            .setIndex(indexToProto(shardId.getIndex()))
+            .setShardId(shardId.id())
+            .setHashCode(shardId.hashCode())
+            .build();
+    }
+
+    static IndexProto indexToProto(Index index) {
+        return IndexProto.newBuilder()
+            .setName(index.getName())
+            .setUuid(index.getUUID())
+            .build();
+    }
 
     private SearchHit fromStream(StreamInput in) throws IOException {
         int docId;

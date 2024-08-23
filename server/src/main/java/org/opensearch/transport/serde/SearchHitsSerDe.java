@@ -17,7 +17,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitsProto;
 
@@ -52,29 +51,18 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
         }
     }
 
-    private SearchHitsProto toProto(SearchHits searchHits) {
-        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
-            .setTotalHits(searchHits.getTotalHits().value)
-            .setMaxScore(searchHits.getMaxScore());
+    SearchHitsProto toProto(SearchHits searchHits) {
+        SearchHits.SerializationAccess serI = searchHits.getSerAccess();
 
-        // Assuming you have a SearchHitProtoUtils.toProto method
-        Arrays.stream(searchHits.getHits())
-            .map(SearchHitProtoUtils::toProto)
-            .forEach(builder::addHits);
+        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
+            .setTotalHits(serI.getTotalHits().value)
+            .setMaxScore(serI.getMaxScore());
+
+        for (SearchHit hit : searchHits.getHits()) {
+            builder.addHits(searchHitSerDe.toProto(hit));
+        }
 
         return builder.build();
-    }
-
-    private SearchHits fromProto(SearchHitsProto protoSearchHits) {
-        SearchHit[] hits = protoSearchHits.getHitsList().stream()
-            .map(SearchHitProtoUtils::fromProto)
-            .toArray(SearchHit[]::new);
-
-        return new SearchHits(
-            hits,
-            new TotalHits(protoSearchHits.getTotalHits(), TotalHits.Relation.EQUAL_TO),
-            protoSearchHits.getMaxScore()
-        );
     }
 
     private SearchHits fromStream(StreamInput in) throws IOException {

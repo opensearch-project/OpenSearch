@@ -8,10 +8,16 @@
 
 package org.opensearch.transport.serde;
 
+import com.google.protobuf.ByteString;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+
+import java.awt.image.WritableRaster;
+import java.io.IOException;
 
 /**
  * Base class for supported serialization/deserialization implementations.
