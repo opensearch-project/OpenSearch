@@ -20,6 +20,9 @@ import java.io.IOException;
 
 import static org.opensearch.search.SearchHits.EMPTY;
 
+/**
+ * Serialization/Deserialization implementations for SearchHits.
+ */
 public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerDe.StreamDeserializer<SearchHits> {
     SearchHitSerDe searchHitSerDe;
 

@@ -13,6 +13,9 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
+/**
+ * Base class for supported serialization/deserialization implementations.
+ */
 public class SerDe {
 
     public static class SerializationException extends RuntimeException {

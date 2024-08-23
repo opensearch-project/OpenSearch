@@ -34,6 +34,9 @@ import static org.opensearch.common.lucene.Lucene.readExplanation;
 import static org.opensearch.common.lucene.Lucene.writeExplanation;
 import static org.opensearch.search.SearchHit.SINGLE_MAPPING_TYPE;
 
+/**
+ * Serialization/Deserialization implementations for SearchHit.
+ */
 public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.StreamDeserializer<SearchHit> {
 
     @Override

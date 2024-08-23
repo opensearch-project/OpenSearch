@@ -16,6 +16,9 @@ import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
 
+/**
+ * Serialization/Deserialization implementations for SearchHit.
+ */
 public class FetchSearchResultsSerDe implements SerDe.StreamSerializer<FetchSearchResult>, SerDe.StreamDeserializer<FetchSearchResult> {
     /**
      * TODO NOTE: FetchSearchResult inheritance structure is as follows.
