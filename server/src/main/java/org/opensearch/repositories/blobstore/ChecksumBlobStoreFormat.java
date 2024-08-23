@@ -31,14 +31,7 @@
 
 package org.opensearch.repositories.blobstore;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
@@ -48,8 +41,6 @@ import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -57,12 +48,10 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.gateway.CorruptStateException;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -124,29 +113,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlo
     }
 
     public T deserialize(String blobName, NamedXContentRegistry namedXContentRegistry, BytesReference bytes) throws IOException {
-        final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
-        try {
-            final IndexInput indexInput = bytes.length() > 0
-                ? new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(BytesReference.toByteBuffers(bytes))), resourceDesc)
-                : new ByteArrayIndexInput(resourceDesc, BytesRef.EMPTY_BYTES);
-            CodecUtil.checksumEntireFile(indexInput);
-            CodecUtil.checkHeader(indexInput, codec, VERSION, VERSION);
-            long filePointer = indexInput.getFilePointer();
-            long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
-            try (
-                XContentParser parser = XContentHelper.createParser(
-                    namedXContentRegistry,
-                    LoggingDeprecationHandler.INSTANCE,
-                    bytes.slice((int) filePointer, (int) contentSize),
-                    XContentType.SMILE
-                )
-            ) {
-                return reader.apply(parser);
-            }
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            // we trick this into a dedicated exception with the original stacktrace
-            throw new CorruptStateException(ex);
-        }
+        return deserialize(blobName, namedXContentRegistry, bytes, XContentType.SMILE, codec, VERSION);
     }
 
     /**
@@ -259,5 +226,10 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlo
     public BytesReference serialize(final T obj, final String blobName, final Compressor compressor, final ToXContent.Params params)
         throws IOException {
         return serialize(obj, blobName, compressor, params, XContentType.SMILE, codec, VERSION);
+    }
+
+    @Override
+    CheckedFunction<XContentParser, T, IOException> reader() {
+        return reader;
     }
 }

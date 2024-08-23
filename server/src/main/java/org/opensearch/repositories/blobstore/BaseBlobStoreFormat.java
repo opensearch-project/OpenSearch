@@ -9,19 +9,34 @@
 package org.opensearch.repositories.blobstore;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.ByteBuffersDataInput;
+import org.apache.lucene.store.ByteBuffersIndexInput;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.IndexOutputOutputStream;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.gateway.CorruptStateException;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -30,7 +45,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class BaseBlobStoreFormat<T extends ToXContent> {
+public abstract class BaseBlobStoreFormat<T extends ToXContent> {
 
     private static final int BUFFER_SIZE = 4096;
 
@@ -91,7 +106,7 @@ public class BaseBlobStoreFormat<T extends ToXContent> {
         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")",
+                    "BaseBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")",
                     blobName,
                     outputStream,
                     BUFFER_SIZE
@@ -127,4 +142,43 @@ public class BaseBlobStoreFormat<T extends ToXContent> {
     protected String getBlobNameFormat() {
         return blobNameFormat;
     }
+
+    public T deserialize(
+        String blobName,
+        NamedXContentRegistry namedXContentRegistry,
+        BytesReference bytes,
+        XContentType xContentType,
+        String codec,
+        Integer version
+    ) throws IOException {
+        assert skipHeaderFooter || (Objects.nonNull(codec) && Objects.nonNull(version));
+        final String resourceDesc = "BaseBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
+        try {
+            final IndexInput indexInput = bytes.length() > 0
+                ? new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(BytesReference.toByteBuffers(bytes))), resourceDesc)
+                : new ByteArrayIndexInput(resourceDesc, BytesRef.EMPTY_BYTES);
+            if (skipHeaderFooter == false) {
+                CodecUtil.checksumEntireFile(indexInput);
+                CodecUtil.checkHeader(indexInput, codec, version, version);
+            }
+            int footerLength = skipHeaderFooter ? 0 : CodecUtil.footerLength();
+            long filePointer = indexInput.getFilePointer();
+            long contentSize = indexInput.length() - footerLength - filePointer;
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    namedXContentRegistry,
+                    LoggingDeprecationHandler.INSTANCE,
+                    bytes.slice((int) filePointer, (int) contentSize),
+                    xContentType
+                )
+            ) {
+                return reader().apply(parser);
+            }
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            // we trick this into a dedicated exception with the original stacktrace
+            throw new CorruptStateException(ex);
+        }
+    }
+
+    abstract CheckedFunction<XContentParser, T, IOException> reader();
 }

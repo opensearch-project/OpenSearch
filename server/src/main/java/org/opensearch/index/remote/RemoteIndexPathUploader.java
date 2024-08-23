@@ -64,7 +64,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
     public static final String DELIMITER = "#";
     public static final ConfigBlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new ConfigBlobStoreFormat<>(
-        RemoteIndexPath.FILE_NAME_FORMAT
+        RemoteIndexPath.FILE_NAME_FORMAT,
+        RemoteIndexPath::fromXContent
     );
 
     private static final String TIMEOUT_EXCEPTION_MSG = "Timed out waiting while uploading remote index path file for indexes=%s";

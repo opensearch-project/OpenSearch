@@ -332,7 +332,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
             );
             assertThat(
                 e.getMessage(),
-                equalTo("Detected a corrupted repository, " + "index [docs/_id] references an unknown snapshot uuid [null]")
+                equalTo("Detected a corrupted repository, " + "index [docs/_id/0] references an unknown snapshot uuid [null]")
             );
         }
     }
