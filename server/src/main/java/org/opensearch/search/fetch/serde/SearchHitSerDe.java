@@ -36,6 +36,7 @@ import static org.opensearch.search.SearchHit.SINGLE_MAPPING_TYPE;
 
 /**
  * Serialization/Deserialization implementations for SearchHit.
+ * @opensearch.internal
  */
 public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.StreamDeserializer<SearchHit> {
 

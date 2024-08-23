@@ -22,6 +22,7 @@ import static org.opensearch.search.SearchHits.EMPTY;
 
 /**
  * Serialization/Deserialization implementations for SearchHits.
+ * @opensearch.internal
  */
 public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerDe.StreamDeserializer<SearchHits> {
     SearchHitSerDe searchHitSerDe;

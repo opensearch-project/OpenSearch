@@ -18,6 +18,7 @@ import java.io.IOException;
 
 /**
  * Serialization/Deserialization implementations for SearchHit.
+ * @opensearch.internal
  */
 public class FetchSearchResultsSerDe implements SerDe.StreamSerializer<FetchSearchResult>, SerDe.StreamDeserializer<FetchSearchResult> {
     /**

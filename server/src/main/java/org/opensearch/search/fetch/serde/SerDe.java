@@ -15,9 +15,14 @@ import org.opensearch.core.xcontent.XContentParser;
 
 /**
  * Base class for supported serialization/deserialization implementations.
+ * @opensearch.internal
  */
 public class SerDe {
 
+    /**
+     * Serialization/Deserialization exception.
+     * @opensearch.internal
+     */
     public static class SerializationException extends RuntimeException {
         public SerializationException(String message) {
             super(message);
