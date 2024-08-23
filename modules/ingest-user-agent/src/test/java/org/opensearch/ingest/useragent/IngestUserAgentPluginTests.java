@@ -24,7 +24,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 
-public class IngestUserAgentModulePluginTests extends OpenSearchTestCase {
+public class IngestUserAgentPluginTests extends OpenSearchTestCase {
     private Settings.Builder settingsBuilder;
 
     @Before
@@ -62,10 +62,10 @@ public class IngestUserAgentModulePluginTests extends OpenSearchTestCase {
     public void testInvalidAllowList() throws IOException {
         List<String> invalidAllowList = List.of("set");
         final Settings settings = settingsBuilder.putList(
-            IngestUserAgentModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(),
+            IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(),
             invalidAllowList
         ).build();
-        try (IngestUserAgentModulePlugin plugin = new IngestUserAgentModulePlugin()) {
+        try (IngestUserAgentPlugin plugin = new IngestUserAgentPlugin()) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> plugin.getProcessors(createParameters(settings))
@@ -74,7 +74,7 @@ public class IngestUserAgentModulePluginTests extends OpenSearchTestCase {
                 "Processor(s) "
                     + invalidAllowList
                     + " were defined in ["
-                    + IngestUserAgentModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey()
+                    + IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey()
                     + "] but do not exist",
                 e.getMessage()
             );
@@ -82,17 +82,17 @@ public class IngestUserAgentModulePluginTests extends OpenSearchTestCase {
     }
 
     public void testAllowListNotSpecified() throws IOException {
-        settingsBuilder.remove(IngestUserAgentModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey());
-        try (IngestUserAgentModulePlugin plugin = new IngestUserAgentModulePlugin()) {
+        settingsBuilder.remove(IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey());
+        try (IngestUserAgentPlugin plugin = new IngestUserAgentPlugin()) {
             final Set<String> expected = Set.of("user_agent");
             assertEquals(expected, plugin.getProcessors(createParameters(settingsBuilder.build())).keySet());
         }
     }
 
     private void runAllowListTest(List<String> allowList) throws IOException {
-        final Settings settings = settingsBuilder.putList(IngestUserAgentModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), allowList)
+        final Settings settings = settingsBuilder.putList(IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), allowList)
             .build();
-        try (IngestUserAgentModulePlugin plugin = new IngestUserAgentModulePlugin()) {
+        try (IngestUserAgentPlugin plugin = new IngestUserAgentPlugin()) {
             assertEquals(Set.copyOf(allowList), plugin.getProcessors(createParameters(settings)).keySet());
         }
     }
