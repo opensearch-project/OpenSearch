@@ -21,16 +21,17 @@ public class ValueAggregatorFactory {
     /**
      * Returns a new instance of value aggregator for the given aggregation type.
      *
-     * @param aggregationType Aggregation type
+     * @param aggregationType     Aggregation type
+     * @param starTreeNumericType Numeric type associated with star tree field ( as specified in index mapping )
      * @return Value aggregator
      */
-    public static ValueAggregator getValueAggregator(MetricStat aggregationType) {
+    public static ValueAggregator getValueAggregator(MetricStat aggregationType, StarTreeNumericType starTreeNumericType) {
         switch (aggregationType) {
             // other metric types (count, min, max, avg) will be supported in the future
             case SUM:
-                return new SumValueAggregator();
+                return new SumValueAggregator(starTreeNumericType);
             case COUNT:
-                return new CountValueAggregator();
+                return new CountValueAggregator(starTreeNumericType);
             default:
                 throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
         }
