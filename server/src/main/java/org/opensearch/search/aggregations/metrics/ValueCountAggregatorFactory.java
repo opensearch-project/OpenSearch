@@ -51,7 +51,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, ValueCountAggregator::new, true);

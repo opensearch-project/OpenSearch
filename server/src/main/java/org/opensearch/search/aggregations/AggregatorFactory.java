@@ -127,4 +127,8 @@ public abstract class AggregatorFactory {
     public boolean evaluateChildFactories() {
         return factories.allFactoriesSupportConcurrentSearch();
     }
+
+    public AggregatorFactories getSubFactories() {
+        return factories;
+    }
 }

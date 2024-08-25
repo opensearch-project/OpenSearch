@@ -52,7 +52,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     AvgAggregatorFactory(
         String name,
