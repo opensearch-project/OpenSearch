@@ -56,7 +56,13 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
@@ -73,12 +79,17 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptFactory;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.startree.OriginalOrStarTreeQuery;
+import org.opensearch.search.startree.StarTreeQuery;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -89,6 +100,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -580,6 +592,71 @@ public class QueryShardContext extends QueryRewriteContext {
         } finally {
             reset();
         }
+    }
+
+    public ParsedQuery toStarTreeQuery(
+        CompositeIndexFieldInfo starTree,
+        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        QueryBuilder queryBuilder,
+        Query query
+    ) {
+        Map<String, List<Predicate<Long>>> predicateMap;
+
+        if (queryBuilder == null) {
+            predicateMap = null;
+        } else if (queryBuilder instanceof TermQueryBuilder) {
+            List<String> supportedDimensions = compositeIndexFieldInfo.getDimensions()
+                .stream()
+                .map(Dimension::getField)
+                .collect(Collectors.toList());
+            predicateMap = getStarTreePredicates(queryBuilder, supportedDimensions);
+        } else {
+            return null;
+        }
+
+        StarTreeQuery starTreeQuery = new StarTreeQuery(starTree, predicateMap);
+        OriginalOrStarTreeQuery originalOrStarTreeQuery = new OriginalOrStarTreeQuery(starTreeQuery, query);
+        return new ParsedQuery(originalOrStarTreeQuery);
+    }
+
+    /**
+     * Parse query body to star-tree predicates
+     * @param queryBuilder
+     * @return predicates to match
+     */
+    private Map<String, List<Predicate<Long>>> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
+        TermQueryBuilder tq = (TermQueryBuilder) queryBuilder;
+        String field = tq.fieldName();
+        if (supportedDimensions.contains(field) == false) {
+            throw new IllegalArgumentException("unsupported field in star-tree");
+        }
+        long inputQueryVal = Long.parseLong(tq.value().toString());
+
+        // Get or create the list of predicates for the given field
+        Map<String, List<Predicate<Long>>> predicateMap = new HashMap<>();
+        List<Predicate<Long>> predicates = predicateMap.getOrDefault(field, new ArrayList<>());
+
+        // Create a predicate to match the input query value
+        Predicate<Long> predicate = dimVal -> dimVal == inputQueryVal;
+        predicates.add(predicate);
+
+        // Put the predicates list back into the map
+        predicateMap.put(field, predicates);
+        return predicateMap;
+    }
+
+    public boolean validateStarTreeMetricSuport(CompositeDataCubeFieldType compositeIndexFieldInfo, AggregatorFactory aggregatorFactory) {
+        String field;
+        Map<String, List<MetricStat>> supportedMetrics = compositeIndexFieldInfo.getMetrics()
+            .stream()
+            .collect(Collectors.toMap(Metric::getField, Metric::getMetrics));
+
+        MetricStat metricStat = StarTreeUtils.aggregatorStatMap.get(aggregatorFactory.getClass());
+        if (metricStat != null) {
+            field = ((ValuesSourceAggregatorFactory) aggregatorFactory).getField();
+            return supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat);
+        }
+        return false;
     }
 
     public Index index() {

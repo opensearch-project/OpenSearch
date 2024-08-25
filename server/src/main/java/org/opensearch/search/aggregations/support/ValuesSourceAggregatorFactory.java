@@ -102,4 +102,16 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     public String getStatsSubtype() {
         return config.valueSourceType().typeName();
     }
+
+    public String getField() {
+        return config.fieldContext().field();
+    }
+
+    public String getAggregationName() {
+        return name;
+    }
+
+    public ValuesSourceConfig getConfig() {
+        return config;
+    }
 }

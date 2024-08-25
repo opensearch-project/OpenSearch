@@ -34,12 +34,16 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
@@ -51,6 +55,8 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.OriginalOrStarTreeQuery;
+import org.opensearch.search.startree.StarTreeQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -120,6 +126,16 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 throw new CollectionTerminatedException();
             }
         }
+
+        if (context.query() instanceof OriginalOrStarTreeQuery && ((OriginalOrStarTreeQuery) context.query()).isStarTreeUsed()) {
+            StarTreeQuery starTreeQuery = ((OriginalOrStarTreeQuery) context.query()).getStarTreeQuery();
+            return getStarTreeLeafCollector(ctx, sub, starTreeQuery.getStarTree());
+        }
+        return getDefaultLeafCollector(ctx, sub);
+    }
+
+    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
@@ -140,6 +156,34 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 }
             }
 
+        };
+    }
+
+    private LeafBucketCollector getStarTreeLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
+        throws IOException {
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
+        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, "max");
+        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(metricName);
+
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
+        return new LeafBucketCollectorBase(sub, allValues) {
+
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (bucket >= maxes.size()) {
+                    long from = maxes.size();
+                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                }
+                if (values.advanceExact(doc)) {
+                    final double value = Double.longBitsToDouble(values.nextValue());
+                    double max = maxes.get(bucket);
+                    max = Math.max(max, value);
+                    maxes.set(bucket, max);
+                }
+            }
         };
     }
 

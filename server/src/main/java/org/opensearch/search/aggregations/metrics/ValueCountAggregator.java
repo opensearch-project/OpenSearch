@@ -37,6 +37,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -46,6 +50,8 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.OriginalOrStarTreeQuery;
+import org.opensearch.search.startree.StarTreeQuery;
 
 import java.io.IOException;
 import java.util.Map;
@@ -88,6 +94,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         final BigArrays bigArrays = context.bigArrays();
 
         if (valuesSource instanceof ValuesSource.Numeric) {
+
+            if (context.query() instanceof OriginalOrStarTreeQuery && ((OriginalOrStarTreeQuery) context.query()).isStarTreeUsed()) {
+                StarTreeQuery starTreeQuery = ((OriginalOrStarTreeQuery) context.query()).getStarTreeQuery();
+                return getStarTreeLeafCollector(ctx, sub, starTreeQuery.getStarTree());
+            }
+
             final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
 
@@ -124,7 +136,29 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
                     counts.increment(bucket, values.docValueCount());
                 }
             }
+        };
+    }
 
+    private LeafBucketCollector getStarTreeLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
+        throws IOException {
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
+        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+            starTree.getField(),
+            fieldName,
+            MetricStat.VALUE_COUNT.getTypeName()
+        );
+        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(metricName);
+        final BigArrays bigArrays = context.bigArrays();
+
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                counts = bigArrays.grow(counts, bucket + 1);
+                if (values.advanceExact(doc)) {
+                    counts.increment(bucket, values.nextValue());
+                }
+            }
         };
     }
 
