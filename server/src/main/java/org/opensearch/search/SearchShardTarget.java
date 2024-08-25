@@ -71,6 +71,13 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         clusterAlias = in.readOptionalString();
     }
 
+    public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias) {
+        this.nodeId = new Text(nodeId);
+        this.shardId = shardId;
+        this.originalIndices = null;
+        this.clusterAlias = clusterAlias;
+    }
+
     public SearchShardTarget(String nodeId, ShardId shardId, @Nullable String clusterAlias, OriginalIndices originalIndices) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;

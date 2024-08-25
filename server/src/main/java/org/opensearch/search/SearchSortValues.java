@@ -67,6 +67,11 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.rawSortValues = EMPTY_ARRAY;
     }
 
+    public SearchSortValues(Object[] formattedSortValues, Object[] rawSortValues) {
+        this.formattedSortValues = formattedSortValues;
+        this.rawSortValues = rawSortValues;
+    }
+
     public SearchSortValues(Object[] rawSortValues, DocValueFormat[] sortValueFormats) {
         Objects.requireNonNull(rawSortValues);
         Objects.requireNonNull(sortValueFormats);
