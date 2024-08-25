@@ -26,6 +26,16 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitsProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.NestedIdentityProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.DocumentFieldProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.HighlightFieldProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchSortValuesProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchShardTargetProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.ExplanationProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.ShardIdProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.IndexProto;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,16 +52,6 @@ import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.lucene.Lucene.readExplanation;
 import static org.opensearch.common.lucene.Lucene.writeExplanation;
 import static org.opensearch.search.SearchHit.SINGLE_MAPPING_TYPE;
-
-import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.DocumentFieldProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.ExplanationProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.NestedIdentityProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.HighlightFieldProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.SearchSortValuesProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.SearchShardTargetProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.ShardIdProto;
-import org.opensearch.transport.serde.prototemp.SearchHits.IndexProto;
 
 /**
  * Serialization/Deserialization implementations for SearchHit.
@@ -215,6 +215,7 @@ public class SearchHitSerDe implements SerDe.StreamSerializer<SearchHit>, SerDe.
         return new SearchHit.NestedIdentity(field, offset, child);
     }
 
+    // TODO: Lucene definitions should maybe be serialized as generic bytes arrays.
     static ExplanationProto explanationToProto(Explanation explanation) {
         ExplanationProto.Builder builder = ExplanationProto.newBuilder()
             .setMatch(explanation.isMatch())

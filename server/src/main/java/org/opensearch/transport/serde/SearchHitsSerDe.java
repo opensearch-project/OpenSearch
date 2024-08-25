@@ -15,10 +15,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitsProto;
 
 import java.io.IOException;
-
-import org.opensearch.transport.serde.prototemp.SearchHits.SearchHitsProto;
 
 import static org.opensearch.search.SearchHits.EMPTY;
 
@@ -53,25 +52,25 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
 
     // TODO: Update proto definition
     SearchHitsProto toProto(SearchHits searchHits) {
-        SearchHits.SerializationAccess serI = searchHits.getSerAccess();
-
-        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
-            .setTotalHits(serI.getTotalHits().value)
-            .setMaxScore(serI.getMaxScore());
-
-        for (SearchHit hit : searchHits.getHits()) {
-            builder.addHits(searchHitSerDe.toProto(hit));
-        }
-
-        return builder.build();
+//        SearchHits.SerializationAccess serI = searchHits.getSerAccess();
+//
+//        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
+//            .setTotalHits(serI.getTotalHits().value)
+//            .setMaxScore(serI.getMaxScore());
+//
+//        for (SearchHit hit : searchHits.getHits()) {
+//            builder.addHits(searchHitSerDe.toProto(hit));
+//        }
+//
+//        return builder.build();
     }
 
     // TODO: Update proto definition
     SearchHits fromProto(SearchHitsProto proto) {
-        long totalHits = proto.getTotalHits();
-        float maxScore = proto.getMaxScore();
-
-        return new SearchHits();
+//        long totalHits = proto.getTotalHits();
+//        float maxScore = proto.getMaxScore();
+//
+//        return new SearchHits();*/
     }
 
     private SearchHits fromStream(StreamInput in) throws IOException {

@@ -49,7 +49,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
 
     public void testLayout() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
-                                          .setType("server")
+                                          .setType("serde")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
@@ -68,7 +68,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
 
     public void testWithMaxMessageLengthLayout() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
-            .setType("server")
+            .setType("serde")
             .setMaxMessageLength(42)
             .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
@@ -88,7 +88,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
 
     public void testWithUnrestrictedMaxMessageLengthLayout() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
-            .setType("server")
+            .setType("serde")
             .setMaxMessageLength(0)
             .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
@@ -108,7 +108,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
 
     public void testLayoutWithAdditionalFields() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
-                                          .setType("server")
+                                          .setType("serde")
                                           .setOpenSearchMessageFields("x-opaque-id,someOtherField")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
@@ -130,7 +130,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
 
     public void testLayoutWithAdditionalFieldOverride() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
-                                          .setType("server")
+                                          .setType("serde")
                                           .setOpenSearchMessageFields("message")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
