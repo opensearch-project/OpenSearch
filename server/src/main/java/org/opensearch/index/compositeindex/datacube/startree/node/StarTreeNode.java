@@ -107,7 +107,7 @@ public interface StarTreeNode {
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
-    StarTreeNode getChildForDimensionValue(long dimensionValue, boolean isStar) throws IOException;
+    StarTreeNode getChildForDimensionValue(Long dimensionValue, boolean isStar) throws IOException;
 
     /**
      * Returns an iterator over the children of the current star-tree node.

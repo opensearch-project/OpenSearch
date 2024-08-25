@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-public class StarTreeUtilsTest extends OpenSearchTestCase {
+public class StarTreeUtilsTests extends OpenSearchTestCase {
 
     public void testFullyQualifiedFieldNameForStarTreeDimensionsDocValues() {
         String starTreeFieldName = "myStarTreeField";
@@ -56,7 +56,7 @@ public class StarTreeUtilsTest extends OpenSearchTestCase {
 
     }
 
-    private void assertFieldInfos(FieldInfo actualFieldInfo, String fieldName, Integer fieldNumber){
+    private void assertFieldInfos(FieldInfo actualFieldInfo, String fieldName, Integer fieldNumber) {
         assertEquals(fieldName, actualFieldInfo.name);
         assertEquals(fieldNumber, actualFieldInfo.number, 0);
         assertFalse(actualFieldInfo.hasVectorValues());
@@ -74,6 +74,5 @@ public class StarTreeUtilsTest extends OpenSearchTestCase {
         assertEquals(VectorSimilarityFunction.EUCLIDEAN, actualFieldInfo.getVectorSimilarityFunction());
         assertFalse(actualFieldInfo.isSoftDeletesField());
     }
-
 
 }

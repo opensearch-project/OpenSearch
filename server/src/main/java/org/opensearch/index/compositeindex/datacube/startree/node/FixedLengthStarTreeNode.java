@@ -187,7 +187,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     }
 
     @Override
-    public StarTreeNode getChildForDimensionValue(long dimensionValue, boolean isStar) throws IOException {
+    public StarTreeNode getChildForDimensionValue(Long dimensionValue, boolean isStar) throws IOException {
         // there will be no children for leaf nodes
         if (isLeaf()) {
             return null;
@@ -197,9 +197,11 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
         if (isStar) {
             return handleStarNode();
         }
-
-        StarTreeNode resultStarTreeNode = binarySearchChild(dimensionValue);
-        assert null != resultStarTreeNode;
+        StarTreeNode resultStarTreeNode = null;
+        if (null != dimensionValue) {
+            resultStarTreeNode = binarySearchChild(dimensionValue);
+            assert null != resultStarTreeNode;
+        }
         return resultStarTreeNode;
     }
 
@@ -232,11 +234,11 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
         while (low <= high) {
             int mid = low + (high - low) / 2;
             FixedLengthStarTreeNode midNode = new FixedLengthStarTreeNode(in, mid);
-            long midNodeDimensionValue = midNode.getDimensionValue();
+            long midDimensionValue = midNode.getDimensionValue();
 
-            if (midNodeDimensionValue == dimensionValue) {
+            if (midDimensionValue == dimensionValue) {
                 return midNode;
-            } else if (midNodeDimensionValue < dimensionValue) {
+            } else if (midDimensionValue < dimensionValue) {
                 low = mid + 1;
             } else {
                 high = mid - 1;
