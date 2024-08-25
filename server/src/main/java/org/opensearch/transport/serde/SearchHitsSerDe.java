@@ -8,14 +8,18 @@
 
 package org.opensearch.transport.serde;
 
+import com.google.protobuf.ByteString;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitsProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.TotalHitsProto;
 
 import java.io.IOException;
 
@@ -50,27 +54,71 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
         }
     }
 
-    // TODO: Update proto definition
-    SearchHitsProto toProto(SearchHits searchHits) {
-//        SearchHits.SerializationAccess serI = searchHits.getSerAccess();
-//
-//        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
-//            .setTotalHits(serI.getTotalHits().value)
-//            .setMaxScore(serI.getMaxScore());
-//
-//        for (SearchHit hit : searchHits.getHits()) {
-//            builder.addHits(searchHitSerDe.toProto(hit));
-//        }
-//
-//        return builder.build();
+    SearchHitsProto toProto(SearchHits searchHits) throws SerDe.SerializationException{
+        SearchHits.SerializationAccess serI = searchHits.getSerAccess();
+        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
+            .setMaxScore(serI.getMaxScore())
+            .setCollapseField(serI.getCollapseField());
+
+        for (SearchHit hit : serI.getHits()) {
+            builder.addHits(searchHitSerDe.toProto(hit));
+        }
+
+        TotalHits totHits = serI.getTotalHits();
+        TotalHitsProto.Builder totHitsBuilder = TotalHitsProto.newBuilder()
+            .setRelation(totHits.relation.ordinal())
+            .setValue(totHits.value);
+        builder.setTotalHits(totHitsBuilder);
+
+        try (BytesStreamOutput sortOut = new BytesStreamOutput()) {
+            sortOut.writeOptionalArray(Lucene::writeSortField, serI.getSortFields());
+            builder.setSortFields(ByteString.copyFrom(sortOut.bytes().toBytesRef().bytes));
+        } catch (IOException e){
+            throw new SerDe.SerializationException("Failed to serialize SearchHits to proto", e);
+        }
+
+        try (BytesStreamOutput collapseOut = new BytesStreamOutput()) {
+            collapseOut.writeOptionalArray(Lucene::writeSortField, serI.getSortFields());
+            builder.setCollapseValues(ByteString.copyFrom(collapseOut.bytes().toBytesRef().bytes));
+        } catch (IOException e){
+            throw new SerDe.SerializationException("Failed to serialize SearchHits to proto", e);
+        }
+
+        return builder.build();
     }
 
-    // TODO: Update proto definition
-    SearchHits fromProto(SearchHitsProto proto) {
-//        long totalHits = proto.getTotalHits();
-//        float maxScore = proto.getMaxScore();
-//
-//        return new SearchHits();*/
+    SearchHits fromProto(SearchHitsProto proto) throws SerDe.SerializationException {
+        float maxScore = proto.getMaxScore();
+        String collapseField = proto.getCollapseField();
+
+        TotalHitsProto totalHits = proto.getTotalHits();
+        long rel = totalHits.getRelation();
+        long val = totalHits.getValue();
+        if (rel < 0 || rel >= TotalHits.Relation.values().length) {
+            throw new SerDe.SerializationException("Failed to deserialize TotalHits from proto");
+        }
+        TotalHits totHits = new TotalHits(val, TotalHits.Relation.values()[(int) rel]);
+
+        SortField[] sortFields = null;
+        try (StreamInput sortBytesInput = new BytesArray(proto.getSortFields().toByteArray()).streamInput()) {
+            sortFields = sortBytesInput.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        } catch (IOException e) {
+            throw new SerDe.SerializationException("Failed to deserialize SearchHits from proto", e);
+        }
+
+        Object[] collapseValues = null;
+        try (StreamInput collapseBytesInput = new BytesArray(proto.getCollapseValues().toByteArray()).streamInput()) {
+            collapseValues = collapseBytesInput.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        } catch (IOException e) {
+            throw new SerDe.SerializationException("Failed to deserialize SearchHits from proto", e);
+        }
+
+        SearchHit[] hits = new SearchHit[proto.getHitsCount()];
+        for(int i = 0; i < hits.length; i++) {
+            hits[i] = searchHitSerDe.fromProto(proto.getHits(i));
+        }
+
+        return new SearchHits(hits, totHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     private SearchHits fromStream(StreamInput in) throws IOException {

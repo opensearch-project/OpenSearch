@@ -14,11 +14,11 @@ Object[] collapseValues
  */
 message SearchHitsProto {
   repeated SearchHitProto hits = 1;
-  int64 total_hits = 2;
+  TotalHitsProto total_hits = 2;
   float max_score = 3;
-  repeated bytes sort_fields = 4;
-  string collapse_field = 5;
-  repeated bytes collapse_values = 6;
+  string collapse_field = 4;
+  bytes sort_fields = 5;
+  bytes collapse_values = 6;
 }
 
 /**
@@ -54,6 +54,15 @@ message SearchHitProto {
   map<string, float> matched_queries = 13;
   SearchShardTargetProto shard = 14;
   map<string, SearchHitsProto> inner_hits = 15;
+}
+
+/*
+int value;
+Relation relation;
+ */
+message TotalHitsProto {
+  int64 value = 1;
+  int64 relation = 2;
 }
 
 /*
