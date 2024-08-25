@@ -51,6 +51,7 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
         }
     }
 
+    // TODO: Update proto definition
     SearchHitsProto toProto(SearchHits searchHits) {
         SearchHits.SerializationAccess serI = searchHits.getSerAccess();
 
@@ -63,6 +64,14 @@ public class SearchHitsSerDe implements SerDe.StreamSerializer<SearchHits>, SerD
         }
 
         return builder.build();
+    }
+
+    // TODO: Update proto definition
+    SearchHits fromProto(SearchHitsProto proto) {
+        long totalHits = proto.getTotalHits();
+        float maxScore = proto.getMaxScore();
+
+        return new SearchHits();
     }
 
     private SearchHits fromStream(StreamInput in) throws IOException {

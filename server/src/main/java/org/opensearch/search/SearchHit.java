@@ -181,7 +181,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         Map<String, SearchHits> innerHits,
         String index,
         String clusterAlias
-    ) throws IOException {
+    ) {
         this.docId = docId;
         this.score = score;
         this.seqNo = seqNo;

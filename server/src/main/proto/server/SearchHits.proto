@@ -4,11 +4,17 @@ syntax = "proto3";
 SearchHit[] hits
 TotalHits totalHits
 float maxScore
+SortField[] sortFields
+String collapseField
+Object[] collapseValues
  */
 message SearchHitsProto {
   repeated SearchHitProto hits = 1;
   int64 total_hits = 2;
   float max_score = 3;
+  repeated SortFieldProto sort_fields = 4;
+  string collapse_field = 5;
+  repeated bytes collapse_values = 6;
 }
 
 /**
