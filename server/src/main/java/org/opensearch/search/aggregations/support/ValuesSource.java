@@ -625,6 +625,10 @@ public abstract class ValuesSource {
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getDoubleValues();
             }
+
+            public String getIndexFieldName() {
+                return indexFieldData.getFieldName();
+            }
         }
 
         /**

@@ -52,7 +52,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(

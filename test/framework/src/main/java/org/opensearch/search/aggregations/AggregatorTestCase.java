@@ -37,6 +37,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -141,6 +142,7 @@ import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.startree.StarTreeQuery;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -647,6 +649,74 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
             internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
         }
+        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        return internalAgg;
+    }
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceStarTree(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBucket,
+        boolean hasNested,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        final IndexReaderContext ctx = searcher.getTopReaderContext();
+        final PipelineTree pipelines = builder.buildPipelineTree();
+        List<InternalAggregation> aggs = new ArrayList<>();
+        if (hasNested) {
+            query = Queries.filtered(query, Queries.newNonNestedFilter());
+        }
+
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
+
+        if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {
+            assertTrue(ctx instanceof LeafReaderContext);
+            final LeafReaderContext compCTX = (LeafReaderContext) ctx;
+            final int size = compCTX.leaves().size();
+            final ShardSearcher[] subSearchers = new ShardSearcher[size];
+            for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
+                final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
+                subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
+            }
+            for (ShardSearcher subSearcher : subSearchers) {
+                MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(
+                    maxBucket,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                C a = createAggregator(query, builder, subSearcher, indexSettings, shardBucketConsumer, fieldTypes);
+                a.preCollection();
+                Weight weight = subSearcher.createWeight(query, ScoreMode.COMPLETE, 1f);
+
+                assertTrue(weight.getQuery() instanceof StarTreeQuery);
+                subSearcher.search(weight, a);
+                a.postCollection();
+                aggs.add(a.buildTopLevel());
+            }
+        } else {
+            root.preCollection();
+            searcher.search(query, root);
+            root.postCollection();
+            aggs.add(root.buildTopLevel());
+        }
+
+        MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+            root.context().bigArrays(),
+            getMockScriptService(),
+            reduceBucketConsumer,
+            pipelines
+        );
+
+        @SuppressWarnings("unchecked")
+        A internalAgg = (A) aggs.get(0).reduce(aggs, context);
         doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
         return internalAgg;
     }
