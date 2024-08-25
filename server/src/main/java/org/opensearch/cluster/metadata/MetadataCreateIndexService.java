@@ -564,8 +564,10 @@ public class MetadataCreateIndexService {
         Settings.Builder settingsBuilder
     ) throws IOException {
         if (request.context() != null) {
-            String contextTemplate = MetadataIndexTemplateService.findContextTemplateName(currentState.metadata(), request.context());
-            ComponentTemplate componentTemplate = currentState.metadata().componentTemplates().get(contextTemplate);
+            ComponentTemplate componentTemplate = MetadataIndexTemplateService.findComponentTemplate(
+                currentState.metadata(),
+                request.context()
+            );
 
             if (componentTemplate.template().mappings() != null) {
                 // Mappings added at last (priority to mappings provided)
@@ -1426,7 +1428,7 @@ public class MetadataCreateIndexService {
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
-        validateContext(request, state);
+        validateContext(request);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
@@ -1768,7 +1770,7 @@ public class MetadataCreateIndexService {
 
     }
 
-    static void validateContext(CreateIndexClusterStateUpdateRequest request, ClusterState clusterState) {
+    void validateContext(CreateIndexClusterStateUpdateRequest request) {
         final boolean isContextAllowed = FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES);
 
         if (request.context() != null && !isContextAllowed) {
@@ -1780,7 +1782,7 @@ public class MetadataCreateIndexService {
             );
         }
 
-        if (request.context() != null && findContextTemplateName(clusterState.metadata(), request.context()) == null) {
+        if (request.context() != null && findContextTemplateName(clusterService.state().metadata(), request.context()) == null) {
             throw new InvalidIndexContextException(
                 request.context().name(),
                 request.index(),

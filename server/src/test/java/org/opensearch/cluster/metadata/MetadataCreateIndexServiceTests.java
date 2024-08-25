@@ -81,6 +81,7 @@ import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidAliasNameException;
+import org.opensearch.indices.InvalidIndexContextException;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
@@ -115,6 +116,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -2230,6 +2232,78 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\""
             )
         );
+    }
+
+    public void testCreateIndexWithContextDisabled() throws Exception {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                mock(Environment.class),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            );
+            CountDownLatch counter = new CountDownLatch(1);
+            InvalidIndexContextException exception = expectThrows(
+                InvalidIndexContextException.class,
+                () -> checkerService.validateContext(request)
+            );
+            assertTrue(
+                "Invalid exception message." + exception.getMessage(),
+                exception.getMessage().contains("index specifies a context which cannot be used without enabling")
+            );
+        });
+    }
+
+    public void testCreateIndexWithContextAbsent() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
+        try {
+            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
+            withTemporaryClusterService((clusterService, threadPool) -> {
+                MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                    Settings.EMPTY,
+                    clusterService,
+                    indicesServices,
+                    null,
+                    null,
+                    createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                    mock(Environment.class),
+                    IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                    threadPool,
+                    null,
+                    new SystemIndices(Collections.emptyMap()),
+                    false,
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    repositoriesServiceSupplier
+                );
+                CountDownLatch counter = new CountDownLatch(1);
+                InvalidIndexContextException exception = expectThrows(
+                    InvalidIndexContextException.class,
+                    () -> checkerService.validateContext(request)
+                );
+                assertTrue(
+                    "Invalid exception message." + exception.getMessage(),
+                    exception.getMessage().contains("index specifies a context which is not loaded on the cluster.")
+                );
+            });
+        } finally {
+            // Disable so that other tests which are not dependent on this are not impacted.
+            FeatureFlags.initializeFeatureFlags(
+                Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build()
+            );
+        }
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

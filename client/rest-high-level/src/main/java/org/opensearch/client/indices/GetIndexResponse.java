@@ -129,6 +129,10 @@ public class GetIndexResponse {
         return dataStreams;
     }
 
+    public Map<String, Context> contexts() {
+        return contexts;
+    }
+
     /**
      * Returns the string value for the specified index and setting. If the includeDefaults flag was not set or set to
      * false on the {@link GetIndexRequest}, this method will only return a value where the setting was explicitly set

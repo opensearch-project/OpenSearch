@@ -1322,8 +1322,7 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template()).map(Template::settings).ifPresent(templateSettings::put);
 
         // Add the template referred by context since it will take the highest precedence.
-        final String systemTemplate = findContextTemplateName(metadata, template.context());
-        final ComponentTemplate componentTemplate = metadata.componentTemplates().get(systemTemplate);
+        final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
         Optional.ofNullable(componentTemplate).map(ComponentTemplate::template).map(Template::settings).ifPresent(templateSettings::put);
 
         return templateSettings.build();
@@ -1372,8 +1371,7 @@ public class MetadataIndexTemplateService {
 
         // Now use context referenced template's aliases which take the highest precedence
         if (template.context() != null) {
-            final String systemTemplate = findContextTemplateName(metadata, template.context());
-            final ComponentTemplate componentTemplate = metadata.componentTemplates().get(systemTemplate);
+            final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
             Optional.ofNullable(componentTemplate.template()).map(Template::aliases).ifPresent(aliases::add);
         }
 
