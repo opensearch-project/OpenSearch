@@ -245,6 +245,14 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         return pinnedTimestampsSet;
     }
 
+    public RemoteStorePinnedTimestampsBlobStore pinnedTimestampsBlobStore() {
+        return pinnedTimestampsBlobStore;
+    }
+
+    public BlobStoreTransferService blobStoreTransferService() {
+        return blobStoreTransferService;
+    }
+
     /**
      * Inner class for asynchronously updating the pinned timestamp set.
      */
@@ -266,11 +274,12 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 clusterService.state().metadata().clusterUUID(),
                 blobStoreRepository.getCompressor()
             );
-            BlobPath path = pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps);
-            blobStoreTransferService.listAllInSortedOrder(path, remotePinnedTimestamps.getType(), 1, new ActionListener<>() {
+            BlobPath path = pinnedTimestampsBlobStore().getBlobPathForUpload(remotePinnedTimestamps);
+            blobStoreTransferService().listAllInSortedOrder(path, remotePinnedTimestamps.getType(), 1, new ActionListener<>() {
                 @Override
                 public void onResponse(List<BlobMetadata> blobMetadata) {
                     if (blobMetadata.isEmpty()) {
+                        pinnedTimestampsSet = new Tuple<>(triggerTimestamp, Set.of());
                         return;
                     }
                     PinnedTimestamps pinnedTimestamps = readExistingPinnedTimestamps(blobMetadata.get(0).name(), remotePinnedTimestamps);

@@ -49,7 +49,8 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         34,
         1,
         1,
-        "node-1"
+        "node-1",
+        System.currentTimeMillis() - 300000
     );
 
     protected final String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
@@ -58,7 +59,8 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         34,
         2,
         1,
-        "node-2"
+        "node-2",
+        System.currentTimeMillis() - 400000
     );
     protected final String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
         12,
@@ -66,7 +68,8 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         34,
         1,
         1,
-        "node-1"
+        "node-1",
+        System.currentTimeMillis() - 500000
     );
     protected final String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
         10,
@@ -74,7 +77,8 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         34,
         1,
         1,
-        "node-1"
+        "node-1",
+        System.currentTimeMillis() - 600000
     );
     protected final String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
         10,
@@ -82,7 +86,8 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         34,
         1,
         1,
-        "node-1"
+        "node-1",
+        System.currentTimeMillis() - 700000
     );
 
     public void setupRemoteSegmentStoreDirectory() throws IOException {
