@@ -24,29 +24,23 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
-import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.gateway.remote.model.RemoteStorePinnedTimestampsBlobStore;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
-import org.opensearch.index.translog.transfer.BlobStoreTransferService;
-import org.opensearch.node.Node;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
-import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
-import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
@@ -64,19 +58,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -89,47 +82,9 @@ import static org.mockito.Mockito.when;
 
 public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDirectoryTests {
 
-    RemoteStorePinnedTimestampService remoteStorePinnedTimestampService;
-
     @Before
     public void setup() throws IOException {
         setupRemoteSegmentStoreDirectory();
-
-        Supplier<RepositoriesService> repositoriesServiceSupplier = mock(Supplier.class);
-        Settings settings = Settings.builder()
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "remote-repo")
-            .build();
-        RepositoriesService repositoriesService = mock(RepositoriesService.class);
-        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        BlobStoreRepository blobStoreRepository = mock(BlobStoreRepository.class);
-        when(repositoriesService.repository("remote-repo")).thenReturn(blobStoreRepository);
-
-        when(threadPool.schedule(any(), any(), any())).then(invocationOnMock -> {
-            Runnable runnable = invocationOnMock.getArgument(0);
-            runnable.run();
-            return null;
-        }).then(subsequentInvocationsOnMock -> null);
-
-        remoteStorePinnedTimestampService = new RemoteStorePinnedTimestampService(
-            repositoriesServiceSupplier,
-            settings,
-            threadPool,
-            clusterService
-        );
-        RemoteStorePinnedTimestampService remoteStorePinnedTimestampServiceSpy = Mockito.spy(remoteStorePinnedTimestampService);
-
-        RemoteStorePinnedTimestampsBlobStore remoteStorePinnedTimestampsBlobStore = mock(RemoteStorePinnedTimestampsBlobStore.class);
-        BlobStoreTransferService blobStoreTransferService = mock(BlobStoreTransferService.class);
-        when(remoteStorePinnedTimestampServiceSpy.pinnedTimestampsBlobStore()).thenReturn(remoteStorePinnedTimestampsBlobStore);
-        when(remoteStorePinnedTimestampServiceSpy.blobStoreTransferService()).thenReturn(blobStoreTransferService);
-
-        doAnswer(invocationOnMock -> {
-            ActionListener<List<BlobMetadata>> actionListener = invocationOnMock.getArgument(3);
-            actionListener.onResponse(new ArrayList<>());
-            return null;
-        }).when(blobStoreTransferService).listAllInSortedOrder(any(), any(), eq(1), any());
-
-        remoteStorePinnedTimestampServiceSpy.start();
     }
 
     public void testUploadedSegmentMetadataToString() {
@@ -1190,12 +1145,27 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         assertEquals(14, count);
     }
 
+    private void setupRemotePinnedTimestampFeature(boolean enabled) {
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(
+            Settings.builder().put(CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), enabled).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+    }
+
     public void testInitializeToSpecificTimestampNoMetadataFiles() throws IOException {
-        when(remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX, Integer.MAX_VALUE)).thenReturn(new ArrayList<>());
+        setupRemotePinnedTimestampFeature(true);
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(new ArrayList<>());
         assertNull(remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L));
+        setupRemotePinnedTimestampFeature(false);
     }
 
     public void testInitializeToSpecificTimestampNoMdMatchingTimestamp() throws IOException {
+        setupRemotePinnedTimestampFeature(true);
         String metadataPrefix = "metadata__1__2__3__4__5__";
         List<String> metadataFiles = new ArrayList<>();
         metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(2000));
@@ -1209,9 +1179,11 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             )
         ).thenReturn(metadataFiles);
         assertNull(remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L));
+        setupRemotePinnedTimestampFeature(false);
     }
 
     public void testInitializeToSpecificTimestampMatchingMdFile() throws IOException {
+        setupRemotePinnedTimestampFeature(true);
         String metadataPrefix = "metadata__1__2__3__4__5__";
         List<String> metadataFiles = new ArrayList<>();
         metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(1000));
@@ -1239,6 +1211,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         assertEquals(2, uploadedSegments.size());
         assertTrue(uploadedSegments.containsKey("_0.cfe"));
         assertTrue(uploadedSegments.containsKey("_0.cfs"));
+        setupRemotePinnedTimestampFeature(false);
     }
 
     private static class WrapperIndexOutput extends IndexOutput {
