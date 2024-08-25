@@ -50,15 +50,22 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
 
     private static String INDEX_NAME = "test-index";
+    private boolean isRemoteStateEnabled = true;
+    private String isRemotePublicationEnabled = "true";
 
     @Before
     public void setup() {
         asyncUploadMockFsRepo = false;
+        isRemoteStateEnabled = true;
+        isRemotePublicationEnabled = "true";
     }
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled)
+            .build();
     }
 
     @Override
@@ -76,7 +83,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         );
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), isRemoteStateEnabled)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
@@ -136,6 +143,18 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
+    public void testRemotePublicationDisableIfRemoteStateDisabled() {
+        // only disable remote state
+        isRemoteStateEnabled = false;
+        // create cluster with multi node with in-consistent settings
+        prepareCluster(3, 2, INDEX_NAME, 1, 2);
+        // assert cluster is stable, ensuring publication falls back to legacy transport with inconsistent settings
+        ensureStableCluster(5);
+        ensureGreen(INDEX_NAME);
+
+        assertNull(internalCluster().getCurrentClusterManagerNodeInstance(RemoteClusterStateService.class));
+    }
+
     private Map<String, Integer> getMetadataFiles(BlobStoreRepository repository, String subDirectory) throws IOException {
         BlobPath metadataPath = repository.basePath()
             .add(
@@ -151,5 +170,4 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             return fileName.split(DELIMITER)[0];
         }).collect(Collectors.toMap(Function.identity(), key -> 1, Integer::sum));
     }
-
 }
