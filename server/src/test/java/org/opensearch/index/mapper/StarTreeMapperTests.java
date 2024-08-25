@@ -21,6 +21,7 @@ import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.ReadDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.junit.After;
@@ -332,6 +333,11 @@ public class StarTreeMapperTests extends MapperTestCase {
         assertEquals(n1, n2);
         n2 = new NumericDimension("name1");
         assertNotEquals(n1, n2);
+        ReadDimension r1 = new ReadDimension("name");
+        ReadDimension r2 = new ReadDimension("name");
+        assertEquals(r1, r2);
+        r2 = new ReadDimension("name1");
+        assertNotEquals(r1, r2);
     }
 
     public void testStarTreeField() {

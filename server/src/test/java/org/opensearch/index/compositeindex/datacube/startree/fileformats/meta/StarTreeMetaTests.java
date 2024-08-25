@@ -41,8 +41,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
@@ -125,7 +125,7 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
         int maxLeafDocs = randomNonNegativeInt();
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
             maxLeafDocs,
-            new HashSet<>(),
+            Set.of("field10"),
             StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
         );
         starTreeField = new StarTreeField("star_tree", dimensionsOrder, metrics, starTreeFieldConfiguration);
@@ -168,8 +168,10 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
         );
 
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(metaIn, compositeFieldName, compositeFieldType);
+        assertEquals(starTreeField.getName(), starTreeMetadata.getStarTreeFieldName());
         assertEquals(starTreeField.getName(), starTreeMetadata.getCompositeFieldName());
         assertEquals(STAR_TREE, starTreeMetadata.getCompositeFieldType());
+        assertEquals(STAR_TREE.getName(), starTreeMetadata.getStarTreeFieldType());
 
         assertNotNull(starTreeMetadata);
 

@@ -17,6 +17,7 @@ import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.St
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -79,17 +80,60 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
             if (starTreeNode.getChildDimensionId() != -1) {
                 while (childrenIterator.hasNext()) {
                     StarTreeNode child = childrenIterator.next();
-                    assertStarTreeNode(
-                        starTreeNode.getChildForDimensionValue(child.getDimensionValue(), false),
-                        inMemoryTreeNodeMap.get(child.getDimensionValue())
-                    );
+                    if (child.getStarTreeNodeType() == StarTreeNodeType.DEFAULT.getValue()) {
+                        assertStarTreeNode(
+                            starTreeNode.getChildForDimensionValue(child.getDimensionValue(), false),
+                            inMemoryTreeNodeMap.get(child.getDimensionValue())
+                        );
+                        assertNull(starTreeNode.getChildForDimensionValue(child.getDimensionValue(), true));
+                    }
+
                     queue.add(child);
                 }
+            } else {
+                assertTrue(starTreeNode.isLeaf());
             }
         }
 
         dataIn.close();
 
+    }
+
+    public void test_starTreeSearch() throws IOException {
+
+        dataOut = directory.createOutput("star-tree-data", IOContext.DEFAULT);
+        Map<Long, InMemoryTreeNode> inMemoryTreeNodeMap = new LinkedHashMap<>();
+        InMemoryTreeNode root = generateSampleTree(inMemoryTreeNodeMap);
+        StarTreeWriter starTreeWriter = new StarTreeWriter();
+        long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, root, inMemoryTreeNodeMap.size(), "star-tree");
+
+        // asserting on the actual length of the star tree data file
+        assertEquals(starTreeDataLength, (inMemoryTreeNodeMap.size() * 33L) + 16);
+        dataOut.close();
+
+        dataIn = directory.openInput("star-tree-data", IOContext.READONCE);
+
+        StarTreeMetadata starTreeMetadata = mock(StarTreeMetadata.class);
+        when(starTreeMetadata.getDataLength()).thenReturn(starTreeDataLength);
+        when(starTreeMetadata.getDataStartFilePointer()).thenReturn(0L);
+        StarTree starTree = new StarTree(dataIn, starTreeMetadata);
+
+        StarTreeNode starTreeNode = starTree.getRoot();
+        InMemoryTreeNode inMemoryTreeNode = inMemoryTreeNodeMap.get(starTreeNode.getDimensionValue());
+        assertNotNull(inMemoryTreeNode);
+
+        for (int i = 0; i < maxLevels - 1; i++) {
+            InMemoryTreeNode randomChildNode = randomFrom(inMemoryTreeNode.children.values());
+            StarTreeNode randomStarTreeChildNode = starTreeNode.getChildForDimensionValue(randomChildNode.dimensionValue, false);
+
+            assertNotNull(randomStarTreeChildNode);
+            assertStarTreeNode(randomStarTreeChildNode, randomChildNode);
+
+            starTreeNode = randomStarTreeChildNode;
+            inMemoryTreeNode = randomChildNode;
+
+        }
+        dataIn.close();
     }
 
     private void assertStarTreeNode(StarTreeNode starTreeNode, InMemoryTreeNode treeNode) throws IOException {
@@ -99,6 +143,7 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         assertEquals(starTreeNode.getEndDocId(), treeNode.endDocId);
         assertEquals(starTreeNode.getChildDimensionId(), treeNode.childDimensionId);
         assertEquals(starTreeNode.getAggregatedDocId(), treeNode.aggregatedDocId);
+        assertEquals(starTreeNode.getStarTreeNodeType(), treeNode.nodeType);
 
         if (starTreeNode.getChildDimensionId() != -1) {
             assertFalse(starTreeNode.isLeaf());
