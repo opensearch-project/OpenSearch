@@ -20,8 +20,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
-import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 import static org.opensearch.index.compositeindex.datacube.startree.node.FixedLengthStarTreeNode.SERIALIZABLE_DATA_SIZE_IN_BYTES;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
@@ -45,42 +43,12 @@ public class StarTreeDataWriter {
      * @throws IOException if an I/O error occurs while writing the star-tree data
      */
     public static long writeStarTree(IndexOutput indexOutput, InMemoryTreeNode rootNode, int numNodes, String name) throws IOException {
-        long totalSizeInBytes = 0L;
-        totalSizeInBytes += computeStarTreeDataHeaderByteSize();
-        totalSizeInBytes += (long) numNodes * SERIALIZABLE_DATA_SIZE_IN_BYTES;
+        long totalSizeInBytes = (long) numNodes * SERIALIZABLE_DATA_SIZE_IN_BYTES;
 
         logger.debug("Star tree data size in bytes : {} for star-tree field {}", totalSizeInBytes, name);
 
-        writeStarTreeHeader(indexOutput, numNodes);
         writeStarTreeNodes(indexOutput, rootNode);
         return totalSizeInBytes;
-    }
-
-    /**
-     * Computes the byte size of the star-tree data header.
-     *
-     * @return the byte size of the star-tree data header
-     */
-    public static int computeStarTreeDataHeaderByteSize() {
-        // Magic marker (8), version (4)
-        int headerSizeInBytes = 12;
-
-        // For number of nodes.
-        headerSizeInBytes += Integer.BYTES;
-        return headerSizeInBytes;
-    }
-
-    /**
-     * Writes the star-tree data header.
-     *
-     * @param output   the IndexOutput to write the header
-     * @param numNodes the total number of nodes in the star-tree
-     * @throws IOException if an I/O error occurs while writing the header
-     */
-    private static void writeStarTreeHeader(IndexOutput output, int numNodes) throws IOException {
-        output.writeLong(COMPOSITE_FIELD_MARKER);
-        output.writeInt(VERSION_CURRENT);
-        output.writeInt(numNodes);
     }
 
     /**

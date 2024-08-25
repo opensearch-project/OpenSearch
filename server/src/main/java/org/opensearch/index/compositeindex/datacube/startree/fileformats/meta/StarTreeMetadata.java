@@ -36,6 +36,16 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     private final IndexInput meta;
 
     /**
+     * The version of the star tree stored in the segments.
+     */
+    private final int version;
+
+    /**
+     * The number of the nodes in the respective star tree
+     */
+    private final int numberOfNodes;
+
+    /**
      * The name of the star-tree field, used to identify the star-tree.
      */
     private final String starTreeFieldName;
@@ -92,15 +102,22 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * @param metaIn             an index input to read star-tree meta
      * @param compositeFieldName name of the composite field. Here, name of the star-tree field.
      * @param compositeFieldType type of the composite field. Here, STAR_TREE field.
+     * @param version The version of the star tree stored in the segments.
      * @throws IOException if unable to read star-tree metadata from the file
      */
-    public StarTreeMetadata(IndexInput metaIn, String compositeFieldName, CompositeMappedFieldType.CompositeFieldType compositeFieldType)
-        throws IOException {
+    public StarTreeMetadata(
+        IndexInput metaIn,
+        String compositeFieldName,
+        CompositeMappedFieldType.CompositeFieldType compositeFieldType,
+        Integer version
+    ) throws IOException {
         super(compositeFieldName, compositeFieldType);
         this.meta = metaIn;
         try {
             this.starTreeFieldName = this.getCompositeFieldName();
             this.starTreeFieldType = this.getCompositeFieldType().getName();
+            this.version = version;
+            this.numberOfNodes = readNumberOfNodes();
             this.dimensionFields = readStarTreeDimensions();
             this.metricEntries = readMetricEntries();
             this.segmentAggregatedDocCount = readSegmentAggregatedDocCount();
@@ -122,6 +139,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * @param meta                       an index input to read star-tree meta
      * @param compositeFieldName         name of the composite field. Here, name of the star-tree field.
      * @param compositeFieldType         type of the composite field. Here, STAR_TREE field.
+     * @param version The version of the star tree stored in the segments.
      * @param dimensionFields            list of dimension fields
      * @param metricEntries              list of metric entries
      * @param segmentAggregatedDocCount  segment aggregated doc count
@@ -135,6 +153,8 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         String compositeFieldName,
         CompositeMappedFieldType.CompositeFieldType compositeFieldType,
         IndexInput meta,
+        Integer version,
+        Integer numberOfNodes,
         List<String> dimensionFields,
         List<MetricEntry> metricEntries,
         Integer segmentAggregatedDocCount,
@@ -148,6 +168,8 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         this.meta = meta;
         this.starTreeFieldName = compositeFieldName;
         this.starTreeFieldType = compositeFieldType.getName();
+        this.version = version;
+        this.numberOfNodes = numberOfNodes;
         this.dimensionFields = dimensionFields;
         this.metricEntries = metricEntries;
         this.segmentAggregatedDocCount = segmentAggregatedDocCount;
@@ -156,6 +178,10 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         this.starTreeBuildMode = starTreeBuildMode;
         this.dataStartFilePointer = dataStartFilePointer;
         this.dataLength = dataLength;
+    }
+
+    private int readNumberOfNodes() throws IOException {
+        return meta.readInt();
     }
 
     private int readDimensionsCount() throws IOException {
@@ -312,5 +338,21 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      */
     public long getDataLength() {
         return dataLength;
+    }
+
+    /**
+     * Returns the version with which the star tree is stored in the segments
+     * @return star-tree version
+     */
+    public int getVersion() {
+        return version;
+    }
+
+    /**
+     * Returns the number of nodes in the star tree
+     * @return number of nodes in the star tree
+     */
+    public int getNumberOfNodes() {
+        return numberOfNodes;
     }
 }

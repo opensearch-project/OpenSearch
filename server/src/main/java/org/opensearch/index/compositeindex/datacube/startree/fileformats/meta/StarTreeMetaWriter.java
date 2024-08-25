@@ -40,6 +40,7 @@ public class StarTreeMetaWriter {
      * @param starTreeField          the star-tree field
      * @param metricAggregatorInfos  the list of metric aggregator information
      * @param segmentAggregatedCount the aggregated document count for the segment
+     * @param numNodes               number of nodes in the star tree
      * @param dataFilePointer        the file pointer to the start of the star tree data
      * @param dataFileLength         the length of the star tree data file
      * @throws IOException if an I/O error occurs while serializing the metadata
@@ -48,6 +49,7 @@ public class StarTreeMetaWriter {
         IndexOutput metaOut,
         StarTreeField starTreeField,
         List<MetricAggregatorInfo> metricAggregatorInfos,
+        Integer numNodes,
         Integer segmentAggregatedCount,
         long dataFilePointer,
         long dataFileLength
@@ -56,7 +58,7 @@ public class StarTreeMetaWriter {
         long initialMetaFilePointer = metaOut.getFilePointer();
 
         writeMetaHeader(metaOut, CompositeMappedFieldType.CompositeFieldType.STAR_TREE, starTreeField.getName());
-        writeMeta(metaOut, metricAggregatorInfos, starTreeField, segmentAggregatedCount, dataFilePointer, dataFileLength);
+        writeMeta(metaOut, metricAggregatorInfos, starTreeField, numNodes, segmentAggregatedCount, dataFilePointer, dataFileLength);
 
         logger.debug(
             "Star tree meta size in bytes : {} for star-tree field {}",
@@ -97,6 +99,7 @@ public class StarTreeMetaWriter {
      * @param metaOut                   the IndexOutput to write the metadata
      * @param metricAggregatorInfos     the list of metric aggregator information
      * @param starTreeField             the star tree field
+     * @param numNodes                  number of nodes in the star tree
      * @param segmentAggregatedDocCount the aggregated document count for the segment
      * @param dataFilePointer           the file pointer to the start of the star-tree data
      * @param dataFileLength            the length of the star-tree data file
@@ -106,10 +109,14 @@ public class StarTreeMetaWriter {
         IndexOutput metaOut,
         List<MetricAggregatorInfo> metricAggregatorInfos,
         StarTreeField starTreeField,
+        int numNodes,
         Integer segmentAggregatedDocCount,
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
+
+        // number of nodes
+        metaOut.writeInt(numNodes);
 
         // number of dimensions
         metaOut.writeVInt(starTreeField.getDimensionsOrder().size());

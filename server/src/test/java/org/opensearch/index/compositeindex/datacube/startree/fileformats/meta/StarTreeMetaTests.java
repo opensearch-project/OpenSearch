@@ -147,10 +147,12 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
         segmentDocumentCount = randomNonNegativeInt();
         metaOut = directory.createOutput("star-tree-metadata", IOContext.DEFAULT);
         StarTreeWriter starTreeWriter = new StarTreeWriter();
+        int numberOfNodes = randomNonNegativeInt();
         starTreeWriter.writeStarTreeMetadata(
             metaOut,
             starTreeField,
             metricAggregatorInfos,
+            numberOfNodes,
             segmentDocumentCount,
             dataFilePointer,
             dataFileLength
@@ -167,12 +169,13 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
             metaIn.readString()
         );
 
-        StarTreeMetadata starTreeMetadata = new StarTreeMetadata(metaIn, compositeFieldName, compositeFieldType);
+        StarTreeMetadata starTreeMetadata = new StarTreeMetadata(metaIn, compositeFieldName, compositeFieldType, VERSION_CURRENT);
         assertEquals(starTreeField.getName(), starTreeMetadata.getStarTreeFieldName());
         assertEquals(starTreeField.getName(), starTreeMetadata.getCompositeFieldName());
         assertEquals(STAR_TREE, starTreeMetadata.getCompositeFieldType());
         assertEquals(STAR_TREE.getName(), starTreeMetadata.getStarTreeFieldType());
-
+        assertEquals(starTreeMetadata.getVersion(), VERSION_CURRENT);
+        assertEquals(starTreeMetadata.getNumberOfNodes(), numberOfNodes);
         assertNotNull(starTreeMetadata);
 
         for (int i = 0; i < dimensionsOrder.size(); i++) {

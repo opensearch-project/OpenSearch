@@ -37,7 +37,7 @@ public class StarTreeWriter {
      *
      * @param dataOut  data index output
      * @param rootNode root star-tree node
-     * @param numNodes number of nodes in the tree
+     * @param numNodes number of nodes in the star tree
      * @param name     name of the star-tree field
      * @return total size of the three
      * @throws IOException when star-tree data serialization fails
@@ -52,6 +52,7 @@ public class StarTreeWriter {
      * @param metaOut                meta index output
      * @param starTreeField          star tree field
      * @param metricAggregatorInfos  metric aggregator infos
+     * @param numNodes               number of nodes in the star tree
      * @param segmentAggregatedCount segment aggregated count
      * @param dataFilePointer        data file pointer
      * @param dataFileLength         data file length
@@ -61,6 +62,7 @@ public class StarTreeWriter {
         IndexOutput metaOut,
         StarTreeField starTreeField,
         List<MetricAggregatorInfo> metricAggregatorInfos,
+        Integer numNodes,
         Integer segmentAggregatedCount,
         long dataFilePointer,
         long dataFileLength
@@ -69,6 +71,7 @@ public class StarTreeWriter {
             metaOut,
             starTreeField,
             metricAggregatorInfos,
+            numNodes,
             segmentAggregatedCount,
             dataFilePointer,
             dataFileLength

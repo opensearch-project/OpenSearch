@@ -56,7 +56,7 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, root, inMemoryTreeNodeMap.size(), "star-tree");
 
         // asserting on the actual length of the star tree data file
-        assertEquals(starTreeDataLength, (inMemoryTreeNodeMap.size() * 33L) + 16);
+        assertEquals(starTreeDataLength, (inMemoryTreeNodeMap.size() * 33L));
         dataOut.close();
 
         dataIn = directory.openInput("star-tree-data", IOContext.READONCE);
@@ -108,7 +108,7 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, root, inMemoryTreeNodeMap.size(), "star-tree");
 
         // asserting on the actual length of the star tree data file
-        assertEquals(starTreeDataLength, (inMemoryTreeNodeMap.size() * 33L) + 16);
+        assertEquals(starTreeDataLength, (inMemoryTreeNodeMap.size() * 33L));
         dataOut.close();
 
         dataIn = directory.openInput("star-tree-data", IOContext.READONCE);

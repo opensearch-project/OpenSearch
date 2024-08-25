@@ -77,7 +77,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, node, 1 + node.children.size(), "star-tree");
 
         // asserting on the actual length of the star tree data file
-        assertEquals(starTreeDataLength, 33L * node.children.size() + 33 + 16);
+        assertEquals(starTreeDataLength, 33L * node.children.size() + 33);
         dataOut.close();
 
         dataIn = directory.openInput("star-tree-data", IOContext.READONCE);
