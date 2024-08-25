@@ -29,7 +29,6 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  * - Support for star nodes, null nodes and other default nodes
  * - Iteration over child nodes
  * <p>
- *
  * The class uses specific byte offsets for each field in the serialized format,
  * enabling direct access to node properties without parsing the entire node structure.
  *
@@ -199,7 +198,9 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
             return handleStarNode();
         }
 
-        return binarySearchChild(dimensionValue);
+        StarTreeNode resultStarTreeNode = binarySearchChild(dimensionValue);
+        assert null != resultStarTreeNode;
+        return resultStarTreeNode;
     }
 
     /**

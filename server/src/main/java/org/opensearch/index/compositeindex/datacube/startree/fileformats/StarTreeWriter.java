@@ -30,7 +30,7 @@ public class StarTreeWriter {
     /** Current version for the star tree writer */
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private StarTreeWriter() {}
+    public StarTreeWriter() {}
 
     /**
      * Write star tree to index output stream
@@ -42,7 +42,7 @@ public class StarTreeWriter {
      * @return total size of the three
      * @throws IOException when star-tree data serialization fails
      */
-    public static long writeStarTree(IndexOutput dataOut, InMemoryTreeNode rootNode, int numNodes, String name) throws IOException {
+    public long writeStarTree(IndexOutput dataOut, InMemoryTreeNode rootNode, int numNodes, String name) throws IOException {
         return StarTreeDataWriter.writeStarTree(dataOut, rootNode, numNodes, name);
     }
 
@@ -57,7 +57,7 @@ public class StarTreeWriter {
      * @param dataFileLength         data file length
      * @throws IOException when star-tree data serialization fails
      */
-    public static void writeStarTreeMetadata(
+    public void writeStarTreeMetadata(
         IndexOutput metaOut,
         StarTreeField starTreeField,
         List<MetricAggregatorInfo> metricAggregatorInfos,

@@ -146,7 +146,8 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
         dataFilePointer = randomNonNegativeLong();
         segmentDocumentCount = randomNonNegativeInt();
         metaOut = directory.createOutput("star-tree-metadata", IOContext.DEFAULT);
-        StarTreeWriter.writeStarTreeMetadata(
+        StarTreeWriter starTreeWriter = new StarTreeWriter();
+        starTreeWriter.writeStarTreeMetadata(
             metaOut,
             starTreeField,
             metricAggregatorInfos,

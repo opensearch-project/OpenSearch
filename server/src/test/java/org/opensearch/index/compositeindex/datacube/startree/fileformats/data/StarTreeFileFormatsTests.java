@@ -47,7 +47,8 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         dataOut = directory.createOutput("star-tree-data", IOContext.DEFAULT);
         Map<Long, InMemoryTreeNode> levelOrderStarTreeNodeMap = new LinkedHashMap<>();
         InMemoryTreeNode root = generateSampleTree(levelOrderStarTreeNodeMap);
-        long starTreeDataLength = StarTreeWriter.writeStarTree(dataOut, root, 7, "star-tree");
+        StarTreeWriter starTreeWriter = new StarTreeWriter();
+        long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, root, 7, "star-tree");
 
         // asserting on the actual length of the star tree data file
         assertEquals(starTreeDataLength, 247);
