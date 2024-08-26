@@ -27,6 +27,34 @@ import java.util.Map;
 
 public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
 
+    public void testSelectTasksFromDeletedQueryGroup() {
+        DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
+
+        long thresholdInLong = 100L;
+        Double threshold = Double.MIN_VALUE;
+        long reduceBy = Long.MIN_VALUE;
+        ResourceType resourceType = ResourceType.MEMORY;
+        List<Task> tasks = getListOfTasks(thresholdInLong);
+
+        QueryGroup queryGroup = new QueryGroup(
+            "testQueryGroup",
+            "queryGroupId1",
+            QueryGroup.ResiliencyMode.ENFORCED,
+            Map.of(resourceType, threshold),
+            1L
+        );
+
+        List<TaskCancellation> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(queryGroup, tasks);
+
+        assertFalse(selectedTasks.isEmpty());
+        assertEquals(
+            "[Workload Management] Cancelling Task ID : " + selectedTasks.get(0).getTask().getId() + " from QueryGroup ID : queryGroupId1",
+            selectedTasks.get(0).getReasonString()
+        );
+        assertEquals(5, selectedTasks.get(0).getReasons().get(0).getCancellationScore());
+        assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
+    }
+
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
         DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
         long thresholdInLong = 100L;
@@ -51,7 +79,9 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         );
         assertFalse(selectedTasks.isEmpty());
         assertEquals(
-            "[Workload Management] QueryGroup ID : queryGroupId1 breached the resource limit of : 10.0 for resource type : memory",
+            "[Workload Management] Cancelling Task ID : "
+                + selectedTasks.get(0).getTask().getId()
+                + " from QueryGroup ID : queryGroupId1 breached the resource limit of : 10.0 for resource type : memory",
             selectedTasks.get(0).getReasonString()
         );
         assertEquals(5, selectedTasks.get(0).getReasons().get(0).getCancellationScore());
