@@ -1508,6 +1508,42 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         return sf;
     }
 
+    public void testMergeFlow_randomNumberTypes() throws Exception {
+
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        Settings settings = Settings.builder().put(settings(org.opensearch.Version.CURRENT).build()).build();
+        NumberFieldMapper numberFieldMapper1 = new NumberFieldMapper.Builder(
+            "field1",
+            randomFrom(NumberFieldMapper.NumberType.values()),
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper2 = new NumberFieldMapper.Builder(
+            "field2",
+            randomFrom(NumberFieldMapper.NumberType.values()),
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper3 = new NumberFieldMapper.Builder(
+            "field3",
+            randomFrom(NumberFieldMapper.NumberType.values()),
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        MappingLookup fieldMappers = new MappingLookup(
+            Set.of(numberFieldMapper1, numberFieldMapper2, numberFieldMapper3),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            0,
+            null
+        );
+        when(documentMapper.mappers()).thenReturn(fieldMappers);
+        testMergeFlowWithSum();
+        builder.close();
+        testMergeFlowWithCount();
+    }
+
     public void testMergeFlowWithSum() throws IOException {
         List<Long> dimList = List.of(0L, 1L, 3L, 4L, 5L, 6L);
         List<Integer> docsWithField = List.of(0, 1, 3, 4, 5, 6);
