@@ -590,7 +590,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
     }
 
-    public CreateIndexRequest context(BytesReference source) throws IOException {
+    public CreateIndexRequest context(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
         try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
             // move to the first alias
