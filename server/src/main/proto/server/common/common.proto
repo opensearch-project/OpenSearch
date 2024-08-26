@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package org.opensearch.common.proto;
+option java_multiple_files = true;
+option java_outer_classname = "CommonProto";
+
+message IntArray{
+  repeated int32 values = 1;
+}
+
+message LongArray{
+  repeated int64 values = 1;
+}
+
+message FloatArray{
+  repeated float values = 1;
+}
+
+message DoubleArray{
+  repeated double values = 1;
+}
+
+message StringArray{
+  repeated string values = 1;
+}
+
+message BytesArray{
+  repeated bytes values = 1;
+}
+
+message BoolArray{
+  repeated bool values = 1;
+}
+
+/**
+    FieldValue:
+      description: A field value.
+      type:
+        - boolean
+        - 'null'
+        - number
+        - object
+        - string
+ */
+message MultiTypeValue{
+  oneof value{
+    GeneralNumber number = 1;
+    string string_value = 2;
+    bytes bytes_value = 3;
+    bool bool_value = 4;
+  }
+}
+
+message GeneralNumber {
+  oneof value{
+    int32 int_value = 1;
+    int64 long_value = 2;
+    float float_value = 3;
+    double double_value = 4;
+  }
+}
