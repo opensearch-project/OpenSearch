@@ -88,7 +88,16 @@ setup:
             } ]
           }
         }
-
+  - do:
+      index:
+        index: test_partial_flat_object
+        id: 4
+        body: {
+          "issue": {
+            "number": 999,
+            "labels": null
+          }
+        }
   - do:
       indices.refresh:
         index: test_partial_flat_object
@@ -135,7 +144,7 @@ teardown:
           }
         }
 
-  - length: { hits.hits: 3 }
+  - length: { hits.hits: 4 }
 
   # Match Query with exact dot path.
   - do:
