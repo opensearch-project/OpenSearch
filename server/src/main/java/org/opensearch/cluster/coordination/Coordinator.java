@@ -465,7 +465,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
             ClusterState publishState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
-            final ClusterState publishClusterState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(publishState) : publishState;
+            final ClusterState publishClusterState = mode == Mode.CANDIDATE
+                ? clusterStateWithNoClusterManagerBlock(publishState)
+                : publishState;
             clusterApplier.onPublishClusterState(publishRequest.toString(), () -> publishClusterState);
 
             if (sourceNode.equals(getLocalNode())) {

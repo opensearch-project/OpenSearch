@@ -1332,10 +1332,16 @@ public class RemoteClusterStateService implements Closeable {
             manifest.getStateVersion()
         );
         ClusterState lastState = lastDownloadState.get();
-        if (clusterStateTermVersion.equals(
-            new ClusterStateTermVersion(new ClusterName(clusterName), lastState.stateUUID(), lastState.term(), lastState.version())
-        )) {
-            return lastState;
+        if (lastState != null) {
+            ClusterStateTermVersion lastStateTermVersion = new ClusterStateTermVersion(
+                new ClusterName(clusterName),
+                lastState.stateUUID(),
+                lastState.term(),
+                lastState.version()
+            );
+            if (clusterStateTermVersion.equals(lastStateTermVersion)) {
+                return lastState;
+            }
         }
 
         ClusterState retState = null;
@@ -1384,17 +1390,21 @@ public class RemoteClusterStateService implements Closeable {
             mb.indices(clusterState.metadata().indices());
             retState = ClusterState.builder(clusterState).metadata(mb).build();
         }
-        final ClusterState newState = retState;
+        setLastDownloadState(retState);
+        return retState;
+    }
+
+    private void setLastDownloadState(final ClusterState newState) {
         lastDownloadState.getAndUpdate(oldState -> {
+            if (oldState == null) {
+                return newState;
+            }
             if (newState.term() > oldState.term() && newState.version() > oldState.version()) {
                 return newState;
             } else {
                 return oldState;
             }
         });
-
-        lastDownloadState.set(retState);
-        return retState;
     }
 
     public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
@@ -1481,13 +1491,7 @@ public class RemoteClusterStateService implements Closeable {
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
 
-        lastDownloadState.getAndUpdate(oldState -> {
-            if (newState.term() > oldState.term() && newState.version() > oldState.version()) {
-                return newState;
-            } else {
-                return oldState;
-            }
-        });
+        setLastDownloadState(newState);
         return newState;
     }
 

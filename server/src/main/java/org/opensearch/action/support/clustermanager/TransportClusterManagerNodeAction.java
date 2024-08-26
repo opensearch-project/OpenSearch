@@ -420,7 +420,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 return appliedState;
             }
             ClusterState publishState = clusterService.publishState();
-            if (termVersion.equals(new ClusterStateTermVersion(publishState))) {
+            if (publishState != null && termVersion.equals(new ClusterStateTermVersion(publishState))) {
                 return publishState;
             }
             if (remoteClusterStateService != null) {
