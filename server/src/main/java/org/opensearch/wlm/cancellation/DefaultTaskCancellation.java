@@ -16,9 +16,9 @@ import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
@@ -47,18 +47,21 @@ public class DefaultTaskCancellation {
     protected final DefaultTaskSelectionStrategy defaultTaskSelectionStrategy;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     protected final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
-    protected final Set<QueryGroup> activeQueryGroups;
+    protected final Collection<QueryGroup> activeQueryGroups;
+    protected final Collection<QueryGroup> deletedQueryGroups;
     protected BooleanSupplier isNodeInDuress;
 
     public DefaultTaskCancellation(
         DefaultTaskSelectionStrategy defaultTaskSelectionStrategy,
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
-        Set<QueryGroup> activeQueryGroups,
+        Collection<QueryGroup> activeQueryGroups,
+        Collection<QueryGroup> deletedQueryGroups,
         BooleanSupplier isNodeInDuress
     ) {
         this.defaultTaskSelectionStrategy = defaultTaskSelectionStrategy;
         this.queryGroupLevelResourceUsageViews = queryGroupLevelResourceUsageViews;
         this.activeQueryGroups = activeQueryGroups;
+        this.deletedQueryGroups = deletedQueryGroups;
         this.isNodeInDuress = isNodeInDuress;
     }
 
@@ -66,17 +69,13 @@ public class DefaultTaskCancellation {
      * Cancel tasks based on the implemented strategy.
      */
     public final void cancelTasks() {
-        cancelTasksForMode(QueryGroup.ResiliencyMode.ENFORCED);
+        // cancel tasks from QueryGroups that have been deleted
+        cancelTasksFromDeletedQueryGroups();
+        // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
+        cancelTasks(QueryGroup.ResiliencyMode.ENFORCED);
 
         if (isNodeInDuress.getAsBoolean()) {
-            cancelTasksForMode(QueryGroup.ResiliencyMode.SOFT);
-        }
-    }
-
-    private void cancelTasksForMode(QueryGroup.ResiliencyMode resiliencyMode) {
-        List<TaskCancellation> cancellableTasks = getAllCancellableTasksFrom(resiliencyMode);
-        for (TaskCancellation taskCancellation : cancellableTasks) {
-            taskCancellation.cancel();
+            cancelTasks(QueryGroup.ResiliencyMode.SOFT);
         }
     }
 
@@ -85,10 +84,17 @@ public class DefaultTaskCancellation {
      *
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getAllCancellableTasksFrom(QueryGroup.ResiliencyMode resiliencyMode) {
-        return getQueryGroupsToCancelFrom(resiliencyMode).stream()
-            .flatMap(queryGroup -> getCancellableTasksFrom(queryGroup).stream())
-            .collect(Collectors.toList());
+    protected List<TaskCancellation> getAllCancellableTasks(QueryGroup.ResiliencyMode resiliencyMode) {
+        return getAllCancellableTasks(getQueryGroupsToCancelFrom(resiliencyMode));
+    }
+
+    /**
+     * Get all cancellable tasks from the given QueryGroups.
+     *
+     * @return List of tasks that can be cancelled
+     */
+    protected List<TaskCancellation> getAllCancellableTasks(Collection<QueryGroup> queryGroups) {
+        return queryGroups.stream().flatMap(queryGroup -> getCancellableTasksFrom(queryGroup).stream()).collect(Collectors.toList());
     }
 
     /**
@@ -122,6 +128,20 @@ public class DefaultTaskCancellation {
         return queryGroupsToCancelFrom;
     }
 
+    private void cancelTasks(QueryGroup.ResiliencyMode resiliencyMode) {
+        cancelTasks(getAllCancellableTasks(resiliencyMode));
+    }
+
+    private void cancelTasksFromDeletedQueryGroups() {
+        for (QueryGroup querygroup : this.deletedQueryGroups) {
+            cancelTasks(getTaskCancellationsForDeletedQueryGroup(querygroup));
+        }
+    }
+
+    private void cancelTasks(List<TaskCancellation> cancellableTasks) {
+        cancellableTasks.forEach(TaskCancellation::cancel);
+    }
+
     /**
      * Get cancellable tasks from a specific queryGroup.
      *
@@ -136,8 +156,7 @@ public class DefaultTaskCancellation {
     }
 
     private boolean shouldCancelTasks(QueryGroup queryGroup, ResourceType resourceType) {
-        long reduceBy = getReduceBy(queryGroup, resourceType);
-        return reduceBy > 0;
+        return getReduceBy(queryGroup, resourceType) > 0;
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
@@ -147,6 +166,14 @@ public class DefaultTaskCancellation {
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
             getReduceBy(queryGroup, resourceType),
             resourceType
+        );
+    }
+
+    protected List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
+        return defaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(
+            queryGroup,
+            // get the active tasks in the query group
+            queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks()
         );
     }
 

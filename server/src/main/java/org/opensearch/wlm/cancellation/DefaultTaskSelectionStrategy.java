@@ -67,7 +67,7 @@ public class DefaultTaskSelectionStrategy {
 
         for (Task task : sortedTasks) {
             if (task instanceof CancellableTask) {
-                String cancellationReason = createCancellationReason(querygroup, resourceType);
+                String cancellationReason = createCancellationReason(querygroup, task, resourceType);
                 selectedTasks.add(createTaskCancellation((CancellableTask) task, cancellationReason));
                 accumulated += resourceType.getResourceUsage(task);
                 if (accumulated >= limit) {
@@ -78,9 +78,37 @@ public class DefaultTaskSelectionStrategy {
         return selectedTasks;
     }
 
-    private String createCancellationReason(QueryGroup querygroup, ResourceType resourceType) {
+    /**
+     * Selects tasks for cancellation from deleted query group.
+     * </n>
+     * This method iterates over the provided list of tasks and selects those that are instances of
+     * {@link CancellableTask}. For each selected task, it creates a cancellation reason and adds
+     * a {@link TaskCancellation} object to the list of selected tasks.
+     *
+     * @param querygroup The {@link QueryGroup} from which the tasks are being selected.
+     * @param tasks The list of {@link Task} objects to be evaluated for cancellation.
+     * @return A list of {@link TaskCancellation} objects representing the tasks selected for cancellation.
+     */
+    public List<TaskCancellation> selectTasksFromDeletedQueryGroup(QueryGroup querygroup, List<Task> tasks) {
+        List<TaskCancellation> selectedTasks = new ArrayList<>();
+
+        for (Task task : tasks) {
+            if (task instanceof CancellableTask) {
+                String cancellationReason = "[Workload Management] Cancelling Task ID : "
+                    + task.getId()
+                    + " from QueryGroup ID : "
+                    + querygroup.get_id();
+                selectedTasks.add(createTaskCancellation((CancellableTask) task, cancellationReason));
+            }
+        }
+        return selectedTasks;
+    }
+
+    private String createCancellationReason(QueryGroup querygroup, Task task, ResourceType resourceType) {
         Double thresholdInPercent = getThresholdInPercent(querygroup, resourceType);
-        return "[Workload Management] QueryGroup ID : "
+        return "[Workload Management] Cancelling Task ID : "
+            + task.getId()
+            + " from QueryGroup ID : "
             + querygroup.get_id()
             + " breached the resource limit of : "
             + thresholdInPercent
