@@ -135,9 +135,6 @@ public class MetadataUpdateSettingsService {
 
         validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
         validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings(), clusterService.getSettings());
-        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-            validateSearchReplicaCountSettings(normalizedSettings, request.indices());
-        }
 
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
@@ -268,6 +265,9 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(openSettings)) {
+                        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
+                            validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
+                        }
                         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
                             // TODO: Maybe honor awareness validation to search replicas?
@@ -504,14 +504,15 @@ public class MetadataUpdateSettingsService {
 
     /**
      * Validates that if we are trying to update search replica count the index is segrep enabled.
+     *
      * @param requestSettings {@link Settings}
-     * @param indices
+     * @param indices indices that are changing
+     * @param currentState {@link ClusterState} current cluster state
      */
-    private void validateSearchReplicaCountSettings(Settings requestSettings, Index[] indices) {
+    private void validateSearchReplicaCountSettings(Settings requestSettings, Index[] indices, ClusterState currentState) {
         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings);
         if (updatedNumberOfSearchReplicas > 0) {
-            if (Arrays.stream(indices)
-                .allMatch(index -> this.clusterService.state().metadata().isSegmentReplicationEnabled(index.getName())) == false) {
+            if (Arrays.stream(indices).allMatch(index -> currentState.metadata().isSegmentReplicationEnabled(index.getName())) == false) {
                 throw new IllegalArgumentException(
                     "To set "
                         + SETTING_NUMBER_OF_SEARCH_REPLICAS
