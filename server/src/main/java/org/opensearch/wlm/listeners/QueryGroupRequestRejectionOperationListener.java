@@ -31,7 +31,7 @@ public class QueryGroupRequestRejectionOperationListener extends SearchRequestOp
     }
 
     /**
-     * This method assumes that the queryGroupId is already populated in the {@link ThreadContext}
+     * This method assumes that the queryGroupId is already populated in the thread context
      * @param searchRequestContext SearchRequestContext instance
      */
     @Override
