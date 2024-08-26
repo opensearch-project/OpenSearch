@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -267,15 +268,48 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 .collect(Collectors.toList());
             metric.remove(STATS);
             if (metricStrings.isEmpty()) {
-                metricTypes = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
-            } else {
-                Set<MetricStat> metricSet = new LinkedHashSet<>();
-                for (String metricString : metricStrings) {
-                    metricSet.add(MetricStat.fromTypeName(metricString));
-                }
-                metricTypes = new ArrayList<>(metricSet);
+                metricStrings = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
             }
+            // Add all required metrics initially
+            Set<MetricStat> metricSet = new LinkedHashSet<>();
+            for (String metricString : metricStrings) {
+                MetricStat metricStat = MetricStat.fromTypeName(metricString);
+                metricSet.add(metricStat);
+                addBaseMetrics(metricStat, metricSet);
+            }
+            addEligibleDerivedMetrics(metricSet);
+            metricTypes = new ArrayList<>(metricSet);
             return new Metric(name, metricTypes);
+        }
+
+        /**
+         * Add base metrics of derived metric to metric set
+         */
+        private void addBaseMetrics(MetricStat metricStat, Set<MetricStat> metricSet) {
+            if (metricStat.isDerivedMetric()) {
+                Queue<MetricStat> metricQueue = new LinkedList<>(metricStat.getBaseMetrics());
+                while (metricQueue.isEmpty() == false) {
+                    MetricStat metric = metricQueue.poll();
+                    if (metric.isDerivedMetric() && !metricSet.contains(metric)) {
+                        metricQueue.addAll(metric.getBaseMetrics());
+                    }
+                    metricSet.add(metric);
+                }
+            }
+        }
+
+        /**
+         * Add derived metrics if all associated base metrics are present
+         */
+        private void addEligibleDerivedMetrics(Set<MetricStat> metricStats) {
+            for (MetricStat metric : MetricStat.values()) {
+                if (metric.isDerivedMetric() && !metricStats.contains(metric)) {
+                    List<MetricStat> sourceMetrics = metric.getBaseMetrics();
+                    if (metricStats.containsAll(sourceMetrics)) {
+                        metricStats.add(metric);
+                    }
+                }
+            }
         }
 
         @Override

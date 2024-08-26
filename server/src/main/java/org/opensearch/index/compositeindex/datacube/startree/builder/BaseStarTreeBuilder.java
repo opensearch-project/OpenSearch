@@ -130,6 +130,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 continue;
             }
             for (MetricStat metricStat : metric.getMetrics()) {
+                if (metricStat.isDerivedMetric()) {
+                    continue;
+                }
                 IndexNumericFieldData.NumericType numericType;
                 Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(metric.getField());
                 if (fieldMapper instanceof NumberFieldMapper) {
