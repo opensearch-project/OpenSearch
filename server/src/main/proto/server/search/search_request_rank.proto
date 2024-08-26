@@ -24,9 +24,9 @@ message SearchRequestRank {
 message SearchRequestRankRrf {
 
   // How much influence documents in individual result sets per query have over the final ranked result set
-  int64 rank_constant = 1;
+  int32 rank_constant = 1;
 
   // Size of the individual result sets per query
-  int64 window_size = 2;
+  int32 window_size = 2;
 
 }

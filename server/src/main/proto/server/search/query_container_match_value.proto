@@ -33,7 +33,6 @@ message QueryContainerMatchValue {
 
   float cutoff_frequency = 385558410;
 
-  //manual generat
   oneof fuzziness{
     string string_fuzziness = 1;
     float number_fuzziness = 2;
@@ -50,7 +49,6 @@ message QueryContainerMatchValue {
   // Maximum number of terms to which the query will expand.
   float max_expansions = 398396084;
 
-  //manual generat
   oneof minimum_should_match{
     float number_minimum_should_match = 3;
     string string_minimum_should_match = 4;
@@ -61,7 +59,7 @@ message QueryContainerMatchValue {
   // Number of beginning characters left unchanged for fuzzy matching.
   float prefix_length = 83305167;
 
-  //manual generate
+
   oneof query{
     string string_query = 5;
     float number_query = 6;

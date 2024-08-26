@@ -50,7 +50,6 @@ message QueryStringQuery {
   // Array of fields to search. Supports wildcards (`*`).
   repeated string fields = 200966473;
 
-  //manual generat
   oneof fuzziness{
     string string_fuzziness = 1;
     float number_fuzziness = 2;
@@ -73,7 +72,7 @@ message QueryStringQuery {
   // Maximum number of automaton states required for the query.
   float max_determinized_states = 157571749;
 
-  //manual generate
+
   oneof minimum_should_match{
     float number_minimum_should_match = 3;
     string string_minimum_should_match = 4;

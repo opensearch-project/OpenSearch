@@ -19,7 +19,6 @@ message IntervalsFuzzy {
   // Analyzer used to normalize the term.
   string analyzer = 487568219;
 
-  //manual generat
   oneof fuzziness{
     string string_fuzziness = 1;
     float number_fuzziness = 2;

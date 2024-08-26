@@ -18,12 +18,12 @@ option java_multiple_files = true;
 message IntervalsWildcard {
 
   // Analyzer used to analyze the `pattern`. Defaults to the top-level field's analyzer.
-  string analyzer = 487568219;
+  string analyzer = 1;
 
   // Wildcard pattern used to find matching terms.
-  string pattern = 254219377;
+  string pattern = 2;
 
   // Path to field or array of paths. Some API's support wildcards in the path to select multiple fields.
-  string use_field = 198293438;
+  string use_field = 3;
 
 }

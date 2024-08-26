@@ -1,4 +1,35 @@
 /*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
   Schemas of _core.search category
 
   Schemas of _core.search category
@@ -17,28 +48,28 @@ option java_multiple_files = true;
 
 message AggregationBreakdown {
 
-  float build_aggregation = 361010835;
+  float build_aggregation = 1;
 
-  float build_aggregation_count = 412657185;
+  float build_aggregation_count = 2;
 
-  float build_leaf_collector = 535791328;
+  float build_leaf_collector = 3;
 
-  float build_leaf_collector_count = 104325424;
+  float build_leaf_collector_count = 4;
 
-  float collect = 412573995;
+  float collect = 5;
 
-  float collect_count = 44823112;
+  float collect_count = 6;
 
-  float initialize = 334220177;
+  float initialize = 7;
 
-  float initialize_count = 300716962;
+  float initialize_count = 8;
 
-  float post_collection = 107493477;
+  float post_collection = 9;
 
-  float post_collection_count = 44264979;
+  float post_collection_count = 10;
 
-  float reduce = 398002843;
+  float reduce = 11;
 
-  float reduce_count = 234521846;
+  float reduce_count = 12;
 
 }

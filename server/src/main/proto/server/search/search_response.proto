@@ -36,7 +36,6 @@ message ResponseBody {
 
   ResponseBodyClusters _clusters = 6;
 
-  //manual create google.protobuf.Any
   map<string, google.protobuf.Any> fields = 7;
 
   float max_score = 8;

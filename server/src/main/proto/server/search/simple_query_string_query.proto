@@ -53,7 +53,6 @@ message SimpleQueryStringQuery {
   // If `true`, format-based errors, such as providing a text value for a numeric field, are ignored.
   bool lenient = 62509943;
 
-  //manual generate
   oneof minimum_should_match{
     float number_minimum_should_match = 3;
     string string_minimum_should_match = 4;

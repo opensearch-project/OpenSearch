@@ -41,7 +41,7 @@ message SearchRequest {
   // Analyzer to use for the query string. This parameter can only be used when the q query string parameter is specified.
   string analyzer = 7;
   // The number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
-  int64 batchedReduceSize = 8;
+  int32 batchedReduceSize = 8;
   // The time after which the search request will be canceled. Request-level parameter takes precedence over `cancel_after_time_interval` cluster setting.
   string cancelAfterTimeInterval = 9;
   // If true, network round-trips between the coordinating node and the remote clusters are minimized when executing cross-cluster search (CCS) requests.
@@ -71,7 +71,7 @@ message SearchRequest {
   // Indicates whether to return phase-level `took` time values in the response.
   bool phaseTook = 22;
   // Defines a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on its rewrite method (if date filters are mandatory to match but the shard bounds and the query are disjoint). When unspecified, the pre-filter phase is executed if any of these conditions is met: the request targets more than 128 shards; the request targets one or more read-only index; the primary sort of the query targets an indexed field.
-  int64 preFilterShardSize = 23;
+  int32 preFilterShardSize = 23;
   // Nodes and shards used for the search. By default, OpenSearch selects from eligible nodes and shards using adaptive replica selection, accounting for allocation awareness. Valid values are: `_only_local` to run the search only on shards on the local node; `_local` to, if possible, run the search on shards on the local node, or if not, select shards using the default method; `_only_nodes:<node-id>,<node-id>` to run the search on only the specified nodes IDs, where, if suitable shards exist on more than one selected node, use shards on those nodes using the default method, or if none of the specified nodes are available, select shards from any available node using the default method; `_prefer_nodes:<node-id>,<node-id>` to if possible, run the search on the specified nodes IDs, or if not, select shards using the default method; `_shards:<shard>,<shard>` to run the search only on the specified shards; `<custom-string>` (any string that does not start with `_`) to route searches with the same `<custom-string>` to the same shards in the same order.
   string preference = 24;
   // Query in the Lucene query string syntax using query parameter search. Query parameter searches do not support the full OpenSearch Query DSL but are handy for testing.
@@ -107,7 +107,7 @@ message SearchRequest {
   // The source text for which the suggestions should be returned. This parameter can only be used when the `suggest_field` and `suggest_text` query string parameters are specified.
   string suggestText = 40;
   // Maximum number of documents to collect for each shard. If a query reaches this limit, OpenSearch terminates the query early. OpenSearch collects documents before sorting. Use with caution. OpenSearch applies this parameter to each shard handling the request. When possible, let OpenSearch perform early termination automatically. Avoid specifying this parameter for requests that target data streams with backing indices across multiple data tiers. If set to `0` (default), the query does not terminate early.
-  int64 terminateAfter = 41;
+  int32 terminateAfter = 41;
   // Specifies the period of time to wait for a response from each shard. If no response is received before the timeout expires, the request fails and returns an error.
   google.protobuf.Timestamp timeout = 42;
   // If `true`, calculate and return document scores, even if the scores are not used for sorting.

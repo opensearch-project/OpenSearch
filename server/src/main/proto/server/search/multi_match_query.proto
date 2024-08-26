@@ -36,7 +36,6 @@ message MultiMatchQuery {
 
   repeated string fields = 200966473;
 
-  //manual generat
   oneof fuzziness{
     string string_fuzziness = 1;
     float number_fuzziness = 2;

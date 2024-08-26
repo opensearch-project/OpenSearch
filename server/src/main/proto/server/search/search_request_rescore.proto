@@ -21,6 +21,6 @@ message SearchRequestRescore {
   // [required]
   SearchRequestRescoreQuery query = 1;
 
-  int64 window_size = 2;
+  int32 window_size = 2;
 
 }

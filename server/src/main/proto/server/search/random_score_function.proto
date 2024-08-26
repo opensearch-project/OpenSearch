@@ -20,7 +20,7 @@ message RandomScoreFunction {
   // Path to field or array of paths. Some API's support wildcards in the path to select multiple fields.
   string field = 97427706;
 
-  //manual generate
+
   oneof seed {
     float number_seed = 1;
     string string_seed = 2;

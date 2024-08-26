@@ -14,7 +14,7 @@ package org.opensearch.search.proto;
 option java_multiple_files = true;
 
 
-//import "server/search/multi_value_mode.proto";
+//TODO
 
 message DecayFunctionBase {
 

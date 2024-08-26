@@ -14,6 +14,7 @@ package org.opensearch.search.proto;
 option java_multiple_files = true;
 
 import "server/search/query_container.proto";
+import "google/protobuf/any.proto";
 
 message SearchRequestHighlight {
 
@@ -44,7 +45,7 @@ message HighlightBase {
   string boundary_chars = 2;
 
   // How far to scan for boundary characters.
-  int64 boundary_max_scan = 3;
+  int32 boundary_max_scan = 3;
 
   enum Boundary_scannerEnum {
     CHARS = 0;
@@ -83,14 +84,14 @@ message HighlightBase {
 
   // The maximum number of fragments to return. If the number of fragments is set to `0`, no fragments are returned. Instead, the entire field contents are highlighted and returned. This can be handy when you need to highlight short texts such as a title or address, but fragmentation is not required. If `number_of_fragments` is `0`, `fragment_size` is ignored.
   int32 number_of_fragments = 14;
-  //manual remove
+
   /*
          options:
           type: object
           additionalProperties:
             type: object
   */
-  //map<string, google.protobuf.Any> options = 175733092;
+  map<string, google.protobuf.Any> options = 175733092;
 
   enum OrderEnum {
     SCORE = 0;

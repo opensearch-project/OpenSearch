@@ -18,12 +18,12 @@ option java_multiple_files = true;
 message IntervalsPrefix {
 
   // Analyzer used to analyze the `prefix`.
-  string analyzer = 487568219;
+  string analyzer = 1;
 
   // Beginning characters of terms you wish to find in the top-level field.
-  string prefix = 443239791;
+  string prefix = 2;
 
   // Path to field or array of paths. Some API's support wildcards in the path to select multiple fields.
-  string use_field = 198293438;
+  string use_field = 3;
 
 }

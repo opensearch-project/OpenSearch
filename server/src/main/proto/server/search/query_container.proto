@@ -65,7 +65,8 @@ message QueryContainer {
   // Returns documents that contain an exact term in a provided field. To return a document, the query term must exactly match the queried field's value, including whitespace and capitalization.
   map<string, QueryContainerTermValue> term = 7;
 
-  TermsQuery terms = 8;
+  //TODO: missing def in https://github.com/opensearch-project/opensearch-api-specification/blob/main/spec/schemas/_common.query_dsl.yaml#L1851
+  map<string, TermsQuery> terms = 8;
 
   // Returns documents that contain a minimum number of exact terms in a provided field. To return a document, a required number of terms must exactly match the field values, including whitespace and capitalization.
   map<string, TermsSetQuery> terms_set = 9;
@@ -120,7 +121,6 @@ message BoolQuery {
   // The clause (query) must appear in matching documents. However, unlike `must`, the score of the query will be ignored.
   repeated QueryContainer filter = 200750218;
 
-  //manual generate
   oneof minimum_should_match{
     float number_minimum_should_match = 3;
     string string_minimum_should_match = 4;

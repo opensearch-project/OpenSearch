@@ -24,6 +24,6 @@ message SearchRequestSlice {
   string id = 2;
 
   // [required]
-  int64 max = 3;
+  int32 max = 3;
 
 }

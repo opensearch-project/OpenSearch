@@ -33,12 +33,10 @@ message FuzzyQuery {
   // Indicates whether edits include transpositions of two adjacent characters (for example `ab` to `ba`).
   bool transpositions = 164948289;
 
-  //manual generate
   oneof fuzziness{
     string string_fuzziness = 1;
     float number_fuzziness = 2;
   }
-  //manual generate
   oneof value {
     string string_value = 3;
     bool boolean_value = 4;

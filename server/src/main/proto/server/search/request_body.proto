@@ -94,7 +94,7 @@ message RequestBody {
   SearchRequestSuggest suggest = 23;
 
   // Maximum number of documents to collect for each shard. If a query reaches this limit, OpenSearch terminates the query early. OpenSearch collects documents before sorting. Use with caution. OpenSearch applies this parameter to each shard handling the request. When possible, let OpenSearch perform early termination automatically. Avoid specifying this parameter for requests that target data streams with backing indices across multiple data tiers. If set to `0` (default), the query does not terminate early.
-  int64 terminate_after = 24;
+  int32 terminate_after = 24;
 
   // Specifies the period of time to wait for a response from each shard. If no response is received before the timeout expires, the request fails and returns an error. Defaults to no timeout.
   string timeout = 25;

@@ -16,6 +16,6 @@ option java_multiple_files = true;
 
 
 enum Operator {
-  Operator_AND = 0;
-  Operator_OR = 1;
+  AND = 0;
+  OR = 1;
 }

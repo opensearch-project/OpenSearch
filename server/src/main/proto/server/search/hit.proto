@@ -81,7 +81,6 @@ message HitsMetadata {
 
   repeated Hit hits = 3202880;
 
-  //manual generate
   oneof max_score{
     float number_max_score = 1;
     string string_max_score = 2;

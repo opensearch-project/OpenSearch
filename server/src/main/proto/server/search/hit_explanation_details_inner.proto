@@ -18,7 +18,6 @@ message HitExplanationDetailsInner {
 
   string description = 113933319;
 
-  //manual modified
   repeated HitExplanationDetailsInner details = 483979844;
 
   float value = 111972721;

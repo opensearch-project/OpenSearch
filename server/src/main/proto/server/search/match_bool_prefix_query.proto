@@ -21,39 +21,37 @@ import "google/protobuf/wrappers.proto";
 message MatchBoolPrefixQuery {
 
   // Floating point number used to decrease or increase the relevance scores of the query. Boost values are relative to the default value of 1.0. A boost value between 0 and 1.0 decreases the relevance score. A value greater than 1.0 increases the relevance score.
-  .google.protobuf.FloatValue boost = 93922211;
+  .google.protobuf.FloatValue boost = 1;
 
-  .google.protobuf.StringValue name = 91108202;
+  .google.protobuf.StringValue name = 2;
 
   // Analyzer used to convert the text in the query value into tokens.
-  string analyzer = 487568219;
+  string analyzer = 3;
 
-  //manual generat
   oneof fuzziness{
-    string string_fuzziness = 1;
-    float number_fuzziness = 2;
+    string string_fuzziness = 4;
+    float number_fuzziness = 5;
   }
 
-  string fuzzy_rewrite = 286485418;
+  string fuzzy_rewrite = 6;
 
   // If `true`, edits for fuzzy matching include transpositions of two adjacent characters (for example, `ab` to `ba`). Can be applied to the term subqueries constructed for all terms but the final term.
-  bool fuzzy_transpositions = 195229289;
+  bool fuzzy_transpositions = 7;
 
   // Maximum number of terms to which the query will expand. Can be applied to the term subqueries constructed for all terms but the final term.
-  float max_expansions = 398396084;
+  float max_expansions = 8;
 
-  //manual generarte
   oneof minimum_should_match{
-    float number_minimum_should_match = 3;
-    string string_minimum_should_match = 4;
+    float number_minimum_should_match = 9;
+    string string_minimum_should_match = 10;
   }
 
-  Operator operator = 500553564;
+  Operator operator = 11;
 
   // Number of beginning characters left unchanged for fuzzy matching. Can be applied to the term subqueries constructed for all terms but the final term.
-  float prefix_length = 83305167;
+  float prefix_length = 12;
 
   // Terms you wish to find in the provided field. The last term is used in a prefix query.
-  string query = 107944136;
+  string query = 13;
 
 }
