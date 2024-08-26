@@ -557,7 +557,7 @@ public class MetadataCreateIndexService {
         });
     }
 
-    private Template applyContext(
+    Template applyContext(
         CreateIndexClusterStateUpdateRequest request,
         ClusterState currentState,
         List<Map<String, Object>> mappings,
