@@ -46,6 +46,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -75,26 +76,6 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         }
     }
 
-    public TransportClusterStateAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
-        super(
-            ClusterStateAction.NAME,
-            false,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            ClusterStateRequest::new,
-            indexNameExpressionResolver
-        );
-        this.localExecuteSupported = true;
-    }
-
     @Inject
     public TransportClusterStateAction(
         TransportService transportService,
@@ -102,7 +83,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        RemoteClusterStateService remoteClusterStateService
+        @Nullable RemoteClusterStateService remoteClusterStateService
     ) {
         super(
             ClusterStateAction.NAME,
@@ -114,8 +95,8 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             ClusterStateRequest::new,
             indexNameExpressionResolver
         );
-        this.remoteClusterStateService = remoteClusterStateService;
         this.localExecuteSupported = true;
+        this.remoteClusterStateService = remoteClusterStateService;
     }
 
     @Override

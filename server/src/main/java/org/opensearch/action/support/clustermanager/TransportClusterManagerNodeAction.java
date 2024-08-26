@@ -49,6 +49,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -63,7 +64,9 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.RemoteManifestManager;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
@@ -95,9 +98,9 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
+    protected RemoteClusterStateService remoteClusterStateService;
 
     private final String executor;
-    protected RemoteClusterStateService remoteClusterStateService;
 
     protected TransportClusterManagerNodeAction(
         String actionName,
@@ -380,32 +383,14 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                                 response.getClusterStateTermVersion(),
                                 isLatestClusterStatePresentOnLocalNode
                             );
-                            if (isLatestClusterStatePresentOnLocalNode) {
-                                onLatestLocalState.accept(clusterState);
-                                return;
+
+                            ClusterState stateFromNode = getStateFromLocalNode(response.getClusterStateTermVersion());
+                            if (stateFromNode != null) {
+                                onLatestLocalState.accept(stateFromNode);
+                            } else {
+                                // fallback to clusterManager
+                                onStaleLocalState.accept(clusterManagerNode, clusterState);
                             }
-                            ClusterState publishState = clusterService.publishState();
-                            if (publishState != null && response.matches(publishState)) {
-                                onLatestLocalState.accept(publishState);
-                                return;
-                            }
-                            if (remoteClusterStateService != null) {
-                                try {
-                                    ClusterState remoteState = remoteClusterStateService.getLatestClusterState(
-                                        clusterState.getClusterName().value(),
-                                        clusterState.getMetadata().clusterUUID(),
-                                        false
-                                    );
-                                    if (response.matches(remoteState)) {
-                                        onLatestLocalState.accept(remoteState);
-                                    }
-                                    return;
-                                } catch (IOException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                            // fallback to clusterManager
-                            onStaleLocalState.accept(clusterManagerNode, clusterState);
 
                         }
 
@@ -427,6 +412,37 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                     }
                 );
             };
+        }
+
+        public ClusterState getStateFromLocalNode(ClusterStateTermVersion termVersion) {
+            ClusterState appliedState = clusterService.state();
+            if (termVersion.equals(new ClusterStateTermVersion(appliedState))) {
+                return appliedState;
+            }
+            ClusterState publishState = clusterService.publishState();
+            if (termVersion.equals(new ClusterStateTermVersion(publishState))) {
+                return publishState;
+            }
+            if (remoteClusterStateService != null) {
+                try {
+                    String manifestFile = RemoteManifestManager.getManifestFilePrefixForTermVersion(
+                        termVersion.getTerm(),
+                        termVersion.getVersion()
+                    );
+                    ClusterMetadataManifest clusterMetadataManifestByFileName = remoteClusterStateService
+                        .getClusterMetadataManifestByFileName(appliedState.getClusterName().value(), manifestFile);
+                    ClusterState clusterStateForManifest = remoteClusterStateService.getClusterStateForManifest(
+                        appliedState.getClusterName().value(),
+                        clusterMetadataManifestByFileName,
+                        appliedState.nodes().getLocalNode().getId(),
+                        true
+                    );
+                    return clusterStateForManifest;
+                } catch (IOException e) {
+
+                }
+            }
+            return null;
         }
 
         private boolean checkForBlock(Request request, ClusterState localClusterState) {
@@ -534,4 +550,9 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected boolean localExecuteSupportedByAction() {
         return false;
     }
+
+    public void setRemoteClusterStateService(RemoteClusterStateService remoteClusterStateService) {
+        this.remoteClusterStateService = remoteClusterStateService;
+    }
+
 }

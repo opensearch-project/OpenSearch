@@ -17,6 +17,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -32,6 +33,7 @@ import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.ClusterSettings;
@@ -114,6 +116,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
  *
  * @opensearch.internal
  */
+@InternalApi
 public class RemoteClusterStateService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
@@ -979,8 +982,7 @@ public class RemoteClusterStateService implements Closeable {
         return blobStoreRepository.blobStore();
     }
 
-    AtomicReference<ClusterState> latestClusterState = new AtomicReference<>();
-    AtomicReference<ClusterMetadataManifest> latestClusterManifest = new AtomicReference<>();
+    AtomicReference<ClusterState> lastDownloadState = new AtomicReference<>();
 
     /**
      * Fetch latest ClusterState from remote, including global metadata, index metadata and cluster state version
@@ -999,14 +1001,15 @@ public class RemoteClusterStateService implements Closeable {
                 String.format(Locale.ROOT, "Latest cluster metadata manifest is not present for the provided clusterUUID: %s", clusterUUID)
             );
         }
-
-        if (latestClusterManifest.get().equals(clusterMetadataManifest.get())) {
-            return latestClusterState.get();
-        }
+        ClusterStateTermVersion clusterStateTermVersion = new ClusterStateTermVersion(
+            new ClusterName(clusterName),
+            clusterUUID,
+            clusterMetadataManifest.get().getClusterTerm(),
+            clusterMetadataManifest.get().getStateVersion()
+        );
 
         ClusterState state = getClusterStateForManifest(clusterName, clusterMetadataManifest.get(), nodeId, includeEphemeral);
-        latestClusterManifest.set(clusterMetadataManifest.get());
-        latestClusterState.set(state);
+        lastDownloadState.set(state);
         return state;
     }
 
@@ -1321,8 +1324,23 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean includeEphemeral
     ) throws IOException {
+
+        ClusterStateTermVersion clusterStateTermVersion = new ClusterStateTermVersion(
+            new ClusterName(clusterName),
+            manifest.getClusterUUID(),
+            manifest.getClusterTerm(),
+            manifest.getStateVersion()
+        );
+        ClusterState lastState = lastDownloadState.get();
+        if (clusterStateTermVersion.equals(
+            new ClusterStateTermVersion(new ClusterName(clusterName), lastState.stateUUID(), lastState.term(), lastState.version())
+        )) {
+            return lastState;
+        }
+
+        ClusterState retState = null;
         if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
-            return readClusterStateInParallel(
+            retState = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
                 manifest,
                 manifest.getClusterUUID(),
@@ -1364,9 +1382,19 @@ public class RemoteClusterStateService implements Closeable {
             );
             Metadata.Builder mb = Metadata.builder(remoteGlobalMetadataManager.getGlobalMetadata(manifest.getClusterUUID(), manifest));
             mb.indices(clusterState.metadata().indices());
-            return ClusterState.builder(clusterState).metadata(mb).build();
+            retState = ClusterState.builder(clusterState).metadata(mb).build();
         }
+        final ClusterState newState = retState;
+        lastDownloadState.getAndUpdate(oldState -> {
+            if (newState.term() > oldState.term() && newState.version() > oldState.version()) {
+                return newState;
+            } else {
+                return oldState;
+            }
+        });
 
+        lastDownloadState.set(retState);
+        return retState;
     }
 
     public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
@@ -1447,11 +1475,20 @@ public class RemoteClusterStateService implements Closeable {
             indexRoutingTables.remove(indexName);
         }
 
-        return clusterStateBuilder.stateUUID(manifest.getStateUUID())
+        final ClusterState newState = clusterStateBuilder.stateUUID(manifest.getStateUUID())
             .version(manifest.getStateVersion())
             .metadata(metadataBuilder)
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
+
+        lastDownloadState.getAndUpdate(oldState -> {
+            if (newState.term() > oldState.term() && newState.version() > oldState.version()) {
+                return newState;
+            } else {
+                return oldState;
+            }
+        });
+        return newState;
     }
 
     /**

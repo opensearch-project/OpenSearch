@@ -52,6 +52,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -70,6 +71,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final ClusterManagerService clusterManagerService;
 
     private final ClusterApplierService clusterApplierService;
+
+    private RemoteClusterStateService remoteClusterStateService;
 
     public static final org.opensearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA = Setting.prefixKeySetting(
         "cluster.metadata.",
