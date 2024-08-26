@@ -135,6 +135,15 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * Controls pinned timestamp feature enablement
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED = Setting.boolSetting(
+        "cluster.remote_store.pinned_timestamps.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Controls pinned timestamp scheduler interval
      */
     public static final Setting<TimeValue> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL = Setting.timeSetting(
@@ -163,6 +172,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
     private volatile boolean isTranslogMetadataEnabled;
+    private static volatile boolean isPinnedTimestampsEnabled;
     private static volatile TimeValue pinnedTimestampsSchedulerInterval;
     private static volatile TimeValue pinnedTimestampsLookbackInterval;
 
@@ -205,6 +215,7 @@ public class RemoteStoreSettings {
 
         pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
         pinnedTimestampsLookbackInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings);
+        isPinnedTimestampsEnabled = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.get(settings);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -279,5 +290,9 @@ public class RemoteStoreSettings {
 
     public static TimeValue getPinnedTimestampsLookbackInterval() {
         return pinnedTimestampsLookbackInterval;
+    }
+
+    public static boolean isPinnedTimestampsEnabled() {
+        return isPinnedTimestampsEnabled;
     }
 }
