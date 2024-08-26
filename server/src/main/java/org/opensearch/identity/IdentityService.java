@@ -12,8 +12,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -26,9 +29,11 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
+    private final ThreadPool threadPool;
 
-    public IdentityService(final Settings settings, final List<IdentityPlugin> identityPlugins) {
+    public IdentityService(final Settings settings, final ThreadPool threadPool, final List<IdentityPlugin> identityPlugins) {
         this.settings = settings;
+        this.threadPool = threadPool;
 
         if (identityPlugins.size() == 0) {
             log.debug("Identity plugins size is 0");
@@ -56,5 +61,12 @@ public class IdentityService {
      */
     public TokenManager getTokenManager() {
         return identityPlugin.getTokenManager();
+    }
+
+    /**
+     * Gets the RestHandlerWrapper to authenticate the request
+     */
+    public UnaryOperator<RestHandler> authenticate() {
+        return identityPlugin.authenticate(this.threadPool.getThreadContext());
     }
 }

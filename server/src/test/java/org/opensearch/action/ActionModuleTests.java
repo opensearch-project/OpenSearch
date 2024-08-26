@@ -49,8 +49,11 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
+import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -69,11 +72,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.opensearch.rest.RestController.PASS_THROUGH_REST_HANDLER_WRAPPER;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends OpenSearchTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
@@ -142,8 +151,8 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(Settings.EMPTY, new ArrayList<>()),
-            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()))
+            new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -160,6 +169,119 @@ public class ActionModuleTests extends OpenSearchTestCase {
             })
         );
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+        assertThat(actionModule.getRestWrapper(), equalTo(PASS_THROUGH_REST_HANDLER_WRAPPER));
+    }
+
+    private class TestIdentityPlugin implements IdentityPlugin {
+
+        @Override
+        public Subject getSubject() {
+            return null;
+        }
+
+        @Override
+        public TokenManager getTokenManager() {
+            return null;
+        }
+
+        @Override
+        public UnaryOperator<RestHandler> authenticate(ThreadContext threadContext) {
+            return (h) -> {
+                threadContext.putHeader("test_header", "foo");
+                return h;
+            };
+        }
+    }
+
+    private class TestActionPlugin implements ActionPlugin {
+
+        private ThreadPool threadPool;
+
+        public TestActionPlugin(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+            return (h) -> {
+                threadContext.putHeader("test_header", "bar");
+                return h;
+            };
+        }
+    }
+
+    public void testSetupRestHandlerWithIdentityPlugin() throws IOException {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        IdentityPlugin testIdentityPlugin = new TestIdentityPlugin();
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        UsageService usageService = new UsageService();
+        IdentityService identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of(testIdentityPlugin));
+        ActionModule actionModule = new ActionModule(
+            settings.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            settings.getIndexScopedSettings(),
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            threadPool,
+            emptyList(),
+            null,
+            null,
+            usageService,
+            null,
+            identityService,
+            new ExtensionsManager(Set.of(), identityService)
+        );
+        assertThat(actionModule.getRestWrapper(), not(equalTo(PASS_THROUGH_REST_HANDLER_WRAPPER)));
+    }
+
+    public void testSetupRestHandlerWithActionPluginNoIdentityPlugin() throws IOException {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TestActionPlugin testActionPlugin = new TestActionPlugin(threadPool);
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        UsageService usageService = new UsageService();
+        ActionModule actionModule = new ActionModule(
+            settings.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            settings.getIndexScopedSettings(),
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            threadPool,
+            List.of(testActionPlugin),
+            null,
+            null,
+            usageService,
+            null,
+            new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()),
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
+        );
+        assertThat(actionModule.getRestWrapper(), not(equalTo(PASS_THROUGH_REST_HANDLER_WRAPPER)));
+    }
+
+    public void testSetupRestHandlerWithIdentityPluginOverrideActionPlugin() throws IOException {
+        IdentityPlugin testIdentityPlugin = new TestIdentityPlugin();
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TestActionPlugin testActionPlugin = new TestActionPlugin(threadPool);
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        UsageService usageService = new UsageService();
+        IdentityService identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of(testIdentityPlugin));
+        ActionModule actionModule = new ActionModule(
+            settings.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            settings.getIndexScopedSettings(),
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            threadPool,
+            List.of(testActionPlugin),
+            null,
+            null,
+            usageService,
+            null,
+            identityService,
+            new ExtensionsManager(Set.of(), identityService)
+        );
+        assertThat(actionModule.getRestWrapper(), not(equalTo(PASS_THROUGH_REST_HANDLER_WRAPPER)));
+        assertThat(actionModule.getRestWrapper().getClass().getName(), not(containsString("TestActionPlugin")));
+        assertThat(actionModule.getRestWrapper().getClass().getName(), containsString("TestIdentityPlugin"));
     }
 
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
@@ -186,6 +308,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
+        IdentityService identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
@@ -200,7 +323,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                identityService,
                 null
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -237,6 +360,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
+        IdentityService identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
@@ -251,7 +375,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                identityService,
                 null
             );
             actionModule.initRestHandlers(null);

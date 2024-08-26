@@ -25,8 +25,6 @@ import java.util.Optional;
 
 /**
  * Internal Realm is a custom realm using the internal OpenSearch IdP
- *
- * @opensearch.experimental
  */
 public class OpenSearchRealm extends AuthenticatingRealm {
     private static final String DEFAULT_REALM_NAME = "internal";

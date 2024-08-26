@@ -525,19 +525,6 @@ public class Node implements Closeable {
                 identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
             }
 
-            final IdentityService identityService = new IdentityService(settings, identityPlugins);
-
-            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
-                Set<Setting<?>> additionalSettings = new HashSet<>();
-                for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
-                    additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
-                }
-                this.extensionsManager = new ExtensionsManager(additionalSettings, identityService);
-            } else {
-                this.extensionsManager = new NoopExtensionsManager();
-            }
-
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()
                 .map(Plugin::getRoles)
@@ -574,6 +561,19 @@ public class Node implements Closeable {
 
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
+
+            final IdentityService identityService = new IdentityService(settings, threadPool, identityPlugins);
+
+            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+                final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
+                Set<Setting<?>> additionalSettings = new HashSet<>();
+                for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
+                    additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
+                }
+                this.extensionsManager = new ExtensionsManager(additionalSettings, identityService);
+            } else {
+                this.extensionsManager = new NoopExtensionsManager(identityService);
+            }
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);

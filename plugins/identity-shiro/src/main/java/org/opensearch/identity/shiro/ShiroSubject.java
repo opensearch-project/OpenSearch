@@ -16,8 +16,6 @@ import java.util.Objects;
 
 /**
  * Subject backed by Shiro
- *
- * @opensearch.experimental
  */
 public class ShiroSubject implements Subject {
     private final ShiroTokenManager authTokenHandler;
