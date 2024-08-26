@@ -1203,9 +1203,12 @@ public class ActionModule extends AbstractModule {
          * @param route The {@link RestHandler.Route}.
          * @return the corresponding {@link RestSendToExtensionAction} if it is registered, null otherwise.
          */
-        @SuppressWarnings("unchecked")
         public RestSendToExtensionAction get(RestHandler.Route route) {
-            return routeRegistry.get(route);
+            if (route instanceof NamedRoute) {
+                return routeRegistry.get((NamedRoute) route);
+            }
+            // Only NamedRoutes are map keys so any other route is not in the map
+            return null;
         }
     }
 }

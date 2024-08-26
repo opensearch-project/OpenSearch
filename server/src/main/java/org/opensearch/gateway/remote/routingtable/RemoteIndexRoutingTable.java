@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.routingtable;
 
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.index.Index;
@@ -27,7 +27,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 /**
  * Remote store object for IndexRoutingTable
  */
-public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<IndexRoutingTable> {
+public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlobEntity<IndexRoutingTable> {
 
     public static final String INDEX_ROUTING_TABLE = "index-routing";
     public static final String INDEX_ROUTING_METADATA_PREFIX = "indexRouting--";

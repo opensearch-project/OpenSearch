@@ -60,6 +60,9 @@ jobs:
             for (const [key, value] of Object.entries(clusterBenchmarkConfigs)) {
               core.exportVariable(key, value);
             }
+            if (benchmarkConfigs[configId].hasOwnProperty('baseline_cluster_config')) {
+              core.exportVariable('BASELINE_CLUSTER_CONFIG', benchmarkConfigs[configId]['baseline_cluster_config']);
+            }
       - name: Post invalid format comment
         if: steps.check_comment.outputs.invalid == 'true'
         uses: actions/github-script@v7
@@ -105,13 +108,25 @@ jobs:
           echo "prHeadRepo=$headRepo" >> $GITHUB_ENV
           echo "prHeadRefSha=$headRefSha" >> $GITHUB_ENV
       - id: get_approvers
-        run: |
-          echo "approvers=$(cat .github/CODEOWNERS | grep '^\*'  | tr -d '* ' | sed 's/@/,/g' | sed 's/,//1')" >> $GITHUB_OUTPUT
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            // Get the collaborators - filtered to maintainer permissions
+            const maintainersResponse = await github.request('GET /repos/{owner}/{repo}/collaborators', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              permission: 'maintain',
+              affiliation: 'all',
+              per_page: 100
+              });
+            return maintainersResponse.data.map(item => item.login).join(', ');
       - uses: trstringer/manual-approval@v1
-        if: (!contains(steps.get_approvers.outputs.approvers, github.event.comment.user.login))
+        if: (!contains(steps.get_approvers.outputs.result, github.event.comment.user.login))
         with:
           secret: ${{ github.TOKEN }}
-          approvers: ${{ steps.get_approvers.outputs.approvers }}
+          approvers: ${{ steps.get_approvers.outputs.result }}
           minimum-approvals: 1
           issue-title: 'Request to approve/deny benchmark run for PR #${{ env.PR_NUMBER }}'
           issue-body: "Please approve or deny the benchmark run for PR #${{ env.PR_NUMBER }}"
@@ -123,9 +138,10 @@ jobs:
           ref: ${{ env.prHeadRefSha }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Java
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: 21
+          distribution: 'temurin'
       - name: Build and Assemble OpenSearch from PR
         run: |
           ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false
