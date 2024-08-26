@@ -202,6 +202,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -256,8 +258,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         boolean isSnapshotV2 = SNAPSHOT_V2.get(repository.getMetadata().settings());
         logger.debug("snapshot_v2 is set as [{}]", isSnapshotV2);
 
-       boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
-        if (remoteStoreIndexShallowCopy && isSnapshotV2 && request.indices().length == 0) {
+        boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
+        if (remoteStoreIndexShallowCopy
+            && isSnapshotV2
+            && request.indices().length == 0
+            && clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)) {
             createSnapshotV2(request, listener);
         } else {
             createSnapshot(
@@ -267,7 +272,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private  boolean remoteStoreShallowCopyEnabled(Repository repository) {
+    private boolean remoteStoreShallowCopyEnabled(Repository repository) {
         boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
         logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
         if (remoteStoreIndexShallowCopy
@@ -311,7 +316,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                createSnapshotPreValidations(currentState,repositoryData,repositoryName,snapshotName);
+                createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
                 final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
@@ -453,7 +458,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
 
             repositoryDataListener.whenComplete(repositoryData -> {
-                createSnapshotPreValidations(currentState,repositoryData,repositoryName,snapshotName);
+                createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
 
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
@@ -543,7 +548,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private void createSnapshotPreValidations(ClusterState currentState, RepositoryData repositoryData, String repositoryName, String snapshotName) {
+    private void createSnapshotPreValidations(
+        ClusterState currentState,
+        RepositoryData repositoryData,
+        String repositoryName,
+        String snapshotName
+    ) {
         Repository repository = repositoriesService.repository(repositoryName);
         ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
         final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
@@ -572,7 +582,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     ) {
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
-            snapshot.getRepository() + "__" + snapshot.getSnapshotId().getUUID(),
+            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshot.getSnapshotId().getUUID(),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
