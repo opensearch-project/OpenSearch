@@ -298,15 +298,14 @@ public final class BlobStoreTestUtil {
                             .stream()
                             .noneMatch(shardFailure -> shardFailure.index().equals(index) && shardFailure.shardId() == shardId)) {
                         final Map<String, BlobMetadata> shardPathContents = shardContainer.listBlobs();
-                        if (snapshotInfo.getPinnedTimestamp() == 0)
-                        {
+                        if (snapshotInfo.getPinnedTimestamp() == 0) {
                             assertTrue(
                                 shardPathContents.containsKey(
                                     String.format(Locale.ROOT, BlobStoreRepository.SHALLOW_SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
                                 )
                                     || shardPathContents.containsKey(
-                                    String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
-                                )
+                                        String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
+                                    )
                             );
 
                             assertThat(
