@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package org.opensearch.search.proto;
+option java_multiple_files = true;
+
+message SearchRequestSort {
+  oneof SortCombinations{
+    string field = 1;
+    SortOptions sort_options = 2;
+  }
+
+  message SortOptions {
+    SortOrder order = 1;
+    enum SortOrder {
+      ASC = 0;
+      DESC = 1;
+    }
+  }
+}
