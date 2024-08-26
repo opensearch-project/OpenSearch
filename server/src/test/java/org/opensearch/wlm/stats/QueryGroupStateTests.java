@@ -33,6 +33,10 @@ public class QueryGroupStateTests extends OpenSearchTestCase {
             } else {
                 updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.MEMORY).incrementCancellations()));
             }
+
+            if (i%5 == 3 || i%5 == 4) {
+                updaterThreads.add(new Thread(() -> queryGroupState.incrementTotalCancellations()));
+            }
         }
 
         // trigger the updates
@@ -49,6 +53,7 @@ public class QueryGroupStateTests extends OpenSearchTestCase {
         assertEquals(5, queryGroupState.getCompletions());
         assertEquals(5, queryGroupState.getRejections());
         assertEquals(5, queryGroupState.getFailures());
+        assertEquals(10, queryGroupState.getTotalCancellations());
         assertEquals(5, queryGroupState.getResourceState().get(ResourceType.CPU).getCancellations());
         assertEquals(5, queryGroupState.getResourceState().get(ResourceType.MEMORY).getCancellations());
     }

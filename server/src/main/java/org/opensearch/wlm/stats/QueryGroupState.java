@@ -34,6 +34,11 @@ public class QueryGroupState {
     private final AtomicLong failures = new AtomicLong();
 
     /**
+     * This will track total number of cancellations in the query group due to all resource type breaches
+     */
+    private final AtomicLong totalCancellations = new AtomicLong();
+
+    /**
      * This is used to store the resource type state both for CPU and MEMORY
      */
     private final Map<ResourceType, ResourceTypeState> resourceState;
@@ -68,6 +73,10 @@ public class QueryGroupState {
         return failures.get();
     }
 
+    public long getTotalCancellations() {
+        return totalCancellations.get();
+    }
+
     /**
      * getter for query group resource state
      * @return the query group resource state
@@ -95,6 +104,13 @@ public class QueryGroupState {
      */
     public void incrementFailures() {
         failures.incrementAndGet();
+    }
+
+    /**
+     * this is a call back to increment total cancellations for a query group
+     */
+    public void incrementTotalCancellations() {
+        totalCancellations.incrementAndGet();
     }
 
     /**
