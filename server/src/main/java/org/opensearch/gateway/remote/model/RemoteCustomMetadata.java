@@ -10,8 +10,9 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
@@ -31,7 +32,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METAD
 /**
  * Wrapper class for uploading/downloading {@link Custom} to/from remote blob store
  */
-public class RemoteCustomMetadata extends AbstractRemoteWritableBlobEntity<Custom> {
+public class RemoteCustomMetadata extends AbstractClusterMetadataWriteableBlobEntity<Custom> {
 
     public static final String CUSTOM_METADATA = "custom";
     public static final String CUSTOM_DELIMITER = "--";
@@ -122,6 +123,8 @@ public class RemoteCustomMetadata extends AbstractRemoteWritableBlobEntity<Custo
 
     public static Custom readFrom(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, String customType)
         throws IOException {
-        return namedWriteableRegistry.getReader(Custom.class, customType).read(streamInput);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry)) {
+            return namedWriteableRegistry.getReader(Custom.class, customType).read(in);
+        }
     }
 }

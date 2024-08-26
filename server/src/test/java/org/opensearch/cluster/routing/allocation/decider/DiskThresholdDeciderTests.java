@@ -863,19 +863,6 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
     }
 
-    public void testAverageUsage() {
-        RoutingNode rn = new RoutingNode("node1", newNode("node1"));
-        DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
-
-        final Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
-
-        DiskUsage node1Usage = decider.averageUsage(rn, usages);
-        assertThat(node1Usage.getTotalBytes(), equalTo(100L));
-        assertThat(node1Usage.getFreeBytes(), equalTo(25L));
-    }
-
     public void testFreeDiskPercentageAfterShardAssigned() {
         DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
 

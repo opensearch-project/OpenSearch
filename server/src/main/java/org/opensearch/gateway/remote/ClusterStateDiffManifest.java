@@ -12,7 +12,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -25,14 +24,15 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer.getAbstractInstance;
 import static org.opensearch.cluster.DiffableUtils.getStringKeySerializer;
-import static org.opensearch.cluster.routing.remote.RemoteRoutingTableService.CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
 
 /**
  * Manifest of diff between two cluster states
@@ -52,6 +52,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
     private static final String METADATA_CUSTOM_DIFF_FIELD = "metadata_custom_diff";
     private static final String UPSERTS_FIELD = "upserts";
     private static final String DELETES_FIELD = "deletes";
+    private static final String DIFF_FIELD = "diff";
     private static final String CLUSTER_BLOCKS_UPDATED_FIELD = "cluster_blocks_diff";
     private static final String DISCOVERY_NODES_UPDATED_FIELD = "discovery_nodes_diff";
     private static final String ROUTING_TABLE_DIFF = "routing_table_diff";
@@ -69,13 +70,12 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
     private final List<String> customMetadataDeleted;
     private final boolean clusterBlocksUpdated;
     private final boolean discoveryNodesUpdated;
-    private final List<String> indicesRoutingUpdated;
-    private final List<String> indicesRoutingDeleted;
+    private String indicesRoutingDiffPath;
     private final boolean hashesOfConsistentSettingsUpdated;
     private final List<String> clusterStateCustomUpdated;
     private final List<String> clusterStateCustomDeleted;
 
-    public ClusterStateDiffManifest(ClusterState state, ClusterState previousState) {
+    public ClusterStateDiffManifest(ClusterState state, ClusterState previousState, String indicesRoutingDiffPath) {
         fromStateUUID = previousState.stateUUID();
         toStateUUID = state.stateUUID();
         coordinationMetadataUpdated = !Metadata.isCoordinationMetadataEqual(state.metadata(), previousState.metadata());
@@ -101,18 +101,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         customMetadataUpdated = new ArrayList<>(customDiff.getDiffs().keySet());
         customMetadataUpdated.addAll(customDiff.getUpserts().keySet());
         customMetadataDeleted = customDiff.getDeletes();
-
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = DiffableUtils.diff(
-            previousState.getRoutingTable().getIndicesRouting(),
-            state.getRoutingTable().getIndicesRouting(),
-            DiffableUtils.getStringKeySerializer(),
-            CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER
-        );
-
-        indicesRoutingUpdated = new ArrayList<>();
-        routingTableDiff.getUpserts().forEach((k, v) -> indicesRoutingUpdated.add(k));
-
-        indicesRoutingDeleted = routingTableDiff.getDeletes();
+        this.indicesRoutingDiffPath = indicesRoutingDiffPath;
         hashesOfConsistentSettingsUpdated = !state.metadata()
             .hashesOfConsistentSettings()
             .equals(previousState.metadata().hashesOfConsistentSettings());
@@ -140,8 +129,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         List<String> indicesDeleted,
         boolean clusterBlocksUpdated,
         boolean discoveryNodesUpdated,
-        List<String> indicesRoutingUpdated,
-        List<String> indicesRoutingDeleted,
+        String indicesRoutingDiffPath,
         boolean hashesOfConsistentSettingsUpdated,
         List<String> clusterStateCustomUpdated,
         List<String> clusterStateCustomDeleted
@@ -152,17 +140,16 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         this.settingsMetadataUpdated = settingsMetadataUpdated;
         this.transientSettingsMetadataUpdated = transientSettingsMetadataUpdate;
         this.templatesMetadataUpdated = templatesMetadataUpdated;
-        this.customMetadataUpdated = customMetadataUpdated;
-        this.customMetadataDeleted = customMetadataDeleted;
-        this.indicesUpdated = indicesUpdated;
-        this.indicesDeleted = indicesDeleted;
+        this.customMetadataUpdated = Collections.unmodifiableList(customMetadataUpdated);
+        this.customMetadataDeleted = Collections.unmodifiableList(customMetadataDeleted);
+        this.indicesUpdated = Collections.unmodifiableList(indicesUpdated);
+        this.indicesDeleted = Collections.unmodifiableList(indicesDeleted);
         this.clusterBlocksUpdated = clusterBlocksUpdated;
         this.discoveryNodesUpdated = discoveryNodesUpdated;
-        this.indicesRoutingUpdated = indicesRoutingUpdated;
-        this.indicesRoutingDeleted = indicesRoutingDeleted;
         this.hashesOfConsistentSettingsUpdated = hashesOfConsistentSettingsUpdated;
-        this.clusterStateCustomUpdated = clusterStateCustomUpdated;
-        this.clusterStateCustomDeleted = clusterStateCustomDeleted;
+        this.clusterStateCustomUpdated = Collections.unmodifiableList(clusterStateCustomUpdated);
+        this.clusterStateCustomDeleted = Collections.unmodifiableList(clusterStateCustomDeleted);
+        this.indicesRoutingDiffPath = indicesRoutingDiffPath;
     }
 
     public ClusterStateDiffManifest(StreamInput in) throws IOException {
@@ -178,11 +165,10 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         this.customMetadataDeleted = in.readStringList();
         this.clusterBlocksUpdated = in.readBoolean();
         this.discoveryNodesUpdated = in.readBoolean();
-        this.indicesRoutingUpdated = in.readStringList();
-        this.indicesRoutingDeleted = in.readStringList();
         this.hashesOfConsistentSettingsUpdated = in.readBoolean();
         this.clusterStateCustomUpdated = in.readStringList();
         this.clusterStateCustomDeleted = in.readStringList();
+        this.indicesRoutingDiffPath = in.readOptionalString();
     }
 
     @Override
@@ -226,16 +212,9 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         builder.field(DISCOVERY_NODES_UPDATED_FIELD, discoveryNodesUpdated);
 
         builder.startObject(ROUTING_TABLE_DIFF);
-        builder.startArray(UPSERTS_FIELD);
-        for (String index : indicesRoutingUpdated) {
-            builder.value(index);
+        if (indicesRoutingDiffPath != null) {
+            builder.field(DIFF_FIELD, indicesRoutingDiffPath);
         }
-        builder.endArray();
-        builder.startArray(DELETES_FIELD);
-        for (String index : indicesRoutingDeleted) {
-            builder.value(index);
-        }
-        builder.endArray();
         builder.endObject();
         builder.startObject(CLUSTER_STATE_CUSTOM_DIFF_FIELD);
         builder.startArray(UPSERTS_FIELD);
@@ -252,7 +231,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         return builder;
     }
 
-    public static ClusterStateDiffManifest fromXContent(XContentParser parser) throws IOException {
+    public static ClusterStateDiffManifest fromXContent(XContentParser parser, long codec_version) throws IOException {
         Builder builder = new Builder();
         if (parser.currentToken() == null) { // fresh parser? move to next token
             parser.nextToken();
@@ -334,11 +313,10 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
                         currentFieldName = parser.currentName();
                         parser.nextToken();
                         switch (currentFieldName) {
-                            case UPSERTS_FIELD:
-                                builder.indicesRoutingUpdated(convertListToString(parser.listOrderedMap()));
-                                break;
-                            case DELETES_FIELD:
-                                builder.indicesRoutingDeleted(convertListToString(parser.listOrderedMap()));
+                            case DIFF_FIELD:
+                                if (codec_version >= CODEC_V3) {
+                                    builder.indicesRoutingDiffPath(parser.textOrNull());
+                                }
                                 break;
                             default:
                                 throw new XContentParseException("Unexpected field [" + currentFieldName + "]");
@@ -451,12 +429,8 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         return hashesOfConsistentSettingsUpdated;
     }
 
-    public List<String> getIndicesRoutingUpdated() {
-        return indicesRoutingUpdated;
-    }
-
-    public List<String> getIndicesRoutingDeleted() {
-        return indicesRoutingDeleted;
+    public String getIndicesRoutingDiffPath() {
+        return indicesRoutingDiffPath;
     }
 
     public List<String> getClusterStateCustomUpdated() {
@@ -465,6 +439,10 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
 
     public List<String> getClusterStateCustomDeleted() {
         return clusterStateCustomDeleted;
+    }
+
+    public void setIndicesRoutingDiffPath(String indicesRoutingDiffPath) {
+        this.indicesRoutingDiffPath = indicesRoutingDiffPath;
     }
 
     @Override
@@ -485,10 +463,9 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
             && Objects.equals(customMetadataDeleted, that.customMetadataDeleted)
             && Objects.equals(indicesUpdated, that.indicesUpdated)
             && Objects.equals(indicesDeleted, that.indicesDeleted)
-            && Objects.equals(indicesRoutingUpdated, that.indicesRoutingUpdated)
-            && Objects.equals(indicesRoutingDeleted, that.indicesRoutingDeleted)
             && Objects.equals(clusterStateCustomUpdated, that.clusterStateCustomUpdated)
-            && Objects.equals(clusterStateCustomDeleted, that.clusterStateCustomDeleted);
+            && Objects.equals(clusterStateCustomDeleted, that.clusterStateCustomDeleted)
+            && Objects.equals(indicesRoutingDiffPath, that.indicesRoutingDiffPath);
     }
 
     @Override
@@ -506,11 +483,10 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
             indicesDeleted,
             clusterBlocksUpdated,
             discoveryNodesUpdated,
-            indicesRoutingUpdated,
-            indicesRoutingDeleted,
             hashesOfConsistentSettingsUpdated,
             clusterStateCustomUpdated,
-            clusterStateCustomDeleted
+            clusterStateCustomDeleted,
+            indicesRoutingDiffPath
         );
     }
 
@@ -532,11 +508,10 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         out.writeStringCollection(customMetadataDeleted);
         out.writeBoolean(clusterBlocksUpdated);
         out.writeBoolean(discoveryNodesUpdated);
-        out.writeStringCollection(indicesRoutingUpdated);
-        out.writeStringCollection(indicesRoutingDeleted);
         out.writeBoolean(hashesOfConsistentSettingsUpdated);
         out.writeStringCollection(clusterStateCustomUpdated);
         out.writeStringCollection(clusterStateCustomDeleted);
+        out.writeOptionalString(indicesRoutingDiffPath);
     }
 
     /**
@@ -557,13 +532,19 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         private List<String> indicesDeleted;
         private boolean clusterBlocksUpdated;
         private boolean discoveryNodesUpdated;
-        private List<String> indicesRoutingUpdated;
-        private List<String> indicesRoutingDeleted;
+        private String indicesRoutingDiff;
         private boolean hashesOfConsistentSettingsUpdated;
         private List<String> clusterStateCustomUpdated;
         private List<String> clusterStateCustomDeleted;
 
-        public Builder() {}
+        public Builder() {
+            customMetadataUpdated = Collections.emptyList();
+            customMetadataDeleted = Collections.emptyList();
+            indicesUpdated = Collections.emptyList();
+            indicesDeleted = Collections.emptyList();
+            clusterStateCustomUpdated = Collections.emptyList();
+            clusterStateCustomDeleted = Collections.emptyList();
+        }
 
         public Builder fromStateUUID(String fromStateUUID) {
             this.fromStateUUID = fromStateUUID;
@@ -630,13 +611,8 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
             return this;
         }
 
-        public Builder indicesRoutingUpdated(List<String> indicesRoutingUpdated) {
-            this.indicesRoutingUpdated = indicesRoutingUpdated;
-            return this;
-        }
-
-        public Builder indicesRoutingDeleted(List<String> indicesRoutingDeleted) {
-            this.indicesRoutingDeleted = indicesRoutingDeleted;
+        public Builder indicesRoutingDiffPath(String indicesRoutingDiffPath) {
+            this.indicesRoutingDiff = indicesRoutingDiffPath;
             return this;
         }
 
@@ -664,8 +640,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
                 indicesDeleted,
                 clusterBlocksUpdated,
                 discoveryNodesUpdated,
-                indicesRoutingUpdated,
-                indicesRoutingDeleted,
+                indicesRoutingDiff,
                 hashesOfConsistentSettingsUpdated,
                 clusterStateCustomUpdated,
                 clusterStateCustomDeleted

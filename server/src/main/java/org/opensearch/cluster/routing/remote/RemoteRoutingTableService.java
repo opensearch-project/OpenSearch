@@ -9,21 +9,15 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.DiffableUtils;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.lifecycle.LifecycleComponent;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A Service which provides APIs to upload and download routing table from remote store.
@@ -31,25 +25,19 @@ import java.util.Map;
  * @opensearch.internal
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
-    public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
-        new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
-            @Override
-            public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
-                value.writeTo(out);
-            }
-
-            @Override
-            public IndexRoutingTable read(StreamInput in, String key) throws IOException {
-                return IndexRoutingTable.readFrom(in);
-            }
-        };
 
     List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable);
 
-    CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    void getAsyncIndexRoutingReadAction(
+        String clusterUUID,
         String uploadedFilename,
-        Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
+    );
+
+    void getAsyncIndexRoutingTableDiffReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<Diff<RoutingTable>> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(
@@ -57,16 +45,22 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         List<ClusterMetadataManifest.UploadedIndexMetadata> allIndicesRouting
     );
 
-    DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(
-        RoutingTable before,
-        RoutingTable after
+    StringKeyDiffProvider<IndexRoutingTable> getIndicesRoutingMapDiff(RoutingTable before, RoutingTable after);
+
+    void getAsyncIndexRoutingWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
+        IndexRoutingTable indexRouting,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );
 
-    CheckedRunnable<IOException> getIndexRoutingAsyncAction(
-        ClusterState clusterState,
-        IndexRoutingTable indexRouting,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener,
-        BlobPath clusterBasePath
+    void getAsyncIndexRoutingDiffWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
+        StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getAllUploadedIndicesRouting(
@@ -75,6 +69,8 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         List<String> indicesRoutingToDelete
     );
 
-    public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException;
+    void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException;
+
+    void deleteStaleIndexRoutingDiffPaths(List<String> stalePaths) throws IOException;
 
 }

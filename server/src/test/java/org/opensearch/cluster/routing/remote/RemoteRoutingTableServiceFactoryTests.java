@@ -40,7 +40,8 @@ public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
             repositoriesService,
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            "test-cluster"
         );
         assertTrue(service instanceof NoopRemoteRoutingTableService);
     }
@@ -56,7 +57,8 @@ public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
             repositoriesService,
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            "test-cluster"
         );
         assertTrue(service instanceof InternalRemoteRoutingTableService);
     }

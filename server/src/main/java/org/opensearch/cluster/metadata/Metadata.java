@@ -43,6 +43,7 @@ import org.opensearch.cluster.Diffable;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiffable;
 import org.opensearch.cluster.NamedDiffableValueSerializer;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -280,6 +281,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private final SortedMap<String, IndexAbstraction> indicesLookup;
 
+    private final Map<String, SortedMap<Long, String>> systemTemplatesLookup;
+
     Metadata(
         String clusterUUID,
         boolean clusterUUIDCommitted,
@@ -297,7 +300,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] visibleOpenIndices,
         String[] allClosedIndices,
         String[] visibleClosedIndices,
-        SortedMap<String, IndexAbstraction> indicesLookup
+        SortedMap<String, IndexAbstraction> indicesLookup,
+        Map<String, SortedMap<Long, String>> systemTemplatesLookup
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -328,6 +332,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
+        this.systemTemplatesLookup = systemTemplatesLookup;
     }
 
     public long version() {
@@ -828,6 +833,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
+    public Map<String, SortedMap<Long, String>> systemTemplatesLookup() {
+        return systemTemplatesLookup;
+    }
+
     public Map<String, ComposableIndexTemplate> templatesV2() {
         return Optional.ofNullable((ComposableIndexTemplateMetadata) this.custom(ComposableIndexTemplateMetadata.TYPE))
             .map(ComposableIndexTemplateMetadata::indexTemplates)
@@ -842,6 +851,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public Map<String, View> views() {
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
+    }
+
+    public Map<String, QueryGroup> queryGroups() {
+        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
+            .map(QueryGroupMetadata::queryGroups)
+            .orElse(Collections.emptyMap());
     }
 
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
@@ -1189,6 +1204,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Map<String, Custom> customs;
         private final Metadata previousMetadata;
 
+        private Map<String, SortedMap<Long, String>> systemTemplatesLookup;
+
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = new HashMap<>();
@@ -1287,6 +1304,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder templates(TemplatesMetadata templatesMetadata) {
+            this.templates.clear();
             this.templates.putAll(templatesMetadata.getTemplates());
             return this;
         }
@@ -1365,6 +1383,32 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             existingDataStreams.remove(name);
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
+        }
+
+        public Builder queryGroups(final Map<String, QueryGroup> queryGroups) {
+            this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
+            return this;
+        }
+
+        public Builder put(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
+            existing.put(queryGroup.get_id(), queryGroup);
+            return queryGroups(existing);
+        }
+
+        public Builder remove(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
+            existing.remove(queryGroup.get_id());
+            return queryGroups(existing);
+        }
+
+        private Map<String, QueryGroup> getQueryGroups() {
+            return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
+                .map(o -> (QueryGroupMetadata) o)
+                .map(QueryGroupMetadata::queryGroups)
+                .orElse(Collections.emptyMap());
         }
 
         private Map<String, View> getViews() {
@@ -1534,6 +1578,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 ? (DataStreamMetadata) this.previousMetadata.customs.get(DataStreamMetadata.TYPE)
                 : null;
 
+            buildSystemTemplatesLookup();
+
             boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)
                 || (previousDataStreamMetadata != null && previousDataStreamMetadata.equals(dataStreamMetadata) == false)
@@ -1542,6 +1588,33 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return (recomputeRequiredforIndicesLookups == false)
                 ? buildMetadataWithPreviousIndicesLookups()
                 : buildMetadataWithRecomputedIndicesLookups();
+        }
+
+        private void buildSystemTemplatesLookup() {
+            if (previousMetadata != null
+                && Objects.equals(
+                    previousMetadata.customs.get(ComponentTemplateMetadata.TYPE),
+                    this.customs.get(ComponentTemplateMetadata.TYPE)
+                )) {
+                systemTemplatesLookup = Collections.unmodifiableMap(previousMetadata.systemTemplatesLookup);
+            } else {
+                systemTemplatesLookup = new HashMap<>();
+                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
+                    .map(ComponentTemplateMetadata::componentTemplates)
+                    .orElseGet(Collections::emptyMap)
+                    .forEach((k, v) -> {
+                        if (MetadataIndexTemplateService.isSystemTemplate(v)) {
+                            SystemTemplateMetadata templateMetadata = SystemTemplateMetadata.fromComponentTemplate(k);
+                            systemTemplatesLookup.compute(templateMetadata.name(), (ik, iv) -> {
+                                if (iv == null) {
+                                    iv = new TreeMap<>();
+                                }
+                                iv.put(templateMetadata.version(), k);
+                                return iv;
+                            });
+                        }
+                    });
+            }
         }
 
         protected Metadata buildMetadataWithPreviousIndicesLookups() {
@@ -1562,7 +1635,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 Arrays.copyOf(previousMetadata.visibleOpenIndices, previousMetadata.visibleOpenIndices.length),
                 Arrays.copyOf(previousMetadata.allClosedIndices, previousMetadata.allClosedIndices.length),
                 Arrays.copyOf(previousMetadata.visibleClosedIndices, previousMetadata.visibleClosedIndices.length),
-                Collections.unmodifiableSortedMap(previousMetadata.indicesLookup)
+                Collections.unmodifiableSortedMap(previousMetadata.indicesLookup),
+                systemTemplatesLookup
             );
         }
 
@@ -1685,7 +1759,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 visibleOpenIndicesArray,
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
-                indicesLookup
+                indicesLookup,
+                systemTemplatesLookup
             );
         }
 
@@ -1762,9 +1837,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
-                    Set<String> conflicts = indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the
-                                                                                                                               // char after
-                                                                                                                               // '-'
+                    Set<String> conflicts = indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".")
                         .keySet()
                         .stream()
                         .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())

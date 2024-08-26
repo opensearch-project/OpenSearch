@@ -37,6 +37,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -178,6 +179,19 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
         List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
+        return startInitialisingShardsAndReroute(strategy, clusterState, initializingShards);
+    }
+
+    protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy, String index) {
+        List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING);
+        return startInitialisingShardsAndReroute(strategy, clusterState, initializingShards);
+    }
+
+    private static ClusterState startInitialisingShardsAndReroute(
+        AllocationService strategy,
+        ClusterState clusterState,
+        List<ShardRouting> initializingShards
+    ) {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
@@ -285,6 +299,19 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
         List<ShardRouting> initializingShards
     ) {
         return allocationService.reroute(allocationService.applyStartedShards(clusterState, initializingShards), "reroute after starting");
+    }
+
+    protected RoutingAllocation newRoutingAllocation(AllocationDeciders deciders, ClusterState state) {
+        RoutingAllocation allocation = new RoutingAllocation(
+            deciders,
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+        allocation.debugDecision(true);
+        return allocation;
     }
 
     public static class TestAllocateDecision extends AllocationDecider {
@@ -465,5 +492,6 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
                 unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
             }
         }
+
     }
 }

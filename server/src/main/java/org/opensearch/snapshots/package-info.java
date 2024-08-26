@@ -131,7 +131,7 @@
  *     snapshots, we load the {@link org.opensearch.snapshots.SnapshotInfo} for the source snapshot and check for shard snapshot
  *     failures of the relevant indices.</li>
  *     <li>Once all shard counts are known and the health of all source indices data has been verified, we populate the
- *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the the relevant shard clone tasks.</li>
+ *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the relevant shard clone tasks.</li>
  *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, cluster-manager executes them on its snapshot thread-pool
  *     by invoking {@link org.opensearch.repositories.Repository#cloneShardSnapshot} for each shard that is to be cloned. Each completed
  *     shard snapshot triggers a call to the {@link org.opensearch.snapshots.SnapshotsService#SHARD_STATE_EXECUTOR} which updates the

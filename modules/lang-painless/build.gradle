@@ -33,6 +33,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
 
 apply plugin: 'opensearch.validate-rest-spec'
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'An easy, safe and fast scripting language for OpenSearch'
@@ -46,6 +47,7 @@ ext {
 
 testClusters.all {
   module ':modules:mapper-extras'
+  module ':modules:aggs-matrix-stats'
   systemProperty 'opensearch.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'opensearch.transport.cname_in_publish_address', 'true'

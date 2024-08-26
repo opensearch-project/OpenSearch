@@ -45,7 +45,6 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -57,8 +56,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Factory for a filesystem directory
@@ -100,21 +97,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                final Set<String> nioExtensions;
-                final Set<String> mmapExtensions = Set.copyOf(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
-                if (mmapExtensions.equals(
-                    new HashSet(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY))
-                ) == false) {
-                    // If the mmap extension setting was defined, then compute nio extensions by subtracting out the
-                    // mmap extensions from the set of all extensions.
-                    nioExtensions = Stream.concat(
-                        IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY).stream(),
-                        IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY).stream()
-                    ).filter(e -> mmapExtensions.contains(e) == false).collect(Collectors.toUnmodifiableSet());
-                } else {
-                    // Otherwise, get the list of nio extensions from the nio setting
-                    nioExtensions = Set.copyOf(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                }
+                final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
                     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions), nioExtensions);
