@@ -15,6 +15,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 
+import java.util.Optional;
+
 /**
  * This listener is used to perform the rejections for incoming requests into a queryGroup
  */
@@ -35,8 +37,9 @@ public class QueryGroupRequestRejectionOperationListener extends SearchRequestOp
     @Override
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
         final String queryGroupId = threadPool.getThreadContext().getHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER);
-        if (queryGroupService.shouldRejectFor(queryGroupId)) {
-            throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended.");
+        Optional<String> reason = queryGroupService.shouldRejectFor(queryGroupId);
+        if (reason.isPresent()) {
+            throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended." + reason.get());
         }
     }
 }

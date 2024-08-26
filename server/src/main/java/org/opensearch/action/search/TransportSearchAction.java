@@ -316,11 +316,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 listener
             );
         }
-
-        if (task instanceof QueryGroupTask) {
-            listener =
-        }
-
         executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }
 

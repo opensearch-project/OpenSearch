@@ -8,8 +8,10 @@
 
 package org.opensearch.wlm;
 
+import java.util.Optional;
+
 /**
- * This is stub at this point in time
+ * This is stub at this point in time and will be replace by an acutal one in couple of days
  */
 public class QueryGroupService {
     /**
@@ -25,8 +27,11 @@ public class QueryGroupService {
      * @param queryGroupId query group identifier
      * @return whether the queryGroup is contended and should reject new incoming requests
      */
-    public boolean shouldRejectFor(String queryGroupId) {
-        if (queryGroupId == null) return false;
-        return false;
+    public Optional<String> shouldRejectFor(String queryGroupId) {
+        if (queryGroupId == null) return Optional.empty();
+        // TODO: At this point this is dummy and we need to decide whether to cancel the request based on last
+        //  reported resource usage for the queryGroup. We also need to increment the rejection count here for the
+        //  query group
+        return Optional.of("Possible reason. ");
     }
 }
