@@ -575,7 +575,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         long timestampToPin,
         ActionListener<RepositoryData> listener
     ) {
-        listener.onResponse(repositoryData);
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
             snapshot.getRepository() + "__" + snapshot.getSnapshotId().getUUID(),

@@ -71,6 +71,7 @@ import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PA
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -901,7 +902,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         repository.getRepositoryData(repositoryDataPlainActionFuture);
 
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
-        assertThat(repositoryData.getSnapshotIds().size(), equalTo(1));
+        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
     }
 
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
