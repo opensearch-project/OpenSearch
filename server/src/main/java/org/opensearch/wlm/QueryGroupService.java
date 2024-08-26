@@ -30,8 +30,8 @@ public class QueryGroupService {
     public Optional<String> shouldRejectFor(String queryGroupId) {
         if (queryGroupId == null) return Optional.empty();
         // TODO: At this point this is dummy and we need to decide whether to cancel the request based on last
-        //  reported resource usage for the queryGroup. We also need to increment the rejection count here for the
-        //  query group
+        // reported resource usage for the queryGroup. We also need to increment the rejection count here for the
+        // query group
         return Optional.of("Possible reason. ");
     }
 }

@@ -50,8 +50,7 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
         TransportRequestHandler<T> actualHandler;
         private final QueryGroupService queryGroupService;
 
-        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler,
-                              QueryGroupService queryGroupService) {
+        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler, QueryGroupService queryGroupService) {
             this.threadPool = threadPool;
             this.actualHandler = actualHandler;
             this.queryGroupService = queryGroupService;

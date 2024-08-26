@@ -25,7 +25,6 @@ public class QueryGroupRequestRejectionOperationListenerTests extends OpenSearch
     QueryGroupService queryGroupService;
     QueryGroupRequestRejectionOperationListener sut;
 
-
     public void setUp() throws Exception {
         super.setUp();
         testThreadPool = new TestThreadPool("RejectionTestThreadPool");

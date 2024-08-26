@@ -22,7 +22,10 @@ import org.opensearch.transport.TransportRequestHandler;
 import java.util.Collections;
 import java.util.Optional;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTestCase {
     private WorkloadManagementTransportInterceptor.RequestHandler<TransportRequest> sut;

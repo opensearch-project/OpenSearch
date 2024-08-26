@@ -1013,16 +1013,22 @@ public class Node implements Closeable {
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
-            final QueryGroupRequestRejectionOperationListener queryGroupRequestRejectionListener = new QueryGroupRequestRejectionOperationListener(
-                new QueryGroupService(), // We will need to replace this with actual instance of the queryGroupService
-                threadPool
-            );
+            final QueryGroupRequestRejectionOperationListener queryGroupRequestRejectionListener =
+                new QueryGroupRequestRejectionOperationListener(
+                    new QueryGroupService(), // We will need to replace this with actual instance of the queryGroupService
+                    threadPool
+                );
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
                 new SearchRequestOperationsCompositeListenerFactory(
                     Stream.concat(
-                        Stream.of(searchRequestStats, searchRequestSlowLog, searchTaskRequestOperationsListener, queryGroupRequestRejectionListener),
+                        Stream.of(
+                            searchRequestStats,
+                            searchRequestSlowLog,
+                            searchTaskRequestOperationsListener,
+                            queryGroupRequestRejectionListener
+                        ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
                             .map(p -> (SearchRequestOperationsListener) p)
