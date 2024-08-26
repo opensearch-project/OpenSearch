@@ -1072,7 +1072,8 @@ public class Node implements Closeable {
             );
 
             WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
-                threadPool
+                threadPool,
+                new QueryGroupService() // We will need to replace this with actual implementation
             );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)

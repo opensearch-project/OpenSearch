@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -15,14 +16,18 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
+import java.util.Optional;
+
 /**
  * This class is used to intercept search traffic requests and populate the queryGroupId header in task headers
  */
 public class WorkloadManagementTransportInterceptor implements TransportInterceptor {
     private final ThreadPool threadPool;
+    private final QueryGroupService queryGroupService;
 
-    public WorkloadManagementTransportInterceptor(ThreadPool threadPool) {
+    public WorkloadManagementTransportInterceptor(final ThreadPool threadPool, final QueryGroupService queryGroupService) {
         this.threadPool = threadPool;
+        this.queryGroupService = queryGroupService;
     }
 
     @Override
@@ -32,7 +37,7 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
         boolean forceExecution,
         TransportRequestHandler<T> actualHandler
     ) {
-        return new RequestHandler<T>(threadPool, actualHandler);
+        return new RequestHandler<T>(threadPool, actualHandler, queryGroupService);
     }
 
     /**
@@ -43,16 +48,25 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
 
         private final ThreadPool threadPool;
         TransportRequestHandler<T> actualHandler;
+        private final QueryGroupService queryGroupService;
 
-        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler) {
+        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler,
+                              QueryGroupService queryGroupService) {
             this.threadPool = threadPool;
             this.actualHandler = actualHandler;
+            this.queryGroupService = queryGroupService;
         }
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             if (isSearchWorkloadRequest(task)) {
                 ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+                final String queryGroupId = ((QueryGroupTask) (task)).getQueryGroupId();
+                Optional<String> reason = queryGroupService.shouldRejectFor(queryGroupId);
+
+                if (reason.isPresent()) {
+                    throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended." + reason.get());
+                }
             }
             actualHandler.messageReceived(request, channel, task);
         }
