@@ -151,7 +151,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
 
-        handler.inboundMessage(channel, new InboundMessage(null, true));
+        handler.inboundMessage(channel, InboundMessage.PING);
         if (channel.isServerChannel()) {
             BytesReference ping = channel.getMessageCaptor().get();
             assertEquals('E', ping.get(0));
@@ -214,7 +214,13 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
             false
         );
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
-        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        Header requestHeader = new Header(
+            TransportProtocol.NATIVE,
+            fullRequestBytes.length() - 6,
+            requestId,
+            TransportStatus.setRequest((byte) 0),
+            version
+        );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
@@ -235,7 +241,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
-        Header responseHeader = new Header(fullResponseBytes.length() - 6, requestId, responseStatus, version);
+        Header responseHeader = new Header(TransportProtocol.NATIVE, fullResponseBytes.length() - 6, requestId, responseStatus, version);
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
@@ -258,6 +264,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         final Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), version);
         final long requestId = randomNonNegativeLong();
         final Header requestHeader = new Header(
+            TransportProtocol.NATIVE,
             between(0, 100),
             requestId,
             TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
@@ -298,6 +305,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
             final Version remoteVersion = Version.fromId(randomIntBetween(0, version.minimumCompatibilityVersion().id - 1));
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
+                TransportProtocol.NATIVE,
                 between(0, 100),
                 requestId,
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
@@ -329,6 +337,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
             final Version remoteVersion = Version.CURRENT;
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
+                TransportProtocol.NATIVE,
                 between(0, 100),
                 requestId,
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
@@ -411,7 +420,13 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
 
         BytesReference fullRequestBytes = BytesReference.fromByteBuffer((ByteBuffer) buffer.flip());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
-        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        Header requestHeader = new Header(
+            TransportProtocol.NATIVE,
+            fullRequestBytes.length() - 6,
+            requestId,
+            TransportStatus.setRequest((byte) 0),
+            version
+        );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
@@ -476,7 +491,13 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         );
         // Create the request payload by intentionally stripping 1 byte away
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize - 1);
-        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        Header requestHeader = new Header(
+            TransportProtocol.NATIVE,
+            fullRequestBytes.length() - 6,
+            requestId,
+            TransportStatus.setRequest((byte) 0),
+            version
+        );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
@@ -540,7 +561,13 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
             false
         );
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
-        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        Header requestHeader = new Header(
+            TransportProtocol.NATIVE,
+            fullRequestBytes.length() - 6,
+            requestId,
+            TransportStatus.setRequest((byte) 0),
+            version
+        );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
@@ -562,7 +589,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
 
         BytesReference fullResponseBytes = BytesReference.fromByteBuffer((ByteBuffer) buffer.flip());
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
-        Header responseHeader = new Header(fullResponseBytes.length() - 6, requestId, responseStatus, version);
+        Header responseHeader = new Header(TransportProtocol.NATIVE, fullResponseBytes.length() - 6, requestId, responseStatus, version);
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
@@ -626,7 +653,13 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
             false
         );
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
-        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        Header requestHeader = new Header(
+            TransportProtocol.NATIVE,
+            fullRequestBytes.length() - 6,
+            requestId,
+            TransportStatus.setRequest((byte) 0),
+            version
+        );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
@@ -643,7 +676,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         // Create the response payload by intentionally stripping 1 byte away
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize - 1);
-        Header responseHeader = new Header(fullResponseBytes.length() - 6, requestId, responseStatus, version);
+        Header responseHeader = new Header(TransportProtocol.NATIVE, fullResponseBytes.length() - 6, requestId, responseStatus, version);
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);

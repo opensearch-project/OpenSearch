@@ -55,6 +55,7 @@ public class Header {
 
     private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
 
+    private final TransportProtocol protocol;
     private final int networkMessageSize;
     private final Version version;
     private final long requestId;
@@ -64,11 +65,16 @@ public class Header {
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
     Set<String> features;
 
-    Header(int networkMessageSize, long requestId, byte status, Version version) {
+    Header(TransportProtocol protocol, int networkMessageSize, long requestId, byte status, Version version) {
+        this.protocol = protocol;
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
         this.status = status;
+    }
+
+    TransportProtocol getTransportProtocol() {
+        return protocol;
     }
 
     public int getNetworkMessageSize() {
@@ -142,6 +148,8 @@ public class Header {
     @Override
     public String toString() {
         return "Header{"
+            + protocol
+            + "}{"
             + networkMessageSize
             + "}{"
             + version
