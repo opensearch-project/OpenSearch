@@ -43,52 +43,19 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     protected SegmentInfos segmentInfos;
     protected ThreadPool threadPool;
 
-    protected final String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        23,
-        34,
-        1,
-        1,
-        "node-1",
-        System.currentTimeMillis() - 300000
-    );
+    protected String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 23, 34, 1, 1, "node-1");
 
-    protected final String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+    protected String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
         12,
         23,
         34,
         2,
         1,
-        "node-2",
-        System.currentTimeMillis() - 400000
+        "node-2"
     );
-    protected final String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        13,
-        34,
-        1,
-        1,
-        "node-1",
-        System.currentTimeMillis() - 500000
-    );
-    protected final String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        10,
-        38,
-        34,
-        1,
-        1,
-        "node-1",
-        System.currentTimeMillis() - 600000
-    );
-    protected final String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        10,
-        36,
-        34,
-        1,
-        1,
-        "node-1",
-        System.currentTimeMillis() - 700000
-    );
+    protected String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 13, 34, 1, 1, "node-1");
+    protected String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(10, 38, 34, 1, 1, "node-1");
+    protected String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(10, 36, 34, 1, 1, "node-1");
 
     public void setupRemoteSegmentStoreDirectory() throws IOException {
         remoteDataDirectory = mock(RemoteDirectory.class);

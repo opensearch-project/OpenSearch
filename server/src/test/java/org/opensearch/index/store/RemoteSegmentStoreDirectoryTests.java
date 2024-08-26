@@ -28,8 +28,6 @@ import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
@@ -40,7 +38,6 @@ import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
-import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
@@ -64,7 +61,6 @@ import org.mockito.Mockito;
 
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
@@ -1143,75 +1139,6 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         long count = file1.chars().filter(ch -> ch == SEPARATOR.charAt(0)).count();
         // There should not be any `_` in mdFile name as it is used a separator .
         assertEquals(14, count);
-    }
-
-    private void setupRemotePinnedTimestampFeature(boolean enabled) {
-        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(
-            Settings.builder().put(CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), enabled).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-    }
-
-    public void testInitializeToSpecificTimestampNoMetadataFiles() throws IOException {
-        setupRemotePinnedTimestampFeature(true);
-        when(
-            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
-                Integer.MAX_VALUE
-            )
-        ).thenReturn(new ArrayList<>());
-        assertNull(remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L));
-        setupRemotePinnedTimestampFeature(false);
-    }
-
-    public void testInitializeToSpecificTimestampNoMdMatchingTimestamp() throws IOException {
-        setupRemotePinnedTimestampFeature(true);
-        String metadataPrefix = "metadata__1__2__3__4__5__";
-        List<String> metadataFiles = new ArrayList<>();
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(2000));
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(3000));
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(4000));
-
-        when(
-            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
-                Integer.MAX_VALUE
-            )
-        ).thenReturn(metadataFiles);
-        assertNull(remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L));
-        setupRemotePinnedTimestampFeature(false);
-    }
-
-    public void testInitializeToSpecificTimestampMatchingMdFile() throws IOException {
-        setupRemotePinnedTimestampFeature(true);
-        String metadataPrefix = "metadata__1__2__3__4__5__";
-        List<String> metadataFiles = new ArrayList<>();
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(1000));
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(2000));
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(3000));
-
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512::" + Version.LATEST.major);
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024::" + Version.LATEST.major);
-
-        when(
-            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
-                Integer.MAX_VALUE
-            )
-        ).thenReturn(metadataFiles);
-        when(remoteMetadataDirectory.getBlobStream(metadataPrefix + RemoteStoreUtils.invertLong(1000))).thenReturn(
-            createMetadataFileBytes(metadata, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
-        );
-
-        RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L);
-        assertNotNull(remoteSegmentMetadata);
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
-            .getSegmentsUploadedToRemoteStore();
-        assertEquals(2, uploadedSegments.size());
-        assertTrue(uploadedSegments.containsKey("_0.cfe"));
-        assertTrue(uploadedSegments.containsKey("_0.cfs"));
-        setupRemotePinnedTimestampFeature(false);
     }
 
     private static class WrapperIndexOutput extends IndexOutput {

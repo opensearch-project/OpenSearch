@@ -219,9 +219,9 @@ public class RemoteStorePinnedTimestampService implements Closeable {
 
     private PinnedTimestamps readExistingPinnedTimestamps(String blobFilename, RemotePinnedTimestamps remotePinnedTimestamps) {
         remotePinnedTimestamps.setBlobFileName(blobFilename);
-        remotePinnedTimestamps.setFullBlobName(pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps));
+        remotePinnedTimestamps.setFullBlobName(pinnedTimestampsBlobStore().getBlobPathForUpload(remotePinnedTimestamps));
         try {
-            return pinnedTimestampsBlobStore.read(remotePinnedTimestamps);
+            return pinnedTimestampsBlobStore().read(remotePinnedTimestamps);
         } catch (IOException e) {
             throw new RuntimeException("Failed to read existing pinned timestamps", e);
         }
