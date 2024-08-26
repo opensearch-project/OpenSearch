@@ -70,9 +70,6 @@ public class DocCountAggregatorTests extends AbstractValueAggregatorTests {
     @Override
     public void testGetInitialAggregatedValueForSegmentDocValue() {
         long randomLong = randomLong();
-        assertEquals(
-            randomLong,
-            (long) aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong)
-        );
+        assertEquals(randomLong, (long) aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
     }
 }

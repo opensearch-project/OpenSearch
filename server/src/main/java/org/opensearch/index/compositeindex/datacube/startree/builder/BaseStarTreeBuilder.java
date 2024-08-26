@@ -488,7 +488,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 SequentialDocValuesIterator metricReader = null;
                 FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
                 if (metricStat.equals(MetricStat.DOC_COUNT)) {
-                    metricReader = getDocCountMetricReader(fieldProducerMap, metricFieldInfo);
+                    // _doc_count is numeric field , so we convert to sortedNumericDocValues and get iterator
+                    metricReader = getIteratorForNumericField(fieldProducerMap, metricFieldInfo, DocCountFieldMapper.NAME);
                 } else {
                     if (metricFieldInfo == null) {
                         metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
@@ -503,18 +504,23 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         return metricReaders;
     }
 
-    private SequentialDocValuesIterator getDocCountMetricReader(Map<String, DocValuesProducer> fieldProducerMap, FieldInfo metricFieldInfo)
-        throws IOException {
-        if (metricFieldInfo == null) {
-            metricFieldInfo = getFieldInfo(DocCountFieldMapper.NAME, DocValuesType.NUMERIC);
+    /**
+     * Converts numericDocValues to sortedNumericDocValues and returns SequentialDocValuesIterator
+     */
+    private SequentialDocValuesIterator getIteratorForNumericField(
+        Map<String, DocValuesProducer> fieldProducerMap,
+        FieldInfo fieldInfo,
+        String name
+    ) throws IOException {
+        if (fieldInfo == null) {
+            fieldInfo = getFieldInfo(name, DocValuesType.NUMERIC);
         }
-        SequentialDocValuesIterator metricReader;
-        assert fieldProducerMap.containsKey(metricFieldInfo.name);
-        // _doc_count is numeric field , so we need to get convert to sortedNumericDocValues
-        metricReader = new SequentialDocValuesIterator(
-            DocValues.singleton(fieldProducerMap.get(metricFieldInfo.name).getNumeric(metricFieldInfo))
+        SequentialDocValuesIterator sequentialDocValuesIterator;
+        assert fieldProducerMap.containsKey(fieldInfo.name);
+        sequentialDocValuesIterator = new SequentialDocValuesIterator(
+            DocValues.singleton(fieldProducerMap.get(fieldInfo.name).getNumeric(fieldInfo))
         );
-        return metricReader;
+        return sequentialDocValuesIterator;
     }
 
     /**

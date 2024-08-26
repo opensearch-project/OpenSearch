@@ -61,9 +61,6 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
         long randomLong = randomLong();
-        assertEquals(
-            starTreeNumericType.getDoubleValue(randomLong),
-            aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong)
-        );
+        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
     }
 }
