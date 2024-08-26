@@ -18,6 +18,7 @@ import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -47,7 +48,17 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
 
         clusterStateRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
 
-        ActionListener<CatShardsResponse> originalListener = TimeoutTaskCancellationUtility.wrapWithSingleExecution(listener);
+        ActionListener<CatShardsResponse> originalListener = new NotifyOnceListener<CatShardsResponse>() {
+            @Override
+            protected void innerOnResponse(CatShardsResponse catShardsResponse) {
+                listener.onResponse(catShardsResponse);
+            }
+
+            @Override
+            protected void innerOnFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
         ActionListener<CatShardsResponse> cancellableListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
             client,
             (CancellableTask) parentTask,

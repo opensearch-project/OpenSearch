@@ -107,30 +107,18 @@ public class TimeoutTaskCancellationUtility {
     }
 
     /**
-     * Wraps a listener with a check to execute the response or failure only once
-     * @param <T> - response type
-     * @param listener - original listener associated with the task
-     * @return wrapped listener
-    */
-    public static <T> ActionListener<T> wrapWithSingleExecution(ActionListener<T> listener) {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(T response) {
-                if (executeResponseOrFailureOnce.compareAndSet(true, false)) {
-                    listener.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (executeResponseOrFailureOnce.compareAndSet(true, false)) {
-                    listener.onFailure(e);
-                }
-            }
-        };
-    }
-
+     * A functional interface used to handle the timeout of a cancellable task.
+     * Implementations of this interface provide a callback method that is invoked
+     * when a task is cancelled due to a timeout.
+     */
     public interface TimeoutHandler {
+
+        /**
+         * Called when a cancellable task is cancelled due to a timeout.
+         *
+         * @param e the exception that contains details about the task cancellation,
+         *          including the reason for cancellation.
+         */
         void onTimeout(TaskCancelledException e);
     }
 
