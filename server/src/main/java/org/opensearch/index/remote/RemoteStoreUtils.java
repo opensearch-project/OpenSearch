@@ -20,20 +20,27 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -372,5 +379,174 @@ public class RemoteStoreUtils {
         return RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(
             incomingSettings
         ) == RemoteStoreNodeService.CompatibilityMode.STRICT;
+    }
+
+    /**
+     * Determines and returns a set of metadata files that match provided pinned timestamps.
+     *
+     * This method is an overloaded version of getPinnedTimestampLockedFiles and do not use cached entries to find
+     * the metadata file
+     *
+     * @param metadataFiles A list of metadata file names. Expected to be sorted in descending order of timestamp.
+     * @param pinnedTimestampSet A set of timestamps representing pinned points in time.
+     * @param getTimestampFunction A function that extracts the timestamp from a metadata file name.
+     * @param prefixFunction A function that extracts a tuple of prefix information from a metadata file name.
+     * @return A set of metadata file names that are implicitly locked based on the pinned timestamps.
+     */
+    public static Set<String> getPinnedTimestampLockedFiles(
+        List<String> metadataFiles,
+        Set<Long> pinnedTimestampSet,
+        Function<String, Long> getTimestampFunction,
+        Function<String, Tuple<String, String>> prefixFunction
+    ) {
+        return getPinnedTimestampLockedFiles(metadataFiles, pinnedTimestampSet, new HashMap<>(), getTimestampFunction, prefixFunction);
+    }
+
+    /**
+     * Determines and returns a set of metadata files that match provided pinned timestamps. If pinned timestamp
+     * feature is not enabled, this function is a no-op.
+     *
+     * This method identifies metadata files that are considered implicitly locked due to their timestamps
+     * matching or being the closest preceding timestamp to the pinned timestamps. It uses a caching mechanism
+     * to improve performance for previously processed timestamps.
+     *
+     * The method performs the following steps:
+     *           1. Validates input parameters.
+     *           2. Updates the cache (metadataFilePinnedTimestampMap) to remove outdated entries.
+     *           3. Processes cached entries and identifies new timestamps to process.
+     *           4. For new timestamps, iterates through metadata files to find matching or closest preceding files.
+     *           5. Updates the cache with newly processed timestamps and their corresponding metadata files.
+     *
+     * @param metadataFiles A list of metadata file names. Expected to be sorted in descending order of timestamp.
+     * @param pinnedTimestampSet A set of timestamps representing pinned points in time.
+     * @param metadataFilePinnedTimestampMap A map used for caching processed timestamps and their corresponding metadata files.
+     * @param getTimestampFunction A function that extracts the timestamp from a metadata file name.
+     * @param prefixFunction A function that extracts a tuple of prefix information from a metadata file name.
+     * @return A set of metadata file names that are implicitly locked based on the pinned timestamps.
+     *
+     */
+    public static Set<String> getPinnedTimestampLockedFiles(
+        List<String> metadataFiles,
+        Set<Long> pinnedTimestampSet,
+        Map<Long, String> metadataFilePinnedTimestampMap,
+        Function<String, Long> getTimestampFunction,
+        Function<String, Tuple<String, String>> prefixFunction
+    ) {
+        Set<String> implicitLockedFiles = new HashSet<>();
+
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+            return implicitLockedFiles;
+        }
+
+        if (metadataFiles == null || metadataFiles.isEmpty() || pinnedTimestampSet == null) {
+            return implicitLockedFiles;
+        }
+
+        // Remove entries for timestamps that are no longer pinned
+        metadataFilePinnedTimestampMap.keySet().retainAll(pinnedTimestampSet);
+
+        // Add cached entries and collect new timestamps
+        Set<Long> newPinnedTimestamps = new TreeSet<>(Collections.reverseOrder());
+        for (Long pinnedTimestamp : pinnedTimestampSet) {
+            String cachedFile = metadataFilePinnedTimestampMap.get(pinnedTimestamp);
+            if (cachedFile != null) {
+                implicitLockedFiles.add(cachedFile);
+            } else {
+                newPinnedTimestamps.add(pinnedTimestamp);
+            }
+        }
+
+        if (newPinnedTimestamps.isEmpty()) {
+            return implicitLockedFiles;
+        }
+
+        // Sort metadata files in descending order of timestamp
+        // ToDo: Do we really need this? Files fetched from remote store are already lexicographically sorted.
+        metadataFiles.sort(String::compareTo);
+
+        // If we have metadata files from multiple writers, it can result in picking file generated by stale primary.
+        // To avoid this, we fail fast.
+        RemoteStoreUtils.verifyNoMultipleWriters(metadataFiles, prefixFunction);
+
+        Iterator<Long> timestampIterator = newPinnedTimestamps.iterator();
+        Long currentPinnedTimestamp = timestampIterator.next();
+        long prevMdTimestamp = Long.MAX_VALUE;
+        for (String metadataFileName : metadataFiles) {
+            long currentMdTimestamp = getTimestampFunction.apply(metadataFileName);
+            // We always prefer md file with higher values of prefix like primary term, generation etc.
+            if (currentMdTimestamp > prevMdTimestamp) {
+                continue;
+            }
+            while (currentMdTimestamp <= currentPinnedTimestamp && prevMdTimestamp > currentPinnedTimestamp) {
+                implicitLockedFiles.add(metadataFileName);
+                // Do not cache entry for latest metadata file as the next metadata can also match the same pinned timestamp
+                if (prevMdTimestamp != Long.MAX_VALUE) {
+                    metadataFilePinnedTimestampMap.put(currentPinnedTimestamp, metadataFileName);
+                }
+                if (timestampIterator.hasNext() == false) {
+                    return implicitLockedFiles;
+                }
+                currentPinnedTimestamp = timestampIterator.next();
+            }
+            prevMdTimestamp = currentMdTimestamp;
+        }
+
+        return implicitLockedFiles;
+    }
+
+    /**
+     * Filters out metadata files based on their age and pinned timestamps settings.
+     *
+     * This method filters a list of metadata files, keeping only those that are older
+     * than a certain threshold determined by the last successful fetch of pinned timestamps
+     * and a configured lookback interval.
+     *
+     * @param metadataFiles A list of metadata file names to be filtered.
+     * @param getTimestampFunction A function that extracts a timestamp from a metadata file name.
+     * @param lastSuccessfulFetchOfPinnedTimestamps The timestamp of the last successful fetch of pinned timestamps.
+     * @return A new list containing only the metadata files that meet the age criteria.
+     *         If pinned timestamps are not enabled, returns a copy of the input list.
+     */
+    public static List<String> filterOutMetadataFilesBasedOnAge(
+        List<String> metadataFiles,
+        Function<String, Long> getTimestampFunction,
+        long lastSuccessfulFetchOfPinnedTimestamps
+    ) {
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+            return new ArrayList<>(metadataFiles);
+        }
+        long maximumAllowedTimestamp = lastSuccessfulFetchOfPinnedTimestamps - RemoteStoreSettings.getPinnedTimestampsLookbackInterval()
+            .getMillis();
+        List<String> metadataFilesWithMinAge = new ArrayList<>();
+        for (String metadataFileName : metadataFiles) {
+            long metadataTimestamp = getTimestampFunction.apply(metadataFileName);
+            if (metadataTimestamp < maximumAllowedTimestamp) {
+                metadataFilesWithMinAge.add(metadataFileName);
+            }
+        }
+        return metadataFilesWithMinAge;
+    }
+
+    /**
+     * Determines if the pinned timestamp state is stale.
+     *
+     * This method checks whether the last successful fetch of pinned timestamps
+     * is considered stale based on the current time and configured intervals.
+     * The state is considered stale if the last successful fetch occurred before
+     * a certain threshold, which is calculated as three times the scheduler interval
+     * plus the lookback interval.
+     *
+     * @return true if the pinned timestamp state is stale, false otherwise.
+     *         Always returns false if pinned timestamps are not enabled.
+     */
+    public static boolean isPinnedTimestampStateStale() {
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+            return false;
+        }
+        long lastSuccessfulFetchTimestamp = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
+        long staleBufferInMillis = (RemoteStoreSettings.getPinnedTimestampsSchedulerInterval().millis() * 3) + RemoteStoreSettings
+            .getPinnedTimestampsLookbackInterval()
+            .millis();
+        return lastSuccessfulFetchTimestamp < (System.currentTimeMillis() - staleBufferInMillis);
     }
 }
