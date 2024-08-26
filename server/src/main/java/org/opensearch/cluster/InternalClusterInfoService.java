@@ -115,6 +115,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, FileCacheStats> nodeFileCacheStats;
     private volatile IndicesStatsSummary indicesStatsSummary;
     // null if this node is not currently the cluster-manager
+
+    private volatile long primaryStoreSize;
+
     private final AtomicReference<RefreshAndRescheduleRunnable> refreshAndRescheduleRunnable = new AtomicReference<>();
     private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
@@ -127,6 +130,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.mostAvailableSpaceUsages = Map.of();
         this.nodeFileCacheStats = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
+        this.primaryStoreSize = 0L;
         this.threadPool = threadPool;
         this.client = client;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
@@ -213,7 +217,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardRoutingToDataPath,
             indicesStatsSummary.reservedSpace,
-            nodeFileCacheStats
+            nodeFileCacheStats,
+            primaryStoreSize
         );
     }
 
@@ -305,8 +310,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
                 final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
-                buildShardLevelInfo(logger, stats, shardSizeByIdentifierBuilder, dataPathByShardRoutingBuilder, reservedSpaceBuilders);
-
+                primaryStoreSize = buildShardLevelInfo(
+                    logger,
+                    stats,
+                    shardSizeByIdentifierBuilder,
+                    dataPathByShardRoutingBuilder,
+                    reservedSpaceBuilders
+                );
                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
                 reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
 
@@ -366,13 +376,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         listeners.add(clusterInfoConsumer);
     }
 
-    static void buildShardLevelInfo(
+    static long buildShardLevelInfo(
         Logger logger,
         ShardStats[] stats,
         final Map<String, Long> shardSizes,
         final Map<ShardRouting, String> newShardRoutingToDataPath,
         final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
+        long currentPrimaryStoreSize = 0L;
         for (ShardStats s : stats) {
             final ShardRouting shardRouting = s.getShardRouting();
             newShardRoutingToDataPath.put(shardRouting, s.getDataPath());
@@ -382,6 +393,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 continue;
             }
             final long size = storeStats.sizeInBytes();
+            if (shardRouting.primary()) {
+                currentPrimaryStoreSize += size;
+            }
             final long reserved = storeStats.getReservedSize().getBytes();
 
             final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
@@ -396,6 +410,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 reservedSpaceBuilder.add(shardRouting.shardId(), reserved);
             }
         }
+        return currentPrimaryStoreSize;
     }
 
     static void fillDiskUsagePerNode(

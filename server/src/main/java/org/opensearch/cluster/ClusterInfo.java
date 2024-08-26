@@ -72,8 +72,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     private long avgTotalBytes;
     private long avgFreeByte;
 
+    private final long primaryStoreSize;
+
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), 0L);
     }
 
     /**
@@ -84,6 +86,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @param shardSizes a shardkey to size in bytes mapping per shard.
      * @param routingToDataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
+     * @param primaryStoreSize total size in bytes for all the primary shards
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -92,7 +95,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         final Map<String, Long> shardSizes,
         final Map<ShardRouting, String> routingToDataPath,
         final Map<NodeAndPath, ReservedSpace> reservedSpace,
-        final Map<String, FileCacheStats> nodeFileCacheStats
+        final Map<String, FileCacheStats> nodeFileCacheStats,
+        final long primaryStoreSize
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
@@ -100,6 +104,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.routingToDataPath = routingToDataPath;
         this.reservedSpace = reservedSpace;
         this.nodeFileCacheStats = nodeFileCacheStats;
+        this.primaryStoreSize = primaryStoreSize;
         calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
     }
 
@@ -110,7 +115,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
         Map<NodeAndPath, ReservedSpace> reservedSpaceMap;
         reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
-
+        this.primaryStoreSize = in.readLong();
         this.leastAvailableSpaceUsage = Collections.unmodifiableMap(leastMap);
         this.mostAvailableSpaceUsage = Collections.unmodifiableMap(mostMap);
         this.shardSizes = Collections.unmodifiableMap(sizeMap);
@@ -154,6 +159,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     public long getAvgTotalBytes() {
         return avgTotalBytes;
+    }
+
+    public long getPrimaryStoreSize() {
+        return primaryStoreSize;
     }
 
     @Override

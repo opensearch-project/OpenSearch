@@ -603,6 +603,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             randomBoolean(),
             metadata,
             false,
+            0,
             0
         );
         PlainActionFuture.<RepositoryData, Exception>get(
