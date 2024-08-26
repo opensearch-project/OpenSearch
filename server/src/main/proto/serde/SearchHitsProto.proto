@@ -5,6 +5,15 @@ package org.opensearch.serde.proto;
 option java_outer_classname = "SearchHitsTransportProto";
 
 /*
+SearchHits hits;
+int counter;
+ */
+message FetchSearchResultProto {
+    SearchHitsProto hits = 1;
+    int64 counter = 2;
+}
+
+/*
 SearchHit[] hits
 TotalHits totalHits
 float maxScore
@@ -52,7 +61,7 @@ message SearchHitProto {
   map<string, HighlightFieldProto> highlight_fields = 11;
   SearchSortValuesProto sort_values = 12;
   map<string, float> matched_queries = 13;
-  SearchShardTargetProto shard = 14;
+  optional SearchShardTargetProto shard = 14;
   map<string, SearchHitsProto> inner_hits = 15;
 }
 

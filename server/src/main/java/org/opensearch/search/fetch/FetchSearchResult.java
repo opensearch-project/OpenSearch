@@ -32,7 +32,6 @@
 
 package org.opensearch.search.fetch;
 
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -40,7 +39,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.transport.serde.FetchSearchResultsSerDe;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 
@@ -54,56 +52,21 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public class FetchSearchResult extends SearchPhaseResult {
 
-    private SearchHits hits;
+    protected SearchHits hits;
     // client side counter
     private transient int counter;
 
     public FetchSearchResult() {}
 
-    /**
-     * Preserving for compatibility.
-     * Going forward deserialize with dedicated FetchSearchResultsSerDe.
-     */
     public FetchSearchResult(StreamInput in) throws IOException {
-        this(new FetchSearchResultsSerDe().deserialize(in));
-    }
-
-    public FetchSearchResult(FetchSearchResult result) {
-        this.contextId = result.contextId;
-        this.hits = result.hits;
-    }
-
-    public FetchSearchResult(ShardSearchContextId id, SearchHits hits) throws IOException {
-        this.contextId = id;
-        this.hits = hits;
+        super(in);
+        contextId = new ShardSearchContextId(in);
+        hits = new SearchHits(in);
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
         this.contextId = id;
         setSearchShardTarget(shardTarget);
-    }
-
-    /**
-     * Internal access for serialization interface.
-     * @opensearch.api
-     */
-    @ExperimentalApi
-    public interface SerializationAccess {
-        ShardSearchContextId getShardSearchContextId();
-
-        SearchHits getHits();
-    }
-
-    public SerializationAccess getSerAccess() {
-        return new SerializationAccess() {
-            public ShardSearchContextId getShardSearchContextId() {
-                return contextId;
-            }
-
-            public SearchHits getHits() {
-                return hits;
-            }
-        };
     }
 
     @Override
@@ -141,13 +104,9 @@ public class FetchSearchResult extends SearchPhaseResult {
         return counter++;
     }
 
-    /**
-     * Preserving for compatibility.
-     * Going forward serialize with dedicated FetchSearchResultsSerDe.
-     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        FetchSearchResultsSerDe serDe = new FetchSearchResultsSerDe();
-        serDe.serialize(this, out);
+        contextId.writeTo(out);
+        hits.writeTo(out);
     }
 }

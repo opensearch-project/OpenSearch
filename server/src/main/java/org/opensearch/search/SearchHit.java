@@ -34,9 +34,9 @@ package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -65,7 +65,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.opensearch.transport.serde.SearchHitSerDe;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.transport.RemoteClusterAware;
@@ -79,8 +78,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.common.lucene.Lucene.readExplanation;
+import static org.opensearch.common.lucene.Lucene.writeExplanation;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -94,46 +98,68 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
+public class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
 
-    private final transient int docId;
+    protected transient int docId;
 
     private static final float DEFAULT_SCORE = Float.NaN;
-    private float score = DEFAULT_SCORE;
+    protected float score = DEFAULT_SCORE;
 
-    private final Text id;
+    protected Text id;
 
-    private final NestedIdentity nestedIdentity;
+    protected NestedIdentity nestedIdentity;
 
-    private long version = -1;
-    private long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-    private long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+    protected long version = -1;
+    protected long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    protected long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
-    private BytesReference source;
+    protected BytesReference source;
 
-    private Map<String, DocumentField> documentFields;
-    private final Map<String, DocumentField> metaFields;
+    protected Map<String, DocumentField> documentFields;
+    protected Map<String, DocumentField> metaFields;
 
-    private Map<String, HighlightField> highlightFields = null;
+    protected Map<String, HighlightField> highlightFields = null;
 
-    private SearchSortValues sortValues = SearchSortValues.EMPTY;
+    protected SearchSortValues sortValues = SearchSortValues.EMPTY;
 
-    private Map<String, Float> matchedQueries = new HashMap<>();
+    protected Map<String, Float> matchedQueries = new HashMap<>();
 
-    private Explanation explanation;
+    protected Explanation explanation;
 
     @Nullable
-    private SearchShardTarget shard;
+    protected SearchShardTarget shard;
 
     // These two fields normally get set when setting the shard target, so they hold the same values as the target thus don't get
     // serialized over the wire. When parsing hits back from xcontent though, in most of the cases (whenever explanation is disabled)
     // we can't rebuild the shard target object so we need to set these manually for users retrieval.
-    private transient String index;
-    private transient String clusterAlias;
+    protected transient String index;
+    protected transient String clusterAlias;
 
     private Map<String, Object> sourceAsMap;
 
-    private Map<String, SearchHits> innerHits;
+    protected Map<String, SearchHits> innerHits;
+
+    public SearchHit(SearchHit hit) {
+        this.docId = hit.docId;
+        this.id = hit.id;
+        this.nestedIdentity = hit.nestedIdentity;
+        this.version = hit.version;
+        this.seqNo = hit.seqNo;
+        this.primaryTerm = hit.primaryTerm;
+        this.source = hit.source;
+        this.documentFields = hit.documentFields;
+        this.metaFields = hit.metaFields;
+        this.highlightFields = hit.highlightFields;
+        this.sortValues = hit.sortValues;
+        this.matchedQueries = hit.matchedQueries;
+        this.explanation = hit.explanation;
+        this.shard = hit.shard;
+        this.index = hit.index;
+        this.clusterAlias = hit.clusterAlias;
+        this.innerHits = hit.innerHits;
+        this.score = hit.score;
+        this.sourceAsMap = hit.sourceAsMap;
+    }
 
     // used only in tests
     public SearchHit(int docId) {
@@ -162,187 +188,130 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
-    public SearchHit(
-        int docId,
-        float score,
-        long seqNo,
-        long version,
-        long primaryTerm,
-        Text id,
-        BytesReference source,
-        SearchShardTarget shardTarget,
-        Explanation explanation,
-        SearchSortValues sortValues,
-        SearchHit.NestedIdentity nestedIdentity,
-        Map<String, DocumentField> documentFields,
-        Map<String, DocumentField> metaFields,
-        Map<String, HighlightField> highlightFields,
-        Map<String, Float> matchedQueries,
-        Map<String, SearchHits> innerHits,
-        String index,
-        String clusterAlias
-    ) {
-        this.docId = docId;
-        this.score = score;
-        this.seqNo = seqNo;
-        this.version = version;
-        this.primaryTerm = primaryTerm;
-        this.id = id;
-        this.source = source;
-        this.shard = shardTarget;
-        this.explanation = explanation;
-        this.sortValues = sortValues;
-        this.nestedIdentity = nestedIdentity;
-        this.documentFields = documentFields;
-        this.metaFields = metaFields;
-        this.highlightFields = highlightFields;
-        this.matchedQueries = matchedQueries;
-        this.innerHits = innerHits;
-        this.index = index;
-        this.clusterAlias = clusterAlias;
-    }
-
-    public SearchHit(SearchHit hit) throws IOException {
-        this.docId = hit.docId;
-        this.score = hit.score;
-        this.seqNo = hit.seqNo;
-        this.version = hit.version;
-        this.primaryTerm = hit.primaryTerm;
-        this.id = hit.id;
-        this.source = hit.source;
-        this.shard = hit.shard;
-        this.explanation = hit.explanation;
-        this.sortValues = hit.sortValues;
-        this.nestedIdentity = hit.nestedIdentity;
-        this.documentFields = hit.documentFields;
-        this.metaFields = hit.metaFields;
-        this.highlightFields = hit.highlightFields;
-        this.matchedQueries = hit.matchedQueries;
-        this.innerHits = hit.innerHits;
-        this.sourceAsMap = hit.sourceAsMap;
-        this.index = hit.index;
-        this.clusterAlias = hit.clusterAlias;
-    }
-
-    /**
-     * Preserving this constructor for compatibility.
-     * Going forward deserialize with dedicated SearchHitSerDe.
-     */
     public SearchHit(StreamInput in) throws IOException {
-        this(new SearchHitSerDe().deserialize(in));
+        docId = -1;
+        score = in.readFloat();
+        id = in.readOptionalText();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            in.readOptionalText();
+        }
+        nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
+        version = in.readLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        source = in.readBytesReference();
+        if (source.length() == 0) {
+            source = null;
+        }
+        if (in.readBoolean()) {
+            explanation = readExplanation(in);
+        }
+        documentFields = in.readMap(StreamInput::readString, DocumentField::new);
+        metaFields = in.readMap(StreamInput::readString, DocumentField::new);
+
+        int size = in.readVInt();
+        if (size == 0) {
+            highlightFields = emptyMap();
+        } else if (size == 1) {
+            HighlightField field = new HighlightField(in);
+            highlightFields = singletonMap(field.name(), field);
+        } else {
+            Map<String, HighlightField> highlightFields = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                HighlightField field = new HighlightField(in);
+                highlightFields.put(field.name(), field);
+            }
+            this.highlightFields = unmodifiableMap(highlightFields);
+        }
+
+        sortValues = new SearchSortValues(in);
+
+        size = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
+            if (size > 0) {
+                Map<String, Float> tempMap = in.readMap(StreamInput::readString, StreamInput::readFloat);
+                matchedQueries = tempMap.entrySet()
+                    .stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .collect(
+                        Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue, LinkedHashMap::new)
+                    );
+            }
+        } else {
+            matchedQueries = new LinkedHashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                matchedQueries.put(in.readString(), Float.NaN);
+            }
+        }
+        // we call the setter here because that also sets the local index parameter
+        shard(in.readOptionalWriteable(SearchShardTarget::new));
+        size = in.readVInt();
+        if (size > 0) {
+            innerHits = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                String key = in.readString();
+                SearchHits value = new SearchHits(in);
+                innerHits.put(key, value);
+            }
+        } else {
+            innerHits = null;
+        }
     }
 
-    /**
-     * Internal access for serialization interface.
-     * @opensearch.api
-     */
-    @ExperimentalApi
-    public interface SerializationAccess {
-        float getScore();
+    protected SearchHit() {}
 
-        Text getId();
+    protected static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
-        NestedIdentity getNestedIdentity();
-
-        long getVersion();
-
-        long getSeqNo();
-
-        long getPrimaryTerm();
-
-        BytesReference getSource();
-
-        Explanation getExplanation();
-
-        Map<String, DocumentField> getDocumentFields();
-
-        Map<String, DocumentField> getMetaFields();
-
-        Map<String, HighlightField> getHighlightedFields();
-
-        SearchSortValues getSortValues();
-
-        Map<String, Float> getMatchedQueries();
-
-        SearchShardTarget getShard();
-
-        Map<String, SearchHits> getInnerHits();
-    }
-
-    public SearchHit.SerializationAccess getSerAccess() {
-        return new SearchHit.SerializationAccess() {
-            public float getScore() {
-                return score;
-            }
-
-            public Text getId() {
-                return id;
-            }
-
-            public NestedIdentity getNestedIdentity() {
-                return nestedIdentity;
-            }
-
-            public long getVersion() {
-                return version;
-            }
-
-            public long getSeqNo() {
-                return seqNo;
-            }
-
-            public long getPrimaryTerm() {
-                return primaryTerm;
-            }
-
-            public BytesReference getSource() {
-                return source;
-            }
-
-            public Explanation getExplanation() {
-                return explanation;
-            }
-
-            public Map<String, DocumentField> getDocumentFields() {
-                return documentFields;
-            }
-
-            public Map<String, DocumentField> getMetaFields() {
-                return metaFields;
-            }
-
-            public Map<String, HighlightField> getHighlightedFields() {
-                return highlightFields;
-            }
-
-            public SearchSortValues getSortValues() {
-                return sortValues;
-            }
-
-            public Map<String, Float> getMatchedQueries() {
-                return matchedQueries;
-            }
-
-            public SearchShardTarget getShard() {
-                return shard;
-            }
-
-            public Map<String, SearchHits> getInnerHits() {
-                return innerHits;
-            }
-        };
-    }
-
-    public static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
-
-    /**
-     * Preserving for compatibility.
-     * Going forward serialize with dedicated SearchHitSerDe.
-     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        SearchHitSerDe serDe = new SearchHitSerDe();
-        serDe.serialize(this, out);
+        out.writeFloat(score);
+        out.writeOptionalText(id);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeOptionalText(SINGLE_MAPPING_TYPE);
+        }
+        out.writeOptionalWriteable(nestedIdentity);
+        out.writeLong(version);
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
+        out.writeBytesReference(source);
+        if (explanation == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            writeExplanation(out, explanation);
+        }
+        out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        if (highlightFields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(highlightFields.size());
+            for (HighlightField highlightField : highlightFields.values()) {
+                highlightField.writeTo(out);
+            }
+        }
+        sortValues.writeTo(out);
+
+        out.writeVInt(matchedQueries.size());
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
+            if (!matchedQueries.isEmpty()) {
+                out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
+            }
+        } else {
+            for (String matchedFilter : matchedQueries.keySet()) {
+                out.writeString(matchedFilter);
+            }
+        }
+        out.writeOptionalWriteable(shard);
+        if (innerHits == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(innerHits.size());
+            for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
     }
 
     public int docId() {

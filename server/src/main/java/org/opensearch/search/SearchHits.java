@@ -36,8 +36,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -45,7 +45,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.opensearch.transport.serde.SearchHitsSerDe;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +61,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
+public class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
     public static SearchHits empty() {
         return empty(true);
     }
@@ -73,15 +72,24 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
 
-    private final SearchHit[] hits;
-    private final TotalHits totalHits;
-    private final float maxScore;
+    protected SearchHit[] hits;
+    protected TotalHits totalHits;
+    protected float maxScore;
     @Nullable
-    private final SortField[] sortFields;
+    protected SortField[] sortFields;
     @Nullable
-    private final String collapseField;
+    protected String collapseField;
     @Nullable
-    private final Object[] collapseValues;
+    protected Object[] collapseValues;
+
+    public SearchHits(SearchHits sHits) {
+        this.hits = sHits.hits;
+        this.totalHits = sHits.totalHits;
+        this.maxScore = sHits.maxScore;
+        this.sortFields = sHits.sortFields;
+        this.collapseField = sHits.collapseField;
+        this.collapseValues = sHits.collapseValues;
+    }
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
@@ -103,73 +111,47 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.collapseValues = collapseValues;
     }
 
-    public SearchHits(SearchHits SrchHits) {
-        this(SrchHits.hits, SrchHits.totalHits, SrchHits.maxScore, SrchHits.sortFields, SrchHits.collapseField, SrchHits.collapseValues);
-    }
-
-    /**
-     * Internal access for serialization interface.
-     * @opensearch.api
-     */
-    @ExperimentalApi
-    public interface SerializationAccess {
-        TotalHits getTotalHits();
-
-        float getMaxScore();
-
-        SearchHit[] getHits();
-
-        SortField[] getSortFields();
-
-        String getCollapseField();
-
-        Object[] getCollapseValues();
-    }
-
-    public SearchHits.SerializationAccess getSerAccess() {
-        return new SearchHits.SerializationAccess() {
-            public TotalHits getTotalHits() {
-                return totalHits;
-            }
-
-            public float getMaxScore() {
-                return maxScore;
-            }
-
-            public SearchHit[] getHits() {
-                return hits;
-            }
-
-            public SortField[] getSortFields() {
-                return sortFields;
-            }
-
-            public String getCollapseField() {
-                return collapseField;
-            }
-
-            public Object[] getCollapseValues() {
-                return collapseValues;
-            }
-        };
-    }
-
-    /**
-     * Preserving for compatibility.
-     * Going forward serialize with dedicated SearchHitsSerDe.
-     */
     public SearchHits(StreamInput in) throws IOException {
-        this(new SearchHitsSerDe().deserialize(in));
+        if (in.readBoolean()) {
+            totalHits = Lucene.readTotalHits(in);
+        } else {
+            // track_total_hits is false
+            totalHits = null;
+        }
+        maxScore = in.readFloat();
+        int size = in.readVInt();
+        if (size == 0) {
+            hits = EMPTY;
+        } else {
+            hits = new SearchHit[size];
+            for (int i = 0; i < hits.length; i++) {
+                hits[i] = new SearchHit(in);
+            }
+        }
+        sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        collapseField = in.readOptionalString();
+        collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
     }
 
-    /**
-     * Preserving for compatibility.
-     * Going forward deserialize with dedicated SearchHitsSerDe.
-     */
+    protected SearchHits () {}
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        SearchHitsSerDe serDe = new SearchHitsSerDe();
-        serDe.serialize(this, out);
+        final boolean hasTotalHits = totalHits != null;
+        out.writeBoolean(hasTotalHits);
+        if (hasTotalHits) {
+            Lucene.writeTotalHits(out, totalHits);
+        }
+        out.writeFloat(maxScore);
+        out.writeVInt(hits.length);
+        if (hits.length > 0) {
+            for (SearchHit hit : hits) {
+                hit.writeTo(out);
+            }
+        }
+        out.writeOptionalArray(Lucene::writeSortField, sortFields);
+        out.writeOptionalString(collapseField);
+        out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
     }
 
     /**
