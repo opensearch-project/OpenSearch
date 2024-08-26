@@ -46,7 +46,7 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
 
         SettingsException settingsException = expectThrows(SettingsException.class, () -> createIndex(TEST_INDEX, settings));
         assertEquals(
-            "unknown setting [index.number_of_search_only_shards] did you mean [index.number_of_routing_shards]?",
+            "unknown setting [index.number_of_search_only_replicas] did you mean [index.number_of_routing_shards]?",
             settingsException.getMessage()
         );
     }
@@ -68,7 +68,7 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
                 .get();
         });
         assertEquals(
-            "unknown setting [index.number_of_search_only_shards] did you mean [index.number_of_routing_shards]?",
+            "unknown setting [index.number_of_search_only_replicas] did you mean [index.number_of_routing_shards]?",
             settingsException.getMessage()
         );
     }

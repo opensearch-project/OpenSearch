@@ -36,7 +36,7 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
     }
 
     private final String expectedFailureMessage =
-        "To set index.number_of_search_only_shards, index.replication.type must be set to SEGMENT";
+        "To set index.number_of_search_only_replicas, index.replication.type must be set to SEGMENT";
 
     @Override
     public Settings indexSettings() {

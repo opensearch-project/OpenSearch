@@ -2295,7 +2295,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 clusterSettings
             )
         );
-        assertEquals("To set index.number_of_search_only_shards, index.replication.type must be set to SEGMENT", exception.getMessage());
+        assertEquals("To set index.number_of_search_only_replicas, index.replication.type must be set to SEGMENT", exception.getMessage());
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
