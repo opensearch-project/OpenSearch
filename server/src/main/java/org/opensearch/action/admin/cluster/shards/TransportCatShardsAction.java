@@ -47,19 +47,17 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
 
         clusterStateRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
 
-        ActionListener<CatShardsResponse> cancellableListener = TimeoutTaskCancellationUtility.wrapWithSingleExecution(
-            listener
-        );
-        ActionListener<CatShardsResponse> cancellableListenerTemp = cancellableListener;
-        cancellableListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+        ActionListener<CatShardsResponse> originalListener = TimeoutTaskCancellationUtility.wrapWithSingleExecution(listener);
+        ActionListener<CatShardsResponse> cancellableListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
             client,
             (CancellableTask) parentTask,
             ((CancellableTask) parentTask).getCancellationTimeout(),
-            cancellableListener,
-            ActionListener.wrap(r -> {}, cancellableListenerTemp::onFailure)
+            originalListener,
+            e -> {
+                originalListener.onFailure(e);
+            }
         );
         CatShardsResponse catShardsResponse = new CatShardsResponse();
-        ActionListener<CatShardsResponse> finalCancellableListener = cancellableListener;
         try {
             client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
                 @Override
@@ -75,26 +73,26 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 catShardsResponse.setIndicesStatsResponse(indicesStatsResponse);
-                                finalCancellableListener.onResponse(catShardsResponse);
+                                cancellableListener.onResponse(catShardsResponse);
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                finalCancellableListener.onFailure(e);
+                                cancellableListener.onFailure(e);
                             }
                         });
                     } catch (Exception e) {
-                        finalCancellableListener.onFailure(e);
+                        cancellableListener.onFailure(e);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    finalCancellableListener.onFailure(e);
+                    cancellableListener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            finalCancellableListener.onFailure(e);
+            cancellableListener.onFailure(e);
         }
 
     }

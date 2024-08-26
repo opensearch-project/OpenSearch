@@ -111,7 +111,9 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
             public void onResponse(CatShardsResponse catShardsResponse) {
                 // onResponse should not be called.
                 latch.countDown();
-                throw new AssertionError("The cat shards action is expected to fail with a TaskCancelledException, but it received a successful response instead.");
+                throw new AssertionError(
+                    "The cat shards action is expected to fail with a TaskCancelledException, but it received a successful response instead."
+                );
             }
 
             @Override

@@ -54,7 +54,7 @@ public class TimeoutTaskCancellationUtility {
         CancellableTask taskToCancel,
         TimeValue timeout,
         ActionListener<Response> listener,
-        ActionListener<Response> cancelListener
+        TimeoutHandler timeoutHandler
     ) {
         final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? timeout : taskToCancel.getCancellationTimeout();
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
@@ -80,7 +80,8 @@ public class TimeoutTaskCancellationUtility {
                                 timeoutInterval,
                                 cancelTasksRequest.getTaskId()
                             );
-                            cancelListener.onFailure(new TaskCancelledException(cancelTasksRequest.getReason()));
+                            // Notify the timeoutHandler that the task was canceled due to timeout
+                            timeoutHandler.onTimeout(new TaskCancelledException(cancelTasksRequest.getReason()));
                         }
 
                         @Override
@@ -127,6 +128,10 @@ public class TimeoutTaskCancellationUtility {
                 }
             }
         };
+    }
+
+    public interface TimeoutHandler {
+        void onTimeout(TaskCancelledException e);
     }
 
     /**
