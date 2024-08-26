@@ -252,18 +252,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         Repository repository = repositoriesService.repository(request.repository());
-        boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
-        logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
 
         boolean isSnapshotV2 = SNAPSHOT_V2.get(repository.getMetadata().settings());
         logger.debug("snapshot_v2 is set as [{}]", isSnapshotV2);
 
-        if (remoteStoreIndexShallowCopy
-            && clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED)) {
-            // don't allow shallow snapshots if compatibility mode is not strict
-            logger.warn("Shallow snapshots are not supported during migration. Falling back to full snapshot.");
-            remoteStoreIndexShallowCopy = false;
-        }
+       boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
         if (remoteStoreIndexShallowCopy && isSnapshotV2 && request.indices().length == 0) {
             createSnapshotV2(request, listener);
         } else {
@@ -274,11 +267,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
+    private  boolean remoteStoreShallowCopyEnabled(Repository repository) {
+        boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+        logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
+        if (remoteStoreIndexShallowCopy
+            && clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED)) {
+            // don't allow shallow snapshots if compatibility mode is not strict
+            logger.warn("Shallow snapshots are not supported during migration. Falling back to full snapshot.");
+            remoteStoreIndexShallowCopy = false;
+        }
+        return remoteStoreIndexShallowCopy;
+
+    }
+
     /**
      * Initializes the snapshotting process.
      * <p>
      * This method is used by clients to start snapshot. It makes sure that there is no snapshots are currently running and
      * creates a snapshot record in cluster state metadata.
+     * </p>
      *
      * @param request  snapshot request
      * @param listener snapshot creation listener
@@ -304,27 +311,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
+                createSnapshotPreValidations(currentState,repositoryData,repositoryName,snapshotName);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
-                ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
-                validate(repositoryName, snapshotName, currentState);
                 final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
                     SnapshotDeletionsInProgress.TYPE,
                     SnapshotDeletionsInProgress.EMPTY
                 );
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(
-                    RepositoryCleanupInProgress.TYPE,
-                    RepositoryCleanupInProgress.EMPTY
-                );
-                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(
-                        repositoryName,
-                        snapshotName,
-                        "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]"
-                    );
-                }
-                ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
@@ -443,7 +436,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         validate(repositoryName, snapshotName);
 
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
-        Repository repository = repositoriesService.repository(request.repository());
+        Repository repository = repositoriesService.repository(repositoryName);
 
         if (repository.isReadOnly()) {
             listener.onFailure(
@@ -460,27 +453,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
 
             repositoryDataListener.whenComplete(repositoryData -> {
-                ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
-                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
-                ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
-                validate(repositoryName, snapshotName, currentState);
-                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
-                    SnapshotDeletionsInProgress.TYPE,
-                    SnapshotDeletionsInProgress.EMPTY
-                );
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(
-                    RepositoryCleanupInProgress.TYPE,
-                    RepositoryCleanupInProgress.EMPTY
-                );
-                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(
-                        repositoryName,
-                        snapshotName,
-                        "cannot snapshot-v2 while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]"
-                    );
-                }
-                ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
+                createSnapshotPreValidations(currentState,repositoryData,repositoryName,snapshotName);
 
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
@@ -491,6 +464,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 );
 
                 logger.trace("[{}][{}] creating snapshot-v2 for indices [{}]", repositoryName, snapshotName, indices);
+
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
                     indices,
@@ -504,8 +480,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     repositoryData
                 );
 
-                boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
-                assert remoteStoreIndexShallowCopy : "remote_store_index_shallow_copy setting is set as false";
                 if (repositoryData.getGenId() == RepositoryData.UNKNOWN_REPO_GEN) {
                     logger.debug("[{}] was aborted before starting", snapshot);
                     throw new SnapshotException(snapshot, "Aborted on initialization");
@@ -521,7 +495,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     Collections.emptyList(),
                     request.includeGlobalState(),
                     userMeta,
-                    remoteStoreIndexShallowCopy,
+                    true,
                     pinnedTimestamp
                 );
                 if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
@@ -567,6 +541,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             logger.error("Snapshot-v2 {} creation failed with exception {}", snapshot.getSnapshotId().getName(), e);
             listener.onFailure(e);
         }
+    }
+
+    private void createSnapshotPreValidations(ClusterState currentState, RepositoryData repositoryData, String repositoryName, String snapshotName) {
+        Repository repository = repositoriesService.repository(repositoryName);
+        ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
+        final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
+        ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
+        validate(repositoryName, snapshotName, currentState);
+        final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(
+            RepositoryCleanupInProgress.TYPE,
+            RepositoryCleanupInProgress.EMPTY
+        );
+        if (repositoryCleanupInProgress.hasCleanupInProgress()) {
+            throw new ConcurrentSnapshotExecutionException(
+                repositoryName,
+                snapshotName,
+                "cannot snapshot-v2 while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]"
+            );
+        }
+        ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
     }
 
     private void updateSnapshotPinnedTimestamp(
