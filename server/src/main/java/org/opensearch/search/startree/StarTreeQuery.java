@@ -19,7 +19,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Accountable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -28,14 +27,14 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
+import java.util.Objects;
 
 /**
  * Query class for querying star tree data structure.
  *
  * @opensearch.experimental
  */
-public class StarTreeQuery extends Query implements Accountable {
+public class StarTreeQuery extends Query {
 
     /**
      * Star tree field info
@@ -44,39 +43,37 @@ public class StarTreeQuery extends Query implements Accountable {
     CompositeIndexFieldInfo starTree;
 
     /**
-     * Map of field name to a list of predicates to be applied on that field
-     * This is used to filter the data based on the predicates
+     * Map of field name to a value to be queried for that field
+     * This is used to filter the data based on the query
      */
-    Map<String, List<Predicate<Long>>> compositePredicateMap;
+    Map<String, List<StarTreeFilter.Range>> queryMap;
 
-    public StarTreeQuery(CompositeIndexFieldInfo starTree, Map<String, List<Predicate<Long>>> compositePredicateMap) {
+    public StarTreeQuery(CompositeIndexFieldInfo starTree, Map<String, List<StarTreeFilter.Range>> queryMap) {
         this.starTree = starTree;
-        this.compositePredicateMap = compositePredicateMap;
+        this.queryMap = queryMap;
     }
 
     @Override
-    public String toString(String field) {
-        return null;
-    }
-
-    @Override
-    public void visit(QueryVisitor visitor) {
-        visitor.visitLeaf(this);
-    }
+    public void visit(QueryVisitor visitor) {}
 
     @Override
     public boolean equals(Object obj) {
-        return sameClassAs(obj);
+        return sameClassAs(obj) && equalsTo(getClass().cast(obj));
+    }
+
+    private boolean equalsTo(StarTreeQuery other) {
+        return starTree.equals(other.starTree) && queryMap != null && queryMap.equals(other.queryMap);
     }
 
     @Override
     public int hashCode() {
-        return classHash();
+        return Objects.hash(classHash(), starTree, queryMap);
     }
 
     @Override
-    public long ramBytesUsed() {
-        return 0;
+    public String toString(String field) {
+        // Does not implements a user-readable toString
+        return null;
     }
 
     @Override
@@ -98,7 +95,7 @@ public class StarTreeQuery extends Query implements Accountable {
                     return null;
                 }
 
-                StarTreeFilter filter = new StarTreeFilter(starTreeValues, compositePredicateMap);
+                StarTreeFilter filter = new StarTreeFilter(starTreeValues, queryMap);
                 DocIdSetIterator result = filter.getStarTreeResult();
                 return new ConstantScoreScorer(this, score(), scoreMode, result);
             }

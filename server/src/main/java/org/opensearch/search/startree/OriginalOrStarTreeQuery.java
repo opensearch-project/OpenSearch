@@ -13,9 +13,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Accountable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Preserves star-tree queries which can be used along with original query
@@ -23,7 +23,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class OriginalOrStarTreeQuery extends Query implements Accountable {
+public class OriginalOrStarTreeQuery extends Query {
 
     private final StarTreeQuery starTreeQuery;
     private final Query originalQuery;
@@ -37,27 +37,24 @@ public class OriginalOrStarTreeQuery extends Query implements Accountable {
 
     @Override
     public String toString(String s) {
-        return "";
+        return originalQuery.toString(s);
     }
 
     @Override
-    public void visit(QueryVisitor queryVisitor) {
-
-    }
+    public void visit(QueryVisitor queryVisitor) {}
 
     @Override
     public boolean equals(Object o) {
-        return true;
+        return sameClassAs(o) && equalsTo(getClass().cast(o));
+    }
+
+    private boolean equalsTo(OriginalOrStarTreeQuery other) {
+        return starTreeQuery.equals(other.starTreeQuery) && originalQuery.equals(other.originalQuery);
     }
 
     @Override
     public int hashCode() {
-        return originalQuery.hashCode();
-    }
-
-    @Override
-    public long ramBytesUsed() {
-        return 0;
+        return Objects.hash(classHash(), starTreeQuery, originalQuery, starTreeQuery);
     }
 
     public boolean isStarTreeUsed() {

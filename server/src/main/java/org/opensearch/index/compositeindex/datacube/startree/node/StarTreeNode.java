@@ -124,4 +124,6 @@ public interface StarTreeNode {
      * @throws IOException if an I/O error occurs while retrieving the children iterator
      */
     Iterator<? extends StarTreeNode> getChildrenIterator() throws IOException;
+
+    Iterator<? extends StarTreeNode> getChildrenIteratorForRange(int min, int max) throws IOException;
 }

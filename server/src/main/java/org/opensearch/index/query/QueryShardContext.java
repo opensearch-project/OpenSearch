@@ -85,6 +85,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.startree.OriginalOrStarTreeQuery;
+import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQuery;
 import org.opensearch.transport.RemoteClusterAware;
 
@@ -600,21 +601,21 @@ public class QueryShardContext extends QueryRewriteContext {
         QueryBuilder queryBuilder,
         Query query
     ) {
-        Map<String, List<Predicate<Long>>> predicateMap;
+        Map<String, List<StarTreeFilter.Range>> queryMap;
 
         if (queryBuilder == null) {
-            predicateMap = null;
+            queryMap = null;
         } else if (queryBuilder instanceof TermQueryBuilder) {
             List<String> supportedDimensions = compositeIndexFieldInfo.getDimensions()
                 .stream()
                 .map(Dimension::getField)
                 .collect(Collectors.toList());
-            predicateMap = getStarTreePredicates(queryBuilder, supportedDimensions);
+            queryMap = getStarTreePredicates(queryBuilder, supportedDimensions);
         } else {
             return null;
         }
 
-        StarTreeQuery starTreeQuery = new StarTreeQuery(starTree, predicateMap);
+        StarTreeQuery starTreeQuery = new StarTreeQuery(starTree, queryMap);
         OriginalOrStarTreeQuery originalOrStarTreeQuery = new OriginalOrStarTreeQuery(starTreeQuery, query);
         return new ParsedQuery(originalOrStarTreeQuery);
     }
@@ -624,24 +625,23 @@ public class QueryShardContext extends QueryRewriteContext {
      * @param queryBuilder
      * @return predicates to match
      */
-    private Map<String, List<Predicate<Long>>> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
+    private Map<String, List<StarTreeFilter.Range>> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
         TermQueryBuilder tq = (TermQueryBuilder) queryBuilder;
         String field = tq.fieldName();
-        if (supportedDimensions.contains(field) == false) {
+
+        if (!supportedDimensions.contains(field)) {
             throw new IllegalArgumentException("unsupported field in star-tree");
         }
+
         long inputQueryVal = Long.parseLong(tq.value().toString());
 
-        // Get or create the list of predicates for the given field
-        Map<String, List<Predicate<Long>>> predicateMap = new HashMap<>();
-        List<Predicate<Long>> predicates = predicateMap.getOrDefault(field, new ArrayList<>());
+        // Create a Range with the same min and max value for the exact match for TermQuery
+        StarTreeFilter.Range range = new StarTreeFilter.Range(inputQueryVal, inputQueryVal);
 
-        // Create a predicate to match the input query value
-        Predicate<Long> predicate = dimVal -> dimVal == inputQueryVal;
-        predicates.add(predicate);
+        // Create a map with the field and the range
+        Map<String, List<StarTreeFilter.Range>> predicateMap = new HashMap<>();
+        predicateMap.computeIfAbsent(field, k -> new ArrayList<>()).add(range);
 
-        // Put the predicates list back into the map
-        predicateMap.put(field, predicates);
         return predicateMap;
     }
 
