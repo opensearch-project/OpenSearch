@@ -1662,6 +1662,18 @@ public class RemoteClusterStateService implements Closeable {
         remoteStateStats.stateDownloadFailed();
     }
 
+    public void fullDownloadState() {
+        remoteStateStats.fullDownloadState();
+    }
+
+    public void diffDownloadState() {
+        remoteStateStats.diffDownloadState();
+    }
+
+    public RemotePersistenceStats getRemoteStateStats() {
+        return remoteStateStats;
+    }
+
     public PersistedStateStats getUploadStats() {
         return remoteStateStats.getUploadStats();
     }

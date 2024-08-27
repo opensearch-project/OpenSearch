@@ -254,9 +254,8 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
         assertNotNull(discoveryStats.getClusterStateStats());
         for (PersistedStateStats persistedStateStats : discoveryStats.getClusterStateStats().getPersistenceStats()) {
             Map<String, AtomicLong> extendedFields = persistedStateStats.getExtendedFields();
-            assertTrue(extendedFields.containsKey(RemotePersistenceStats.INDEX_ROUTING_FILES_CLEANUP_ATTEMPT_FAILED_COUNT));
-            long cleanupAttemptFailedCount = extendedFields.get(RemotePersistenceStats.INDEX_ROUTING_FILES_CLEANUP_ATTEMPT_FAILED_COUNT)
-                .get();
+            assertTrue(extendedFields.containsKey(RemoteUploadStats.INDEX_ROUTING_FILES_CLEANUP_ATTEMPT_FAILED_COUNT));
+            long cleanupAttemptFailedCount = extendedFields.get(RemoteUploadStats.INDEX_ROUTING_FILES_CLEANUP_ATTEMPT_FAILED_COUNT).get();
             assertEquals(0, cleanupAttemptFailedCount);
         }
     }

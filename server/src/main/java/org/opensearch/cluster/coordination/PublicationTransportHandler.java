@@ -262,6 +262,7 @@ public class PublicationTransportHandler {
             }
 
             if (applyFullState == true) {
+                remoteClusterStateService.fullDownloadState();
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "Downloading full cluster state for term {}, version {}, stateUUID {}",
@@ -281,6 +282,7 @@ public class PublicationTransportHandler {
                 lastSeenClusterState.set(clusterState);
                 return response;
             } else {
+                remoteClusterStateService.diffDownloadState();
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "Downloading diff cluster state for term {}, version {}, previousUUID {}, current UUID {}",

@@ -81,4 +81,12 @@ public class RemotePersistenceStats {
         return remoteDownloadStats;
     }
 
+    public void diffDownloadState() {
+        remoteDownloadStats.diffDownloadState();
+    }
+
+    public void fullDownloadState() {
+        remoteDownloadStats.fullDownloadState();
+    }
+
 }

@@ -144,7 +144,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         remoteManifestManager = mock(RemoteManifestManager.class);
         remoteClusterStateService = mock(RemoteClusterStateService.class);
         when(remoteClusterStateService.getRemoteManifestManager()).thenReturn(remoteManifestManager);
-        when(remoteClusterStateService.getStats()).thenReturn(new RemotePersistenceStats());
+        when(remoteClusterStateService.getRemoteStateStats()).thenReturn(new RemotePersistenceStats());
         when(remoteClusterStateService.getThreadpool()).thenReturn(threadPool);
         when(remoteClusterStateService.getBlobStore()).thenReturn(blobStore);
         when(remoteClusterStateService.getBlobStoreRepository()).thenReturn(blobStoreRepository);
