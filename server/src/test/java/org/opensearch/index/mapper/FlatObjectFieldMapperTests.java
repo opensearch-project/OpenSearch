@@ -25,7 +25,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.hamcrest.core.StringContains.containsString;
 
 public class FlatObjectFieldMapperTests extends MapperTestCase {
     private static final String FIELD_TYPE = "flat_object";
@@ -133,9 +132,10 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
 
     public void testNullValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
-        assertThat(e.getMessage(), containsString("object mapping for [_doc] tried to parse field [field] as object"));
-
+        ParsedDocument parsedDocument = mapper.parse(source(b -> b.nullField("field")));
+        assertEquals(1, parsedDocument.docs().size());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
     }
 
     @Override
