@@ -50,7 +50,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-import static org.opensearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_V2;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
 
 /**
  * Transport action for create snapshot operation
@@ -112,7 +112,7 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
         final ActionListener<CreateSnapshotResponse> listener
     ) {
         Repository repository = repositoriesService.repository(request.repository());
-        boolean isSnapshotV2 = SNAPSHOT_V2.get(repository.getMetadata().settings());
+        boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
         if (request.waitForCompletion() || isSnapshotV2) {
             snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {

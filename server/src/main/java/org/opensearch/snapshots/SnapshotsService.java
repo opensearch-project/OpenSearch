@@ -136,7 +136,7 @@ import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
-import static org.opensearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_V2;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
 import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
 /**
@@ -255,8 +255,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         Repository repository = repositoriesService.repository(request.repository());
 
-        boolean isSnapshotV2 = SNAPSHOT_V2.get(repository.getMetadata().settings());
-        logger.debug("snapshot_v2 is set as [{}]", isSnapshotV2);
+        boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
+        logger.debug("shallow_snapshot_v2 is set as [{}]", isSnapshotV2);
 
         boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
         if (remoteStoreIndexShallowCopy

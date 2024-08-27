@@ -779,7 +779,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -848,7 +848,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), false)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
                 )
         );
         Client client = client();
@@ -870,7 +870,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.getPinnedTimestamp(), equalTo(0L));
 
-        // enable snapshot_v2
+        // enable shallow_snapshot_v2
         assertAcked(
             client().admin()
                 .cluster()
@@ -882,7 +882,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
         indexDocuments(client, indexName1, 10);
@@ -928,7 +928,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -1010,7 +1010,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -1064,7 +1064,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -1138,7 +1138,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), false)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -1155,7 +1155,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        // Will create full copy snapshot if `REMOTE_STORE_INDEX_SHALLOW_COPY` is false but `SNAPSHOT_V2` is true
+        // Will create full copy snapshot if `REMOTE_STORE_INDEX_SHALLOW_COPY` is false but `SHALLOW_SNAPSHOT_V2` is true
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
@@ -1193,7 +1193,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -1225,7 +1225,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 snapshotInfo[0] = createSnapshotResponse.getSnapshotInfo();
 
             } catch (Exception e) {
-                System.out.println("snapshot creation failed");
                 snapshotFailed[0] = true;
             }
         });
@@ -1273,7 +1272,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), false)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
                 )
         );
         Client client = client();
@@ -1306,7 +1305,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        // Create a separate thread to enable snapshot_v2
+        // Create a separate thread to enable shallow_snapshot_v2
         Thread enableV2Thread = new Thread(() -> {
             try {
 
@@ -1322,7 +1321,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                                 .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                                 .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                                 .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                                .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                                .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                         )
                         .get()
                 );
