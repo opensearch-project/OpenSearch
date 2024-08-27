@@ -233,11 +233,11 @@ public class RestBulkStreamingAction extends BaseRestHandler {
         return true;
     }
 
-    private Flux<List<HttpChunk>> createBufferedFlux(final TimeValue batch_interval, final int batch_size, StreamingRestChannel channel) {
-        if (batch_interval != null) {
-            return Flux.from(channel).bufferTimeout(batch_size, Duration.ofMillis(batch_interval.millis()));
+    private Flux<List<HttpChunk>> createBufferedFlux(final TimeValue batchInterval, final int batchSize, StreamingRestChannel channel) {
+        if (batchInterval != null) {
+            return Flux.from(channel).bufferTimeout(batchSize, Duration.ofMillis(batchInterval.millis()));
         } else {
-            return Flux.from(channel).buffer(batch_size);
+            return Flux.from(channel).buffer(batchSize);
         }
     }
 }
