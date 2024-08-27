@@ -54,7 +54,7 @@ public class FetchSearchResult extends SearchPhaseResult {
 
     protected SearchHits hits;
     // client side counter
-    private transient int counter;
+    protected transient int counter;
 
     public FetchSearchResult() {}
 

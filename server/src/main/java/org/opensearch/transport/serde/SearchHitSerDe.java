@@ -61,8 +61,12 @@ public class SearchHitSerDe extends SearchHit implements SerDe.nativeSerializer,
         switch (this.strategy) {
             case NATIVE:
                 fromNativeStream(in);
+                break;
             case PROTOBUF:
                 fromProtobufStream(in);
+                break;
+            default:
+                throw new AssertionError("This code should not be reachable");
         }
     }
 
@@ -79,8 +83,12 @@ public class SearchHitSerDe extends SearchHit implements SerDe.nativeSerializer,
         switch (this.strategy) {
             case NATIVE:
                 toNativeStream(out);
+                break;
             case PROTOBUF:
                 toProtobufStream(out);
+                break;
+            default:
+                throw new AssertionError("This code should not be reachable");
         }
     }
 
@@ -245,13 +253,7 @@ public class SearchHitSerDe extends SearchHit implements SerDe.nativeSerializer,
 
         innerHits = new HashMap<>();
         proto.getInnerHitsMap().forEach((key, value) ->
-            {
-                try {
-                    innerHits.put(key, new SearchHitsSerDe(value));
-                } catch (IOException e) {
-                    throw new SerDe.SerializationException("Failed to deserialize innerHits from proto: " + key,e);
-                }
-            }
+            innerHits.put(key, new SearchHitsSerDe(value))
         );
 
         shard = searchShardTargetFromProto(proto.getShard());

@@ -40,8 +40,12 @@ public class SearchHitsSerDe extends SearchHits implements SerDe.nativeSerialize
         switch (this.strategy) {
             case NATIVE:
                 fromNativeStream(in);
+                break;
             case PROTOBUF:
                 fromProtobufStream(in);
+                break;
+            default:
+                throw new AssertionError("This code should not be reachable");
         }
     }
 
@@ -49,7 +53,7 @@ public class SearchHitsSerDe extends SearchHits implements SerDe.nativeSerialize
         fromNativeStream(in);
     }
 
-    public SearchHitsSerDe(SearchHitsProto proto) throws IOException {
+    public SearchHitsSerDe(SearchHitsProto proto) {
         fromProto(proto);
     }
 
@@ -58,8 +62,12 @@ public class SearchHitsSerDe extends SearchHits implements SerDe.nativeSerialize
         switch (this.strategy) {
             case NATIVE:
                 toNativeStream(out);
+                break;
             case PROTOBUF:
                 toProtobufStream(out);
+                break;
+            default:
+                throw new AssertionError("This code should not be reachable");
         }
     }
 

@@ -12,7 +12,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.serde.proto.SearchHitsTransportProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.FetchSearchResultProto;
 
 import java.io.IOException;
 
@@ -28,8 +28,12 @@ public class FetchSearchResultSerDe extends FetchSearchResult implements SerDe.n
         switch (this.strategy) {
             case NATIVE:
                 fromNativeStream(in);
+                break;
             case PROTOBUF:
                 fromProtobufStream(in);
+                break;
+            default:
+                throw new AssertionError("This code should not be reachable");
         }
     }
 
@@ -42,21 +46,26 @@ public class FetchSearchResultSerDe extends FetchSearchResult implements SerDe.n
         switch (this.strategy) {
             case NATIVE:
                 toNativeStream(out);
+                break;
             case PROTOBUF:
                 toProtobufStream(out);
+                break;
+            default:
+                throw new AssertionError("This code should not be reachable");
         }
     }
 
-//    @Override
-//    public void toProtobufStream(StreamOutput out) throws IOException {
-//        toProto().writeTo(out);
-//    }
+    @Override
+    public void toProtobufStream(StreamOutput out) throws IOException {
+        toProto().writeTo(out);
+    }
 
-//    @Override
-//    public void fromProtobufStream(StreamInput in) throws IOException {
-//        FetchSearchResultProto proto = SearchHitsTransportProto.SearchHitsProto.parseFrom(in);
-//        fromProto(proto);
-//    }
+
+    @Override
+    public void fromProtobufStream(StreamInput in) throws IOException {
+        FetchSearchResultProto proto = FetchSearchResultProto.parseFrom(in);
+        fromProto(proto);
+    }
 
     @Override
     public void toNativeStream(StreamOutput out) throws IOException {
@@ -69,21 +78,14 @@ public class FetchSearchResultSerDe extends FetchSearchResult implements SerDe.n
         this.contextId = new ShardSearchContextId(in);
     }
 
-    @Override
-    public void toProtobufStream(StreamOutput out) throws IOException {
-        // IMPL
+    FetchSearchResultProto toProto() {
+        FetchSearchResultProto.Builder builder = FetchSearchResultProto.newBuilder()
+            .setHits(new SearchHitsSerDe(hits, strategy).toProto())
+            .setCounter(this.counter);
+        return builder.build();
     }
 
-    @Override
-    public void fromProtobufStream(StreamInput in) throws IOException {
-        // IMPL
+    void fromProto(FetchSearchResultProto proto) {
+        hits = new SearchHitsSerDe(proto.getHits());
     }
-
-//    SearchHitsTransportProto.SearchHitsProto toProto() {
-//
-//    }
-//
-//    void fromProto(SearchHitsTransportProto.SearchHitsProto searchHits) {
-//
-//    }
 }
