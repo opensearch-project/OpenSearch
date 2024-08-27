@@ -1253,4 +1253,93 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testConcurrentV1SnapshotAndV2RepoSettingUpdate() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot-v1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), false)
+                )
+        );
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+
+        for (int i = 0; i < 10; i++) {
+            createIndex("index" + i, indexSettings);
+        }
+        ensureStableCluster(3);
+        for (int i = 0; i < 10; i++) {
+            indexDocuments(client, "index" + i, 15);
+        }
+
+        ensureStableCluster(3);
+        for (int i = 0; i < 10; i++) {
+            ensureGreen("index" + i);
+        }
+        final CreateSnapshotResponse[] snapshotV1Response = new CreateSnapshotResponse[1];
+        // Create a separate thread to create the first snapshot
+        Thread createV1SnapshotThread = new Thread(() -> {
+            try {
+                snapshotV1Response[0] = client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+                    .setWaitForCompletion(true)
+                    .get();
+
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // Create a separate thread to enable snapshot_v2
+        Thread enableV2Thread = new Thread(() -> {
+            try {
+
+                assertThrows(
+                    IllegalStateException.class,
+                    () -> client().admin()
+                        .cluster()
+                        .preparePutRepository(snapshotRepoName)
+                        .setType(FsRepository.TYPE)
+                        .setSettings(
+                            Settings.builder()
+                                .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                                .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                                .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        )
+                        .get()
+                );
+
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        createV1SnapshotThread.start();
+
+        Thread.sleep(100);
+
+        enableV2Thread.start();
+
+        enableV2Thread.join();
+        createV1SnapshotThread.join();
+    }
+
 }
