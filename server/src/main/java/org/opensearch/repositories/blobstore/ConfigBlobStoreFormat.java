@@ -8,21 +8,17 @@
 
 package org.opensearch.repositories.blobstore;
 
-import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
-import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.NoneCompressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -39,14 +35,11 @@ import java.io.IOException;
  */
 public class ConfigBlobStoreFormat<T extends ToXContent> extends BaseBlobStoreFormat<T> {
 
-    private final CheckedFunction<XContentParser, T, IOException> reader;
-
     /**
      * @param blobNameFormat format of the blobname in {@link String#format} format
      */
-    public ConfigBlobStoreFormat(String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader) {
+    public ConfigBlobStoreFormat(String blobNameFormat) {
         super(blobNameFormat, true);
-        this.reader = reader;
     }
 
     public void writeAsyncWithUrgentPriority(T obj, BlobContainer blobContainer, String name, ActionListener<Void> listener)
@@ -82,22 +75,5 @@ public class ConfigBlobStoreFormat<T extends ToXContent> extends BaseBlobStoreFo
         ) {
             ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
         }
-    }
-
-    public T read(BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry) throws IOException {
-        String blobName = blobName(name);
-        return deserialize(
-            blobName,
-            namedXContentRegistry,
-            Streams.readFully(blobContainer.readBlob(blobName)),
-            XContentType.JSON,
-            null,
-            null
-        );
-    }
-
-    @Override
-    CheckedFunction<XContentParser, T, IOException> reader() {
-        return reader;
     }
 }

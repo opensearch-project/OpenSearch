@@ -171,6 +171,10 @@ public class RemoteStorePathStrategy {
             return BlobPath.cleanPath().add(shardId).add(indexUUID());
         }
 
+        public String shardId() {
+            return shardId;
+        }
+
         /**
          * Returns a new builder for {@link SnapshotShardPathInput}.
          */

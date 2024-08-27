@@ -148,6 +148,7 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotShardPaths;
+import org.opensearch.snapshots.SnapshotShardPaths.ShardInfo;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -393,8 +394,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     public static final ConfigBlobStoreFormat<SnapshotShardPaths> SNAPSHOT_SHARD_PATHS_FORMAT = new ConfigBlobStoreFormat<>(
-        SnapshotShardPaths.FILE_NAME_FORMAT,
-        SnapshotShardPaths::fromXContent
+        SnapshotShardPaths.FILE_NAME_FORMAT
     );
 
     private volatile boolean readOnly;
@@ -1705,7 +1705,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Collections.emptyList();
     }
 
-    private void cleanupStaleIndices(
+    void cleanupStaleIndices(
         Map<String, BlobContainer> foundIndices,
         Set<String> survivingIndexIds,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
@@ -1850,10 +1850,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (highestGenShardPaths.isEmpty()) {
             releaseRemoteStoreLocksAndCleanup(indexEntry.getValue().children(), remoteStoreLockManagerFactory);
         } else {
-            ShardInfo shardInfo = parseShardPath(highestGenShardPaths.get());
-            Map<String, BlobContainer> shardContainers = new HashMap<>(shardInfo.shardCount);
-            for (int i = 0; i < shardInfo.shardCount; i++) {
-                shardContainers.put(String.valueOf(i), shardContainer(shardInfo.indexId, i));
+            ShardInfo shardInfo = SnapshotShardPaths.parseShardPath(highestGenShardPaths.get());
+            Map<String, BlobContainer> shardContainers = new HashMap<>(shardInfo.getShardCount());
+            for (int i = 0; i < shardInfo.getShardCount(); i++) {
+                shardContainers.put(String.valueOf(i), shardContainer(shardInfo.getIndexId(), i));
             }
             releaseRemoteStoreLocksAndCleanup(shardContainers, remoteStoreLockManagerFactory);
         }
@@ -1866,7 +1866,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param remoteStoreLockManagerFactory Factory for creating remote store lock managers
      * @throws IOException If an I/O error occurs during the release and cleanup process
      */
-    private void releaseRemoteStoreLocksAndCleanup(
+    void releaseRemoteStoreLocksAndCleanup(
         Map<String, BlobContainer> shardBlobs,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory
     ) throws IOException {
@@ -1902,38 +1902,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return DeleteResult.ZERO;
         }
 
-        ShardInfo shardInfo = parseShardPath(highestGenShardPaths.get());
+        ShardInfo shardInfo = SnapshotShardPaths.parseShardPath(highestGenShardPaths.get());
         DeleteResult deleteResult = DeleteResult.ZERO;
 
-        for (int i = 0; i < shardInfo.shardCount; i++) {
-            deleteResult = deleteResult.add(shardContainer(shardInfo.indexId, i).delete());
+        for (int i = 0; i < shardInfo.getShardCount(); i++) {
+            deleteResult = deleteResult.add(shardContainer(shardInfo.getIndexId(), i).delete());
         }
 
         deleteFromContainer(snapshotShardPathBlobContainer(), matchingShardPaths);
         long totalBytes = matchingShardPaths.stream().mapToLong(s -> snapshotShardPaths.get(s).length()).sum();
         return deleteResult.add(matchingShardPaths.size(), totalBytes);
-    }
-
-    /**
-     * Parses a shard path string and extracts relevant shard information.
-     *
-     * @param shardPath The shard path string to parse. Expected format is:
-     *                  [index_id]#[index_name]#[shard_count]#[path_type_code]#[path_hash_algorithm_code]
-     * @return A {@link ShardInfo} object containing the parsed index ID and shard count.
-     * @throws IllegalArgumentException if the shard path format is invalid or cannot be parsed.
-     */
-    private ShardInfo parseShardPath(String shardPath) {
-        String[] parts = shardPath.split(SnapshotShardPaths.DELIMITER);
-        if (parts.length != 5) {
-            throw new IllegalArgumentException("Invalid shard path format: " + shardPath);
-        }
-        try {
-            IndexId indexId = new IndexId(parts[1], parts[0], Integer.parseInt(parts[3]));
-            int shardCount = Integer.parseInt(parts[2]);
-            return new ShardInfo(indexId, shardCount);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid shard path format: " + shardPath, e);
-        }
     }
 
     @Override
@@ -2073,20 +2051,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return updatedIndexIds;
     }
 
-    private String writeIndexShardPaths(IndexId indexId, SnapshotId snapshotId, int shardCount) {
+    String writeIndexShardPaths(IndexId indexId, SnapshotId snapshotId, int shardCount) {
         try {
             List<String> paths = getShardPaths(indexId, shardCount);
-            String pathType = String.valueOf(indexId.getShardPathType());
-            String pathHashAlgorithm = String.valueOf(FNV_1A_COMPOSITE_1.getCode());
+            int pathType = indexId.getShardPathType();
+            int pathHashAlgorithm = FNV_1A_COMPOSITE_1.getCode();
             String blobName = String.join(
                 SnapshotShardPaths.DELIMITER,
                 indexId.getId(),
                 indexId.getName(),
                 String.valueOf(shardCount),
-                pathType,
-                pathHashAlgorithm
+                String.valueOf(pathType),
+                String.valueOf(pathHashAlgorithm)
             );
-            SnapshotShardPaths shardPaths = new SnapshotShardPaths(paths);
+            SnapshotShardPaths shardPaths = new SnapshotShardPaths(
+                paths,
+                indexId.getId(),
+                indexId.getName(),
+                shardCount,
+                PathType.fromCode(pathType),
+                PathHashAlgorithm.fromCode(pathHashAlgorithm)
+            );
             SNAPSHOT_SHARD_PATHS_FORMAT.writeAsyncWithUrgentPriority(
                 shardPaths,
                 snapshotShardPathBlobContainer(),
@@ -4001,29 +3986,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         @Override
         public String toString() {
             return name;
-        }
-    }
-
-    /**
-     * Represents parsed information from a shard path.
-     * This class encapsulates the index ID and shard count extracted from a shard path string.
-     */
-    private static class ShardInfo {
-        /** The ID of the index associated with this shard. */
-        final IndexId indexId;
-
-        /** The total number of shards for this index. */
-        final int shardCount;
-
-        /**
-         * Constructs a new ShardInfo instance.
-         *
-         * @param indexId    The ID of the index associated with this shard.
-         * @param shardCount The total number of shards for this index.
-         */
-        ShardInfo(IndexId indexId, int shardCount) {
-            this.indexId = indexId;
-            this.shardCount = shardCount;
         }
     }
 }

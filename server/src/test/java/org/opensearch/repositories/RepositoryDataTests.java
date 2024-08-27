@@ -42,12 +42,14 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -59,6 +61,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.FIXED;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
 import static org.opensearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +74,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class RepositoryDataTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashCode() {
-        RepositoryData repositoryData1 = generateRandomRepoData();
+        RepositoryData repositoryData1 = generateRandomRepoData(FIXED.getCode());
         RepositoryData repositoryData2 = repositoryData1.copy();
         assertEquals(repositoryData1, repositoryData2);
         assertEquals(repositoryData1.hashCode(), repositoryData2.hashCode());
@@ -403,11 +407,95 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(otherSnapshotId)), removeFromOther);
     }
 
+    public void testResolveNewIndices() {
+        // Test case 1: All indices are new
+        List<String> indicesToResolve = Arrays.asList("index1", "index2", "index3");
+        Map<String, IndexId> inFlightIds = Collections.emptyMap();
+        int pathType = randomIntBetween(0, 2);
+        List<IndexId> resolvedIndices = RepositoryData.EMPTY.resolveNewIndices(indicesToResolve, inFlightIds, pathType);
+        assertEquals(indicesToResolve.size(), resolvedIndices.size());
+        for (IndexId indexId : resolvedIndices) {
+            assertTrue(indicesToResolve.contains(indexId.getName()));
+            assertNotNull(indexId.getId());
+            assertEquals(pathType, indexId.getShardPathType());
+        }
+
+        // Test case 2: Some indices are existing, some are new
+        RepositoryData repositoryData = generateRandomRepoData();
+        Map<String, IndexId> existingIndices = repositoryData.getIndices();
+        List<String> existingIndexNames = new ArrayList<>(existingIndices.keySet());
+        List<String> newIndexNames = Arrays.asList("newIndex1", "newIndex2");
+        indicesToResolve = new ArrayList<>(existingIndexNames);
+        indicesToResolve.addAll(newIndexNames);
+        pathType = randomIntBetween(0, 2);
+        resolvedIndices = repositoryData.resolveNewIndices(indicesToResolve, Collections.emptyMap(), pathType);
+        assertEquals(indicesToResolve.size(), resolvedIndices.size());
+        for (IndexId indexId : resolvedIndices) {
+            if (existingIndexNames.contains(indexId.getName())) {
+                assertEquals(existingIndices.get(indexId.getName()), indexId);
+            } else {
+                assertTrue(newIndexNames.contains(indexId.getName()));
+                assertNotNull(indexId.getId());
+                assertEquals(pathType, indexId.getShardPathType());
+            }
+        }
+
+        // Test case 3: Some indices are in-flight
+        Map<String, IndexId> inFlightIndexIds = new HashMap<>();
+        for (String indexName : newIndexNames) {
+            inFlightIndexIds.put(indexName, new IndexId(indexName, UUIDs.randomBase64UUID(), pathType));
+        }
+        resolvedIndices = repositoryData.resolveNewIndices(indicesToResolve, inFlightIndexIds, pathType);
+        assertEquals(indicesToResolve.size(), resolvedIndices.size());
+        for (IndexId indexId : resolvedIndices) {
+            if (existingIndexNames.contains(indexId.getName())) {
+                assertEquals(existingIndices.get(indexId.getName()), indexId);
+            } else if (newIndexNames.contains(indexId.getName())) {
+                assertEquals(inFlightIndexIds.get(indexId.getName()), indexId);
+            } else {
+                fail("Unexpected index: " + indexId.getName());
+            }
+        }
+    }
+
+    public void testResolveNewIndicesWithDifferentPathType() {
+        // Generate repository data with a fixed path type
+        int existingPathType = PathType.FIXED.getCode();
+        RepositoryData repositoryData = generateRandomRepoData(existingPathType);
+        Map<String, IndexId> existingIndices = repositoryData.getIndices();
+
+        // Create a list of existing and new index names
+        List<String> existingIndexNames = new ArrayList<>(existingIndices.keySet());
+        List<String> newIndexNames = Arrays.asList("newIndex1", "newIndex2");
+        List<String> indicesToResolve = new ArrayList<>(existingIndexNames);
+        indicesToResolve.addAll(newIndexNames);
+
+        // Use a different path type for new indices
+        int newPathType = HASHED_PREFIX.getCode();
+
+        List<IndexId> resolvedIndices = repositoryData.resolveNewIndices(indicesToResolve, Collections.emptyMap(), newPathType);
+        assertEquals(indicesToResolve.size(), resolvedIndices.size());
+        for (IndexId indexId : resolvedIndices) {
+            if (existingIndexNames.contains(indexId.getName())) {
+                assertEquals(existingIndices.get(indexId.getName()), indexId);
+                assertEquals(existingPathType, indexId.getShardPathType());
+            } else {
+                assertTrue(newIndexNames.contains(indexId.getName()));
+                assertNotNull(indexId.getId());
+                assertEquals(newPathType, indexId.getShardPathType());
+            }
+        }
+    }
+
     public static RepositoryData generateRandomRepoData() {
+        return generateRandomRepoData(randomFrom(PathType.values()).getCode());
+    }
+
+    public static RepositoryData generateRandomRepoData(int pathType) {
         final int numIndices = randomIntBetween(1, 30);
         final List<IndexId> indices = new ArrayList<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
-            indices.add(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
+            indices.add(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), pathType));
         }
         final int numSnapshots = randomIntBetween(1, 30);
         RepositoryData repositoryData = RepositoryData.EMPTY;

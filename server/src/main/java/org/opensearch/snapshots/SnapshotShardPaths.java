@@ -8,16 +8,14 @@
 
 package org.opensearch.snapshots;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
-import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.repositories.IndexId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -34,19 +32,49 @@ public class SnapshotShardPaths implements ToXContent {
     public static final String FILE_NAME_FORMAT = "%s";
 
     private static final String PATHS_FIELD = "paths";
+    private static final String INDEX_ID_FIELD = "indexId";
+    private static final String INDEX_NAME_FIELD = "indexName";
+    private static final String NUMBER_OF_SHARDS_FIELD = "number_of_shards";
+    private static final String SHARD_PATH_TYPE_FIELD = "shard_path_type";
+    private static final String SHARD_PATH_HASH_ALGORITHM_FIELD = "shard_path_hash_algorithm";
 
     private final List<String> paths;
+    private final String indexId;
+    private final String indexName;
+    private final int numberOfShards;
+    private final PathType shardPathType;
+    private final PathHashAlgorithm shardPathHashAlgorithm;
 
-    public SnapshotShardPaths(List<String> paths) {
-        this.paths = Collections.unmodifiableList(paths);
-    }
+    public SnapshotShardPaths(
+        List<String> paths,
+        String indexId,
+        String indexName,
+        int numberOfShards,
+        PathType shardPathType,
+        PathHashAlgorithm shardPathHashAlgorithm
+    ) {
+        assert !paths.isEmpty() : "paths must not be empty";
+        assert indexId != null && !indexId.isEmpty() : "indexId must not be empty";
+        assert indexName != null && !indexName.isEmpty() : "indexName must not be empty";
+        assert numberOfShards > 0 : "numberOfShards must be > 0";
+        assert shardPathType != null : "shardPathType must not be null";
+        assert shardPathHashAlgorithm != null : "shardPathHashAlgorithm must not be null";
 
-    public List<String> getPaths() {
-        return paths;
+        this.paths = paths;
+        this.indexId = indexId;
+        this.indexName = indexName;
+        this.numberOfShards = numberOfShards;
+        this.shardPathType = shardPathType;
+        this.shardPathHashAlgorithm = shardPathHashAlgorithm;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(INDEX_ID_FIELD, indexId);
+        builder.field(INDEX_NAME_FIELD, indexName);
+        builder.field(NUMBER_OF_SHARDS_FIELD, numberOfShards);
+        builder.field(SHARD_PATH_TYPE_FIELD, shardPathType.getCode());
+        builder.field(SHARD_PATH_HASH_ALGORITHM_FIELD, shardPathHashAlgorithm.getCode());
         builder.startArray(PATHS_FIELD);
         for (String path : paths) {
             builder.value(path);
@@ -55,41 +83,60 @@ public class SnapshotShardPaths implements ToXContent {
         return builder;
     }
 
-    public static SnapshotShardPaths fromXContent(XContentParser parser) throws IOException {
-        List<String> paths = new ArrayList<>();
+    public static SnapshotShardPaths fromXContent(XContentParser ignored) {
+        throw new UnsupportedOperationException("SnapshotShardPaths.fromXContent() is not supported");
+    }
 
-        try {
-            XContentParser.Token token = parser.currentToken();
-            if (token == null) {
-                token = parser.nextToken();
-            }
-
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new OpenSearchParseException("Expected a start object");
-            }
-
-            token = parser.nextToken();
-            if (token == XContentParser.Token.END_OBJECT) {
-                throw new OpenSearchParseException("Missing [" + PATHS_FIELD + "] field");
-            }
-
-            while (token != XContentParser.Token.END_OBJECT) {
-                String fieldName = parser.currentName();
-                if (PATHS_FIELD.equals(fieldName)) {
-                    if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
-                        throw new OpenSearchParseException("Expected an array for field [" + PATHS_FIELD + "]");
-                    }
-                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        paths.add(parser.text());
-                    }
-                } else {
-                    throw new OpenSearchParseException("Unexpected field [" + fieldName + "]");
-                }
-                token = parser.nextToken();
-            }
-        } catch (JsonParseException e) {
-            throw new OpenSearchParseException("Failed to parse SnapshotIndexIdPaths", e);
+    /**
+     * Parses a shard path string and extracts relevant shard information.
+     *
+     * @param shardPath The shard path string to parse. Expected format is:
+     *                  [index_id]#[index_name]#[shard_count]#[path_type_code]#[path_hash_algorithm_code]
+     * @return A {@link ShardInfo} object containing the parsed index ID and shard count.
+     * @throws IllegalArgumentException if the shard path format is invalid or cannot be parsed.
+     */
+    public static ShardInfo parseShardPath(String shardPath) {
+        String[] parts = shardPath.split(SnapshotShardPaths.DELIMITER);
+        if (parts.length != 5) {
+            throw new IllegalArgumentException("Invalid shard path format: " + shardPath);
         }
-        return new SnapshotShardPaths(paths);
+        try {
+            IndexId indexId = new IndexId(parts[1], parts[0], Integer.parseInt(parts[3]));
+            int shardCount = Integer.parseInt(parts[2]);
+            return new ShardInfo(indexId, shardCount);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid shard path format: " + shardPath, e);
+        }
+    }
+
+    /**
+     * Represents parsed information from a shard path.
+     * This class encapsulates the index ID and shard count extracted from a shard path string.
+     */
+    public static class ShardInfo {
+        /** The ID of the index associated with this shard. */
+        private final IndexId indexId;
+
+        /** The total number of shards for this index. */
+        private final int shardCount;
+
+        /**
+         * Constructs a new ShardInfo instance.
+         *
+         * @param indexId    The ID of the index associated with this shard.
+         * @param shardCount The total number of shards for this index.
+         */
+        ShardInfo(IndexId indexId, int shardCount) {
+            this.indexId = indexId;
+            this.shardCount = shardCount;
+        }
+
+        public IndexId getIndexId() {
+            return indexId;
+        }
+
+        public int getShardCount() {
+            return shardCount;
+        }
     }
 }
