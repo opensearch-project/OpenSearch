@@ -361,7 +361,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
             ignoreThrottleInRestore,
-            this::allocatorTimedOut
+            null // as we don't need to check if timed out or not while just understanding ShardAllocationDecision
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
