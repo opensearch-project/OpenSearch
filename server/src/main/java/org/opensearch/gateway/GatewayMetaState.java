@@ -618,7 +618,7 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
-        public PersistedStateStats getUploadStats() {
+        public PersistedStateStats getStats() {
             // Note: These stats are not published yet, will come in future
             return null;
         }
@@ -745,7 +745,7 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
-        public PersistedStateStats getUploadStats() {
+        public PersistedStateStats getStats() {
             return remoteClusterStateService.getUploadStats();
         }
 

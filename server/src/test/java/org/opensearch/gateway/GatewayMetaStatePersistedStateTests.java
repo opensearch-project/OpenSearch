@@ -112,7 +112,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -906,7 +906,10 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             .when(remoteClusterStateService)
             .writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION));
         when(remoteClusterStateService.getUploadStats()).thenReturn(remoteStateStats);
-        doCallRealMethod().when(remoteClusterStateService).writeMetadataFailed();
+        doAnswer((i) -> {
+            remoteStateStats.stateFailed();
+            return null;
+        }).when(remoteClusterStateService).writeMetadataFailed();
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
 
         final long clusterTerm = randomNonNegativeLong();

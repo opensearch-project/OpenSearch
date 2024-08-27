@@ -1026,7 +1026,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             @Override
-            public PersistedStateStats getUploadStats() {
+            public PersistedStateStats getStats() {
                 return null;
             }
 

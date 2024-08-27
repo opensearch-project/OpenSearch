@@ -178,8 +178,12 @@ public class PublicationTransportHandler {
         );
     }
 
-    public PersistedStateStats getDownloadStats() {
-        return remoteClusterStateService.getDownloadStats();
+    public PersistedStateStats getFullDownloadStats() {
+        return remoteClusterStateService.getFullDownloadStats();
+    }
+
+    public PersistedStateStats getDiffDownloadStats() {
+        return remoteClusterStateService.getDiffDownloadStats();
     }
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
@@ -235,7 +239,8 @@ public class PublicationTransportHandler {
     }
 
     // package private for testing
-    PublishWithJoinResponse handleIncomingRemotePublishRequest(RemotePublishRequest request) throws IOException, RuntimeException {
+    PublishWithJoinResponse handleIncomingRemotePublishRequest(RemotePublishRequest request) throws IOException, IllegalStateException {
+        boolean applyFullState = false;
         try {
             if (transportService.getLocalNode().equals(request.getSourceNode())) {
                 return acceptRemoteStateOnLocalNode(request);
@@ -248,7 +253,6 @@ public class PublicationTransportHandler {
             if (manifest == null) {
                 throw new IllegalStateException("Publication failed as manifest was not found for " + request);
             }
-            boolean applyFullState = false;
             final ClusterState lastSeen = lastSeenClusterState.get();
             if (lastSeen == null) {
                 logger.debug(() -> "Diff cannot be applied as there is no last cluster state");
@@ -262,7 +266,6 @@ public class PublicationTransportHandler {
             }
 
             if (applyFullState == true) {
-                remoteClusterStateService.fullDownloadState();
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "Downloading full cluster state for term {}, version {}, stateUUID {}",
@@ -282,7 +285,6 @@ public class PublicationTransportHandler {
                 lastSeenClusterState.set(clusterState);
                 return response;
             } else {
-                remoteClusterStateService.diffDownloadState();
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "Downloading diff cluster state for term {}, version {}, previousUUID {}, current UUID {}",
@@ -303,9 +305,12 @@ public class PublicationTransportHandler {
                 return response;
             }
         } catch (Exception e) {
-            remoteClusterStateService.readMetadataFailed();
-            if (e instanceof IOException) throw new IOException("IOException in reading remote cluster state", e);
-            throw new RuntimeException("Runtime exception in reading remote cluster state", e);
+            if (applyFullState) {
+                remoteClusterStateService.fullDownloadFailed();
+            } else {
+                remoteClusterStateService.diffDownloadFailed();
+            }
+            throw e;
         }
     }
 

@@ -12,6 +12,11 @@ import org.opensearch.cluster.coordination.PersistedStateStats;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Upload stats for remote state
+ *
+ * @opensearch.internal
+ */
 public class RemoteUploadStats extends PersistedStateStats {
     static final String CLEANUP_ATTEMPT_FAILED_COUNT = "cleanup_attempt_failed_count";
     static final String INDEX_ROUTING_FILES_CLEANUP_ATTEMPT_FAILED_COUNT = "index_routing_files_cleanup_attempt_failed_count";

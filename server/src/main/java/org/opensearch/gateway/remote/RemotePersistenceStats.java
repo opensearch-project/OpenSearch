@@ -18,11 +18,16 @@ import org.opensearch.cluster.coordination.PersistedStateStats;
 public class RemotePersistenceStats {
 
     RemoteUploadStats remoteUploadStats;
-    RemoteDownloadStats remoteDownloadStats;
+    PersistedStateStats remoteDiffDownloadStats;
+    PersistedStateStats remoteFullDownloadStats;
+
+    final String FULL_DOWNLOAD_STATS = "remote_full_download";
+    final String DIFF_DOWNLOAD_STATS = "remote_diff_download";
 
     public RemotePersistenceStats() {
         remoteUploadStats = new RemoteUploadStats();
-        remoteDownloadStats = new RemoteDownloadStats();
+        remoteDiffDownloadStats = new PersistedStateStats(DIFF_DOWNLOAD_STATS);
+        remoteFullDownloadStats = new PersistedStateStats(FULL_DOWNLOAD_STATS);
     }
 
     public void cleanUpAttemptFailed() {
@@ -61,32 +66,40 @@ public class RemotePersistenceStats {
         remoteUploadStats.stateFailed();
     }
 
-    public void stateDownloadSucceeded() {
-        remoteDownloadStats.stateSucceeded();
+    public void stateFullDownloadSucceeded() {
+        remoteFullDownloadStats.stateSucceeded();
     }
 
-    public void stateDownloadTook(long durationMillis) {
-        remoteDownloadStats.stateTook(durationMillis);
+    public void stateDiffDownloadSucceeded() {
+        remoteDiffDownloadStats.stateSucceeded();
     }
 
-    public void stateDownloadFailed() {
-        remoteDownloadStats.stateFailed();
+    public void stateFullDownloadTook(long durationMillis) {
+        remoteFullDownloadStats.stateTook(durationMillis);
+    }
+
+    public void stateDiffDownloadTook(long durationMillis) {
+        remoteDiffDownloadStats.stateTook(durationMillis);
+    }
+
+    public void stateFullDownloadFailed() {
+        remoteFullDownloadStats.stateFailed();
+    }
+
+    public void stateDiffDownloadFailed() {
+        remoteDiffDownloadStats.stateFailed();
     }
 
     public PersistedStateStats getUploadStats() {
         return remoteUploadStats;
     }
 
-    public PersistedStateStats getDownloadStats() {
-        return remoteDownloadStats;
+    public PersistedStateStats getRemoteDiffDownloadStats() {
+        return remoteDiffDownloadStats;
     }
 
-    public void diffDownloadState() {
-        remoteDownloadStats.diffDownloadState();
-    }
-
-    public void fullDownloadState() {
-        remoteDownloadStats.fullDownloadState();
+    public PersistedStateStats getRemoteFullDownloadStats() {
+        return remoteFullDownloadStats;
     }
 
 }

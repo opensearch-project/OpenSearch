@@ -861,6 +861,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(mockedResult.getComponent()).thenReturn(COORDINATION_METADATA);
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
+
+        assertNotNull(remoteClusterStateService.getFullDownloadStats());
+        assertEquals(1, remoteClusterStateService.getFullDownloadStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getFailedCount());
         verify(mockService, times(1)).readClusterStateInParallel(
             any(),
             eq(manifest),
@@ -2590,7 +2594,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(previousClusterUUID, equalTo("cluster-uuid2"));
     }
 
-    public void testRemoteStateStats() throws IOException {
+    public void testRemoteStateUploadStats() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();

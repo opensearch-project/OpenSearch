@@ -1364,8 +1364,8 @@ public class RemoteClusterStateService implements Closeable {
             clusterState = ClusterState.builder(state).metadata(mb).build();
         }
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateDownloadSucceeded();
-        remoteStateStats.stateDownloadTook(durationMillis);
+        remoteStateStats.stateFullDownloadSucceeded();
+        remoteStateStats.stateFullDownloadTook(durationMillis);
 
         return clusterState;
     }
@@ -1456,8 +1456,8 @@ public class RemoteClusterStateService implements Closeable {
             .build();
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateDownloadSucceeded();
-        remoteStateStats.stateDownloadTook(durationMillis);
+        remoteStateStats.stateDiffDownloadSucceeded();
+        remoteStateStats.stateDiffDownloadTook(durationMillis);
 
         return clusterState;
     }
@@ -1658,18 +1658,6 @@ public class RemoteClusterStateService implements Closeable {
         remoteStateStats.stateUploadFailed();
     }
 
-    public void readMetadataFailed() {
-        remoteStateStats.stateDownloadFailed();
-    }
-
-    public void fullDownloadState() {
-        remoteStateStats.fullDownloadState();
-    }
-
-    public void diffDownloadState() {
-        remoteStateStats.diffDownloadState();
-    }
-
     public RemotePersistenceStats getRemoteStateStats() {
         return remoteStateStats;
     }
@@ -1678,7 +1666,19 @@ public class RemoteClusterStateService implements Closeable {
         return remoteStateStats.getUploadStats();
     }
 
-    public PersistedStateStats getDownloadStats() {
-        return remoteStateStats.getDownloadStats();
+    public PersistedStateStats getFullDownloadStats() {
+        return remoteStateStats.getRemoteFullDownloadStats();
+    }
+
+    public PersistedStateStats getDiffDownloadStats() {
+        return remoteStateStats.getRemoteDiffDownloadStats();
+    }
+
+    public void fullDownloadFailed() {
+        remoteStateStats.stateFullDownloadFailed();
+    }
+
+    public void diffDownloadFailed() {
+        remoteStateStats.stateDiffDownloadFailed();
     }
 }
