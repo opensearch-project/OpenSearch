@@ -7,4 +7,4 @@
  */
 
 /** Serialization/Deserialization implementations for the fetch package. */
-package org.opensearch.transport.serde;
+package org.opensearch.transport.protobuf;

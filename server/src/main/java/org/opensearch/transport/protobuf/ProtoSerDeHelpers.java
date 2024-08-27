@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.transport.serde;
+package org.opensearch.transport.protobuf;
 
 import com.google.protobuf.ByteString;
 import org.apache.lucene.search.Explanation;
@@ -40,12 +40,7 @@ import java.util.List;
  * SerDe interfaces and protobuf SerDe implementations for some "primitive" types.
  * @opensearch.internal
  */
-public class SerDe {
-
-    public enum Strategy {
-        PROTOBUF,
-        NATIVE;
-    }
+public class ProtoSerDeHelpers {
 
     /**
      * Serialization/Deserialization exception.
@@ -59,18 +54,6 @@ public class SerDe {
         public SerializationException(String message, Throwable cause) {
             super(message, cause);
         }
-    }
-
-    interface nativeSerializer {
-        void toNativeStream(StreamOutput out) throws IOException;
-
-        void fromNativeStream(StreamInput in) throws IOException;
-    }
-
-    interface protobufSerializer {
-        void toProtobufStream(StreamOutput out) throws IOException;
-
-        void fromProtobufStream(StreamInput in) throws IOException;
     }
 
     // TODO: Lucene definitions should maybe be serialized as generic bytes arrays.
@@ -118,7 +101,7 @@ public class SerDe {
         return builder.build();
     }
 
-    static DocumentField documentFieldFromProto(DocumentFieldProto proto) throws SerDe.SerializationException {
+    static DocumentField documentFieldFromProto(DocumentFieldProto proto) throws ProtoSerDeHelpers.SerializationException {
         String name = proto.getName();
         List<Object> values = new ArrayList<>(0);
 
@@ -128,7 +111,7 @@ public class SerDe {
                 Object readValue = in.readGenericValue();
                 values.add(readValue);
             } catch (IOException e) {
-                throw new SerDe.SerializationException("Failed to deserialize DocumentField values from proto object", e);
+                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize DocumentField values from proto object", e);
             }
         }
 
@@ -177,7 +160,7 @@ public class SerDe {
         return builder.build();
     }
 
-    static SearchSortValues searchSortValuesFromProto(SearchSortValuesProto proto) throws SerDe.SerializationException {
+    static SearchSortValues searchSortValuesFromProto(SearchSortValuesProto proto) throws ProtoSerDeHelpers.SerializationException {
         Object[] formattedSortValues = null;
         Object[] rawSortValues = null;
 
@@ -186,7 +169,7 @@ public class SerDe {
             try (StreamInput formattedIn = formattedBytes.streamInput()) {
                 formattedSortValues = formattedIn.readArray(Lucene::readSortValue, Object[]::new);
             } catch (IOException e) {
-                throw new SerDe.SerializationException("Failed to deserialize SearchSortValues from proto object", e);
+                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from proto object", e);
             }
         }
 
@@ -195,7 +178,7 @@ public class SerDe {
             try (StreamInput rawIn = rawBytes.streamInput()) {
                 rawSortValues = rawIn.readArray(Lucene::readSortValue, Object[]::new);
             } catch (IOException e) {
-                throw new SerDe.SerializationException("Failed to deserialize SearchSortValues from proto object", e);
+                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from proto object", e);
             }
         }
 
