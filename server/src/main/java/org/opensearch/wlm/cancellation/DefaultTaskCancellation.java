@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.TRACKED_RESOURCES;
@@ -69,14 +70,32 @@ public class DefaultTaskCancellation {
      * Cancel tasks based on the implemented strategy.
      */
     public final void cancelTasks() {
-        // cancel tasks from QueryGroups that have been deleted
-        cancelTasksFromDeletedQueryGroups();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
         cancelTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        // if the node is in duress, cancel tasks accordingly.
+        handleNodeDuress();
+    }
 
-        if (isNodeInDuress.getAsBoolean()) {
-            cancelTasks(QueryGroup.ResiliencyMode.SOFT);
+    private void handleNodeDuress() {
+        if (!isNodeInDuress.getAsBoolean()) {
+            return;
         }
+        // List of tasks to be executed in order if the node is in duress
+        List<Consumer<Void>> duressActions = List.of(
+            v -> cancelTasksFromDeletedQueryGroups(),
+            v -> cancelTasks(QueryGroup.ResiliencyMode.SOFT)
+        );
+
+        for (Consumer<Void> duressAction : duressActions) {
+            if (!isNodeInDuress.getAsBoolean()) {
+                break;
+            }
+            duressAction.accept(null);
+        }
+    }
+
+    private void cancelTasksFromDeletedQueryGroups() {
+        cancelTasks(getAllCancellableTasks(this.deletedQueryGroups));
     }
 
     /**
@@ -130,12 +149,6 @@ public class DefaultTaskCancellation {
 
     private void cancelTasks(QueryGroup.ResiliencyMode resiliencyMode) {
         cancelTasks(getAllCancellableTasks(resiliencyMode));
-    }
-
-    private void cancelTasksFromDeletedQueryGroups() {
-        for (QueryGroup querygroup : this.deletedQueryGroups) {
-            cancelTasks(getTaskCancellationsForDeletedQueryGroup(querygroup));
-        }
     }
 
     private void cancelTasks(List<TaskCancellation> cancellableTasks) {
