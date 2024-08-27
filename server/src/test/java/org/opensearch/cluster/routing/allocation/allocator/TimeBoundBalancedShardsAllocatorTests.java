@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.routing.allocation;
+package org.opensearch.cluster.routing.allocation.allocator;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
@@ -21,7 +21,7 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
@@ -37,6 +37,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING;
 
 public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationTestCase {
 
@@ -406,6 +407,35 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(3, relocatingShards.size());
+    }
+
+    public void testAllocatorNeverTimedOutIfValueIsMinusOne() {
+        Settings build = Settings.builder().put("cluster.routing.allocation.balanced_shards_allocator.allocator_timeout", "-1").build();
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(build);
+        assertFalse(allocator.allocatorTimedOut(randomLong()));
+    }
+
+    public void testAllocatorTimeout() {
+        String settingKey = "cluster.routing.allocation.balanced_shards_allocator.allocator_timeout";
+        // Valid setting with timeout = 20s
+        Settings build = Settings.builder().put(settingKey, "20s").build();
+        assertEquals(20, ALLOCATOR_TIMEOUT_SETTING.get(build).getSeconds());
+
+        // Valid setting with timeout > 20s
+        build = Settings.builder().put(settingKey, "30000ms").build();
+        assertEquals(30, ALLOCATOR_TIMEOUT_SETTING.get(build).getSeconds());
+
+        // Invalid setting with timeout < 20s
+        Settings lessThan20sSetting = Settings.builder().put(settingKey, "10s").build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> ALLOCATOR_TIMEOUT_SETTING.get(lessThan20sSetting)
+        );
+        assertEquals("Setting [" + settingKey + "] should be more than 20s or -1ms to disable timeout", iae.getMessage());
+
+        // Valid setting with timeout = -1
+        build = Settings.builder().put(settingKey, "-1").build();
+        assertEquals(-1, ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
     }
 
     private RoutingTable buildRoutingTable(Metadata metadata) {
