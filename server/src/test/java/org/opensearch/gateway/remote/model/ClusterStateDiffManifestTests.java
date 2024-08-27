@@ -45,6 +45,7 @@ import static org.opensearch.Version.CURRENT;
 import static org.opensearch.cluster.ClusterState.EMPTY_STATE;
 import static org.opensearch.core.common.transport.TransportAddress.META_ADDRESS;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V4;
 import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.generateClusterStateWithOneIndex;
 import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
@@ -120,7 +121,7 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         diffManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser, CODEC_V3);
+            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser, CODEC_V4);
             assertEquals(diffManifest, parsedManifest);
         }
     }
@@ -132,7 +133,7 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         ClusterState updatedState = generateClusterStateWithOneIndex("test-index", 5, 2, false).nodes(nodesWithLocalNodeClusterManager())
             .build();
 
-        ClusterStateDiffManifest diffManifest = verifyRoutingTableDiffManifest(initialState, updatedState);
+        ClusterStateDiffManifest diffManifest = verifyRoutingTableDiffManifest(initialState, updatedState, CODEC_V3);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         diffManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -143,14 +144,14 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         }
     }
 
-    public void testClusterStateWithRoutingTableDiffInDiffManifestXContent1() throws IOException {
+    public void testClusterStateWithRoutingTableDiffInDiffManifestXContentWithDeletes() throws IOException {
         ClusterState initialState = generateClusterStateWithOneIndex("test-index", 5, 1, true).nodes(nodesWithLocalNodeClusterManager())
             .build();
 
         ClusterState updatedState = generateClusterStateWithOneIndex("test-index-1", 5, 2, false).nodes(nodesWithLocalNodeClusterManager())
             .build();
 
-        ClusterStateDiffManifest diffManifest = verifyRoutingTableDiffManifest(initialState, updatedState);
+        ClusterStateDiffManifest diffManifest = verifyRoutingTableDiffManifest(initialState, updatedState, CODEC_V3);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         diffManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -161,13 +162,59 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         }
     }
 
-    private ClusterStateDiffManifest verifyRoutingTableDiffManifest(ClusterState previousState, ClusterState currentState) {
+    public void testClusterStateWithRoutingTableDiffInDiffManifestXContentV4() throws IOException {
+        ClusterState initialState = generateClusterStateWithOneIndex("test-index", 5, 1, true).nodes(nodesWithLocalNodeClusterManager())
+            .build();
+
+        ClusterState updatedState = generateClusterStateWithOneIndex("test-index", 5, 2, false).nodes(nodesWithLocalNodeClusterManager())
+            .build();
+
+        ClusterStateDiffManifest diffManifest = verifyRoutingTableDiffManifest(initialState, updatedState, CODEC_V4);
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        diffManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser, CODEC_V4);
+            assertEquals(diffManifest, parsedManifest);
+        }
+    }
+
+    public void testClusterStateWithRoutingTableDiffInDiffManifestXContentWithDeletesV4() throws IOException {
+        ClusterState initialState = generateClusterStateWithOneIndex("test-index", 5, 1, true).nodes(nodesWithLocalNodeClusterManager())
+            .build();
+
+        ClusterState updatedState = generateClusterStateWithOneIndex("test-index-1", 5, 2, false).nodes(nodesWithLocalNodeClusterManager())
+            .build();
+
+        ClusterStateDiffManifest diffManifest = verifyRoutingTableDiffManifest(initialState, updatedState, CODEC_V4);
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        diffManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser, CODEC_V4);
+            assertEquals(diffManifest, parsedManifest);
+        }
+    }
+
+    private ClusterStateDiffManifest verifyRoutingTableDiffManifest(
+        ClusterState previousState,
+        ClusterState currentState,
+        int codecVersion
+    ) {
         // Create initial and updated IndexRoutingTable maps
         StringKeyDiffProvider<IndexRoutingTable> routingTableDiff = new RoutingTableIncrementalDiff(
             previousState.getRoutingTable(),
             currentState.getRoutingTable()
         );
-        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(currentState, previousState, "indicesRoutingDiffPath");
+        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(
+            currentState,
+            previousState,
+            codecVersion,
+            routingTableDiff,
+            "indicesRoutingDiffPath"
+        );
         assertEquals("indicesRoutingDiffPath", manifest.getIndicesRoutingDiffPath());
         return manifest;
     }
@@ -244,7 +291,7 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         }
         ClusterState updatedClusterState = clusterStateBuilder.metadata(metadataBuilder.build()).build();
 
-        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(updatedClusterState, initialState, null);
+        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(updatedClusterState, initialState, CODEC_V4, null, null);
         assertEquals(indicesToAdd.stream().map(im -> im.getIndex().getName()).collect(toList()), manifest.getIndicesUpdated());
         assertEquals(indicesToRemove, manifest.getIndicesDeleted());
         assertEquals(new ArrayList<>(customsToAdd.keySet()), manifest.getCustomMetadataUpdated());

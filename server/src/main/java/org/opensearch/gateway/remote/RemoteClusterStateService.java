@@ -92,12 +92,14 @@ import static java.util.Collections.emptyMap;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTE;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.UploadedMetadataResults;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.clusterUUIDContainer;
+import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_DELIMITER;
@@ -241,7 +243,13 @@ public class RemoteClusterStateService implements Closeable {
             null
         );
 
-        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(clusterState, ClusterState.EMPTY_STATE, null);
+        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
+            clusterState,
+            ClusterState.EMPTY_STATE,
+            MANIFEST_CURRENT_CODEC_VERSION,
+            null,
+            null
+        );
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
             uploadedMetadataResults,
@@ -433,6 +441,8 @@ public class RemoteClusterStateService implements Closeable {
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
             previousClusterState,
+            MANIFEST_CURRENT_CODEC_VERSION,
+            routingTableDiff,
             uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
                 ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
                 : null
@@ -1390,6 +1400,11 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         List<UploadedIndexMetadata> updatedIndexRouting = new ArrayList<>();
+        if (manifest.getCodecVersion() == CODEC_V2 || manifest.getCodecVersion() == CODEC_V3) {
+            updatedIndexRouting.addAll(
+                remoteRoutingTableService.getUpdatedIndexRoutingTableMetadata(diff.getIndicesRoutingUpdated(), manifest.getIndicesRouting())
+            );
+        }
 
         ClusterState updatedClusterState = readClusterStateInParallel(
             previousState,
@@ -1433,7 +1448,11 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         HashMap<String, IndexRoutingTable> indexRoutingTables = new HashMap<>(updatedClusterState.getRoutingTable().getIndicesRouting());
-
+        if (manifest.getCodecVersion() == CODEC_V2 || manifest.getCodecVersion() == CODEC_V3) {
+            for (String indexName : diff.getIndicesRoutingDeleted()) {
+                indexRoutingTables.remove(indexName);
+            }
+        }
         return clusterStateBuilder.stateUUID(manifest.getStateUUID())
             .version(manifest.getStateVersion())
             .metadata(metadataBuilder)
