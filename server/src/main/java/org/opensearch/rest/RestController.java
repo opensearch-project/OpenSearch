@@ -131,7 +131,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
-        this.handlerWrapper = handlerWrapper;
+        if (handlerWrapper == null) {
+            this.handlerWrapper = PASS_THROUGH_REST_HANDLER_WRAPPER;
+        } else {
+            this.handlerWrapper = handlerWrapper;
+        }
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(
