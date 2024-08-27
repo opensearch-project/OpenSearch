@@ -201,7 +201,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         if (lockedMetadataFiles.isEmpty()) {
             return null;
         }
-        assert lockedMetadataFiles.size() == 1 : "Expected exactly one metadata file but got " + lockedMetadataFiles;
+        if (lockedMetadataFiles.size() > 1) {
+            throw new IOException(
+                "Expected exactly one metadata file matching timestamp: " + timestamp + " but got " + lockedMetadataFiles
+            );
+        }
         String metadataFile = lockedMetadataFiles.iterator().next();
         RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
         if (remoteSegmentMetadata != null) {
