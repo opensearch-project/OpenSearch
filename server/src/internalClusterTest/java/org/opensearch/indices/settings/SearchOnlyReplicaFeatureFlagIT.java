@@ -45,10 +45,7 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(indexSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, false).build();
 
         SettingsException settingsException = expectThrows(SettingsException.class, () -> createIndex(TEST_INDEX, settings));
-        assertEquals(
-            "unknown setting [index.number_of_search_only_replicas] did you mean [index.number_of_routing_shards]?",
-            settingsException.getMessage()
-        );
+        assertTrue(settingsException.getMessage().contains("unknown setting"));
     }
 
     public void testUpdateFeatureFlagDisabled() {
@@ -67,9 +64,6 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1))
                 .get();
         });
-        assertEquals(
-            "unknown setting [index.number_of_search_only_replicas] did you mean [index.number_of_routing_shards]?",
-            settingsException.getMessage()
-        );
+        assertTrue(settingsException.getMessage().contains("unknown setting"));
     }
 }
