@@ -24,12 +24,12 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.serde.proto.SearchHitsTransportProto.DocumentFieldProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.HighlightFieldProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.SearchSortValuesProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.SearchShardTargetProto;
 import org.opensearch.serde.proto.SearchHitsTransportProto.ExplanationProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.ShardIdProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.HighlightFieldProto;
 import org.opensearch.serde.proto.SearchHitsTransportProto.IndexProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchShardTargetProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchSortValuesProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.ShardIdProto;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,6 +55,7 @@ public class SerDe {
         public SerializationException(String message) {
             super(message);
         }
+
         public SerializationException(String message, Throwable cause) {
             super(message, cause);
         }
@@ -62,11 +63,13 @@ public class SerDe {
 
     interface nativeSerializer {
         void toNativeStream(StreamOutput out) throws IOException;
+
         void fromNativeStream(StreamInput in) throws IOException;
     }
 
     interface protobufSerializer {
         void toProtobufStream(StreamOutput out) throws IOException;
+
         void fromProtobufStream(StreamInput in) throws IOException;
     }
 
@@ -108,7 +111,7 @@ public class SerDe {
         try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
             docsOut.writeCollection(field.getValues(), StreamOutput::writeGenericValue);
             builder.addValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
-        } catch (IOException e){
+        } catch (IOException e) {
             builder.addValues(ByteString.EMPTY);
         }
 
@@ -133,8 +136,7 @@ public class SerDe {
     }
 
     static HighlightFieldProto highlightFieldToProto(HighlightField field) {
-        HighlightFieldProto.Builder builder = HighlightFieldProto.newBuilder()
-            .setName(field.getName());
+        HighlightFieldProto.Builder builder = HighlightFieldProto.newBuilder().setName(field.getName());
 
         for (Text frag : field.getFragments()) {
             builder.addFragments(frag.string());
@@ -161,14 +163,14 @@ public class SerDe {
         try (BytesStreamOutput formOut = new BytesStreamOutput()) {
             formOut.writeArray(Lucene::writeSortValue, searchSortValues.getFormattedSortValues());
             builder.addFormattedSortValues(ByteString.copyFrom(formOut.bytes().toBytesRef().bytes));
-        } catch (IOException e){
+        } catch (IOException e) {
             builder.addFormattedSortValues(ByteString.EMPTY);
         }
 
         try (BytesStreamOutput rawOut = new BytesStreamOutput()) {
             rawOut.writeArray(Lucene::writeSortValue, searchSortValues.getFormattedSortValues());
             builder.addRawSortValues(ByteString.copyFrom(rawOut.bytes().toBytesRef().bytes));
-        } catch (IOException e){
+        } catch (IOException e) {
             builder.addRawSortValues(ByteString.EMPTY);
         }
 
@@ -230,10 +232,7 @@ public class SerDe {
     }
 
     static IndexProto indexToProto(Index index) {
-        return IndexProto.newBuilder()
-            .setName(index.getName())
-            .setUuid(index.getUUID())
-            .build();
+        return IndexProto.newBuilder().setName(index.getName()).setUuid(index.getUUID()).build();
     }
 
     public static Index indexFromProto(IndexProto proto) {

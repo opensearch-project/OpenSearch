@@ -60,7 +60,6 @@ public class FetchSearchResultSerDe extends FetchSearchResult implements SerDe.n
         toProto().writeTo(out);
     }
 
-
     @Override
     public void fromProtobufStream(StreamInput in) throws IOException {
         FetchSearchResultProto proto = FetchSearchResultProto.parseFrom(in);

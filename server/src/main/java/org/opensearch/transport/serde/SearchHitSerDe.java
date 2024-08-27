@@ -20,8 +20,8 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
-import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitProto;
 import org.opensearch.serde.proto.SearchHitsTransportProto.NestedIdentityProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitProto;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -197,17 +197,11 @@ public class SearchHitSerDe extends SearchHit implements SerDe.nativeSerializer,
         builder.setExplanation(explanationToProto(explanation));
         builder.setSortValues(searchSortValuesToProto(sortValues));
 
-        documentFields.forEach((key, value) ->
-            builder.putDocumentFields(key, documentFieldToProto(value))
-        );
+        documentFields.forEach((key, value) -> builder.putDocumentFields(key, documentFieldToProto(value)));
 
-        metaFields.forEach((key, value) ->
-            builder.putMetaFields(key, documentFieldToProto(value))
-        );
+        metaFields.forEach((key, value) -> builder.putMetaFields(key, documentFieldToProto(value)));
 
-        highlightFields.forEach((key, value) ->
-            builder.putHighlightFields(key, highlightFieldToProto(value))
-        );
+        highlightFields.forEach((key, value) -> builder.putHighlightFields(key, highlightFieldToProto(value)));
 
         matchedQueries.forEach(builder::putMatchedQueries);
 
@@ -216,9 +210,7 @@ public class SearchHitSerDe extends SearchHit implements SerDe.nativeSerializer,
             builder.setShard(searchShardTargetToProto(shard));
         }
 
-        innerHits.forEach((key, value) ->
-            builder.putInnerHits(key, new SearchHitsSerDe(value, strategy).toProto())
-        );
+        innerHits.forEach((key, value) -> builder.putInnerHits(key, new SearchHitsSerDe(value, strategy).toProto()));
 
         return builder.build();
     }
@@ -237,24 +229,16 @@ public class SearchHitSerDe extends SearchHit implements SerDe.nativeSerializer,
         matchedQueries = proto.getMatchedQueriesMap();
 
         documentFields = new HashMap<>();
-        proto.getDocumentFieldsMap().forEach((key, value) ->
-            documentFields.put(key, documentFieldFromProto(value))
-        );
+        proto.getDocumentFieldsMap().forEach((key, value) -> documentFields.put(key, documentFieldFromProto(value)));
 
         metaFields = new HashMap<>();
-        proto.getMetaFieldsMap().forEach((key, value) ->
-            metaFields.put(key, documentFieldFromProto(value))
-        );
+        proto.getMetaFieldsMap().forEach((key, value) -> metaFields.put(key, documentFieldFromProto(value)));
 
         highlightFields = new HashMap<>();
-        proto.getHighlightFieldsMap().forEach((key, value) ->
-            highlightFields.put(key, highlightFieldFromProto(value))
-        );
+        proto.getHighlightFieldsMap().forEach((key, value) -> highlightFields.put(key, highlightFieldFromProto(value)));
 
         innerHits = new HashMap<>();
-        proto.getInnerHitsMap().forEach((key, value) ->
-            innerHits.put(key, new SearchHitsSerDe(value))
-        );
+        proto.getInnerHitsMap().forEach((key, value) -> innerHits.put(key, new SearchHitsSerDe(value)));
 
         shard = searchShardTargetFromProto(proto.getShard());
         index = shard.getIndex();

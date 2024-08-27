@@ -133,7 +133,7 @@ public class SearchHits implements Writeable, ToXContentFragment, Iterable<Searc
         collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
     }
 
-    protected SearchHits () {}
+    protected SearchHits() {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

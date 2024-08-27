@@ -111,31 +111,27 @@ public class SearchHitsSerDe extends SearchHits implements SerDe.nativeSerialize
     }
 
     SearchHitsProto toProto() {
-        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder()
-            .setMaxScore(maxScore)
-            .setCollapseField(collapseField);
+        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder().setMaxScore(maxScore).setCollapseField(collapseField);
 
         for (SearchHit hit : hits) {
             builder.addHits(new SearchHitSerDe(hit, strategy).toProto());
         }
 
         TotalHits totHits = totalHits;
-        TotalHitsProto.Builder totHitsBuilder = TotalHitsProto.newBuilder()
-            .setRelation(totHits.relation.ordinal())
-            .setValue(totHits.value);
+        TotalHitsProto.Builder totHitsBuilder = TotalHitsProto.newBuilder().setRelation(totHits.relation.ordinal()).setValue(totHits.value);
         builder.setTotalHits(totHitsBuilder);
 
         try (BytesStreamOutput sortOut = new BytesStreamOutput()) {
             sortOut.writeOptionalArray(Lucene::writeSortField, sortFields);
             builder.setSortFields(ByteString.copyFrom(sortOut.bytes().toBytesRef().bytes));
-        } catch (IOException e){
+        } catch (IOException e) {
             throw new SerDe.SerializationException("Failed to serialize SearchHits to proto", e);
         }
 
         try (BytesStreamOutput collapseOut = new BytesStreamOutput()) {
             collapseOut.writeOptionalArray(Lucene::writeSortValue, collapseValues);
             builder.setCollapseValues(ByteString.copyFrom(collapseOut.bytes().toBytesRef().bytes));
-        } catch (IOException e){
+        } catch (IOException e) {
             throw new SerDe.SerializationException("Failed to serialize SearchHits to proto", e);
         }
 
@@ -167,7 +163,7 @@ public class SearchHitsSerDe extends SearchHits implements SerDe.nativeSerialize
         }
 
         hits = new SearchHit[proto.getHitsCount()];
-        for(int i = 0; i < hits.length; i++) {
+        for (int i = 0; i < hits.length; i++) {
             try {
                 hits[i] = new SearchHitSerDe(proto.getHits(i));
             } catch (IOException e) {
