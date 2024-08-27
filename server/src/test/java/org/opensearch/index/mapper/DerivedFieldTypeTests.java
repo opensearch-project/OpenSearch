@@ -18,13 +18,10 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.index.query.DerivedFieldQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.script.Script;
@@ -166,12 +163,18 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
 
     public void testDerivedFieldValueFetcherDoesNotSupportCustomFormats() {
         DerivedFieldType dft = createDerivedFieldType("boolean");
-        expectThrows(IllegalArgumentException.class, () -> dft.valueFetcher(mock(QueryShardContext.class), mock(SearchLookup.class), "yyyy-MM-dd"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> dft.valueFetcher(mock(QueryShardContext.class), mock(SearchLookup.class), "yyyy-MM-dd")
+        );
     }
 
     public void testSpanPrefixQueryNotSupported() {
         DerivedFieldType dft = createDerivedFieldType("boolean");
-        expectThrows(IllegalArgumentException.class, () -> dft.spanPrefixQuery("value", mock(SpanMultiTermQueryWrapper.SpanRewriteMethod.class), mock(QueryShardContext.class)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> dft.spanPrefixQuery("value", mock(SpanMultiTermQueryWrapper.SpanRewriteMethod.class), mock(QueryShardContext.class))
+        );
     }
 
     private static LeafSearchLookup mockValueFetcherForAggs(QueryShardContext mockContext, DerivedFieldType dft, List<Object> expected) {

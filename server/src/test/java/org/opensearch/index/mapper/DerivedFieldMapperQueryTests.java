@@ -15,6 +15,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -24,10 +25,12 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.Index;
 import org.opensearch.geometry.Rectangle;
+import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.search.QueryStringQueryParser;
 import org.opensearch.script.DerivedFieldScript;
 
 import java.io.IOException;
@@ -436,7 +439,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
         }
     }
 
-    public void testObjectDerivedFields() throws IOException {
+    public void testObjectDerivedFields() throws IOException, ParseException {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("properties");
             {
@@ -546,6 +549,10 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 topDocs = searcher.search(query, 10);
                 assertEquals(0, topDocs.totalHits.value);
 
+                query = new MatchPhrasePrefixQueryBuilder("object_field.text_field", "document number").toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(0, topDocs.totalHits.value);
+
                 // Multi Phrase Query
                 query = QueryBuilders.multiMatchQuery("GET", "object_field.nested_field.sub_field_1", "object_field.keyword_field")
                     .type(MultiMatchQueryBuilder.Type.PHRASE)
@@ -572,6 +579,11 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 assertEquals(2, topDocs.totalHits.value);
 
                 query = QueryBuilders.wildcardQuery("object_field.keyword_field", "g*").toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(7, topDocs.totalHits.value);
+
+                QueryStringQueryParser queryParser = new QueryStringQueryParser(queryShardContext, "object_field.keyword_field");
+                queryParser.parse("GE?");
                 topDocs = searcher.search(query, 10);
                 assertEquals(7, topDocs.totalHits.value);
 
