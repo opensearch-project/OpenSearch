@@ -1223,53 +1223,21 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
-        out.writeVInt(mappings.size());
-        mappings.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-            try {
-                entry.getValue().writeTo(out);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        out.writeVInt(aliases.size());
-        aliases.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-            try {
-                entry.getValue().writeTo(out);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        out.writeVInt(customData.size());
-        customData.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-            try {
-                out.writeString(entry.getKey());
-                entry.getValue().writeToSorted(out);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        out.writeVInt(inSyncAllocationIds.size());
-        inSyncAllocationIds.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-            try {
-                out.writeVInt(entry.getKey());
-                DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(entry.getValue()), out);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        out.writeVInt(rolloverInfos.size());
-        rolloverInfos.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-            try {
-                entry.getValue().writeTo(out);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
+        out.writeMapValuesOrderedByKey(mappings, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        out.writeMapValuesOrderedByKey(aliases, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        out.writeMapOrderedByKey(
+            customData,
+            Map.Entry.comparingByKey(),
+            StreamOutput::writeString,
+            (stream, val) -> val.writeToSorted(stream)
+        );
+        out.writeMapOrderedByKey(
+            inSyncAllocationIds,
+            Map.Entry.comparingByKey(),
+            StreamOutput::writeVInt,
+            (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
+        );
+        out.writeMapValuesOrderedByKey(rolloverInfos, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
         out.writeBoolean(isSystem);
     }
 

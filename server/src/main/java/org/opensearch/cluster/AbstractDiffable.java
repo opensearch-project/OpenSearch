@@ -85,9 +85,7 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
 
         @Override
         public String toString() {
-            return "CompleteDiff{" +
-                "part=" + part +
-                '}';
+            return "CompleteDiff{" + "part=" + part + '}';
         }
 
         /**

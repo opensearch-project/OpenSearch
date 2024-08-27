@@ -122,15 +122,8 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
         DiscoveryNode node2 = DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2");
         DiscoveryNode node3 = DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9202), "node3");
 
-        DiscoveryNodes nodes1 = DiscoveryNodes.builder().clusterManagerNodeId("test-node")
-            .add(node1)
-            .add(node2)
-            .add(node3)
-            .build();
-        DiscoveryNodes nodes2 = DiscoveryNodes.builder().clusterManagerNodeId("test-node")
-            .add(node2)
-            .add(node3)
-            .build();
+        DiscoveryNodes nodes1 = DiscoveryNodes.builder().clusterManagerNodeId("test-node").add(node1).add(node2).add(node3).build();
+        DiscoveryNodes nodes2 = DiscoveryNodes.builder().clusterManagerNodeId("test-node").add(node2).add(node3).build();
         nodes2 = nodes2.newNode(node1);
         ClusterState state2 = ClusterState.builder(state1).nodes(nodes1).build();
         ClusterState state3 = ClusterState.builder(state1).nodes(nodes2).build();
@@ -139,7 +132,7 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
         ClusterStateChecksum checksum2 = new ClusterStateChecksum(state3);
         assertEquals(checksum2, checksum1);
     }
-    
+
     private ClusterState generateClusterState() {
         final Index index = new Index("test-index", "index-uuid");
         final Settings idxSettings = Settings.builder()

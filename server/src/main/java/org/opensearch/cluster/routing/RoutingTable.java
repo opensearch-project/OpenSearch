@@ -437,10 +437,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         @Override
         public String toString() {
-            return "RoutingTableDiff{" +
-                "version=" + version +
-                ", indicesRouting=" + indicesRouting +
-                '}';
+            return "RoutingTableDiff{" + "version=" + version + ", indicesRouting=" + indicesRouting + '}';
         }
 
         @Override

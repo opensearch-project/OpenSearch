@@ -154,7 +154,9 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         out.writeLong(term);
         lastCommittedConfiguration.writeToSorted(out);
         lastAcceptedConfiguration.writeToSorted(out);
-        List<VotingConfigExclusion> sortedList = votingConfigExclusions.stream().sorted(Comparator.comparing(VotingConfigExclusion::getNodeId)).collect(Collectors.toList());
+        List<VotingConfigExclusion> sortedList = votingConfigExclusions.stream()
+            .sorted(Comparator.comparing(VotingConfigExclusion::getNodeId))
+            .collect(Collectors.toList());
         out.writeCollection(sortedList);
     }
 

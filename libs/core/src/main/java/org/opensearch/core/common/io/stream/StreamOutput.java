@@ -75,6 +75,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -639,6 +640,33 @@ public abstract class StreamOutput extends OutputStream {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
         }
+    }
+
+    public final <K, V> void writeMapOrderedByKey(final Map<K, V> map, Comparator<Map.Entry<K, V>> entryComparator, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
+        writeVInt(map.size());
+        map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry->
+            {
+                try {
+                    keyWriter.write(this, entry.getKey());
+                    valueWriter.write(this, entry.getValue());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        );
+    }
+
+    public final <K, V> void writeMapValuesOrderedByKey(final Map<K, V> map, Comparator<Map.Entry<K, V>> entryComparator, final Writer<V> valueWriter) throws IOException {
+        writeVInt(map.size());
+        map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry->
+            {
+                try {
+                    valueWriter.write(this, entry.getValue());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        );
     }
 
     /**

@@ -380,15 +380,13 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     public void writeToSorted(StreamOutput out) throws IOException {
         index.writeTo(out);
         out.writeVInt(shards.size());
-        shards.values().stream().sorted(Comparator.comparing(IndexShardRoutingTable::getShardId)).forEach(indexShard ->
-            {
-                try {
-                    IndexShardRoutingTable.Builder.writeToSorted(indexShard, out);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+        shards.values().stream().sorted(Comparator.comparing(IndexShardRoutingTable::getShardId)).forEach(indexShard -> {
+            try {
+                IndexShardRoutingTable.Builder.writeToSorted(indexShard, out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        );
+        });
     }
 
     public static Builder builder(Index index) {
