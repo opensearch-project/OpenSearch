@@ -8,7 +8,7 @@
 
 package org.opensearch.wlm;
 
-import java.util.Optional;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 /**
  * This is stub at this point in time and will be replace by an acutal one in couple of days
@@ -25,13 +25,16 @@ public class QueryGroupService {
     /**
      *
      * @param queryGroupId query group identifier
-     * @return whether the queryGroup is contended and should reject new incoming requests
      */
-    public Optional<String> shouldRejectFor(String queryGroupId) {
-        if (queryGroupId == null) return Optional.empty();
+    public void rejectIfNeeded(String queryGroupId) {
+        if (queryGroupId == null) return;
+        boolean reject = false;
+        final StringBuilder reason = new StringBuilder();
         // TODO: At this point this is dummy and we need to decide whether to cancel the request based on last
         // reported resource usage for the queryGroup. We also need to increment the rejection count here for the
         // query group
-        return Optional.of("Possible reason. ");
+        if (reject) {
+            throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended." + reason.toString());
+        }
     }
 }

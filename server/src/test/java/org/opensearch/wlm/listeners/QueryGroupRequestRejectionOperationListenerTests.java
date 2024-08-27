@@ -15,10 +15,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 
-import java.util.Optional;
-
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class QueryGroupRequestRejectionOperationListenerTests extends OpenSearchTestCase {
     ThreadPool testThreadPool;
@@ -28,6 +27,8 @@ public class QueryGroupRequestRejectionOperationListenerTests extends OpenSearch
     public void setUp() throws Exception {
         super.setUp();
         testThreadPool = new TestThreadPool("RejectionTestThreadPool");
+        queryGroupService = mock(QueryGroupService.class);
+        sut = new QueryGroupRequestRejectionOperationListener(queryGroupService, testThreadPool);
     }
 
     public void tearDown() throws Exception {
@@ -36,21 +37,16 @@ public class QueryGroupRequestRejectionOperationListenerTests extends OpenSearch
     }
 
     public void testRejectionCase() {
-        queryGroupService = mock(QueryGroupService.class);
-        sut = new QueryGroupRequestRejectionOperationListener(queryGroupService, testThreadPool);
         final String testQueryGroupId = "asdgasgkajgkw3141_3rt4t";
         testThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, testQueryGroupId);
-        when(queryGroupService.shouldRejectFor(testQueryGroupId)).thenReturn(Optional.of("Test query group is contended"));
-
+        doThrow(OpenSearchRejectedExecutionException.class).when(queryGroupService).rejectIfNeeded(testQueryGroupId);
         assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.onRequestStart(null));
     }
 
     public void testNonRejectionCase() {
-        queryGroupService = mock(QueryGroupService.class);
-        sut = new QueryGroupRequestRejectionOperationListener(queryGroupService, testThreadPool);
         final String testQueryGroupId = "asdgasgkajgkw3141_3rt4t";
         testThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, testQueryGroupId);
-        when(queryGroupService.shouldRejectFor(testQueryGroupId)).thenReturn(Optional.empty());
+        doNothing().when(queryGroupService).rejectIfNeeded(testQueryGroupId);
 
         sut.onRequestStart(null);
     }

@@ -8,15 +8,12 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-
-import java.util.Optional;
 
 /**
  * This class is used to intercept search traffic requests and populate the queryGroupId header in task headers
@@ -61,11 +58,7 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
             if (isSearchWorkloadRequest(task)) {
                 ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
                 final String queryGroupId = ((QueryGroupTask) (task)).getQueryGroupId();
-                Optional<String> reason = queryGroupService.shouldRejectFor(queryGroupId);
-
-                if (reason.isPresent()) {
-                    throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended." + reason.get());
-                }
+                queryGroupService.rejectIfNeeded(queryGroupId);
             }
             actualHandler.messageReceived(request, channel, task);
         }
