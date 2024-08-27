@@ -798,37 +798,43 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(5L)
-            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+            .codecVersion(CODEC_V1)
             .build();
-        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION)))
-            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
         Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any(), eq(CODEC_V1)))
             .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest2"));
 
-        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any()))
-            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest3"));
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
-        ClusterState clusterState = createClusterState(
+
+        ClusterState clusterState1 = createClusterStateWithNodes(
             randomNonNegativeLong(),
             Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()).build()
         );
-        remotePersistedState.setLastAcceptedState(clusterState);
-        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
+        remotePersistedState.setLastAcceptedState(clusterState1);
+
+        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState1, previousClusterUUID, CODEC_V1);
 
         ClusterState clusterState2 = createClusterState(
             randomNonNegativeLong(),
             Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()).build()
         );
+        final ClusterMetadataManifest manifest2 = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(5L)
+            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+            .build();
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION)))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest2, "path/to/manifest"));
         remotePersistedState.setLastAcceptedState(clusterState2);
-        Mockito.verify(remoteClusterStateService).writeIncrementalMetadata(clusterState, clusterState2, manifest);
+        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState2, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
 
-        ClusterState clusterState3 = createClusterStateWithNodes(
+        ClusterState clusterState3 = createClusterState(
             randomNonNegativeLong(),
             Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()).build()
         );
+        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest2, "path/to/manifest3"));
         remotePersistedState.setLastAcceptedState(clusterState3);
-
-        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState3, previousClusterUUID, CODEC_V1);
+        Mockito.verify(remoteClusterStateService).writeIncrementalMetadata(clusterState2, clusterState3, manifest2);
 
     }
 

@@ -62,6 +62,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -97,6 +98,7 @@ public class PublicationTransportHandler {
     private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
     private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
+    private final AtomicBoolean allNodesRemotePublicationEnabled = new AtomicBoolean();
     // -> no need to put a timeout on the options here, because we want the response to eventually be received
     // and not log an error if it arrives after the timeout
     private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
@@ -333,7 +335,12 @@ public class PublicationTransportHandler {
         PersistedStateRegistry persistedStateRegistry
     ) {
         if (isRemotePublicationEnabled == true) {
-            if (validateRemotePublicationOnAllNodes(clusterChangedEvent.state().nodes()) == true) {
+            if (allNodesRemotePublicationEnabled.get() == false) {
+                if (validateRemotePublicationOnAllNodes(clusterChangedEvent.state().nodes()) == true) {
+                    allNodesRemotePublicationEnabled.set(true);
+                }
+            }
+            if (allNodesRemotePublicationEnabled.get() == true) {
                 // if all nodes are remote then create remote publication context
                 return new RemotePublicationContext(clusterChangedEvent, persistedStateRegistry);
             }
@@ -348,6 +355,9 @@ public class PublicationTransportHandler {
     }
 
     private boolean validateRemotePublicationOnAllNodes(DiscoveryNodes discoveryNodes) {
+        if (ClusterMetadataManifest.getCodecForVersion(discoveryNodes.getMinNodeVersion()) < ClusterMetadataManifest.CODEC_V0) {
+            return false;
+        }
         for (DiscoveryNode node : discoveryNodes.getNodes().values()) {
             // if a node is non-remote then created local publication context
             if (node.isRemoteStatePublicationEnabled() == false) {
@@ -514,6 +524,7 @@ public class PublicationTransportHandler {
         }
 
         public void sendClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
+            logger.info("sending cluster state over transport to node: {}", destination.getName());
             if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);
@@ -599,6 +610,11 @@ public class PublicationTransportHandler {
         }
     }
 
+    /**
+     * An extension of {@code PublicationContext} to support remote cluster state publication
+     *
+     * @opensearch.internal
+     */
     public class RemotePublicationContext extends PublicationContext {
 
         RemotePublicationContext(ClusterChangedEvent clusterChangedEvent, PersistedStateRegistry persistedStateRegistry) {
@@ -608,6 +624,7 @@ public class PublicationTransportHandler {
         @Override
         public void sendClusterState(final DiscoveryNode destination, final ActionListener<PublishWithJoinResponse> listener) {
             try {
+                logger.info("sending remote cluster state to node: {}", destination.getName());
                 final String manifestFileName = ((RemotePersistedState) persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE))
                     .getLastUploadedManifestFile();
                 final RemotePublishRequest remotePublishRequest = new RemotePublishRequest(

@@ -704,6 +704,7 @@ public class GatewayMetaState implements Closeable {
                 // Decide the codec version
                 int codecVersion = ClusterMetadataManifest.getCodecForVersion(clusterState.nodes().getMinNodeVersion());
                 assert codecVersion >= 0 : codecVersion;
+                logger.info("codec version is {}", codecVersion);
 
                 if (shouldWriteFullClusterState(clusterState, codecVersion)) {
                     final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
@@ -763,6 +764,7 @@ public class GatewayMetaState implements Closeable {
         }
 
         private boolean shouldWriteFullClusterState(ClusterState clusterState, int codecVersion) {
+            assert lastAcceptedManifest == null || lastAcceptedManifest.getCodecVersion() <= codecVersion;
             if (lastAcceptedState == null
                 || lastAcceptedManifest == null
                 || lastAcceptedState.term() != clusterState.term()
