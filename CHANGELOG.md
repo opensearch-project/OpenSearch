@@ -49,6 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `opentelemetry-semconv` from 1.26.0-alpha to 1.27.0-alpha ([#15361](https://github.com/opensearch-project/OpenSearch/pull/15361))
 - Bump `tj-actions/changed-files` from 44 to 45 ([#15422](https://github.com/opensearch-project/OpenSearch/pull/15422))
 - Bump `com.netflix.nebula.ospackage-base` from 11.9.1 to 11.10.0 ([#15419](https://github.com/opensearch-project/OpenSearch/pull/15419))
+- Bump `org.roaringbitmap:RoaringBitmap` from 1.1.0 to 1.2.1 ([#15423](https://github.com/opensearch-project/OpenSearch/pull/15423))
 
 ### Changed
 - Add lower limit for primary and replica batch allocators timeout ([#14979](https://github.com/opensearch-project/OpenSearch/pull/14979))
