@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
 
     /**
-     * Test case to verify the serialization and deserialization of CreateQueryGroupResponse.
+     * Test case to verify serialization and deserialization of CreateQueryGroupResponse.
      */
     public void testSerialization() throws IOException {
         CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
@@ -46,7 +46,7 @@ public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test case to verify the toXContent method of CreateQueryGroupResponse.
+     * Test case to validate the toXContent method of CreateQueryGroupResponse.
      */
     public void testToXContentCreateQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
