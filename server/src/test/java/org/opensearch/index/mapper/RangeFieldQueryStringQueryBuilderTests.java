@@ -49,8 +49,8 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryStringQueryBuilder;
+import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -176,36 +176,39 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.fieldMapper(DATE_FIELD_NAME);
         parser = dateType.dateMathParser;
         Query queryOnDateField = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
-        Query controlQuery = new ApproximateScoreQuery(
-            new PointRangeQuery(
-                DATE_FIELD_NAME,
-                pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
-                pack(new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }).bytes,
-                new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length
-            ) {
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            },
-            new ApproximatePointRangeQuery(
-                DATE_FIELD_NAME,
-                pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
-                pack(new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }).bytes,
-                new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length
-            ) {
-                @Override
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            }
-        );
 
         Query controlDv = SortedNumericDocValuesField.newSlowRangeQuery(
             DATE_FIELD_NAME,
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
             parser.parse(upperBoundExact, () -> 0).toEpochMilli()
         );
-        assertEquals(new IndexOrDocValuesQuery(controlQuery, controlDv), queryOnDateField);
+        assertEquals(
+            new ApproximateIndexOrDocValuesQuery(
+                new PointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
+                    pack(new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }).bytes,
+                    new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length
+                ) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                },
+                new ApproximatePointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
+                    pack(new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }).bytes,
+                    new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length
+                ) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                },
+                controlDv
+            ),
+            queryOnDateField
+        );
     }
 
     public void testIPRangeQuery() throws Exception {

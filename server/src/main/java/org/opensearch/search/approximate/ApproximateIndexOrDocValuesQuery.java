@@ -54,14 +54,15 @@ public final class ApproximateIndexOrDocValuesQuery extends ApproximateScoreQuer
         if (sameClassAs(obj) == false) {
             return false;
         }
-        ApproximateIndexOrDocValuesQuery that = (ApproximateIndexOrDocValuesQuery) obj;
-        return indexOrDocValuesQuery.getIndexQuery().equals(that.indexOrDocValuesQuery.getIndexQuery())
-            && indexOrDocValuesQuery.getRandomAccessQuery().equals(that.indexOrDocValuesQuery.getRandomAccessQuery());
+        return true;
     }
 
     @Override
     public int hashCode() {
-        return indexOrDocValuesQuery.hashCode();
+        int h = classHash();
+        h = 31 * h + indexOrDocValuesQuery.getIndexQuery().hashCode();
+        h = 31 * h + indexOrDocValuesQuery.getRandomAccessQuery().hashCode();
+        return h;
     }
 
     @Override

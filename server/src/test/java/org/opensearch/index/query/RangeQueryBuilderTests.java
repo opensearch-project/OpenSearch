@@ -34,6 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -53,8 +54,10 @@ import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
+import org.opensearch.search.approximate.ApproximateableQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -186,13 +189,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
                 assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
             } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
-                assertThat(query, instanceOf(ApproximateScoreQuery.class));
-                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
-                assertThat(originalQuery, instanceOf(PointRangeQuery.class));
-                Query approximateQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
-                assertThat(approximateQuery, instanceOf(ApproximatePointRangeQuery.class));
+                assertThat(query, instanceOf(ApproximateIndexOrDocValuesQuery.class));
+                query = ((ApproximateIndexOrDocValuesQuery) query).getApproximationQuery();
+                assertThat(query, instanceOf(ApproximateableQuery.class));
+                Query originalQuery = ((ApproximateIndexOrDocValuesQuery) query).getOriginalQuery();
+                assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
                 MapperService mapperService = context.getMapperService();
                 MappedFieldType mappedFieldType = mapperService.fieldType(expectedFieldName);
                 final Long fromInMillis;
@@ -331,17 +332,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
-        Query originalQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
-        assertThat(originalQuery, instanceOf(PointRangeQuery.class));
-        Query approximateQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
-        assertThat(approximateQuery, instanceOf(ApproximatePointRangeQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
+        Query approximationQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getApproximationQuery();
+        assertThat(approximationQuery, instanceOf(ApproximateableQuery.class));
+        Query originalQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getOriginalQuery();
+        assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
         long lower = DateTime.parse("2012-01-01T00:00:00.000+00").getMillis();
         long upper = DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1;
         assertEquals(
-            new ApproximateScoreQuery(
+            new ApproximateIndexOrDocValuesQuery(
                 new PointRangeQuery(
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
@@ -362,7 +361,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                }
+                },
+                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
             ),
             parsedQuery
         );
@@ -394,14 +394,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
 
         long lower = DateTime.parse("2014-11-01T00:00:00.000+00").getMillis();
         long upper = DateTime.parse("2014-12-08T23:59:59.999+00").getMillis();
         assertEquals(
-            new ApproximateScoreQuery(
+            new ApproximateIndexOrDocValuesQuery(
                 new PointRangeQuery(
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
@@ -422,9 +420,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                }
-            ).toString(),
-            parsedQuery.toString()
+                },
+                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+            )
+
+            ,
+            parsedQuery
         );
 
         query = "{\n"
@@ -438,13 +439,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}";
         parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
         lower = DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1;
         upper = DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1;
         assertEquals(
-            new ApproximateScoreQuery(
+            new ApproximateIndexOrDocValuesQuery(
                 new PointRangeQuery(
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
@@ -465,9 +464,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                }
-            ).toString(),
-            parsedQuery.toString()
+                },
+                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+            )
+
+            ,
+            parsedQuery
         );
     }
 
@@ -487,9 +489,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Query parsedQuery = parseQuery(query).toQuery(context);
         assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
         parsedQuery = ((DateRangeIncludingNowQuery) parsedQuery).getQuery();
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
+        parsedQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getApproximationQuery();
+        assertThat(parsedQuery, instanceOf(ApproximateableQuery.class));
         // TODO what else can we assert
 
         query = "{\n"

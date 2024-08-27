@@ -41,7 +41,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -66,8 +65,8 @@ import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -211,30 +210,28 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
-        Query expected = new IndexOrDocValuesQuery(
-            new ApproximateScoreQuery(
-                new PointRangeQuery(
-                    "field",
-                    pack(new long[] { instant }).bytes,
-                    pack(new long[] { instant + 999 }).bytes,
-                    new long[] { instant }.length
-                ) {
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                },
-                new ApproximatePointRangeQuery(
-                    "field",
-                    pack(new long[] { instant }).bytes,
-                    pack(new long[] { instant + 999 }).bytes,
-                    new long[] { instant }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
+        Query expected = new ApproximateIndexOrDocValuesQuery(
+            new PointRangeQuery(
+                "field",
+                pack(new long[] { instant }).bytes,
+                pack(new long[] { instant + 999 }).bytes,
+                new long[] { instant }.length
+            ) {
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
                 }
-            ),
+            },
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[] { instant }).bytes,
+                pack(new long[] { instant + 999 }).bytes,
+                new long[] { instant }.length
+            ) {
+                @Override
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            },
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999)
         );
         assertEquals(expected, ft.termQuery(date, context));
@@ -283,8 +280,39 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
-        Query expected = new IndexOrDocValuesQuery(
-            new ApproximateScoreQuery(
+        Query expected = new ApproximateIndexOrDocValuesQuery(
+            new PointRangeQuery(
+                "field",
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length
+            ) {
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            },
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length
+            ) {
+                @Override
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            },
+            SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+        );
+        assertEquals(
+            expected,
+            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
+        );
+
+        instant1 = nowInMillis;
+        instant2 = instant1 + 100;
+        expected = new DateRangeIncludingNowQuery(
+            new ApproximateIndexOrDocValuesQuery(
                 new PointRangeQuery(
                     "field",
                     pack(new long[] { instant1 }).bytes,
@@ -305,42 +333,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                }
-            ),
-            SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
-        );
-        assertEquals(
-            expected,
-            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
-        );
-
-        instant1 = nowInMillis;
-        instant2 = instant1 + 100;
-        expected = new DateRangeIncludingNowQuery(
-            new IndexOrDocValuesQuery(
-                new ApproximateScoreQuery(
-                    new PointRangeQuery(
-                        "field",
-                        pack(new long[] { instant1 }).bytes,
-                        pack(new long[] { instant2 }).bytes,
-                        new long[] { instant1 }.length
-                    ) {
-                        protected String toString(int dimension, byte[] value) {
-                            return Long.toString(LongPoint.decodeDimension(value, 0));
-                        }
-                    },
-                    new ApproximatePointRangeQuery(
-                        "field",
-                        pack(new long[] { instant1 }).bytes,
-                        pack(new long[] { instant2 }).bytes,
-                        new long[] { instant1 }.length
-                    ) {
-                        @Override
-                        protected String toString(int dimension, byte[] value) {
-                            return Long.toString(LongPoint.decodeDimension(value, 0));
-                        }
-                    }
-                ),
+                },
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
             )
         );
@@ -400,35 +393,35 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
 
-        Query pointQuery = new ApproximateScoreQuery(
-            new PointRangeQuery(
-                "field",
-                pack(new long[] { instant1 }).bytes,
-                pack(new long[] { instant2 }).bytes,
-                new long[] { instant1 }.length
-            ) {
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            },
-            new ApproximatePointRangeQuery(
-                "field",
-                pack(new long[] { instant1 }).bytes,
-                pack(new long[] { instant2 }).bytes,
-                new long[] { instant1 }.length
-            ) {
-                @Override
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            }
-        );
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         Query expected = new IndexSortSortedNumericDocValuesRangeQuery(
             "field",
             instant1,
             instant2,
-            new IndexOrDocValuesQuery(pointQuery, dvQuery)
+            new ApproximateIndexOrDocValuesQuery(
+                new PointRangeQuery(
+                    "field",
+                    pack(new long[] { instant1 }).bytes,
+                    pack(new long[] { instant2 }).bytes,
+                    new long[] { instant1 }.length
+                ) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                },
+                new ApproximatePointRangeQuery(
+                    "field",
+                    pack(new long[] { instant1 }).bytes,
+                    pack(new long[] { instant2 }).bytes,
+                    new long[] { instant1 }.length
+                ) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                },
+                dvQuery
+            )
         );
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
     }
