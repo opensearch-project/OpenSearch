@@ -91,7 +91,7 @@ public class OpenSearchRealm extends AuthenticatingRealm {
     public User getInternalUser(final String principalIdentifier) throws UnknownAccountException {
         final User userRecord = internalUsers.get(principalIdentifier);
         if (userRecord == null) {
-            throw new UnknownAccountException();
+            throw new UnknownAccountException("Incorrect credentials");
         }
         return userRecord;
     }
@@ -129,7 +129,7 @@ public class OpenSearchRealm extends AuthenticatingRealm {
                 return sai;
             } else {
                 // Bad password
-                throw new IncorrectCredentialsException();
+                throw new IncorrectCredentialsException("Incorrect credentials");
             }
         }
 

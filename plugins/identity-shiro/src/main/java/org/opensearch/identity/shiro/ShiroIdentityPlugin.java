@@ -83,14 +83,14 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
 
         @Override
         public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-            final AuthToken token = RestTokenExtractor.extractToken(request);
-            // If no token was found, continue executing the request
-            if (token == null) {
-                // Authentication did not fail so return true. Authorization is handled at the action level.
-                delegate.handleRequest(request, channel, client);
-                return;
-            }
             try {
+                final AuthToken token = RestTokenExtractor.extractToken(request);
+                // If no token was found, continue executing the request
+                if (token == null) {
+                    // Authentication did not fail so return true. Authorization is handled at the action level.
+                    delegate.handleRequest(request, channel, client);
+                    return;
+                }
                 ShiroSubject shiroSubject = (ShiroSubject) getSubject();
                 shiroSubject.authenticate(token);
                 // Caller was authorized, forward the request to the handler
