@@ -264,11 +264,16 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     );
                     assertEquals(expectedTimeUnits, dateDim.getIntervals());
                     assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
+                    assertEquals(2, starTreeFieldType.getMetrics().size());
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
 
                     // Assert default metrics
                     List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
+
+                    assertEquals("_doc_count", starTreeFieldType.getMetrics().get(1).getField());
+                    assertEquals(List.of(MetricStat.DOC_COUNT), starTreeFieldType.getMetrics().get(1).getMetrics());
+
                     assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
                     assertEquals(
                         StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP,
