@@ -56,7 +56,6 @@ import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.approximate.ApproximateableQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
@@ -190,8 +189,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
             } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
                 assertThat(query, instanceOf(ApproximateIndexOrDocValuesQuery.class));
-                query = ((ApproximateIndexOrDocValuesQuery) query).getApproximationQuery();
-                assertThat(query, instanceOf(ApproximateableQuery.class));
+                Query approximationQuery = ((ApproximateIndexOrDocValuesQuery) query).getApproximationQuery();
+                assertThat(approximationQuery, instanceOf(ApproximateableQuery.class));
                 Query originalQuery = ((ApproximateIndexOrDocValuesQuery) query).getOriginalQuery();
                 assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
                 MapperService mapperService = context.getMapperService();
@@ -243,7 +242,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     }
                 }
                 assertEquals(
-                    new ApproximateScoreQuery(
+                    new ApproximateIndexOrDocValuesQuery(
                         new PointRangeQuery(
                             DATE_FIELD_NAME,
                             pack(new long[] { minLong }).bytes,
@@ -264,7 +263,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
-                        }
+                        },
+                        SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, minLong, maxLong)
                     ),
                     query
                 );
