@@ -17,10 +17,14 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.index.query.DerivedFieldQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.script.Script;
@@ -59,6 +63,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
         assertTrue(dft.getFieldMapper() instanceof BooleanFieldMapper);
         assertTrue(dft.getIndexableFieldGenerator().apply(true) instanceof Field);
         assertTrue(dft.getIndexableFieldGenerator().apply(false) instanceof Field);
+        assertEquals("derived", dft.typeName());
     }
 
     public void testDateType() {
@@ -157,6 +162,16 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
         // test execute
         List<Object> result = (List<Object>) script.execute();
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString((String) expected.get(0)))), result.get(0));
+    }
+
+    public void testDerivedFieldValueFetcherDoesNotSupportCustomFormats() {
+        DerivedFieldType dft = createDerivedFieldType("boolean");
+        expectThrows(IllegalArgumentException.class, () -> dft.valueFetcher(mock(QueryShardContext.class), mock(SearchLookup.class), "yyyy-MM-dd"));
+    }
+
+    public void testSpanPrefixQueryNotSupported() {
+        DerivedFieldType dft = createDerivedFieldType("boolean");
+        expectThrows(IllegalArgumentException.class, () -> dft.spanPrefixQuery("value", mock(SpanMultiTermQueryWrapper.SpanRewriteMethod.class), mock(QueryShardContext.class)));
     }
 
     private static LeafSearchLookup mockValueFetcherForAggs(QueryShardContext mockContext, DerivedFieldType dft, List<Object> expected) {
