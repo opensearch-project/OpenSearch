@@ -14,7 +14,6 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.QueryVisitor;
@@ -430,21 +429,17 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
         if (context.aggregations() != null) {
             return false;
         }
-        if (!(context.query() instanceof IndexOrDocValuesQuery
-            && ((IndexOrDocValuesQuery) context.query()).getIndexQuery() instanceof ApproximateScoreQuery
-            && ((ApproximateScoreQuery) ((IndexOrDocValuesQuery) context.query()).getIndexQuery())
-                .getOriginalQuery() instanceof PointRangeQuery)) {
+        if (!(context.query() instanceof ApproximateIndexOrDocValuesQuery)) {
             return false;
         }
-        ApproximateScoreQuery query = ((ApproximateScoreQuery) ((IndexOrDocValuesQuery) context.query()).getIndexQuery());
-        ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(Math.max(context.size(), context.trackTotalHitsUpTo()));
+        this.setSize(Math.max(context.size(), context.trackTotalHitsUpTo()));
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null
                 && primarySortField.missing() == null
                 && primarySortField.getFieldName().equals(((RangeQueryBuilder) context.request().source().query()).fieldName())) {
                 if (primarySortField.order() == SortOrder.DESC) {
-                    ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSortOrder(SortOrder.DESC);
+                    this.setSortOrder(SortOrder.DESC);
                 }
             }
         }

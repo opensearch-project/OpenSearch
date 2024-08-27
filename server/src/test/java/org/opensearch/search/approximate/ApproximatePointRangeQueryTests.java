@@ -30,6 +30,8 @@ import static org.apache.lucene.document.LongPoint.pack;
 
 public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
+    protected static final String DATE_FIELD_NAME = "mapped_date";
+
     public void testApproximateRangeEqualsActualRange() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {

@@ -38,7 +38,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -62,8 +61,8 @@ import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -470,43 +469,42 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 Query pointRangeQuery = isSearchable() ? createPointRangeQuery(l, u) : null;
                 Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
                 if (isSearchable() && hasDocValues()) {
-                    Query query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
-
+                    Query query = new ApproximateIndexOrDocValuesQuery(
+                        pointRangeQuery,
+                        new ApproximatePointRangeQuery(
+                            name(),
+                            pack(new long[] { l }).bytes,
+                            pack(new long[] { u }).bytes,
+                            new long[] { l }.length
+                        ) {
+                            @Override
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        },
+                        dvQuery
+                    );
                     if (context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                     }
                     return query;
                 }
                 if (hasDocValues()) {
-                    Query query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     if (context.indexSortedOnField(name())) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                        dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
                     }
-                    return query;
+                    return dvQuery;
                 }
                 return pointRangeQuery;
             });
         }
 
         private Query createPointRangeQuery(long l, long u) {
-            return new ApproximateScoreQuery(
-                new PointRangeQuery(name(), pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                },
-                new ApproximatePointRangeQuery(
-                    name(),
-                    pack(new long[] { l }).bytes,
-                    pack(new long[] { u }).bytes,
-                    new long[] { l }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
+            return new PointRangeQuery(name(), pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
                 }
-            );
+            };
         }
 
         public static Query dateRangeQuery(
