@@ -357,7 +357,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
                                 }
                                 break;
                             case DELETES_FIELD:
-                                if (codec_version == CODEC_V2 || codec_version == CODEC_V3){
+                                if (codec_version == CODEC_V2 || codec_version == CODEC_V3) {
                                     builder.indicesRoutingDeleted(convertListToString(parser.listOrderedMap()));
                                 }
                                 break;
