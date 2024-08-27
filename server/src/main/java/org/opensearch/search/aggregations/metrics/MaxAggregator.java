@@ -38,6 +38,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
@@ -178,7 +179,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                     maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
                 if (values.advanceExact(doc)) {
-                    final double value = Double.longBitsToDouble(values.nextValue());
+                    final double value = NumericUtils.sortableLongToDouble(values.nextValue());
                     double max = maxes.get(bucket);
                     max = Math.max(max, value);
                     maxes.set(bucket, max);
