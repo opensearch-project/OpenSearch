@@ -57,7 +57,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.junit.After;
 import org.junit.Before;
 
@@ -152,7 +151,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
 
-        handler.inboundMessage(channel, new NativeInboundMessage(null, true));
+        handler.inboundMessage(channel, new InboundMessage(null, true));
         if (channel.isServerChannel()) {
             BytesReference ping = channel.getMessageCaptor().get();
             assertEquals('E', ping.get(0));
@@ -216,11 +215,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         );
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        NativeInboundMessage requestMessage = new NativeInboundMessage(
-            requestHeader,
-            ReleasableBytesReference.wrap(requestContent),
-            () -> {}
-        );
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
@@ -241,11 +236,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
         Header responseHeader = new Header(fullResponseBytes.length() - 6, requestId, responseStatus, version);
-        NativeInboundMessage responseMessage = new NativeInboundMessage(
-            responseHeader,
-            ReleasableBytesReference.wrap(responseContent),
-            () -> {}
-        );
+        InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
 
@@ -272,7 +263,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
             TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
             remoteVersion
         );
-        final NativeInboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
+        final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
         requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
         requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
         requestHeader.features = Set.of();
@@ -312,7 +303,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
                 remoteVersion
             );
-            final NativeInboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
+            final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             requestHeader.features = Set.of();
@@ -343,17 +334,13 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
                 remoteVersion
             );
-            final NativeInboundMessage requestMessage = new NativeInboundMessage(
-                requestHeader,
-                ReleasableBytesReference.wrap(BytesArray.EMPTY),
-                () -> {
-                    try {
-                        TimeUnit.SECONDS.sleep(1L);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {
+                try {
+                    TimeUnit.SECONDS.sleep(1L);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
-            );
+            });
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Collections.emptyMap(), Collections.emptyMap());
             requestHeader.features = Set.of();
@@ -425,11 +412,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         BytesReference fullRequestBytes = BytesReference.fromByteBuffer((ByteBuffer) buffer.flip());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        NativeInboundMessage requestMessage = new NativeInboundMessage(
-            requestHeader,
-            ReleasableBytesReference.wrap(requestContent),
-            () -> {}
-        );
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
@@ -494,11 +477,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         // Create the request payload by intentionally stripping 1 byte away
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize - 1);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        NativeInboundMessage requestMessage = new NativeInboundMessage(
-            requestHeader,
-            ReleasableBytesReference.wrap(requestContent),
-            () -> {}
-        );
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
@@ -562,11 +541,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         );
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        NativeInboundMessage requestMessage = new NativeInboundMessage(
-            requestHeader,
-            ReleasableBytesReference.wrap(requestContent),
-            () -> {}
-        );
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
@@ -588,11 +563,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         BytesReference fullResponseBytes = BytesReference.fromByteBuffer((ByteBuffer) buffer.flip());
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
         Header responseHeader = new Header(fullResponseBytes.length() - 6, requestId, responseStatus, version);
-        NativeInboundMessage responseMessage = new NativeInboundMessage(
-            responseHeader,
-            ReleasableBytesReference.wrap(responseContent),
-            () -> {}
-        );
+        InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
 
@@ -656,11 +627,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         );
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        NativeInboundMessage requestMessage = new NativeInboundMessage(
-            requestHeader,
-            ReleasableBytesReference.wrap(requestContent),
-            () -> {}
-        );
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
@@ -677,11 +644,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         // Create the response payload by intentionally stripping 1 byte away
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize - 1);
         Header responseHeader = new Header(fullResponseBytes.length() - 6, requestId, responseStatus, version);
-        NativeInboundMessage responseMessage = new NativeInboundMessage(
-            responseHeader,
-            ReleasableBytesReference.wrap(responseContent),
-            () -> {}
-        );
+        InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
 
@@ -690,8 +653,8 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
         assertThat(exceptionCaptor.get().getMessage(), containsString("Failed to deserialize response from handler"));
     }
 
-    private static NativeInboundMessage unreadableInboundHandshake(Version remoteVersion, Header requestHeader) {
-        return new NativeInboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {}) {
+    private static InboundMessage unreadableInboundHandshake(Version remoteVersion, Header requestHeader) {
+        return new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {}) {
             @Override
             public StreamInput openOrGetStreamInput() {
                 final StreamInput streamInput = new InputStreamStreamInput(new InputStream() {
