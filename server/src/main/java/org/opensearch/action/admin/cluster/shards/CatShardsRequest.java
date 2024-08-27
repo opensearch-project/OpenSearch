@@ -28,7 +28,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
 public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsRequest> {
 
     private String[] indices;
-    private TimeValue cancelAfterTimeInterval = NO_TIMEOUT;
+    private TimeValue cancelAfterTimeInterval;
 
     public CatShardsRequest() {}
 
