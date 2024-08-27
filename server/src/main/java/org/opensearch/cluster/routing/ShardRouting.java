@@ -154,6 +154,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
                 relocatingNodeId,
                 currentNodeId,
                 primary,
+                searchOnly,
                 ShardRoutingState.INITIALIZING,
                 PeerRecoverySource.INSTANCE,
                 unassignedInfo,
