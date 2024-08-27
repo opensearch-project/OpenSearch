@@ -257,6 +257,17 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         out.writeOptionalVInt(version);
     }
 
+    public void writeToSorted(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeInt(order);
+        Collections.sort(patterns);
+        out.writeStringCollection(patterns);
+        Settings.writeSettingsToStream(settings, out);
+        out.writeMapOrderedByKey(mappings, Map.Entry.comparingByKey(), StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMapValuesOrderedByKey(aliases, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        out.writeOptionalVInt(version);
+    }
+
     @Override
     public String toString() {
         try {

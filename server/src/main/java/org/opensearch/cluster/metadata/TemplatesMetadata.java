@@ -70,7 +70,7 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
         out.writeVInt(templates.size());
         templates.values().stream().sorted(Comparator.comparing(IndexTemplateMetadata::getName)).forEach(template -> {
             try {
-                template.writeTo(out);
+                template.writeToSorted(out);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
