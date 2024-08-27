@@ -96,15 +96,15 @@ public class RestBulkStreamingAction extends BaseRestHandler {
         final Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
         final TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
         final String refresh = request.param("refresh");
-        final TimeValue batch_interval = request.paramAsTime("batch_interval", null);
-        final int batch_size = request.paramAsInt("batch_size", 1); /* by default, batch size of 1 */
+        final TimeValue batchInterval = request.paramAsTime("batch_interval", null);
+        final int batchSize = request.paramAsInt("batch_size", 1); /* by default, batch size of 1 */
 
-        if (batch_interval != null && batch_interval.duration() <= 0) {
-            throw new IllegalArgumentException("The batch_interval value should be non-negative [" + batch_interval.millis() + "ms].");
+        if (batchInterval != null && batchInterval.duration() <= 0) {
+            throw new IllegalArgumentException("The batch_interval value should be non-negative [" + batchInterval.millis() + "ms].");
         }
 
-        if (batch_size <= 0) {
-            throw new IllegalArgumentException("The batch_size value should be non-negative [" + batch_size + "].");
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("The batch_size value should be non-negative [" + batchSize + "].");
         }
 
         final StreamingRestChannelConsumer consumer = (channel) -> {
@@ -127,7 +127,7 @@ public class RestBulkStreamingAction extends BaseRestHandler {
 
             // TODOs:
             // - eliminate serialization inefficiencies
-            createBufferedFlux(batch_interval, batch_size, channel).zipWith(Flux.fromStream(Stream.generate(() -> {
+            createBufferedFlux(batchInterval, batchSize, channel).zipWith(Flux.fromStream(Stream.generate(() -> {
                 BulkRequest bulkRequest = Requests.bulkRequest();
                 bulkRequest.waitForActiveShards(prepareBulkRequest.waitForActiveShards());
                 bulkRequest.timeout(prepareBulkRequest.timeout());

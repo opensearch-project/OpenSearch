@@ -13,7 +13,6 @@ import org.opensearch.http.StreamingHttpChannel;
 
 import java.util.function.Consumer;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 import org.reactivestreams.Publisher;
@@ -24,12 +23,10 @@ import reactor.netty.http.server.HttpServerResponse;
 class ReactorNetty4StreamingRequestConsumer<T extends HttpContent> implements Consumer<T>, Publisher<HttpContent> {
     private final ReactorNetty4StreamingResponseProducer sender;
     private final StreamingHttpChannel httpChannel;
-    private final ByteBufAllocator alloc;
 
     ReactorNetty4StreamingRequestConsumer(HttpServerRequest request, HttpServerResponse response) {
         this.sender = new ReactorNetty4StreamingResponseProducer();
         this.httpChannel = new ReactorNetty4StreamingHttpChannel(request, response, sender);
-        this.alloc = response.alloc();
     }
 
     @Override

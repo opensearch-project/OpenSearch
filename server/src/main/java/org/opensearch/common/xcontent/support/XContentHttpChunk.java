@@ -12,12 +12,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
 
 /**
  * Wraps the instance of the {@link XContentBuilder} into {@link HttpChunk}
@@ -48,13 +45,7 @@ public final class XContentHttpChunk implements HttpChunk {
             content = BytesArray.EMPTY;
         } else {
             // Always finalize the output chunk with '\r\n' sequence
-            try (final OutputStream out = builder.getOutputStream()) {
-                builder.close();
-                out.write(CHUNK_SEPARATOR);
-            } catch (IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-            content = BytesReference.bytes(builder);
+            content = CompositeBytesReference.of(BytesReference.bytes(builder), new BytesArray(CHUNK_SEPARATOR));
         }
     }
 
