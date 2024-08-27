@@ -270,7 +270,7 @@ public class MetadataUpdateSettingsService {
                         }
                         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
-                            // TODO: Maybe honor awareness validation to search replicas?
+                            // TODO: Honor awareness validation to search replicas.
 
                             // Verify that this won't take us over the cluster shard limit.
                             int totalNewShards = Arrays.stream(request.indices())

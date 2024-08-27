@@ -1008,22 +1008,18 @@ public class MetadataCreateIndexService {
 
     private static void updateSearchOnlyReplicas(Settings requestSettings, Settings.Builder builder) {
         if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(builder) && builder.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
+            if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0
+                && ReplicationType.parseString(builder.get(INDEX_REPLICATION_TYPE_SETTING.getKey())).equals(ReplicationType.DOCUMENT)) {
+                throw new IllegalArgumentException(
+                    "To set "
+                        + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                        + ", "
+                        + INDEX_REPLICATION_TYPE_SETTING.getKey()
+                        + " must be set to "
+                        + ReplicationType.SEGMENT
+                );
+            }
             builder.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings));
-        } else {
-            // ensure we always set the default on creation to a nonnull value.
-            // TODO: Maybe allow a cluster wide default for search replica count when SR is default strategy
-            builder.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.getDefault(requestSettings));
-        }
-        if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0
-            && ReplicationType.parseString(builder.get(INDEX_REPLICATION_TYPE_SETTING.getKey())).equals(ReplicationType.DOCUMENT)) {
-            throw new IllegalArgumentException(
-                "To set "
-                    + SETTING_NUMBER_OF_SEARCH_REPLICAS
-                    + ", "
-                    + INDEX_REPLICATION_TYPE_SETTING.getKey()
-                    + " must be set to "
-                    + ReplicationType.SEGMENT
-            );
         }
     }
 

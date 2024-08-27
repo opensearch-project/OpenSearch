@@ -128,6 +128,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
@@ -2250,7 +2251,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Collections.emptySet(),
             clusterSettings
         );
-        assertEquals("0", indexSettings.get(SETTING_NUMBER_OF_SEARCH_REPLICAS));
+        assertFalse(INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(indexSettings));
     }
 
     public void testSearchReplicasValidationWithSegmentReplication() {
