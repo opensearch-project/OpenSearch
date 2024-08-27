@@ -1081,5 +1081,4 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         setupRemotePinnedTimestampFeature(true);
         assertTrue(RemoteStoreUtils.isPinnedTimestampStateStale());
     }
-
 }
