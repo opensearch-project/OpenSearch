@@ -203,7 +203,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
+    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = ":";
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -460,7 +460,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             repositoryDataListener.whenComplete(repositoryData -> {
                 createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
 
-                List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
+                List<String> indices = new ArrayList<>(currentState.metadata().indices().keySet());
 
                 final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
                     currentState,

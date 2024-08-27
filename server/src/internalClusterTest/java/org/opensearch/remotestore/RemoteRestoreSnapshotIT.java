@@ -994,7 +994,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String indexName3 = "testindex3";
         String snapshotRepoName = "test-create-snapshot-repo";
         String snapshotName1 = "test-create-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -1162,6 +1161,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.getPinnedTimestamp(), equalTo(0L));
+
+        // Validate that snapshot is present in repository data
+        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
+        PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
+        repository.getRepositoryData(repositoryDataPlainActionFuture);
+
+        RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
+        assertTrue(repositoryData.getSnapshotIds().contains(snapshotInfo.snapshotId()));
 
     }
 
