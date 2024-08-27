@@ -38,6 +38,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
@@ -175,7 +176,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
                 if (values.advanceExact(doc)) {
-                    final double value = Double.longBitsToDouble(values.nextValue());
+                    final double value = NumericUtils.sortableLongToDouble(values.nextValue());
                     double min = mins.get(bucket);
                     min = Math.min(min, value);
                     mins.set(bucket, min);
