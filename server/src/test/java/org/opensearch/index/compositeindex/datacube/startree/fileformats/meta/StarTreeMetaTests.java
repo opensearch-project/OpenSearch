@@ -182,10 +182,19 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
             assertEquals(dimensionsOrder.get(i).getField(), starTreeMetadata.getDimensionFields().get(i));
         }
 
-        for (int i = 0; i < metricAggregatorInfos.size(); i++) {
-            MetricEntry metricEntry = starTreeMetadata.getMetricEntries().get(i);
-            assertEquals(metricAggregatorInfos.get(i).getField(), metricEntry.getMetricFieldName());
-            assertEquals(metricAggregatorInfos.get(i).getMetricStat(), metricEntry.getMetricStat());
+        assertEquals(starTreeField.getMetrics().size(), starTreeMetadata.getMetrics().size());
+
+        for (int i = 0; i < starTreeField.getMetrics().size(); i++) {
+
+            Metric expectedMetric = starTreeField.getMetrics().get(i);
+            Metric resultMetric = starTreeMetadata.getMetrics().get(i);
+
+            assertEquals(expectedMetric.getField(), resultMetric.getField());
+            assertEquals(expectedMetric.getMetrics().size(), resultMetric.getMetrics().size());
+
+            for (int j = 0; j < resultMetric.getMetrics().size(); j++) {
+                assertEquals(expectedMetric.getMetrics().get(j), resultMetric.getMetrics().get(j));
+            }
         }
         assertEquals(segmentDocumentCount, starTreeMetadata.getSegmentAggregatedDocCount(), 0);
         assertEquals(maxLeafDocs, starTreeMetadata.getMaxLeafDocs(), 0);

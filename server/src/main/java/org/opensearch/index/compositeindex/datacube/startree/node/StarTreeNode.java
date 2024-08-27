@@ -101,13 +101,21 @@ public interface StarTreeNode {
     byte getStarTreeNodeType() throws IOException;
 
     /**
-     * Returns the child star-tree node for the given dimension value.
+     * Returns the child node for the given dimension value in the star-tree.
      *
      * @param dimensionValue the dimension value
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
-    StarTreeNode getChildForDimensionValue(Long dimensionValue, boolean isStar) throws IOException;
+    StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException;
+
+    /**
+     * Returns the child star node for a node in the star-tree.
+     *
+     * @return the child node for the star node if star child node is not present
+     * @throws IOException if an I/O error occurs while retrieving the child node
+     */
+    StarTreeNode getChildStarNode() throws IOException;
 
     /**
      * Returns an iterator over the children of the current star-tree node.

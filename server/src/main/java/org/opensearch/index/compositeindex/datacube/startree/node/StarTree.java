@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.node;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.node.FixedLengthStarTreeNode;
 
 import java.io.IOException;
 

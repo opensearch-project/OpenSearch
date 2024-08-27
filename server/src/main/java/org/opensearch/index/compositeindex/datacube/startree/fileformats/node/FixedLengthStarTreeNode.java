@@ -5,15 +5,15 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.index.compositeindex.datacube.startree.node;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.node;
 
 import org.apache.lucene.store.RandomAccessInput;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
-
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
 /**
  * Fixed Length implementation of {@link StarTreeNode}.
@@ -187,16 +187,17 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     }
 
     @Override
-    public StarTreeNode getChildForDimensionValue(Long dimensionValue, boolean isStar) throws IOException {
+    public StarTreeNode getChildStarNode() throws IOException {
+        return handleStarNode();
+    }
+
+    @Override
+    public StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException {
         // there will be no children for leaf nodes
         if (isLeaf()) {
             return null;
         }
 
-        // Specialize star node for performance
-        if (isStar) {
-            return handleStarNode();
-        }
         StarTreeNode resultStarTreeNode = null;
         if (null != dimensionValue) {
             resultStarTreeNode = binarySearchChild(dimensionValue);
@@ -213,7 +214,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
      */
     private FixedLengthStarTreeNode handleStarNode() throws IOException {
         FixedLengthStarTreeNode firstNode = new FixedLengthStarTreeNode(in, firstChildId);
-        if (firstNode.getDimensionValue() == ALL) {
+        if (firstNode.getStarTreeNodeType() == StarTreeNodeType.STAR.getValue()) {
             return firstNode;
         } else {
             return null;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.datacube.startree.node;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.node;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -14,6 +14,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
+import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -139,7 +141,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
 
     public void testGetChildForDimensionValue() throws IOException {
         long dimensionValue = randomIntBetween(0, node.children.size() - 2);
-        FixedLengthStarTreeNode childNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(dimensionValue, false);
+        FixedLengthStarTreeNode childNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(dimensionValue);
         assertNotNull(childNode);
         assertEquals(dimensionValue, childNode.getDimensionValue());
     }
@@ -157,19 +159,19 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
 
     public void testGetChildForStarNode() throws IOException {
         // Assuming the first child is a star node in our test data
-        FixedLengthStarTreeNode starNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue((long) StarTreeUtils.ALL, true);
+        FixedLengthStarTreeNode starNode = (FixedLengthStarTreeNode) starTreeNode.getChildStarNode();
         assertNotNull(starNode);
         assertEquals(StarTreeUtils.ALL, starNode.getDimensionValue());
     }
 
     public void testGetChildForNullNode() throws IOException {
-        FixedLengthStarTreeNode nullNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(null, false);
+        FixedLengthStarTreeNode nullNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(null);
         assertNull(nullNode);
     }
 
     public void testGetChildForInvalidDimensionValue() throws IOException {
         long invalidDimensionValue = Long.MAX_VALUE;
-        assertThrows(AssertionError.class, () -> starTreeNode.getChildForDimensionValue(invalidDimensionValue, false));
+        assertThrows(AssertionError.class, () -> starTreeNode.getChildForDimensionValue(invalidDimensionValue));
     }
 
     public void tearDown() throws Exception {

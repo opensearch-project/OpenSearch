@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
+import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
@@ -19,7 +20,9 @@ import org.opensearch.index.mapper.CompositeMappedFieldType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -62,9 +65,9 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     private final List<String> dimensionFields;
 
     /**
-     * List of metric entries, containing field names and associated metric statistic.
+     * List of metrics, containing field names and associated metric statistics.
      */
-    private final List<MetricEntry> metricEntries;
+    private final List<Metric> metrics;
 
     /**
      * The total number of documents aggregated in this star-tree segment.
@@ -119,7 +122,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
             this.version = version;
             this.numberOfNodes = readNumberOfNodes();
             this.dimensionFields = readStarTreeDimensions();
-            this.metricEntries = readMetricEntries();
+            this.metrics = readMetricEntries();
             this.segmentAggregatedDocCount = readSegmentAggregatedDocCount();
             this.maxLeafDocs = readMaxLeafDocs();
             this.skipStarNodeCreationInDims = readSkipStarNodeCreationInDims();
@@ -141,7 +144,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * @param compositeFieldType         type of the composite field. Here, STAR_TREE field.
      * @param version The version of the star tree stored in the segments.
      * @param dimensionFields            list of dimension fields
-     * @param metricEntries              list of metric entries
+     * @param metrics              list of metric entries
      * @param segmentAggregatedDocCount  segment aggregated doc count
      * @param maxLeafDocs                max leaf docs
      * @param skipStarNodeCreationInDims set of dimensions to skip star node creation
@@ -156,7 +159,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         Integer version,
         Integer numberOfNodes,
         List<String> dimensionFields,
-        List<MetricEntry> metricEntries,
+        List<Metric> metrics,
         Integer segmentAggregatedDocCount,
         Integer maxLeafDocs,
         Set<String> skipStarNodeCreationInDims,
@@ -171,7 +174,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         this.version = version;
         this.numberOfNodes = numberOfNodes;
         this.dimensionFields = dimensionFields;
-        this.metricEntries = metricEntries;
+        this.metrics = metrics;
         this.segmentAggregatedDocCount = segmentAggregatedDocCount;
         this.maxLeafDocs = maxLeafDocs;
         this.skipStarNodeCreationInDims = skipStarNodeCreationInDims;
@@ -203,17 +206,19 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         return meta.readVInt();
     }
 
-    private List<MetricEntry> readMetricEntries() throws IOException {
+    private List<Metric> readMetricEntries() throws IOException {
         int metricCount = readMetricsCount();
-        List<MetricEntry> metricEntries = new ArrayList<>();
 
+        Map<String, Metric> starTreeMetricMap = new LinkedHashMap<>();
         for (int i = 0; i < metricCount; i++) {
-            String metricFieldName = meta.readString();
+            String metricName = meta.readString();
             int metricStatOrdinal = meta.readVInt();
-            metricEntries.add(new MetricEntry(metricFieldName, MetricStat.fromMetricOrdinal(metricStatOrdinal)));
+            MetricStat metricStat = MetricStat.fromMetricOrdinal(metricStatOrdinal);
+            Metric metric = starTreeMetricMap.computeIfAbsent(metricName, field -> new Metric(field, new ArrayList<>()));
+            metric.getMetrics().add(metricStat);
         }
 
-        return metricEntries;
+        return new ArrayList<>(starTreeMetricMap.values());
     }
 
     private int readSegmentAggregatedDocCount() throws IOException {
@@ -282,8 +287,8 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      *
      * @return star-tree metric entries
      */
-    public List<MetricEntry> getMetricEntries() {
-        return metricEntries;
+    public List<Metric> getMetrics() {
+        return metrics;
     }
 
     /**
