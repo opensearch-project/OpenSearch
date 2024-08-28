@@ -36,6 +36,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.opensearch.common.lucene.Lucene.readSortValue;
+import static org.opensearch.common.lucene.Lucene.writeSortValue;
+
 /**
  * SerDe interfaces and protobuf SerDe implementations for some "primitive" types.
  * @opensearch.internal
@@ -57,11 +60,23 @@ public class ProtoSerDeHelpers {
     }
 
     // TODO: Lucene definitions should maybe be serialized as generic bytes arrays.
-    static ExplanationProto explanationToProto(Explanation explanation) {
+    public static ExplanationProto explanationToProto(Explanation explanation) {
         ExplanationProto.Builder builder = ExplanationProto.newBuilder()
             .setMatch(explanation.isMatch())
-            .setValue(explanation.getValue().longValue())
             .setDescription(explanation.getDescription());
+
+        Number num = explanation.getValue();
+        if (num instanceof Long) {
+            builder.setLongValue(num.longValue());
+        } else if (num instanceof Integer) {
+            builder.setIntValue(num.intValue());
+        } else if (num instanceof Double) {
+            builder.setDoubleValue(num.doubleValue());
+        } else if (num instanceof Float) {
+            builder.setFloatValue(num.floatValue());
+        } else {
+            throw new SerializationException("Unknown numeric type [" + num + "]");
+        }
 
         for (Explanation detail : explanation.getDetails()) {
             builder.addDetails(explanationToProto(detail));
@@ -70,46 +85,63 @@ public class ProtoSerDeHelpers {
         return builder.build();
     }
 
-    static Explanation explanationFromProto(ExplanationProto proto) {
-        long value = proto.getValue();
+    public static Explanation explanationFromProto(ExplanationProto proto) {
         String description = proto.getDescription();
         Collection<Explanation> details = new ArrayList<>();
+
+        Number val = null;
+        switch (proto.getValueCase()) {
+            case INT_VALUE:
+                val = proto.getIntValue();
+                break;
+            case LONG_VALUE:
+                val = proto.getLongValue();
+                break;
+            case FLOAT_VALUE:
+                val = proto.getFloatValue();
+                break;
+            case DOUBLE_VALUE:
+                val = proto.getDoubleValue();
+                break;
+            default:
+                throw new SerializationException("Unknown numeric type: Explanation.value");
+        }
 
         for (ExplanationProto det : proto.getDetailsList()) {
             details.add(explanationFromProto(det));
         }
 
         if (proto.getMatch()) {
-            return Explanation.match(value, description, details);
+            return Explanation.match(val, description, details);
         }
 
         return Explanation.noMatch(description, details);
     }
 
-    // Is there a reason to open a new stream for each object?
-    // Seems simpler to write a single stream.
-    static DocumentFieldProto documentFieldToProto(DocumentField field) {
+    // TODO: Can we write all objects to a single stream?
+    public static DocumentFieldProto documentFieldToProto(DocumentField field) {
         DocumentFieldProto.Builder builder = DocumentFieldProto.newBuilder().setName(field.getName());
 
-        try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
-            docsOut.writeCollection(field.getValues(), StreamOutput::writeGenericValue);
-            builder.addValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
-        } catch (IOException e) {
-            builder.addValues(ByteString.EMPTY);
+        for (Object value : field.getValues()) {
+            try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
+                docsOut.writeGenericValue(value);
+                builder.addValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
+            } catch (IOException e) {
+                builder.addValues(ByteString.EMPTY);
+            }
         }
 
         return builder.build();
     }
 
-    static DocumentField documentFieldFromProto(DocumentFieldProto proto) throws ProtoSerDeHelpers.SerializationException {
+    public static DocumentField documentFieldFromProto(DocumentFieldProto proto) throws ProtoSerDeHelpers.SerializationException {
         String name = proto.getName();
-        List<Object> values = new ArrayList<>(0);
+        ArrayList<Object> values = new ArrayList<>();
 
-        if (proto.getValuesCount() > 0) {
-            BytesReference valuesBytes = new BytesArray(proto.getValues(0).toByteArray());
+        for (int i = 0; i < proto.getValuesCount(); i++) {
+            BytesReference valuesBytes = new BytesArray(proto.getValues(i).toByteArray());
             try (StreamInput in = valuesBytes.streamInput()) {
-                Object readValue = in.readGenericValue();
-                values.add(readValue);
+                values.add(in.readGenericValue());
             } catch (IOException e) {
                 throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize DocumentField values from proto object", e);
             }
@@ -118,89 +150,110 @@ public class ProtoSerDeHelpers {
         return new DocumentField(name, values);
     }
 
-    static HighlightFieldProto highlightFieldToProto(HighlightField field) {
-        HighlightFieldProto.Builder builder = HighlightFieldProto.newBuilder().setName(field.getName());
+    public static HighlightFieldProto highlightFieldToProto(HighlightField field) {
+        HighlightFieldProto.Builder builder = HighlightFieldProto.newBuilder()
+            .setName(field.getName())
+            .setFragsNull(true);
 
-        for (Text frag : field.getFragments()) {
-            builder.addFragments(frag.string());
+        if (field.getFragments() != null) {
+            builder.setFragsNull(false);
+            for (Text frag : field.getFragments()) {
+                builder.addFragments(frag.string());
+            }
         }
 
         return builder.build();
     }
 
-    static HighlightField highlightFieldFromProto(HighlightFieldProto proto) {
+    public static HighlightField highlightFieldFromProto(HighlightFieldProto proto) {
         String name = proto.getName();
-        Text[] fragments = new Text[proto.getFragmentsCount()];
+        Text[] fragments = null;
 
-        for (int i = 0; i < proto.getFragmentsCount(); i++) {
-            fragments[i] = new Text(proto.getFragments(i));
+        if (!proto.getFragsNull()) {
+            fragments = new Text[proto.getFragmentsCount()];
+            for (int i = 0; i < proto.getFragmentsCount(); i++) {
+                fragments[i] = new Text(proto.getFragments(i));
+            }
         }
 
         return new HighlightField(name, fragments);
     }
 
-    // See above comment for documentFieldToProto.
-    static SearchSortValuesProto searchSortValuesToProto(SearchSortValues searchSortValues) {
+    // TODO: Can we write all objects to a single stream?
+    public static SearchSortValuesProto searchSortValuesToProto(SearchSortValues searchSortValues) {
         SearchSortValuesProto.Builder builder = SearchSortValuesProto.newBuilder();
 
-        try (BytesStreamOutput formOut = new BytesStreamOutput()) {
-            formOut.writeArray(Lucene::writeSortValue, searchSortValues.getFormattedSortValues());
-            builder.addFormattedSortValues(ByteString.copyFrom(formOut.bytes().toBytesRef().bytes));
-        } catch (IOException e) {
-            builder.addFormattedSortValues(ByteString.EMPTY);
+        for (Object value : searchSortValues.getFormattedSortValues()) {
+            try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
+                writeSortValue(docsOut, value);
+                builder.addFormattedSortValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
+            } catch (IOException e) {
+                builder.addFormattedSortValues(ByteString.EMPTY);
+            }
         }
 
-        try (BytesStreamOutput rawOut = new BytesStreamOutput()) {
-            rawOut.writeArray(Lucene::writeSortValue, searchSortValues.getFormattedSortValues());
-            builder.addRawSortValues(ByteString.copyFrom(rawOut.bytes().toBytesRef().bytes));
-        } catch (IOException e) {
-            builder.addRawSortValues(ByteString.EMPTY);
+        for (Object value : searchSortValues.getRawSortValues()) {
+            try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
+                writeSortValue(docsOut, value);
+                builder.addRawSortValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
+            } catch (IOException e) {
+                builder.addRawSortValues(ByteString.EMPTY);
+            }
         }
 
         return builder.build();
     }
 
-    static SearchSortValues searchSortValuesFromProto(SearchSortValuesProto proto) throws ProtoSerDeHelpers.SerializationException {
-        Object[] formattedSortValues = null;
-        Object[] rawSortValues = null;
+    public static SearchSortValues searchSortValuesFromProto(SearchSortValuesProto proto) throws ProtoSerDeHelpers.SerializationException {
+        Object[] formattedSortValues = new Object[proto.getFormattedSortValuesCount()];
+        Object[] rawSortValues = new Object[proto.getRawSortValuesCount()];
 
-        if (proto.getFormattedSortValuesCount() > 0) {
-            BytesReference formattedBytes = new BytesArray(proto.getFormattedSortValues(0).toByteArray());
-            try (StreamInput formattedIn = formattedBytes.streamInput()) {
-                formattedSortValues = formattedIn.readArray(Lucene::readSortValue, Object[]::new);
+        for (int i = 0; i < formattedSortValues.length; i++) {
+            BytesReference valuesBytes = new BytesArray(proto.getFormattedSortValues(i).toByteArray());
+            try (StreamInput in = valuesBytes.streamInput()) {
+                formattedSortValues[i] = readSortValue(in);
             } catch (IOException e) {
-                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from proto object", e);
+                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from protobuf", e);
             }
         }
 
-        if (proto.getRawSortValuesCount() > 0) {
-            BytesReference rawBytes = new BytesArray(proto.getRawSortValues(0).toByteArray());
-            try (StreamInput rawIn = rawBytes.streamInput()) {
-                rawSortValues = rawIn.readArray(Lucene::readSortValue, Object[]::new);
+        for (int i = 0; i < rawSortValues.length; i++) {
+            BytesReference valuesBytes = new BytesArray(proto.getRawSortValues(i).toByteArray());
+            try (StreamInput in = valuesBytes.streamInput()) {
+                rawSortValues[i] = readSortValue(in);
             } catch (IOException e) {
-                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from proto object", e);
+                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from protobuf", e);
             }
         }
 
         return new SearchSortValues(formattedSortValues, rawSortValues);
     }
 
-    static SearchShardTargetProto searchShardTargetToProto(SearchShardTarget shardTarget) {
-        return SearchShardTargetProto.newBuilder()
+    public static SearchShardTargetProto searchShardTargetToProto(SearchShardTarget shardTarget) {
+        SearchShardTargetProto.Builder builder = SearchShardTargetProto.newBuilder()
             .setNodeId(shardTarget.getNodeId())
-            .setShardId(shardIdToProto(shardTarget.getShardId()))
-            .setClusterAlias(shardTarget.getClusterAlias())
-            .build();
+            .setShardId(shardIdToProto(shardTarget.getShardId()));
+
+        if (shardTarget.getClusterAlias() != null) {
+            builder.setClusterAlias(shardTarget.getClusterAlias());
+        }
+
+        return builder.build();
     }
 
     public static SearchShardTarget searchShardTargetFromProto(SearchShardTargetProto proto) {
         String nodeId = proto.getNodeId();
         ShardId shardId = shardIdFromProto(proto.getShardId());
-        String clusterAlias = proto.getClusterAlias();
+
+        String clusterAlias = null;
+        if (proto.hasClusterAlias()) {
+            clusterAlias = proto.getClusterAlias();
+        }
+
         return new SearchShardTarget(nodeId, shardId, clusterAlias);
     }
 
-    static ShardIdProto shardIdToProto(ShardId shardId) {
+    public static ShardIdProto shardIdToProto(ShardId shardId) {
         return ShardIdProto.newBuilder()
             .setIndex(indexToProto(shardId.getIndex()))
             .setShardId(shardId.id())
@@ -214,7 +267,7 @@ public class ProtoSerDeHelpers {
         return new ShardId(index, shardId);
     }
 
-    static IndexProto indexToProto(Index index) {
+    public static IndexProto indexToProto(Index index) {
         return IndexProto.newBuilder().setName(index.getName()).setUuid(index.getUUID()).build();
     }
 

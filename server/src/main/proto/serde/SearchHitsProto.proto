@@ -50,19 +50,19 @@ Map<String, SearchHits> innerHits
 message SearchHitProto {
   float score = 1;
   string id = 2;
-  NestedIdentityProto nested_identity = 3;
-  int64 version = 4;
-  int64 seq_no = 5;
-  int64 primary_term = 6;
-  bytes source = 7;
-  ExplanationProto explanation = 8;
-  map<string, DocumentFieldProto> document_fields = 9;
-  map<string, DocumentFieldProto> meta_fields = 10;
-  map<string, HighlightFieldProto> highlight_fields = 11;
+  int64 version = 3;
+  int64 seq_no = 4;
+  int64 primary_term = 5;
+  bytes source = 6;
+  map<string, DocumentFieldProto> document_fields = 7;
+  map<string, DocumentFieldProto> meta_fields = 8;
+  map<string, HighlightFieldProto> highlight_fields = 9;
+  map<string, float> matched_queries = 10;
+  map<string, SearchHitsProto> inner_hits = 11;
   SearchSortValuesProto sort_values = 12;
-  map<string, float> matched_queries = 13;
+  optional NestedIdentityProto nested_identity = 13;
   optional SearchShardTargetProto shard = 14;
-  map<string, SearchHitsProto> inner_hits = 15;
+  optional ExplanationProto explanation = 15;
 }
 
 /*
@@ -100,7 +100,8 @@ Text[] fragments
  */
 message HighlightFieldProto {
   string name = 1;
-  repeated string fragments = 2;
+  bool frags_null = 2; // fragments can be null OR empty unfortunately
+  repeated string fragments = 3;
 }
 
 /*
@@ -120,10 +121,14 @@ List<Explanation> details
  */
 message ExplanationProto {
   bool match = 1;
-  // value used as long
-  int64 value = 2;
-  string description = 3;
-  repeated ExplanationProto details = 4;
+  oneof value {
+    int32 int_value = 2;
+    int64 long_value = 3;
+    float float_value = 4;
+    double double_value = 5;
+  }
+  string description = 6;
+  repeated ExplanationProto details = 7;
 }
 
 /*
@@ -134,7 +139,7 @@ String clusterAlias
 message SearchShardTargetProto {
   string node_id = 1;
   ShardIdProto shard_id = 2;
-  string cluster_alias = 3;
+  optional string cluster_alias = 3;
 }
 
 /*

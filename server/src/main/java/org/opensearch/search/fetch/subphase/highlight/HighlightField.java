@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch.subphase.highlight;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -60,6 +61,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
 
     private String name;
 
+    @Nullable
     private Text[] fragments;
 
     public HighlightField(StreamInput in) throws IOException {

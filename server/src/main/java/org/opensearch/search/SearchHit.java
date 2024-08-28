@@ -107,6 +107,7 @@ public class SearchHit implements Writeable, ToXContentObject, Iterable<Document
 
     protected Text id;
 
+    @Nullable
     protected NestedIdentity nestedIdentity;
 
     protected long version = -1;
