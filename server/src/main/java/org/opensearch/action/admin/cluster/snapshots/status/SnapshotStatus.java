@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.common.Nullable;
@@ -95,10 +96,14 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         snapshot = new Snapshot(in);
         state = State.fromValue(in.readByte());
         shards = Collections.unmodifiableList(in.readList(SnapshotIndexShardStatus::new));
-        initialTotalSizeInBytes = in.readLong();
         includeGlobalState = in.readOptionalBoolean();
         final long startTime = in.readLong();
         final long time = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            initialTotalSizeInBytes = in.readOptionalLong();
+        } else {
+            initialTotalSizeInBytes = 0L;
+        }
         updateShardStats(startTime, time, initialTotalSizeInBytes);
     }
 
@@ -106,18 +111,18 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         Snapshot snapshot,
         State state,
         List<SnapshotIndexShardStatus> shards,
-        long initialTotalSizeInBytes,
         Boolean includeGlobalState,
         long startTime,
-        long time
+        long time,
+        long initialTotalSizeInBytes
     ) {
         this.snapshot = Objects.requireNonNull(snapshot);
         this.state = Objects.requireNonNull(state);
         this.shards = Objects.requireNonNull(shards);
-        this.initialTotalSizeInBytes = initialTotalSizeInBytes;
         this.includeGlobalState = includeGlobalState;
         shardsStats = new SnapshotShardsStats(shards);
         assert time >= 0 : "time must be >= 0 but received [" + time + "]";
+        this.initialTotalSizeInBytes = initialTotalSizeInBytes;
         assert initialTotalSizeInBytes >= 0 : "initialTotalSizeInBytes must be >= 0 but received [" + initialTotalSizeInBytes + "]";
         updateShardStats(startTime, time, initialTotalSizeInBytes);
     }
@@ -129,8 +134,8 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         Map<String, SnapshotIndexStatus> indicesStatus,
         SnapshotShardsStats shardsStats,
         SnapshotStats stats,
-        long initialTotalSizeInBytes,
-        Boolean includeGlobalState
+        Boolean includeGlobalState,
+        long initialTotalSizeInBytes
     ) {
         this.snapshot = snapshot;
         this.state = state;
@@ -138,8 +143,8 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         this.indicesStatus = indicesStatus;
         this.shardsStats = shardsStats;
         this.stats = stats;
-        this.initialTotalSizeInBytes = initialTotalSizeInBytes;
         this.includeGlobalState = includeGlobalState;
+        this.initialTotalSizeInBytes = initialTotalSizeInBytes;
     }
 
     /**
@@ -209,10 +214,12 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         snapshot.writeTo(out);
         out.writeByte(state.value());
         out.writeList(shards);
-        out.writeLong(initialTotalSizeInBytes);
         out.writeOptionalBoolean(includeGlobalState);
         out.writeLong(stats.getStartTime());
         out.writeLong(stats.getTime());
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeOptionalLong(initialTotalSizeInBytes);
+        }
     }
 
     @Override
@@ -233,6 +240,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     private static final String STATE = "state";
     private static final String INDICES = "indices";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
+    private static final String INITIAL_TOTAL_SIZE_IN_BYTES = "initial_total_size_in_bytes";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -243,6 +251,9 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         builder.field(STATE, state.name());
         if (includeGlobalState != null) {
             builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
+        }
+        if (initialTotalSizeInBytes != 0) {
+            builder.field(INITIAL_TOTAL_SIZE_IN_BYTES, initialTotalSizeInBytes);
         }
         builder.field(SnapshotShardsStats.Fields.SHARDS_STATS, shardsStats, params);
         builder.field(SnapshotStats.Fields.STATS, stats, params);
@@ -265,6 +276,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
             String uuid = (String) parsedObjects[i++];
             String rawState = (String) parsedObjects[i++];
             Boolean includeGlobalState = (Boolean) parsedObjects[i++];
+            Long initialTotalSizeInBytes = (Long) parsedObjects[i++];
             SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
             SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
             @SuppressWarnings("unchecked")
@@ -285,7 +297,16 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
                     shards.addAll(index.getShards().values());
                 }
             }
-            return new SnapshotStatus(snapshot, state, shards, indicesStatus, shardsStats, stats, 0L, includeGlobalState);
+            return new SnapshotStatus(
+                snapshot,
+                state,
+                shards,
+                indicesStatus,
+                shardsStats,
+                stats,
+                includeGlobalState,
+                initialTotalSizeInBytes
+            );
         }
     );
     static {
@@ -294,6 +315,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         PARSER.declareString(constructorArg(), new ParseField(UUID));
         PARSER.declareString(constructorArg(), new ParseField(STATE));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(INCLUDE_GLOBAL_STATE));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField(INITIAL_TOTAL_SIZE_IN_BYTES));
         PARSER.declareField(
             constructorArg(),
             SnapshotStats::fromXContent,

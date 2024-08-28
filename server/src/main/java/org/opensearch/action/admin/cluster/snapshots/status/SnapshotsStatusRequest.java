@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.annotation.PublicApi;
@@ -76,8 +77,10 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         super(in);
         repository = in.readString();
         snapshots = in.readStringArray();
-        indices = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            indices = in.readOptionalStringArray();
+        }
     }
 
     @Override
@@ -85,8 +88,10 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         super.writeTo(out);
         out.writeString(repository);
         out.writeStringArray(snapshots);
-        out.writeStringArray(indices);
         out.writeBoolean(ignoreUnavailable);
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeOptionalStringArray(indices);
+        }
     }
 
     /**

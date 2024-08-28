@@ -295,10 +295,10 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                         entry.snapshot(),
                         entry.state(),
                         Collections.unmodifiableList(shardStatusBuilder),
-                        0L,
                         entry.includeGlobalState(),
                         entry.startTime(),
-                        Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L)
+                        Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L),
+                        0L
                     )
                 );
             }
@@ -375,11 +375,11 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             new Snapshot(repositoryName, snapshotId),
                             state,
                             Collections.unmodifiableList(shardStatusBuilder),
-                            initialSnapshotTotalSize,
                             snapshotInfo.includeGlobalState(),
                             startTime,
                             // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
-                            (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime
+                            (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime,
+                            initialSnapshotTotalSize
                         )
                     );
                 }
