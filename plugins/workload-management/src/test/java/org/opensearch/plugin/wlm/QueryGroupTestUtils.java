@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
-import static org.opensearch.search.ResourceType.fromName;
+import static org.opensearch.wlm.ResourceType.fromName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
