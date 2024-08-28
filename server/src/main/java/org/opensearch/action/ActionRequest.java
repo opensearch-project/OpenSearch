@@ -70,9 +70,8 @@ public abstract class ActionRequest extends TransportRequest {
         return false;
     }
 
-    public ActionRequest runAs(Subject runAs) {
+    public void runAs(Subject runAs) {
         this.runAs = runAs;
-        return this;
     }
 
     public Subject getRunAs() {
