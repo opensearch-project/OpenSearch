@@ -101,6 +101,7 @@ import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 
@@ -394,7 +395,12 @@ public class RestClient implements Closeable {
                 try {
                     final ResponseOrResponseException responseOrResponseException = convertResponse(request, node, message);
                     if (responseOrResponseException.responseException == null) {
-                        return Mono.just(message);
+                        return Mono.just(
+                            new Message<>(
+                                message.getHead(),
+                                Flux.from(message.getBody()).flatMapSequential(b -> Flux.fromIterable(frame(b)))
+                            )
+                        );
                     } else {
                         if (nodeTuple.nodes.hasNext()) {
                             return Mono.from(streamRequest(nodeTuple, request));
@@ -407,6 +413,48 @@ public class RestClient implements Closeable {
                 }
             });
         });
+    }
+
+    /**
+     * Frame the {@link ByteBuffer} into individual chunks that are separated by '\r\n' sequence.
+     * @param b {@link ByteBuffer} to split
+     * @return individual chunks
+     */
+    private static Collection<ByteBuffer> frame(ByteBuffer b) {
+        final Collection<ByteBuffer> buffers = new ArrayList<>();
+
+        int position = b.position();
+        while (b.hasRemaining()) {
+            // Skip the chunk separator when it comes right at the beginning
+            if (b.get() == '\r' && b.hasRemaining() && b.position() > 1) {
+                if (b.get() == '\n') {
+                    final byte[] chunk = new byte[b.position() - position];
+
+                    b.position(position);
+                    b.get(chunk);
+
+                    // Do not copy the '\r\n' sequence
+                    buffers.add(ByteBuffer.wrap(chunk, 0, chunk.length - 2));
+                    position = b.position();
+                }
+            }
+        }
+
+        if (buffers.isEmpty()) {
+            return Collections.singleton(b);
+        }
+
+        // Copy last chunk
+        if (position != b.position()) {
+            final byte[] chunk = new byte[b.position() - position];
+
+            b.position(position);
+            b.get(chunk);
+
+            buffers.add(ByteBuffer.wrap(chunk, 0, chunk.length));
+        }
+
+        return buffers;
     }
 
     private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
