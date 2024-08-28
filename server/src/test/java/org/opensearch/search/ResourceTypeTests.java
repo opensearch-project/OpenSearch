@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.wlm;
+package org.opensearch.search;
 
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.test.OpenSearchTestCase;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

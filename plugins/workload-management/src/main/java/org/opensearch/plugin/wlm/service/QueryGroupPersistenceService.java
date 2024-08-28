@@ -29,7 +29,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
-import org.opensearch.wlm.ResourceType;
+import org.opensearch.search.ResourceType;
 
 import java.util.Collection;
 import java.util.EnumMap;
