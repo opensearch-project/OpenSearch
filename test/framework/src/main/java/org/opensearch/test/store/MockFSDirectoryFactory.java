@@ -128,9 +128,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                         OpenSearchTestCase.checkIndexFailures.add(failure);
                         throw failure;
                     } else {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
-                        }
+                        logger.debug("check index [success]\n{}", () -> os.bytes().utf8ToString());
                     }
                 } catch (LockObtainFailedException e) {
                     IllegalStateException failure = new IllegalStateException("IndexWriter is still open on shard " + shardId, e);

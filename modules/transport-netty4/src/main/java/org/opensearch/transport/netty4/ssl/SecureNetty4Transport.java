@@ -215,15 +215,13 @@ public class SecureNetty4Transport extends Netty4Transport {
                         ? inetSocketAddress.getHostName()
                         : inetSocketAddress.getHostString();
 
-                    if (log.isDebugEnabled()) {
-                        log.debug(
-                            "Hostname of peer is {} ({}/{}) with hostnameVerificationResolveHostName: {}",
-                            hostname,
-                            inetSocketAddress.getHostName(),
-                            inetSocketAddress.getHostString(),
-                            hostnameVerificationResovleHostName
-                        );
-                    }
+                    log.debug(
+                        "Hostname of peer is {} ({}/{}) with hostnameVerificationResolveHostName: {}",
+                        () -> hostname,
+                        () -> inetSocketAddress.getHostName(),
+                        () -> inetSocketAddress.getHostString(),
+                        () -> hostnameVerificationResovleHostName
+                    );
 
                     sslEngine = secureTransportSettingsProvider.buildSecureClientTransportEngine(
                         settings,

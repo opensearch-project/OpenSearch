@@ -107,9 +107,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
         this.zones = gceInstancesService.zones();
 
         this.tags = TAGS_SETTING.get(settings);
-        if (logger.isDebugEnabled()) {
-            logger.debug("using tags {}", this.tags);
-        }
+        logger.debug("using tags {}", () -> this.tags);
     }
 
     /**
@@ -133,7 +131,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
         if (refreshInterval.millis() != 0) {
             if (cachedDynamicHosts != null
                 && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
-                if (logger.isTraceEnabled()) logger.trace("using cache to retrieve node list");
+                logger.trace(() -> "using cache to retrieve node list");
                 return cachedDynamicHosts;
             }
             lastRefresh = System.currentTimeMillis();

@@ -304,10 +304,10 @@ public class TransportService extends AbstractLifecycleComponent
         transport.setMessageListener(this);
         connectionManager.addListener(this);
         transport.start();
-        if (transport.boundAddress() != null && logger.isInfoEnabled()) {
-            logger.info("{}", transport.boundAddress());
+        if (transport.boundAddress() != null) {
+            logger.info("{}", () -> transport.boundAddress());
             for (Map.Entry<String, BoundTransportAddress> entry : transport.profileBoundAddresses().entrySet()) {
-                logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
+                logger.info("profile [{}]: {}", () -> entry.getKey(), () -> entry.getValue());
             }
         }
         localNode = localNodeFactory.apply(transport.boundAddress());
@@ -1240,8 +1240,8 @@ public class TransportService extends AbstractLifecycleComponent
         if (handleIncomingRequests.get() == false) {
             throw new IllegalStateException("transport not ready yet to handle incoming requests");
         }
-        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-            tracerLog.trace("[{}][{}] received request", requestId, action);
+        if (shouldTraceAction(action)) {
+            tracerLog.trace("[{}][{}] received request", () -> requestId, () -> action);
         }
         messageListener.onRequestReceived(requestId, action);
     }
@@ -1255,8 +1255,8 @@ public class TransportService extends AbstractLifecycleComponent
         TransportRequest request,
         TransportRequestOptions options
     ) {
-        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-            tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
+        if (shouldTraceAction(action)) {
+            tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", () -> requestId, () -> action, () -> node, () -> options.timeout());
         }
         messageListener.onRequestSent(node, requestId, action, request, options);
     }
@@ -1265,8 +1265,13 @@ public class TransportService extends AbstractLifecycleComponent
     public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
         if (holder == null) {
             checkForTimeout(requestId);
-        } else if (tracerLog.isTraceEnabled() && shouldTraceAction(holder.action())) {
-            tracerLog.trace("[{}][{}] received response from [{}]", requestId, holder.action(), holder.connection().getNode());
+        } else if (shouldTraceAction(holder.action())) {
+            tracerLog.trace(
+                "[{}][{}] received response from [{}]",
+                () -> requestId,
+                () -> holder.action(),
+                () -> holder.connection().getNode()
+            );
         }
         messageListener.onResponseReceived(requestId, holder);
     }
@@ -1274,8 +1279,8 @@ public class TransportService extends AbstractLifecycleComponent
     /** called by the {@link Transport} implementation once a response was sent to calling node */
     @Override
     public void onResponseSent(long requestId, String action, TransportResponse response) {
-        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-            tracerLog.trace("[{}][{}] sent response", requestId, action);
+        if (shouldTraceAction(action)) {
+            tracerLog.trace("[{}][{}] sent response", () -> requestId, () -> action);
         }
         messageListener.onResponseSent(requestId, action, response);
     }
@@ -1283,7 +1288,7 @@ public class TransportService extends AbstractLifecycleComponent
     /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
     @Override
     public void onResponseSent(long requestId, String action, Exception e) {
-        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+        if (shouldTraceAction(action)) {
             tracerLog.trace(() -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
         }
         messageListener.onResponseSent(requestId, action, e);
@@ -1323,9 +1328,9 @@ public class TransportService extends AbstractLifecycleComponent
         }
         if (action == null) {
             assert sourceNode == null;
-            tracerLog.trace("[{}] received response but can't resolve it to a request", requestId);
+            tracerLog.trace("[{}] received response but can't resolve it to a request", () -> requestId);
         } else if (shouldTraceAction(action)) {
-            tracerLog.trace("[{}][{}] received response from [{}]", requestId, action, sourceNode);
+            tracerLog.trace("[{}][{}] received response from [{}]", () -> requestId, () -> action, () -> sourceNode);
         }
     }
 

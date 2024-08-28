@@ -496,15 +496,13 @@ public class Node implements Closeable {
                 );
             }
 
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "using config [{}], data [{}], logs [{}], plugins [{}]",
-                    initialEnvironment.configDir(),
-                    Arrays.toString(initialEnvironment.dataFiles()),
-                    initialEnvironment.logsDir(),
-                    initialEnvironment.pluginsDir()
-                );
-            }
+            logger.debug(
+                "using config [{}], data [{}], logs [{}], plugins [{}]",
+                () -> initialEnvironment.configDir(),
+                () -> Arrays.toString(initialEnvironment.dataFiles()),
+                () -> initialEnvironment.logsDir(),
+                () -> initialEnvironment.pluginsDir()
+            );
 
             this.pluginsService = new PluginsService(
                 tmpSettings,

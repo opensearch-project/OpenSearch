@@ -442,7 +442,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         Objects.requireNonNull(context);
 
         ScriptType type = script.getType();
-        String lang = script.getLang();
+        final String lang;
         String idOrCode = script.getIdOrCode();
         Map<String, String> options = script.getOptions();
 
@@ -458,6 +458,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             lang = source.getLang();
             idOrCode = source.getSource();
             options = source.getOptions();
+        } else {
+            lang = script.getLang();
         }
 
         ScriptEngine scriptEngine = getEngine(lang);
@@ -489,9 +491,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             }
         }
 
-        if (logger.isTraceEnabled()) {
-            logger.trace("compiling lang: [{}] type: [{}] script: {}", lang, type, idOrCode);
-        }
+        final String finalIdOrCode = idOrCode;
+        logger.trace("compiling lang: [{}] type: [{}] script: {}", () -> lang, () -> type, () -> finalIdOrCode);
 
         ScriptCache scriptCache = cacheHolder.get().get(context.name);
         assert scriptCache != null : "script context [" + context.name + "] has no script cache";

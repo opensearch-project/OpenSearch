@@ -113,9 +113,13 @@ public final class MockEngineSupport {
         Random random = new Random(seed);
         final double ratio = WRAP_READER_RATIO.get(settings);
         boolean wrapReader = random.nextDouble() < ratio;
-        if (logger.isTraceEnabled()) {
-            logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
-        }
+        logger.trace(
+            "Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]",
+            () -> this.getClass().getName(),
+            () -> shardId,
+            () -> seed,
+            () -> wrapReader
+        );
         mockContext = new MockContext(random, wrapReader, wrapper, settings);
         this.inFlightSearchers = new InFlightSearchers();
         LuceneTestCase.closeAfterSuite(inFlightSearchers); // only one suite closeable per Engine

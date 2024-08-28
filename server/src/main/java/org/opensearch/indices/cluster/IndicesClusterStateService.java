@@ -342,9 +342,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert localNodeId != null;
 
         for (Index index : event.indicesDeleted()) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("[{}] cleaning index, no longer part of the metadata", index);
-            }
+            logger.debug("[{}] cleaning index, no longer part of the metadata", () -> index);
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(index);
             final IndexSettings indexSettings;
             if (indexService != null) {
@@ -728,14 +726,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // the cluster-manager thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
             // for cluster-manager to confirm a shard started message (either cluster-manager failover, or a cluster event before
             // we managed to tell the cluster-manager we started), mark us as started
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "{} cluster-manager marked shard as initializing, but shard has state [{}], resending shard started to {}",
-                    shardRouting.shardId(),
-                    state,
-                    nodes.getClusterManagerNode()
-                );
-            }
+            logger.trace(
+                "{} cluster-manager marked shard as initializing, but shard has state [{}], resending shard started to {}",
+                () -> shardRouting.shardId(),
+                () -> state,
+                () -> nodes.getClusterManagerNode()
+            );
             if (nodes.getClusterManagerNode() != null) {
                 shardStateAction.shardStarted(
                     shardRouting,

@@ -489,16 +489,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
             task.listener.onSuccess(task.source);
         } else {
-            if (logger.isTraceEnabled()) {
-                logger.debug(
-                    "cluster state updated, version [{}], source [{}]\n{}",
-                    newClusterState.version(),
-                    task.source,
-                    newClusterState
-                );
-            } else {
-                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), task.source);
-            }
+            logger.debug("cluster state updated, version [{}], source [{}]", () -> newClusterState.version(), () -> task.source);
+            logger.trace("{}", () -> newClusterState);
             try {
                 applyChanges(task, previousClusterState, newClusterState, stopWatch);
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
@@ -513,30 +505,17 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 task.listener.onSuccess(task.source);
             } catch (Exception e) {
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
-                if (logger.isTraceEnabled()) {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
-                            executionTime,
-                            newClusterState.version(),
-                            newClusterState.stateUUID(),
-                            task.source,
-                            newClusterState
-                        ),
-                        e
-                    );
-                } else {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
-                            executionTime,
-                            newClusterState.version(),
-                            newClusterState.stateUUID(),
-                            task.source
-                        ),
-                        e
-                    );
-                }
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
+                        executionTime,
+                        newClusterState.version(),
+                        newClusterState.stateUUID(),
+                        task.source
+                    ),
+                    e
+                );
+                logger.trace("{}", () -> newClusterState);
                 // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
                 // continue we will retry with the same cluster state but that might not help.
                 assert applicationMayFail();

@@ -285,9 +285,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
-                        }
+                        logger.trace(() -> "Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
                     } else {
                         logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
                     }
@@ -319,9 +317,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
-                        }
+                        logger.trace(() -> "Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
                     } else {
                         logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
                     }
@@ -422,25 +418,23 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 }
                 String nodeId = nodeStats.getNode().getId();
                 String nodeName = nodeStats.getNode().getName();
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "node: [{}], most available: total disk: {},"
-                            + " available disk: {} / least available: total disk: {}, available disk: {}",
-                        nodeId,
-                        mostAvailablePath.getTotal(),
-                        mostAvailablePath.getAvailable(),
-                        leastAvailablePath.getTotal(),
-                        leastAvailablePath.getAvailable()
-                    );
-                }
+                final FsInfo.Path finalMostAvailablePath = mostAvailablePath;
+                final FsInfo.Path finalLeastAvailablePath = leastAvailablePath;
+                logger.trace(
+                    "node: [{}], most available: total disk: {},"
+                        + " available disk: {} / least available: total disk: {}, available disk: {}",
+                    () -> nodeId,
+                    () -> finalMostAvailablePath.getTotal(),
+                    () -> finalMostAvailablePath.getAvailable(),
+                    () -> finalLeastAvailablePath.getTotal(),
+                    () -> finalLeastAvailablePath.getAvailable()
+                );
                 if (leastAvailablePath.getTotal().getBytes() < 0) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
-                            nodeId,
-                            leastAvailablePath.getTotal().getBytes()
-                        );
-                    }
+                    logger.trace(
+                        "node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
+                        () -> nodeId,
+                        () -> finalLeastAvailablePath.getTotal().getBytes()
+                    );
                 } else {
                     newLeastAvailableUsages.put(
                         nodeId,
@@ -454,13 +448,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     );
                 }
                 if (mostAvailablePath.getTotal().getBytes() < 0) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
-                            nodeId,
-                            mostAvailablePath.getTotal().getBytes()
-                        );
-                    }
+                    logger.trace(
+                        "node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
+                        () -> nodeId,
+                        () -> finalMostAvailablePath.getTotal().getBytes()
+                    );
                 } else {
                     newMostAvailableUsages.put(
                         nodeId,

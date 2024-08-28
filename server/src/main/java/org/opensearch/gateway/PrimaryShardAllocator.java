@@ -433,13 +433,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         nodeShardStates.sort(createActiveShardComparator(matchAnyShard, inSyncAllocationIds));
 
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "{} candidates for allocation: {}",
-                shard,
-                nodeShardStates.stream().map(s -> s.getNode().getName()).collect(Collectors.joining(", "))
-            );
-        }
+        logger.trace(
+            "{} candidates for allocation: {}",
+            () -> shard,
+            () -> nodeShardStates.stream().map(s -> s.getNode().getName()).collect(Collectors.joining(", "))
+        );
         return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
     }
 

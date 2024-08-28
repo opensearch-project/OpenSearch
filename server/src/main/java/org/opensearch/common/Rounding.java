@@ -1234,8 +1234,14 @@ public abstract class Rounding implements Writeable {
                     }
                     assert highEnough && (false == tooHigh);
                     assert roundedRoundedDown == prevRound;
-                    if (iterations > 3 && logger.isDebugEnabled()) {
-                        logger.debug("Iterated {} time for {} using {}", iterations, utcMillis, TimeIntervalRounding.this.toString());
+                    if (iterations > 3) {
+                        final int currentIterations = iterations;
+                        logger.debug(
+                            "Iterated {} time for {} using {}",
+                            () -> currentIterations,
+                            () -> utcMillis,
+                            () -> TimeIntervalRounding.this.toString()
+                        );
                     }
                     return rounded;
                 }

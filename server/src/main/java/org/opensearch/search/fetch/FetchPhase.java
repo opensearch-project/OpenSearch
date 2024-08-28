@@ -107,9 +107,7 @@ public class FetchPhase {
     }
 
     public void execute(SearchContext context) {
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("{}", new SearchContextSourcePrinter(context));
-        }
+        LOGGER.trace("{}", () -> new SearchContextSourcePrinter(context));
 
         if (context.isCancelled()) {
             throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());

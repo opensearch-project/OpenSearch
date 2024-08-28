@@ -171,9 +171,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             this.listener = listener;
 
             ClusterState clusterState = clusterService.state();
-            if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
-            }
+            logger.trace("executing [{}] based on cluster state version [{}]", () -> request, () -> clusterState.version());
             nodes = clusterState.nodes();
             ClusterBlockException blockException = checkGlobalBlock(clusterState);
             if (blockException != null) {
@@ -267,14 +265,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
             } else {
                 internalRequest.request().internalShardId = shardRouting.shardId();
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "sending request [{}] to shard [{}] on node [{}]",
-                        internalRequest.request(),
-                        internalRequest.request().internalShardId,
-                        node
-                    );
-                }
+                logger.trace(
+                    "sending request [{}] to shard [{}] on node [{}]",
+                    () -> internalRequest.request(),
+                    () -> internalRequest.request().internalShardId,
+                    () -> node
+                );
                 final Writeable.Reader<Response> reader = getResponseReader();
                 ShardRouting finalShardRouting = shardRouting;
                 transportService.sendRequest(
@@ -331,9 +327,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}] on shard [{}]", request, request.internalShardId);
-            }
+            logger.trace("executing [{}] on shard [{}]", () -> request, () -> request.internalShardId);
             asyncShardOperation(request, request.internalShardId, new ChannelActionListener<>(channel, transportShardAction, request));
         }
     }

@@ -1684,20 +1684,16 @@ public class IndicesService extends AbstractLifecycleComponent
         @Override
         public void run() {
             long startTimeNS = System.nanoTime();
-            if (logger.isTraceEnabled()) {
-                logger.trace("running periodic field data cache cleanup");
-            }
+            logger.trace(() -> "running periodic field data cache cleanup");
             try {
                 this.cache.getCache().refresh();
             } catch (Exception e) {
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "periodic field data cache cleanup finished in {} milliseconds",
-                    TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)
-                );
-            }
+            logger.trace(
+                "periodic field data cache cleanup finished in {} milliseconds",
+                () -> (TimeValue.nsecToMSec(System.nanoTime() - startTimeNS))
+            );
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
                 threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
@@ -1794,13 +1790,11 @@ public class IndicesService extends AbstractLifecycleComponent
             // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
             // cache. One other option is to not cache requests with a timeout at all...
             indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "Query timed out, invalidating cache entry for request on shard [{}]:\n {}",
-                    request.shardId(),
-                    request.source()
-                );
-            }
+            logger.trace(
+                "Query timed out, invalidating cache entry for request on shard [{}]:\n {}",
+                () -> request.shardId(),
+                () -> request.source()
+            );
         }
     }
 

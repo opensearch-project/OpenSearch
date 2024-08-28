@@ -105,16 +105,14 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
         onGoingMerges.add(onGoingMerge);
 
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size",
-                OneMergeHelper.getSegmentName(merge),
-                merge.segments.size(),
-                totalNumDocs,
-                new ByteSizeValue(totalSizeInBytes),
-                new ByteSizeValue(merge.estimatedMergeBytes)
-            );
-        }
+        logger.trace(
+            "merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size",
+            () -> OneMergeHelper.getSegmentName(merge),
+            () -> merge.segments.size(),
+            () -> totalNumDocs,
+            () -> new ByteSizeValue(totalSizeInBytes),
+            () -> new ByteSizeValue(merge.estimatedMergeBytes)
+        );
         try {
             beforeMerge(onGoingMerge);
             super.doMerge(mergeSource, merge);
@@ -159,8 +157,8 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
             if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
                 logger.debug("{}", message);
-            } else if (logger.isTraceEnabled()) {
-                logger.trace("{}", message);
+            } else {
+                logger.trace("{}", () -> message);
             }
         }
     }
