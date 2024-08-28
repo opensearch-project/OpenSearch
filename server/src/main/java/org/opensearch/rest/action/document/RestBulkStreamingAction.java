@@ -98,6 +98,7 @@ public class RestBulkStreamingAction extends BaseRestHandler {
         final String refresh = request.param("refresh");
         final TimeValue batchInterval = request.paramAsTime("batch_interval", null);
         final int batchSize = request.paramAsInt("batch_size", 1); /* by default, batch size of 1 */
+        final boolean hasBatchSize = request.hasParam("batch_size"); /* is batch_size explicitly specified or default is used */
 
         if (batchInterval != null && batchInterval.duration() <= 0) {
             throw new IllegalArgumentException("The batch_interval value should be non-negative [" + batchInterval.millis() + "ms].");
@@ -127,7 +128,7 @@ public class RestBulkStreamingAction extends BaseRestHandler {
 
             // TODOs:
             // - eliminate serialization inefficiencies
-            createBufferedFlux(batchInterval, batchSize, channel).zipWith(Flux.fromStream(Stream.generate(() -> {
+            createBufferedFlux(batchInterval, batchSize, hasBatchSize, channel).zipWith(Flux.fromStream(Stream.generate(() -> {
                 BulkRequest bulkRequest = Requests.bulkRequest();
                 bulkRequest.waitForActiveShards(prepareBulkRequest.waitForActiveShards());
                 bulkRequest.timeout(prepareBulkRequest.timeout());
@@ -233,9 +234,19 @@ public class RestBulkStreamingAction extends BaseRestHandler {
         return true;
     }
 
-    private Flux<List<HttpChunk>> createBufferedFlux(final TimeValue batchInterval, final int batchSize, StreamingRestChannel channel) {
+    private Flux<List<HttpChunk>> createBufferedFlux(
+        final TimeValue batchInterval,
+        final int batchSize,
+        final boolean hasBatchSize,
+        StreamingRestChannel channel
+    ) {
         if (batchInterval != null) {
-            return Flux.from(channel).bufferTimeout(batchSize, Duration.ofMillis(batchInterval.millis()));
+            // If non-default batch size is specified, buffer by interval and batch
+            if (hasBatchSize) {
+                return Flux.from(channel).bufferTimeout(batchSize, Duration.ofMillis(batchInterval.millis()));
+            } else {
+                return Flux.from(channel).buffer(Duration.ofMillis(batchInterval.millis()));
+            }
         } else {
             return Flux.from(channel).buffer(batchSize);
         }
