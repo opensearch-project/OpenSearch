@@ -34,6 +34,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
     private Directory directory;
     InMemoryTreeNode node;
     InMemoryTreeNode starChild;
+    InMemoryTreeNode nullChild;
     FixedLengthStarTreeNode starTreeNode;
 
     @Before
@@ -62,6 +63,17 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         starChild.nodeType = (byte) -2;
         starChild.children = new HashMap<>();
         node.children.put(-1L, starChild);
+
+        nullChild = new InMemoryTreeNode();
+        nullChild.dimensionId = node.dimensionId + 1;
+        nullChild.dimensionValue = -1;
+        nullChild.startDocId = randomInt();
+        nullChild.endDocId = randomInt();
+        nullChild.childDimensionId = -1;
+        nullChild.aggregatedDocId = randomInt();
+        nullChild.nodeType = (byte) -1;
+        nullChild.children = new HashMap<>();
+        node.children.put(null, nullChild);
 
         for (int i = 1; i < randomIntBetween(2, 5); i++) {
             InMemoryTreeNode child = new InMemoryTreeNode();
@@ -140,7 +152,8 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
     }
 
     public void testGetChildForDimensionValue() throws IOException {
-        long dimensionValue = randomIntBetween(0, node.children.size() - 2);
+        // TODO: Add a test to verify children with star node, null node and default node with default dimension value -1
+        long dimensionValue = randomIntBetween(0, node.children.size() - 3);
         FixedLengthStarTreeNode childNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(dimensionValue);
         assertNotNull(childNode);
         assertEquals(dimensionValue, childNode.getDimensionValue());

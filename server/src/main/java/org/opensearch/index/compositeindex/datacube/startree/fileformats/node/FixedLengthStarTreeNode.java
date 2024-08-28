@@ -214,7 +214,20 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
      */
     private FixedLengthStarTreeNode handleStarNode() throws IOException {
         FixedLengthStarTreeNode firstNode = new FixedLengthStarTreeNode(in, firstChildId);
-        if (firstNode.getStarTreeNodeType() == StarTreeNodeType.STAR.getValue()) {
+        return matchStarTreeNodeTypeOrNull(firstNode, StarTreeNodeType.STAR);
+    }
+
+    /**
+     * Checks if the given node matches the specified StarTreeNodeType.
+     *
+     * @param firstNode The FixedLengthStarTreeNode to check.
+     * @param starTreeNodeType The StarTreeNodeType to match against.
+     * @return The firstNode if its type matches the targetType, null otherwise.
+     * @throws IOException If an I/O error occurs during the operation.
+     */
+    private static FixedLengthStarTreeNode matchStarTreeNodeTypeOrNull(FixedLengthStarTreeNode firstNode, StarTreeNodeType starTreeNodeType)
+        throws IOException {
+        if (firstNode.getStarTreeNodeType() == starTreeNodeType.getValue()) {
             return firstNode;
         } else {
             return null;
@@ -229,7 +242,19 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
      * @throws IOException If there's an error reading from the input
      */
     private FixedLengthStarTreeNode binarySearchChild(long dimensionValue) throws IOException {
+
         int low = firstChildId;
+
+        // if the current node is star node, increment the low to reduce the search space
+        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, firstChildId), StarTreeNodeType.STAR) != null) {
+            low++;
+        }
+
+        // if the current node is null node, increment the low to reduce the search space
+        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, low), StarTreeNodeType.NULL) != null) {
+            low++;
+        }
+
         int high = getInt(LAST_CHILD_ID_OFFSET);
 
         while (low <= high) {
