@@ -20,6 +20,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -291,8 +292,14 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testRemoteStoreCleanupForDeletedIndex() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        Settings settings = remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath);
+        // Disabling pinned timestamp as this test is specifically for shallow snapshot.
+        settings = Settings.builder()
+            .put(settings)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), false)
+            .build();
+        internalCluster().startClusterManagerOnlyNode(settings);
+        internalCluster().startDataOnlyNode(settings);
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
 
