@@ -2495,7 +2495,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     snapshotsWithLockFiles.add(snapshotId);
                                 }
                             } catch (Exception e) {
-                                logger.warn("Failed to get snapshot info for {}", snapshotId, e);
+                                logger.warn("Failed to get snapshot info for {} with exception {}", snapshotId, e);
                                 removeSnapshotDeletionFromClusterState(deleteEntry, e, repositoryData);
                             }
                         }
