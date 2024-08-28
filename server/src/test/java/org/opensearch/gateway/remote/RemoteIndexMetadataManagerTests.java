@@ -26,6 +26,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -43,6 +44,8 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX;
 import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX_METADATA_FORMAT;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -58,11 +61,12 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
     private Compressor compressor;
+    private ClusterSettings clusterSettings;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Before
     public void setup() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         blobStoreRepository = mock(BlobStoreRepository.class);
         BlobPath blobPath = new BlobPath().add("random-path");
         when((blobStoreRepository.basePath())).thenReturn(blobPath);
@@ -180,6 +184,31 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         assertNotNull(listener.getFailure());
         assertEquals(exception, listener.getFailure().getCause());
         assertTrue(listener.getFailure() instanceof RemoteStateTransferException);
+    }
+
+    public void testRemoteRoutingTablePathTypeSetting() {
+        // Assert the default is HASHED_PREFIX
+        assertEquals(HASHED_PREFIX.toString(), remoteIndexMetadataManager.getPathTypeSetting().toString());
+
+        Settings newSettings = Settings.builder()
+            .put("cluster.remote_store.index_metadata.path_type", RemoteStoreEnums.PathType.FIXED.toString())
+            .build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(RemoteStoreEnums.PathType.FIXED.toString(), remoteIndexMetadataManager.getPathTypeSetting().toString());
+    }
+
+    public void testRemoteRoutingTableHashAlgoSetting() {
+        // Assert the default is FNV_1A_BASE64
+        assertEquals(FNV_1A_BASE64.toString(), remoteIndexMetadataManager.getPathHashAlgoSetting().toString());
+
+        Settings newSettings = Settings.builder()
+            .put("cluster.remote_store.index_metadata.path_hash_algo", RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString())
+            .build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(
+            RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString(),
+            remoteIndexMetadataManager.getPathHashAlgoSetting().toString()
+        );
     }
 
     private IndexMetadata getIndexMetadata(String name, @Nullable Boolean writeIndex, String... aliases) {

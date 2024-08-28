@@ -9,6 +9,7 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
@@ -17,6 +18,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 
@@ -41,6 +44,21 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
     public static final String INDEX = "index";
 
     private IndexMetadata indexMetadata;
+    private RemoteStoreEnums.PathType pathType;
+    private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
+
+    public RemoteIndexMetadata(
+        final IndexMetadata indexMetadata,
+        final String clusterUUID,
+        final Compressor compressor,
+        final NamedXContentRegistry namedXContentRegistry,
+        final RemoteStoreEnums.PathType pathType,
+        final RemoteStoreEnums.PathHashAlgorithm pathHashAlgo
+    ) {
+        this(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        this.pathType = pathType;
+        this.pathHashAlgo = pathHashAlgo;
+    }
 
     public RemoteIndexMetadata(
         final IndexMetadata indexMetadata,
@@ -84,6 +102,18 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
         );
         this.blobFileName = blobFileName;
         return blobFileName;
+    }
+
+    @Override
+    public BlobPath getPrefixedPath(BlobPath blobPath) {
+        if (pathType == null) {
+            return blobPath;
+        }
+        assert pathHashAlgo != null;
+        return pathType.path(
+            RemoteStorePathStrategy.PathInput.builder().basePath(blobPath).indexUUID(indexMetadata.getIndexUUID()).build(),
+            pathHashAlgo
+        );
     }
 
     @Override
