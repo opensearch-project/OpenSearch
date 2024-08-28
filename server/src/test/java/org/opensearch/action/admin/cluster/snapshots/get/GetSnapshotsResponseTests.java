@@ -78,7 +78,6 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
                     randomBoolean(),
                     SnapshotInfoTests.randomUserMetadata(),
                     false,
-                    0,
                     0
                 )
             );

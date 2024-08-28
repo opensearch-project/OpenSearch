@@ -87,7 +87,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
             includeGlobalState,
             userMetadata,
             remoteStoreIndexShallowCopy,
-            0,
             0
         );
     }
@@ -117,7 +116,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 1:
@@ -137,7 +135,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 2:
@@ -153,7 +150,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 3:
@@ -169,7 +165,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 4:
@@ -185,7 +180,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 5:
@@ -213,7 +207,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 6:
@@ -229,7 +222,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     Boolean.FALSE.equals(instance.includeGlobalState()),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 7:
@@ -245,7 +237,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     randomValueOtherThan(instance.userMetadata(), SnapshotInfoTests::randomUserMetadata),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0,
                     0
                 );
             case 8:
@@ -265,7 +256,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    123456,
                     123456
                 );
             case 9:
@@ -281,7 +271,6 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     Boolean.FALSE.equals(instance.isRemoteStoreIndexShallowCopyEnabled()),
-                    123456,
                     123456
                 );
             default:

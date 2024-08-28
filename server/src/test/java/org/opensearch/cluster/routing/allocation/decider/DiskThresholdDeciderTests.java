@@ -1653,7 +1653,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             Map<NodeAndPath, ReservedSpace> reservedSpace,
             final Map<String, FileCacheStats> nodeFileCacheStats
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, nodeFileCacheStats, 0L);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, nodeFileCacheStats);
         }
 
         @Override

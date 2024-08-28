@@ -1208,7 +1208,6 @@ public class Node implements Closeable {
                 clusterModule.getIndexNameExpressionResolver(),
                 repositoryService,
                 transportService,
-                clusterInfoService,
                 actionModule.getActionFilters(),
                 remoteStorePinnedTimestampService
             );

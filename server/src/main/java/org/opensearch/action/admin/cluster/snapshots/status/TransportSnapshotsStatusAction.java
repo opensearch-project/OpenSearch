@@ -297,8 +297,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                         Collections.unmodifiableList(shardStatusBuilder),
                         entry.includeGlobalState(),
                         entry.startTime(),
-                        Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L),
-                        0L
+                        Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L)
                     )
                 );
             }
@@ -345,7 +344,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                     boolean isShallowV2Snapshot = snapshotInfo.getPinnedTimestamp() > 0;
                     long initialSnapshotTotalSize = 0;
                     if (isShallowV2Snapshot && request.indices().length == 0) {
-                        initialSnapshotTotalSize = snapshotInfo.getSnapshotSizeInBytes();
+                        // TODO: add primary store size in bytes at the snapshot level
                     }
 
                     for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatuses.entrySet()) {
@@ -378,8 +377,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             snapshotInfo.includeGlobalState(),
                             startTime,
                             // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
-                            (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime,
-                            initialSnapshotTotalSize
+                            (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime
                         )
                     );
                 }

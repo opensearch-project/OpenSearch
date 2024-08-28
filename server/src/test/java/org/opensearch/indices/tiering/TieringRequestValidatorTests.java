@@ -171,7 +171,7 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
         Map<String, DiskUsage> diskUsages = diskUsages(1, 100, 50);
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test_index][0][p]", 10L); // 10 bytes
-        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), Map.of(), 10L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), Map.of());
         assertEquals(10, getIndexPrimaryStoreSize(clusterState, clusterInfo, indexName));
     }
 
@@ -185,7 +185,7 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
         Map<String, DiskUsage> diskUsages = diskUsages(1, 100, 50);
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test_index][0][p]", 10L); // 10 bytes
-        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), Map.of(), 10L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), Map.of());
         TieringValidationResult tieringValidationResult = new TieringValidationResult(indices);
         validateEligibleNodesCapacity(clusterInfo, clusterState, tieringValidationResult);
         assertEquals(indices, tieringValidationResult.getAcceptedIndices());
@@ -202,7 +202,7 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
         Map<String, DiskUsage> diskUsages = diskUsages(1, 100, 10);
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test_index][0][p]", 20L); // 20 bytes
-        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), Map.of(), 20L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), Map.of());
         TieringValidationResult tieringValidationResult = new TieringValidationResult(indices);
         validateEligibleNodesCapacity(clusterInfo, clusterState, tieringValidationResult);
         assertEquals(indices.size(), tieringValidationResult.getRejectedIndices().size());
@@ -305,7 +305,7 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
 
     private static ClusterInfo clusterInfo(int noOfNodes, long totalBytes, long freeBytes) {
         final Map<String, DiskUsage> diskUsages = diskUsages(noOfNodes, totalBytes, freeBytes);
-        return new ClusterInfo(diskUsages, null, null, null, Map.of(), Map.of(), 0L);
+        return new ClusterInfo(diskUsages, null, null, null, Map.of(), Map.of());
     }
 
     private static Map<String, DiskUsage> diskUsages(int noOfSearchNodes, long totalBytes, long freeBytes) {

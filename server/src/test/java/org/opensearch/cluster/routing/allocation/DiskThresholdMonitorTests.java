@@ -902,7 +902,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         final Map<String, DiskUsage> diskUsages,
         final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
-        return new ClusterInfo(diskUsages, null, null, null, reservedSpace, Map.of(), 0L);
+        return new ClusterInfo(diskUsages, null, null, null, reservedSpace, Map.of());
     }
 
 }

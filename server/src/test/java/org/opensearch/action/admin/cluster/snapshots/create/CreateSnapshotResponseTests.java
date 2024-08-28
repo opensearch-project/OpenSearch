@@ -96,7 +96,6 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
                 globalState,
                 SnapshotInfoTests.randomUserMetadata(),
                 false,
-                0,
                 0
             )
         );

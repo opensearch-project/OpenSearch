@@ -456,7 +456,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         for (TestClusterNodes.TestClusterNode node : testClusterNodes.nodes.values()) {
             nodeFileCacheStats.put(node.node.getId(), new FileCacheStats(0, 1, 0, 0, 0, 0, 0));
         }
-        ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats, 0L);
+        ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats);
         testClusterNodes.nodes.values().forEach(node -> when(node.getMockClusterInfoService().getClusterInfo()).thenReturn(clusterInfo));
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseListener = new StepListener<>();
@@ -2006,21 +2006,20 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
-                nodeEnv = new NodeEnvironment(settings, environment);
-                final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
-                final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
-                client = new NodeClient(settings, threadPool);
-                clusterInfoService = Mockito.mock(ClusterInfoService.class);
                 snapshotsService = new SnapshotsService(
                     settings,
                     clusterService,
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,
-                    clusterInfoService,
                     actionFilters,
                     null
                 );
+                nodeEnv = new NodeEnvironment(settings, environment);
+                final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
+                final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
+                client = new NodeClient(settings, threadPool);
+                clusterInfoService = Mockito.mock(ClusterInfoService.class);
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
                     settings,
