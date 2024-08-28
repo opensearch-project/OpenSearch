@@ -49,11 +49,13 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -175,7 +177,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
     private class TestIdentityPlugin implements IdentityPlugin {
 
         @Override
-        public Subject getSubject() {
+        public Subject getCurrentSubject() {
             return null;
         }
 
@@ -190,6 +192,11 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 threadContext.putHeader("test_header", "foo");
                 return h;
             };
+        }
+
+        @Override
+        public PluginSubject getPluginSubject(Plugin plugin) {
+            return null;
         }
     }
 
