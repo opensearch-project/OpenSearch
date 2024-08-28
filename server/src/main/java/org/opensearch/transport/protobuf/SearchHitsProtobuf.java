@@ -87,13 +87,16 @@ public class SearchHitsProtobuf extends SearchHits {
         maxScore = proto.getMaxScore();
         collapseField = proto.getCollapseField();
 
-        TotalHitsProto totHitsProto = proto.getTotalHits();
-        long rel = totHitsProto.getRelation();
-        long val = totHitsProto.getValue();
-        if (rel < 0 || rel >= TotalHits.Relation.values().length) {
-            throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize TotalHits from proto");
+        if (proto.hasTotalHits()) {
+            long rel = proto.getTotalHits().getRelation();
+            long val = proto.getTotalHits().getValue();
+            if (rel < 0 || rel >= TotalHits.Relation.values().length) {
+                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize TotalHits from proto");
+            }
+            totalHits = new TotalHits(val, TotalHits.Relation.values()[(int) rel]);
+        } else {
+            totalHits = null;
         }
-        totalHits = new TotalHits(val, TotalHits.Relation.values()[(int) rel]);
 
         try (StreamInput sortBytesInput = new BytesArray(proto.getSortFields().toByteArray()).streamInput()) {
             sortFields = sortBytesInput.readOptionalArray(Lucene::readSortField, SortField[]::new);
