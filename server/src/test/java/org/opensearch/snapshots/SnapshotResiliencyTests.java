@@ -2379,6 +2379,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         snapshotsService,
+                        repositoriesService,
                         actionFilters,
                         indexNameExpressionResolver
                     )
