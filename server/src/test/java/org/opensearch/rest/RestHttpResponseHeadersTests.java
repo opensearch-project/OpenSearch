@@ -44,6 +44,7 @@ import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
@@ -55,6 +56,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class RestHttpResponseHeadersTests extends OpenSearchTestCase {
 
@@ -106,7 +108,7 @@ public class RestHttpResponseHeadersTests extends OpenSearchTestCase {
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        final IdentityService identityService = new IdentityService(settings, List.of());
+        final IdentityService identityService = new IdentityService(settings, mock(ThreadPool.class), List.of());
         RestController restController = new RestController(
             Collections.emptySet(),
             null,
