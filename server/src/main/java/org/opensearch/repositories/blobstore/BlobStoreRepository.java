@@ -1302,6 +1302,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (blobName.startsWith(SHALLOW_SNAPSHOT_PREFIX)) {
                         String snapshotUUID = extractShallowSnapshotUUID(blobName).orElseThrow();
                         String[] parts = blobPath.toArray();
+                        // For fixed, the parts would look like [<base_path>,"indices","<index-id>","<shard-id>"]
+                        // For hashed_prefix, the parts would look like ["j01010001010",<base_path>,"indices","<index-id>","<shard-id>"]
+                        // For hashed_infix, the parts would look like [<base_path>,"j01010001010","indices","<index-id>","<shard-id>"]
                         int partLength = parts.length;
                         String indexId = parts[partLength - 2];
                         String shardId = parts[partLength - 1];
@@ -1784,6 +1787,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     cleanupRemoteStoreLocks(indexEntry, highestGenShardPaths, remoteStoreLockManagerFactory);
                 }
 
+                // The below deleteShardData would be no-op for FIXED path type snapshots.
                 DeleteResult deleteResult = deleteShardData(highestGenShardPaths, matchingShardPaths, snapshotShardPaths);
                 deleteResult = deleteResult.add(indexEntry.getValue().delete()); // Deleting the index folder
                 logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
@@ -1886,7 +1890,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Deletes shard data for the highest generation shard paths.
+     * Deletes shard data for the highest generation shard paths. This is only applicable for hashed_prefix or hashed_infix
+     * path types for snapshots. The fixed path will bail out due to highestGenShardPaths being empty.
      *
      * @param highestGenShardPaths The optional highest generation shard path
      * @param matchingShardPaths   List of shard paths that match a specific criteria
@@ -1953,8 +1958,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     indexMetas,
                     indexMetaIdentifiers
                 );
+                // The snapshot shards path would be uploaded for new index ids or index ids where the shard gen count (a.k.a
+                // number_of_shards) has increased.
                 Set<String> updatedIndexIds = writeNewIndexShardPaths(existingRepositoryData, updatedRepositoryData, snapshotId);
-                cleanupStaleSnapshotShardPaths(updatedIndexIds);
+                cleanupRedundantSnapshotShardPaths(updatedIndexIds);
                 writeIndexGen(
                     updatedRepositoryData,
                     repositoryStateId,
@@ -2005,7 +2012,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, onUpdateFailure);
     }
 
-    private void cleanupStaleSnapshotShardPaths(Set<String> updatedShardPathsIndexIds) {
+    /**
+     * This method cleans up the redundant snapshot shard paths file for index ids where the number of shards has increased
+     * on account of new indexes by same index name being snapshotted that exists already in the repository's snapshots.
+     */
+    private void cleanupRedundantSnapshotShardPaths(Set<String> updatedShardPathsIndexIds) {
         Set<String> updatedIndexIds = updatedShardPathsIndexIds.stream()
             .map(s -> s.split(SnapshotShardPaths.DELIMITER)[0])
             .collect(Collectors.toSet());

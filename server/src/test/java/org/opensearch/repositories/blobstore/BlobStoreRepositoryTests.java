@@ -44,9 +44,11 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -62,6 +64,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
@@ -559,5 +562,92 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         // Verify the total number of bytes and blobs deleted
         assertEquals("Total bytes deleted should be 150", 150L, combinedResult.bytesDeleted());
         assertEquals("Total blobs deleted should be 2", 2, combinedResult.blobsDeleted());
+    }
+
+    public void testGetMetadata() {
+        BlobStoreRepository repository = setupRepo();
+        RepositoryMetadata metadata = repository.getMetadata();
+        assertNotNull(metadata);
+        assertEquals(metadata.name(), "test-repo");
+        assertEquals(metadata.type(), REPO_TYPE);
+        repository.close();
+    }
+
+    public void testGetNamedXContentRegistry() {
+        BlobStoreRepository repository = setupRepo();
+        NamedXContentRegistry registry = repository.getNamedXContentRegistry();
+        assertNotNull(registry);
+        repository.close();
+    }
+
+    public void testGetCompressor() {
+        BlobStoreRepository repository = setupRepo();
+        Compressor compressor = repository.getCompressor();
+        assertNotNull(compressor);
+        repository.close();
+    }
+
+    public void testGetStats() {
+        BlobStoreRepository repository = setupRepo();
+        RepositoryStats stats = repository.stats();
+        assertNotNull(stats);
+        repository.close();
+    }
+
+    public void testGetSnapshotThrottleTimeInNanos() {
+        BlobStoreRepository repository = setupRepo();
+        long throttleTime = repository.getSnapshotThrottleTimeInNanos();
+        assertTrue(throttleTime >= 0);
+        repository.close();
+    }
+
+    public void testGetRestoreThrottleTimeInNanos() {
+        BlobStoreRepository repository = setupRepo();
+        long throttleTime = repository.getRestoreThrottleTimeInNanos();
+        assertTrue(throttleTime >= 0);
+        repository.close();
+    }
+
+    public void testGetRemoteUploadThrottleTimeInNanos() {
+        BlobStoreRepository repository = setupRepo();
+        long throttleTime = repository.getRemoteUploadThrottleTimeInNanos();
+        assertTrue(throttleTime >= 0);
+        repository.close();
+    }
+
+    public void testGetLowPriorityRemoteUploadThrottleTimeInNanos() {
+        BlobStoreRepository repository = setupRepo();
+        long throttleTime = repository.getLowPriorityRemoteUploadThrottleTimeInNanos();
+        assertTrue(throttleTime >= 0);
+        repository.close();
+    }
+
+    public void testGetRemoteDownloadThrottleTimeInNanos() {
+        BlobStoreRepository repository = setupRepo();
+        long throttleTime = repository.getRemoteDownloadThrottleTimeInNanos();
+        assertTrue(throttleTime >= 0);
+        repository.close();
+    }
+
+    public void testIsReadOnly() {
+        BlobStoreRepository repository = setupRepo();
+        assertFalse(repository.isReadOnly());
+        repository.close();
+    }
+
+    public void testIsSystemRepository() {
+        BlobStoreRepository repository = setupRepo();
+        assertFalse(repository.isSystemRepository());
+        repository.close();
+    }
+
+    public void testGetRestrictedSystemRepositorySettings() {
+        BlobStoreRepository repository = setupRepo();
+        List<Setting<?>> settings = repository.getRestrictedSystemRepositorySettings();
+        assertNotNull(settings);
+        assertTrue(settings.contains(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING));
+        assertTrue(settings.contains(BlobStoreRepository.READONLY_SETTING));
+        assertTrue(settings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
+        repository.close();
     }
 }
