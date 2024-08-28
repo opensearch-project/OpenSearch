@@ -378,10 +378,10 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
 
         final Path remoteStoreRepoPath = randomRepoPath();
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
 
-        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
 
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -460,9 +460,9 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
 
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
 
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -549,5 +549,13 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
         logger.info("--> created {} in [{}]", snapshotNames, repoName);
         return snapshotNames;
+    }
+
+    private Settings snapshotV2Settings(Path remoteStoreRepoPath) {
+        Settings settings = Settings.builder()
+            .put(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath))
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .build();
+        return settings;
     }
 }
