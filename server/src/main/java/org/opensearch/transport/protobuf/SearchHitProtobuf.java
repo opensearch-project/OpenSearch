@@ -68,25 +68,35 @@ public class SearchHitProtobuf extends SearchHit {
             .setSeqNo(seqNo)
             .setPrimaryTerm(primaryTerm);
 
-        builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity));
+        if (nestedIdentity != null) {
+            builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity));
+        }
+
         builder.setSource(ByteString.copyFrom(source.toBytesRef().bytes));
-        builder.setExplanation(explanationToProto(explanation));
+
+        if (explanation != null) {
+            builder.setExplanation(explanationToProto(explanation));
+        }
+
         builder.setSortValues(searchSortValuesToProto(sortValues));
 
         documentFields.forEach((key, value) -> builder.putDocumentFields(key, documentFieldToProto(value)));
 
         metaFields.forEach((key, value) -> builder.putMetaFields(key, documentFieldToProto(value)));
 
-        highlightFields.forEach((key, value) -> builder.putHighlightFields(key, highlightFieldToProto(value)));
+        if (highlightFields != null) {
+            highlightFields.forEach((key, value) -> builder.putHighlightFields(key, highlightFieldToProto(value)));
+        }
 
         matchedQueries.forEach(builder::putMatchedQueries);
 
-        // shard is optional
         if (shard != null) {
             builder.setShard(searchShardTargetToProto(shard));
         }
 
-        innerHits.forEach((key, value) -> builder.putInnerHits(key, new SearchHitsProtobuf(value).toProto()));
+        if (innerHits != null) {
+            innerHits.forEach((key, value) -> builder.putInnerHits(key, new SearchHitsProtobuf(value).toProto()));
+        }
 
         return builder.build();
     }
