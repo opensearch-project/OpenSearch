@@ -61,9 +61,10 @@ public class SearchHitsProtobuf extends SearchHits {
             builder.addHits(new SearchHitProtobuf(hit).toProto());
         }
 
-        TotalHits totHits = totalHits;
-        TotalHitsProto.Builder totHitsBuilder = TotalHitsProto.newBuilder().setRelation(totHits.relation.ordinal()).setValue(totHits.value);
-        builder.setTotalHits(totHitsBuilder);
+        if (totalHits != null) {
+            TotalHitsProto.Builder totHitsBuilder = TotalHitsProto.newBuilder().setRelation(totalHits.relation.ordinal()).setValue(totalHits.value);
+            builder.setTotalHits(totHitsBuilder);
+        }
 
         try (BytesStreamOutput sortOut = new BytesStreamOutput()) {
             sortOut.writeOptionalArray(Lucene::writeSortField, sortFields);

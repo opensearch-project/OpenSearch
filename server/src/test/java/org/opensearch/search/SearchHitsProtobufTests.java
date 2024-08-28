@@ -75,24 +75,6 @@ public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<Sea
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
 
-    private static SearchHit[] createSearchHitArray(
-        int size,
-        final MediaType mediaType,
-        boolean withOptionalInnerHits,
-        boolean transportSerialization
-    ) {
-        SearchHit[] hits = new SearchHit[size];
-        for (int i = 0; i < hits.length; i++) {
-            hits[i] = SearchHitTests.createTestItem(mediaType, withOptionalInnerHits, transportSerialization);
-        }
-        return hits;
-    }
-
-    private static TotalHits randomTotalHits(TotalHits.Relation relation) {
-        long totalHits = TestUtil.nextLong(random(), 0, Long.MAX_VALUE);
-        return new TotalHits(totalHits, relation);
-    }
-
     public static SearchHitsProtobuf createTestItem(final MediaType mediaType, boolean withOptionalInnerHits, boolean transportSerialization) {
         return createTestItem(mediaType, withOptionalInnerHits, transportSerialization, randomFrom(TotalHits.Relation.values()));
     }
@@ -116,6 +98,24 @@ public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<Sea
             collapseValues = randomBoolean() ? createCollapseValues(randomIntBetween(1, 10)) : null;
         }
         return new SearchHitsProtobuf(new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues));
+    }
+
+    private static SearchHit[] createSearchHitArray(
+        int size,
+        final MediaType mediaType,
+        boolean withOptionalInnerHits,
+        boolean transportSerialization
+    ) {
+        SearchHit[] hits = new SearchHit[size];
+        for (int i = 0; i < hits.length; i++) {
+            hits[i] = SearchHitTests.createTestItem(mediaType, withOptionalInnerHits, transportSerialization);
+        }
+        return hits;
+    }
+
+    private static TotalHits randomTotalHits(TotalHits.Relation relation) {
+        long totalHits = TestUtil.nextLong(random(), 0, Long.MAX_VALUE);
+        return new TotalHits(totalHits, relation);
     }
 
     private static SortField[] createSortFields(int size) {
