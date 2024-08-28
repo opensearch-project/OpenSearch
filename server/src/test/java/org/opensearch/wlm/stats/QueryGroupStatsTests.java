@@ -30,7 +30,16 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
             new QueryGroupStats.QueryGroupStatsHolder(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                Map.of(ResourceType.CPU, new QueryGroupStats.ResourceStats(randomDoubleBetween(0.0, 0.90, false), randomNonNegativeLong()))
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(
+                    ResourceType.CPU,
+                    new QueryGroupStats.ResourceStats(
+                        randomDoubleBetween(0.0, 0.90, false),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong()
+                    )
+                )
             )
         );
         return new QueryGroupStats(stats);

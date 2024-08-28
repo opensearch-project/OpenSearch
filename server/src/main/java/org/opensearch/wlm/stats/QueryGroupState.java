@@ -8,11 +8,11 @@
 
 package org.opensearch.wlm.stats;
 
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.search.ResourceType;
 
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class will keep the point in time view of the query group stats
@@ -21,22 +21,22 @@ public class QueryGroupState {
     /**
      * completions at the query group level, this is a cumulative counter since the Opensearch start time
      */
-    private final AtomicLong completions = new AtomicLong();
+    final CounterMetric completions = new CounterMetric();
 
     /**
-     * rejections at the query group level, this is a cumulative counter since the Opensearch start time
+     * rejections at the query group level, this is a cumulative counter since the OpenSearch start time
      */
-    private final AtomicLong rejections = new AtomicLong();
+    final CounterMetric totalRejections = new CounterMetric();
 
     /**
      * this will track the cumulative failures in a query group
      */
-    private final AtomicLong failures = new AtomicLong();
+    final CounterMetric failures = new CounterMetric();
 
     /**
      * This will track total number of cancellations in the query group due to all resource type breaches
      */
-    private final AtomicLong totalCancellations = new AtomicLong();
+    final CounterMetric totalCancellations = new CounterMetric();
 
     /**
      * This is used to store the resource type state both for CPU and MEMORY
@@ -54,15 +54,15 @@ public class QueryGroupState {
      * @return completions in the query group
      */
     public long getCompletions() {
-        return completions.get();
+        return completions.count();
     }
 
     /**
      *
      * @return rejections in the query group
      */
-    public long getRejections() {
-        return rejections.get();
+    public long getTotalRejections() {
+        return totalRejections.count();
     }
 
     /**
@@ -70,11 +70,11 @@ public class QueryGroupState {
      * @return failures in the query group
      */
     public long getFailures() {
-        return failures.get();
+        return failures.count();
     }
 
     public long getTotalCancellations() {
-        return totalCancellations.get();
+        return totalCancellations.count();
     }
 
     /**
@@ -86,56 +86,15 @@ public class QueryGroupState {
     }
 
     /**
-     * this is a call back to increment cancellations for a query group at task level
-     */
-    public void incrementCompletions() {
-        completions.incrementAndGet();
-    }
-
-    /**
-     * this is a call back to increment rejections for a query group at incoming request
-     */
-    public void incrementRejections() {
-        rejections.incrementAndGet();
-    }
-
-    /**
-     * this is a call back to increment failures for a query group
-     */
-    public void incrementFailures() {
-        failures.incrementAndGet();
-    }
-
-    /**
-     * this is a call back to increment total cancellations for a query group
-     */
-    public void incrementTotalCancellations() {
-        totalCancellations.incrementAndGet();
-    }
-
-    /**
      * This class holds the resource level stats for the query group
      */
     public static class ResourceTypeState {
-        private final ResourceType resourceType;
-        private final AtomicLong cancellations = new AtomicLong();
+        final ResourceType resourceType;
+        final CounterMetric cancellations = new CounterMetric();
+        final CounterMetric rejections = new CounterMetric();
 
         public ResourceTypeState(ResourceType resourceType) {
             this.resourceType = resourceType;
-        }
-
-        /**
-         * getter for resource type cancellations
-         */
-        public long getCancellations() {
-            return cancellations.get();
-        }
-
-        /**
-         * this will be called when a task is cancelled due to this resource
-         */
-        public void incrementCancellations() {
-            cancellations.incrementAndGet();
         }
     }
 }

@@ -23,19 +23,26 @@ public class QueryGroupStateTests extends OpenSearchTestCase {
 
         for (int i = 0; i < 25; i++) {
             if (i % 5 == 0) {
-                updaterThreads.add(new Thread(() -> queryGroupState.incrementCompletions()));
+                updaterThreads.add(new Thread(() -> queryGroupState.completions.inc()));
             } else if (i % 5 == 1) {
-                updaterThreads.add(new Thread(() -> queryGroupState.incrementRejections()));
+                updaterThreads.add(new Thread(() -> {
+                    queryGroupState.totalRejections.inc();
+                    if (randomBoolean()) {
+                        queryGroupState.getResourceState().get(ResourceType.CPU).rejections.inc();
+                    } else {
+                        queryGroupState.getResourceState().get(ResourceType.MEMORY).rejections.inc();
+                    }
+                }));
             } else if (i % 5 == 2) {
-                updaterThreads.add(new Thread(() -> queryGroupState.incrementFailures()));
+                updaterThreads.add(new Thread(() -> queryGroupState.failures.inc()));
             } else if (i % 5 == 3) {
-                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.CPU).incrementCancellations()));
+                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.CPU).cancellations.inc()));
             } else {
-                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.MEMORY).incrementCancellations()));
+                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.inc()));
             }
 
-            if (i%5 == 3 || i%5 == 4) {
-                updaterThreads.add(new Thread(() -> queryGroupState.incrementTotalCancellations()));
+            if (i % 5 == 3 || i % 5 == 4) {
+                updaterThreads.add(new Thread(() -> queryGroupState.totalCancellations.inc()));
             }
         }
 
@@ -51,11 +58,16 @@ public class QueryGroupStateTests extends OpenSearchTestCase {
         });
 
         assertEquals(5, queryGroupState.getCompletions());
-        assertEquals(5, queryGroupState.getRejections());
+        assertEquals(5, queryGroupState.getTotalRejections());
+
+        final long sumOfRejectionsDueToResourceTypes = queryGroupState.getResourceState().get(ResourceType.CPU).rejections.count()
+            + queryGroupState.getResourceState().get(ResourceType.MEMORY).rejections.count();
+        assertEquals(sumOfRejectionsDueToResourceTypes, queryGroupState.getTotalRejections());
+
         assertEquals(5, queryGroupState.getFailures());
         assertEquals(10, queryGroupState.getTotalCancellations());
-        assertEquals(5, queryGroupState.getResourceState().get(ResourceType.CPU).getCancellations());
-        assertEquals(5, queryGroupState.getResourceState().get(ResourceType.MEMORY).getCancellations());
+        assertEquals(5, queryGroupState.getResourceState().get(ResourceType.CPU).cancellations.count());
+        assertEquals(5, queryGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.count());
     }
 
 }

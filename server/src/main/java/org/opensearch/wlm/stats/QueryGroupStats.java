@@ -25,6 +25,7 @@ import java.util.Objects;
  *          "completions": 1233234234,
  *          "rejections": 1243545,
  *          "failures": 97,
+ *          "total_cancellations": 474,
  *          "CPU": { "current_usage": 49.6, "cancellation": 432 },
  *          "MEMORY": { "current_usage": 39.6, "cancellation": 42 }
  *     },
@@ -78,19 +79,33 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
     public static class QueryGroupStatsHolder implements ToXContentObject, Writeable {
         public static final String COMPLETIONS = "completions";
         public static final String REJECTIONS = "rejections";
+        public static final String TOTAL_CANCELLATIONS = "total_cancellations";
+        public static final String FAILURES = "failures";
         private final long completions;
         private final long rejections;
+        private final long failures;
+        private final long totalCancellations;
         private final Map<ResourceType, ResourceStats> resourceStats;
 
-        public QueryGroupStatsHolder(long completions, long rejections, Map<ResourceType, ResourceStats> resourceStats) {
+        public QueryGroupStatsHolder(
+            long completions,
+            long rejections,
+            long failures,
+            long totalCancellations,
+            Map<ResourceType, ResourceStats> resourceStats
+        ) {
             this.completions = completions;
             this.rejections = rejections;
+            this.failures = failures;
+            this.totalCancellations = totalCancellations;
             this.resourceStats = resourceStats;
         }
 
         public QueryGroupStatsHolder(StreamInput in) throws IOException {
             this.completions = in.readVLong();
             this.rejections = in.readVLong();
+            this.failures = in.readVLong();
+            this.totalCancellations = in.readVLong();
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
 
@@ -103,6 +118,8 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         public static void writeTo(StreamOutput out, QueryGroupStatsHolder statsHolder) throws IOException {
             out.writeVLong(statsHolder.completions);
             out.writeVLong(statsHolder.rejections);
+            out.writeVLong(statsHolder.failures);
+            out.writeVLong(statsHolder.totalCancellations);
             out.writeMap(statsHolder.resourceStats, (o, val) -> o.writeString(val.getName()), ResourceStats::writeTo);
         }
 
@@ -115,6 +132,8 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(COMPLETIONS, completions);
             builder.field(REJECTIONS, rejections);
+            builder.field(FAILURES, failures);
+            builder.field(TOTAL_CANCELLATIONS, totalCancellations);
             for (Map.Entry<ResourceType, ResourceStats> resourceStat : resourceStats.entrySet()) {
                 ResourceType resourceType = resourceStat.getKey();
                 ResourceStats resourceStats1 = resourceStat.getValue();
@@ -130,12 +149,16 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             QueryGroupStatsHolder that = (QueryGroupStatsHolder) o;
-            return completions == that.completions && rejections == that.rejections && Objects.equals(resourceStats, that.resourceStats);
+            return completions == that.completions
+                && rejections == that.rejections
+                && Objects.equals(resourceStats, that.resourceStats)
+                && failures == that.failures
+                && totalCancellations == that.totalCancellations;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(completions, rejections, resourceStats);
+            return Objects.hash(completions, rejections, totalCancellations, failures, resourceStats);
         }
     }
 
@@ -145,17 +168,21 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
     public static class ResourceStats implements ToXContentObject, Writeable {
         public static final String CURRENT_USAGE = "current_usage";
         public static final String CANCELLATIONS = "cancellations";
+        public static final double PRECISION = 1e-9;
         private final double currentUsage;
         private final long cancellations;
+        private final long rejections;
 
-        public ResourceStats(double currentUsage, long cancellations) {
+        public ResourceStats(double currentUsage, long cancellations, long rejections) {
             this.currentUsage = currentUsage;
             this.cancellations = cancellations;
+            this.rejections = rejections;
         }
 
         public ResourceStats(StreamInput in) throws IOException {
             this.currentUsage = in.readDouble();
             this.cancellations = in.readVLong();
+            this.rejections = in.readVLong();
         }
 
         /**
@@ -167,6 +194,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         public static void writeTo(StreamOutput out, ResourceStats stats) throws IOException {
             out.writeDouble(stats.currentUsage);
             out.writeVLong(stats.cancellations);
+            out.writeVLong(stats.rejections);
         }
 
         @Override
@@ -178,6 +206,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(CURRENT_USAGE, currentUsage);
             builder.field(CANCELLATIONS, cancellations);
+            builder.field(QueryGroupStatsHolder.REJECTIONS, rejections);
             return builder;
         }
 
@@ -186,12 +215,12 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ResourceStats that = (ResourceStats) o;
-            return (currentUsage - that.currentUsage) < 1e-9 && cancellations == that.cancellations;
+            return (currentUsage - that.currentUsage) < PRECISION && cancellations == that.cancellations && rejections == that.rejections;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(currentUsage, cancellations);
+            return Objects.hash(currentUsage, cancellations, rejections);
         }
     }
 }
