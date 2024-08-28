@@ -217,10 +217,15 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             } else {
                 // As delete is async its possible that the file gets created before the deletion or after
                 // deletion.
-                MatcherAssert.assertThat(
-                    actualFileCount,
-                    is(oneOf(lastNMetadataFilesToKeep - 1, lastNMetadataFilesToKeep, lastNMetadataFilesToKeep + 1))
-                );
+                if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+                    // With pinned timestamp, we also keep md files since last successful fetch
+                    assertTrue(actualFileCount >= lastNMetadataFilesToKeep);
+                } else {
+                    MatcherAssert.assertThat(
+                        actualFileCount,
+                        is(oneOf(lastNMetadataFilesToKeep - 1, lastNMetadataFilesToKeep, lastNMetadataFilesToKeep + 1))
+                    );
+                }
             }
         }, 30, TimeUnit.SECONDS);
     }
@@ -249,7 +254,12 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
-        MatcherAssert.assertThat(actualFileCount, is(oneOf(4)));
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+            // With pinned timestamp, we also keep md files since last successful fetch
+            assertTrue(actualFileCount >= 4);
+        } else {
+            assertEquals(4, actualFileCount);
+        }
     }
 
     public void testStaleCommitDeletionWithMinSegmentFiles_Disabled() throws Exception {
