@@ -86,13 +86,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             // contains statsByIndex
             if (in.readBoolean()) {
-                statsByIndex = new HashMap<>();
-                readStatsByIndex(in);
+                statsByIndex = readStatsByIndex(in);
             }
         }
         if (in.readBoolean()) {
-            statsByShard = new HashMap<>();
-            readStatsByShards(in);
+            statsByShard = readStatsByShard(in);
         }
     }
 
@@ -158,8 +156,12 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     /**
      * By default, the levels passed from the transport action will be a list of strings, since NodeIndicesStats can
-     * only aggregate on one level, we pick the first accepted level else we ignore if no known level is passed.
+     * only aggregate on one level, we pick the first accepted level else we ignore if no known level is passed. Level is
+     * selected based on enum defined in {@link StatsLevel}
+     *
+     * Note - we are picking the first level as multiple levels are not supported in the previous versions.
      * @param levels - levels sent in the request.
+     *
      * @return Corresponding identified enum {@link StatsLevel}
      */
     public static StatsLevel getAcceptedLevel(String[] levels) {
@@ -172,16 +174,19 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return null;
     }
 
-    private void readStatsByIndex(StreamInput in) throws IOException {
+    private Map<Index, CommonStats> readStatsByIndex(StreamInput in) throws IOException {
+        Map<Index, CommonStats> statsByIndex = new HashMap<>();
         int indexEntries = in.readVInt();
         for (int i = 0; i < indexEntries; i++) {
             Index index = new Index(in);
             CommonStats commonStats = new CommonStats(in);
             statsByIndex.put(index, commonStats);
         }
+        return statsByIndex;
     }
 
-    private void readStatsByShards(StreamInput in) throws IOException {
+    private Map<Index, List<IndexShardStats>> readStatsByShard(StreamInput in) throws IOException {
+        Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
         int entries = in.readVInt();
         for (int i = 0; i < entries; i++) {
             Index index = new Index(in);
@@ -192,6 +197,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             }
             statsByShard.put(index, indexShardStats);
         }
+        return statsByShard;
     }
 
     @Nullable
@@ -324,8 +330,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             throw new IllegalArgumentException(
                 "level parameter must be one of ["
                     + StatsLevel.INDICES.getRestName()
-                    + "] or "
-                    + "["
+                    + "] or ["
                     + StatsLevel.NODE.getRestName()
                     + "] or ["
                     + StatsLevel.SHARDS.getRestName()
@@ -405,7 +410,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
-    @PublicApi(since = "2.0.0")
+    @PublicApi(since = "3.0.0")
     public enum StatsLevel {
         INDICES("indices"),
         SHARDS("shards"),
