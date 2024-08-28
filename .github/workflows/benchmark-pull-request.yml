@@ -121,7 +121,14 @@ jobs:
               affiliation: 'all',
               per_page: 100
               });
-            return maintainersResponse.data.map(item => item.login).join(', ');
+            // Any maintainers that do not want to be included on these requests
+            const excludedMaintainers = [
+              'peternied',
+            ];
+            return maintainersResponse.data
+              .map(item => item.login)
+              .filter(approvers => !excludedMaintainers.includes(approvers))
+              .join(', ');
       - uses: trstringer/manual-approval@v1
         if: (!contains(steps.get_approvers.outputs.result, github.event.comment.user.login))
         with:
