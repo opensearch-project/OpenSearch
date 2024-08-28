@@ -1337,7 +1337,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     coordinationState.get().isRemotePublicationEnabled(),
                     persistedStateRegistry
                 );
-                logger.info("initialized publicationcontext using class: {}", publicationContext.getClass().toString());
+                logger.debug("initialized PublicationContext using class: {}", publicationContext.getClass().toString());
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final CoordinatorPublication publication = new CoordinatorPublication(
