@@ -35,13 +35,13 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.comparesEqualTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -405,7 +405,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -486,7 +486,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SNAPSHOT_V2.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
                 )
         );
 
@@ -509,7 +509,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
-
 
         createIndex(indexName3, getRemoteStoreBackedIndexSettings());
         indexRandomDocs(indexName3, 10);

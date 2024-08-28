@@ -15,7 +15,6 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
@@ -43,7 +42,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotInfo;
-import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
@@ -759,11 +757,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2() throws Exception {
-
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
@@ -912,7 +908,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
-
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
@@ -994,7 +989,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
-
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
@@ -1123,7 +1117,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2WithShallowCopySettingDisabled() throws Exception {
-
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
