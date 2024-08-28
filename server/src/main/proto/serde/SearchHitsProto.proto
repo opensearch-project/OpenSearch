@@ -22,12 +22,12 @@ String collapseField
 Object[] collapseValues
  */
 message SearchHitsProto {
-  repeated SearchHitProto hits = 1;
-  TotalHitsProto total_hits = 2;
-  float max_score = 3;
-  string collapse_field = 4;
-  bytes sort_fields = 5;
-  bytes collapse_values = 6;
+  float max_score = 1;
+  string collapse_field = 2;
+  bytes sort_fields = 3;
+  bytes collapse_values = 4;
+  optional TotalHitsProto total_hits = 5;
+  repeated SearchHitProto hits = 6;
 }
 
 /**
@@ -53,7 +53,7 @@ message SearchHitProto {
   int64 version = 3;
   int64 seq_no = 4;
   int64 primary_term = 5;
-  bytes source = 6;
+  optional bytes source = 6;
   map<string, DocumentFieldProto> document_fields = 7;
   map<string, DocumentFieldProto> meta_fields = 8;
   map<string, HighlightFieldProto> highlight_fields = 9;
