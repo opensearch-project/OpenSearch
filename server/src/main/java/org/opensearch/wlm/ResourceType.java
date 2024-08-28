@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search;
+package org.opensearch.wlm;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -21,15 +21,17 @@ import java.util.function.Function;
  */
 @PublicApi(since = "2.x")
 public enum ResourceType {
-    CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU)),
-    MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY));
+    CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU), true),
+    MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY), true);
 
     private final String name;
     private final Function<Task, Long> getResourceUsage;
+    private final boolean statsEnabled;
 
-    ResourceType(String name, Function<Task, Long> getResourceUsage) {
+    ResourceType(String name, Function<Task, Long> getResourceUsage, boolean statsEnabled) {
         this.name = name;
         this.getResourceUsage = getResourceUsage;
+        this.statsEnabled = statsEnabled;
     }
 
     /**
@@ -62,5 +64,9 @@ public enum ResourceType {
      */
     public long getResourceUsage(Task task) {
         return getResourceUsage.apply(task);
+    }
+
+    public boolean hasStatsEnabled() {
+        return statsEnabled;
     }
 }
