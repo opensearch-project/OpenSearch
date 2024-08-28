@@ -6,18 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.tokens;
+package org.opensearch.identity;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Interface for all token formats to support to authenticate user such as UserName/Password tokens, Access tokens, and more.
+ * Similar to {@link Subject}, but represents a plugin executing actions
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface AuthToken {
-
-    String asAuthHeaderValue();
-
-}
+public interface PluginSubject extends Subject {}
