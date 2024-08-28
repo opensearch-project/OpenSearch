@@ -88,7 +88,7 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
         // Create DerivedFieldQuery
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             new TermQuery(new Term("ip_from_raw_request", "247.37.0.0")),
-            valueFetcher,
+            () -> valueFetcher,
             searchLookup,
             Lucene.STANDARD_ANALYZER,
             indexableFieldFunction,
@@ -157,7 +157,7 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
                 // Create DerivedFieldQuery
                 DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
                     new TermQuery(new Term("ip_from_raw_request", "247.37.0.0")),
-                    valueFetcher,
+                    () -> valueFetcher,
                     searchLookup,
                     Lucene.STANDARD_ANALYZER,
                     badIndexableFieldFunction,
@@ -169,7 +169,7 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
                 // set ignore_malformed as true, query should pass
                 derivedFieldQuery = new DerivedFieldQuery(
                     new TermQuery(new Term("ip_from_raw_request", "247.37.0.0")),
-                    valueFetcher,
+                    () -> valueFetcher,
                     searchLookup,
                     Lucene.STANDARD_ANALYZER,
                     badIndexableFieldFunction,

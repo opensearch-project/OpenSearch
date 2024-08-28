@@ -8,7 +8,9 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.RestHandler;
@@ -22,13 +24,15 @@ import static org.opensearch.rest.RestController.PASS_THROUGH_REST_HANDLER_WRAPP
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface IdentityPlugin {
 
     /**
      * Get the current subject.
+     *
      * @return Should never return null
      * */
-    Subject getSubject();
+    Subject getCurrentSubject();
 
     /**
      * Get the Identity Plugin's token manager implementation
@@ -44,4 +48,13 @@ public interface IdentityPlugin {
     default UnaryOperator<RestHandler> authenticate(ThreadContext threadContext) {
         return PASS_THROUGH_REST_HANDLER_WRAPPER;
     }
+
+    /**
+     * Gets a subject corresponding to the passed plugin that can be utilized to perform transport actions
+     * in the plugin system context
+     *
+     * @param plugin The corresponding plugin
+     * @return Subject corresponding to the plugin
+     */
+    PluginSubject getPluginSubject(Plugin plugin);
 }

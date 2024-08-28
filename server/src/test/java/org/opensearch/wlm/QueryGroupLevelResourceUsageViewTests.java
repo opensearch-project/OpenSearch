@@ -10,7 +10,6 @@ package org.opensearch.wlm;
 
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 

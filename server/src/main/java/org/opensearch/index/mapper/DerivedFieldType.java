@@ -159,10 +159,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termQuery(value, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -176,10 +175,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query termQueryCaseInsensitive(Object value, @Nullable QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termQueryCaseInsensitive(value, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -195,10 +193,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termsQuery(values, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -230,10 +227,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             parser,
             context
         );
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         return new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -251,10 +247,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -289,10 +284,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             method,
             context
         );
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -316,10 +310,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.prefixQuery(value, method, caseInsensitive, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -343,10 +336,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.wildcardQuery(value, method, caseInsensitive, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -365,10 +357,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.normalizedWildcardQuery(value, method, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -394,10 +385,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -416,10 +406,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
         Query query = typeFieldMapper.mappedFieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -441,10 +430,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context)
         throws IOException {
         Query query = typeFieldMapper.mappedFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -465,10 +453,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
         Query query = typeFieldMapper.mappedFieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -493,10 +480,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.distanceFeatureQuery(origin, pivot, boost, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         return new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
@@ -507,10 +493,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         Query query = ((GeoShapeQueryable) (typeFieldMapper.mappedFieldType)).geoShapeQuery(shape, fieldName, relation, context);
-        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
         return new DerivedFieldQuery(
             query,
-            valueFetcher,
+            () -> valueFetcher(context, context.lookup(), null),
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
