@@ -63,6 +63,10 @@ public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEnt
 
     public abstract String generateBlobFileName();
 
+    public BlobPath getPrefixedPath(BlobPath blobPath) {
+        return blobPath;
+    }
+
     public String clusterUUID() {
         return clusterUUID;
     }

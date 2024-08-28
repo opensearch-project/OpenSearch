@@ -659,7 +659,9 @@ public class RemoteClusterStateService implements Closeable {
                     indexMetadata,
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    blobStoreRepository.getNamedXContentRegistry()
+                    blobStoreRepository.getNamedXContentRegistry(),
+                    remoteIndexMetadataManager.getPathTypeSetting(),
+                    remoteIndexMetadataManager.getPathHashAlgoSetting()
                 ),
                 listener
             );

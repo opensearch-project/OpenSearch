@@ -23,6 +23,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.IndicesModule;
@@ -169,6 +171,23 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             IndexMetadata readIndexMetadata = remoteObjectForUpload.deserialize(inputStream);
             assertThat(readIndexMetadata, is(indexMetadata));
         }
+    }
+
+    public void testPrefixedPath() {
+        IndexMetadata indexMetadata = getIndexMetadata();
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            PathType.HASHED_PREFIX,
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
+        );
+        String testPath = "test-path";
+        String expectedPath = "410100110100101/test-path/index-uuid/";
+        BlobPath prefixedPath = remoteObjectForUpload.getPrefixedPath(BlobPath.cleanPath().add(testPath));
+        assertThat(prefixedPath.buildAsString(), is(expectedPath));
+
     }
 
     private IndexMetadata getIndexMetadata() {
