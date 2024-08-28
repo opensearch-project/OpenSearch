@@ -422,7 +422,6 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.identity.Subject;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -481,20 +480,7 @@ public abstract class AbstractClient implements Client {
         Request request,
         ActionListener<Response> listener
     ) {
-        Subject runAs = request.getRunAs();
-        if (runAs != null) {
-            try {
-                runAs.runAs(() -> {
-                    doExecute(action, request, listener);
-                    return null;
-                });
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            // run with default subject. If security is installed, default subject is the authenticated user
-            doExecute(action, request, listener);
-        }
+        doExecute(action, request, listener);
     }
 
     protected abstract <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
