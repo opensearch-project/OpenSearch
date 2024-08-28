@@ -361,7 +361,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
             ignoreThrottleInRestore,
-            null // as we don't need to check if timed out or not while just understanding ShardAllocationDecision
+            x -> false // as we don't need to check if timed out or not while just understanding ShardAllocationDecision
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -625,7 +625,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, null);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, x -> false);
         }
     }
 
