@@ -276,7 +276,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<PathType> SHARD_PATH_TYPE = new Setting<>(
         "shard_path_type",
-        PathType.FIXED.toString(),
+        PathType.HASHED_PREFIX.toString(),
         PathType::parseString
     );
 
