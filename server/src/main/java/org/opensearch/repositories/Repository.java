@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
@@ -163,6 +164,7 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
      *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
+     * @param repositoryUpdatePriority  priority for the cluster state update task
      * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
      */
     void finalizeSnapshot(
@@ -172,6 +174,7 @@ public interface Repository extends LifecycleComponent {
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     );
 
