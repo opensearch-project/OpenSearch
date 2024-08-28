@@ -154,7 +154,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new NodeClient(Settings.EMPTY, threadPool),
             new NoneCircuitBreakerService(),
             new UsageService(),
-            new IdentityService(Settings.EMPTY, List.of())
+            new IdentityService(Settings.EMPTY, threadPool, List.of())
         );
         when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);
@@ -171,7 +171,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
-        identityService = new IdentityService(Settings.EMPTY, List.of());
+        identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
     }
 
     @Override
