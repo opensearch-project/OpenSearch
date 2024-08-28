@@ -1018,7 +1018,7 @@ public class SearchHit implements Writeable, ToXContentObject, Iterable<Document
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
+        if (!(obj instanceof SearchHit)) {
             return false;
         }
         SearchHit other = (SearchHit) obj;

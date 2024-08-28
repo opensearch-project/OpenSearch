@@ -299,7 +299,7 @@ public class SearchHits implements Writeable, ToXContentFragment, Iterable<Searc
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
+        if (!(obj instanceof SearchHits)) {
             return false;
         }
         SearchHits other = (SearchHits) obj;
