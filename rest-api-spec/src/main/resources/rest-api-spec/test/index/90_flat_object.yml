@@ -97,8 +97,8 @@ teardown:
 ---
 "Supported queries":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   # Verify Document Count
   - do:
@@ -607,8 +607,8 @@ teardown:
 ---
 "Unsupported":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   # Mapping parameters (such as index/search analyzers) are currently not supported
   # The plan is to support them in the next version
