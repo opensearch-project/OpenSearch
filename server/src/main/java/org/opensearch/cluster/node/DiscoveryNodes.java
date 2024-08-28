@@ -707,7 +707,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             out.writeBoolean(true);
             out.writeString(clusterManagerNodeId);
         }
-        out.writeMapValuesOrderedByKey(nodes, Map.Entry.comparingByKey(), (stream, val) -> val.writeToSorted(stream));
+        out.writeMapValuesOrdered(nodes, Map.Entry.comparingByKey(), (stream, val) -> val.writeToSorted(stream));
     }
 
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {

@@ -53,7 +53,6 @@ import org.opensearch.core.index.shard.ShardId;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -379,14 +378,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     public void writeToSorted(StreamOutput out) throws IOException {
         index.writeTo(out);
-        out.writeVInt(shards.size());
-        shards.values().stream().sorted(Comparator.comparing(IndexShardRoutingTable::getShardId)).forEach(indexShard -> {
-            try {
-                IndexShardRoutingTable.Builder.writeToSorted(indexShard, out);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        out.writeMapValuesOrdered(shards, Map.Entry.comparingByKey(), (stream, value) ->  IndexShardRoutingTable.Builder.writeToSorted(value, stream));
     }
 
     public static Builder builder(Index index) {

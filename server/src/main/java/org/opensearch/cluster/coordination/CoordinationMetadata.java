@@ -154,10 +154,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         out.writeLong(term);
         lastCommittedConfiguration.writeToSorted(out);
         lastAcceptedConfiguration.writeToSorted(out);
-        List<VotingConfigExclusion> sortedList = votingConfigExclusions.stream()
-            .sorted(Comparator.comparing(VotingConfigExclusion::getNodeId))
-            .collect(Collectors.toList());
-        out.writeCollection(sortedList);
+        out.writeCollectionOrdered(votingConfigExclusions, Comparator.comparing(VotingConfigExclusion::getNodeId),  (o, v) -> v.writeTo(o));
     }
 
     @Override
@@ -403,9 +400,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         }
 
         public void writeToSorted(StreamOutput out) throws IOException {
-            String[] nodeIds = this.nodeIds.toArray(new String[0]);
-            Arrays.sort(nodeIds);
-            out.writeStringArray(nodeIds);
+            out.writeStringArrayOrdered(nodeIds.toArray(new String[0]));
         }
 
         public boolean hasQuorum(Collection<String> votes) {

@@ -260,11 +260,13 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     public void writeToSorted(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);
+        //patterns is an immutable list so we need to copy before sorting.
+        List<String> patterns = new ArrayList<>(this.patterns);
         Collections.sort(patterns);
         out.writeStringCollection(patterns);
-        Settings.writeSettingsToStream(settings, out);
-        out.writeMapOrderedByKey(mappings, Map.Entry.comparingByKey(), StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
-        out.writeMapValuesOrderedByKey(aliases, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        Settings.writeSettingsToStreamSorted(settings, out);
+        out.writeMapOrdered(mappings, Map.Entry.comparingByKey(), StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMapValuesOrdered(aliases, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
         out.writeOptionalVInt(version);
     }
 

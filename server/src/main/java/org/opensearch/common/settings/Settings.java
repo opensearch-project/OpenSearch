@@ -589,6 +589,10 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
+    public static void writeSettingsToStreamSorted(Settings settings, StreamOutput out) throws IOException {
+        out.writeMapOrdered(settings.settings, Map.Entry.comparingByKey(), StreamOutput::writeString, StreamOutput::writeGenericValue);
+    }
+
     /**
      * Returns a builder to be used in order to build settings.
      */

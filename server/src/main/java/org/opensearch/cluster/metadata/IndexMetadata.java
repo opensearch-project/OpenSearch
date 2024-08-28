@@ -96,6 +96,7 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
+import static org.opensearch.common.settings.Settings.writeSettingsToStreamSorted;
 
 /**
  * Index metadata information
@@ -1221,23 +1222,23 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeVLong(aliasesVersion);
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
-        writeSettingsToStream(settings, out);
+        writeSettingsToStreamSorted(settings, out);
         out.writeVLongArray(primaryTerms);
-        out.writeMapValuesOrderedByKey(mappings, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
-        out.writeMapValuesOrderedByKey(aliases, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
-        out.writeMapOrderedByKey(
+        out.writeMapValuesOrdered(mappings, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        out.writeMapValuesOrdered(aliases, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        out.writeMapOrdered(
             customData,
             Map.Entry.comparingByKey(),
             StreamOutput::writeString,
             (stream, val) -> val.writeToSorted(stream)
         );
-        out.writeMapOrderedByKey(
+        out.writeMapOrdered(
             inSyncAllocationIds,
             Map.Entry.comparingByKey(),
             StreamOutput::writeVInt,
             (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
         );
-        out.writeMapValuesOrderedByKey(rolloverInfos, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        out.writeMapValuesOrdered(rolloverInfos, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
         out.writeBoolean(isSystem);
     }
 

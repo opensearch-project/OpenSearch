@@ -87,6 +87,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -549,6 +550,11 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeStringArrayOrdered(String[] array) throws IOException {
+        Arrays.sort(array);
+        writeStringArray(array);
+    }
+
     /**
      * Writes a string array, for nullable string, writes it as 0 (empty string).
      */
@@ -642,7 +648,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public final <K, V> void writeMapOrderedByKey(final Map<K, V> map, Comparator<Map.Entry<K, V>> entryComparator, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
+    public final <K, V> void writeMapOrdered(final Map<K, V> map, Comparator<Map.Entry<K, V>> entryComparator, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
         writeVInt(map.size());
         map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry->
             {
@@ -650,20 +656,20 @@ public abstract class StreamOutput extends OutputStream {
                     keyWriter.write(this, entry.getKey());
                     valueWriter.write(this, entry.getValue());
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new RuntimeException("Failed to write map.", e);
                 }
             }
         );
     }
 
-    public final <K, V> void writeMapValuesOrderedByKey(final Map<K, V> map, Comparator<Map.Entry<K, V>> entryComparator, final Writer<V> valueWriter) throws IOException {
+    public final <K, V> void writeMapValuesOrdered(final Map<K, V> map, Comparator<Map.Entry<K, V>> entryComparator, final Writer<V> valueWriter) throws IOException {
         writeVInt(map.size());
         map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry->
             {
                 try {
                     valueWriter.write(this, entry.getValue());
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new RuntimeException("Failed to write map values.", e);
                 }
             }
         );
@@ -1204,6 +1210,12 @@ public abstract class StreamOutput extends OutputStream {
     public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
         writeCollection(collection, (o, v) -> v.writeTo(o));
     }
+
+    public <T> void writeCollectionOrdered(final Collection<T> collection, Comparator<T> comparator, final Writer<T> writer) throws IOException {
+        List<T> sortedList = collection.stream().sorted(comparator).collect(Collectors.toList());
+        writeCollection(sortedList, writer);
+    }
+
 
     /**
      * Writes a list of {@link Writeable} objects

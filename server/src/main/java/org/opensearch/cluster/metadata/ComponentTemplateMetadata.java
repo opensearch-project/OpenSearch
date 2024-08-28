@@ -123,7 +123,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     public void writeToSorted(StreamOutput out) throws IOException {
-        out.writeMapOrderedByKey(
+        out.writeMapOrdered(
             this.componentTemplates,
             Map.Entry.comparingByKey(),
             StreamOutput::writeString,

@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -1146,7 +1147,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                     try {
                         shardRouting.writeToThin(out);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        logger.error(() -> new ParameterizedMessage("Failed to write shard {}. Exception {}", indexShard, e));
+                        throw new RuntimeException("Failed to write IndexShardRoutingTable", e);
                     }
                 });
         }

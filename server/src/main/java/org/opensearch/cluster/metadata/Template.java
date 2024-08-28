@@ -156,6 +156,27 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
     }
 
+    public void writeToSorted(StreamOutput out) throws IOException {
+        if (this.settings == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            Settings.writeSettingsToStreamSorted(this.settings, out);
+        }
+        if (this.mappings == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            this.mappings.writeTo(out);
+        }
+        if (this.aliases == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeMapOrdered(this.aliases, Map.Entry.comparingByKey(), StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
+        }
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(settings, mappings, aliases);
