@@ -103,6 +103,7 @@ class ReactorNetty4StreamingHttpChannel implements StreamingHttpChannel {
             }
         } catch (final Exception ex) {
             producer.error(ex);
+        } finally {
             message.close();
         }
     }
