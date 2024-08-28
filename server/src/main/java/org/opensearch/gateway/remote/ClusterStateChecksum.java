@@ -71,15 +71,15 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             BytesStreamOutput out = new BytesStreamOutput();
             BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out)
         ) {
-            clusterState.routingTable().writeToSorted(checksumOut);
+            clusterState.routingTable().writeVerifiableTo(checksumOut);
             routingTableChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.nodes().writeToSorted(checksumOut);
+            clusterState.nodes().writeVerifiableTo(checksumOut);
             nodesChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.coordinationMetadata().writeToSorted(checksumOut);
+            clusterState.coordinationMetadata().writeVerifiableTo(checksumOut);
             coordinationMetadataChecksum = checksumOut.getChecksum();
 
             // Settings create sortedMap by default, so no explicit sorting required here.
@@ -92,33 +92,19 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             transientSettingsMetadataChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.metadata().templatesMetadata().writeToSorted(checksumOut);
+            clusterState.metadata().templatesMetadata().writeVerifiableTo(checksumOut);
             templatesMetadataChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.metadata().customs().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-                try {
-                    entry.getValue().writeTo(checksumOut);
-                } catch (IOException e) {
-                    logger.error("Failed to create checksum for custom metadata.", e);
-                    throw new RemoteStateTransferException("Failed to create checksum for custom metadata.", e);
-                }
-            });
+            checksumOut.writeMapValues(clusterState.metadata().customs(), (stream, value) -> value.writeTo(stream));
             customMetadataMapChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeToSorted(checksumOut);
+            ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(checksumOut);
             hashesOfConsistentSettingsChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.metadata().indices().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach((entry -> {
-                try {
-                    entry.getValue().writeToSorted(checksumOut);
-                } catch (IOException e) {
-                    logger.error("Failed to create checksum for index metadata.", e);
-                    throw new RemoteStateTransferException("Failed to create checksum for index metadata.", e);
-                }
-            }));
+            checksumOut.writeMapValues(clusterState.metadata().indices(), (stream, value) -> value.writeVerifiableTo(stream));
             indicesChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
@@ -126,13 +112,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             blocksChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.customs().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-                try {
-                    checksumOut.writeNamedWriteable(entry.getValue());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            checksumOut.writeMapValues(clusterState.customs(), (stream, value) -> checksumOut.writeNamedWriteable(value));
             clusterStateCustomsChecksum = checksumOut.getChecksum();
         } catch (IOException e) {
             logger.error("Failed to create checksum for cluster state.", e);

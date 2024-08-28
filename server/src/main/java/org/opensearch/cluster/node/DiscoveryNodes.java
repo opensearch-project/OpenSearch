@@ -43,6 +43,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -66,7 +67,7 @@ import java.util.stream.StreamSupport;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
+public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode>, VerifiableWriteable {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -688,26 +689,26 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (clusterManagerNodeId == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(clusterManagerNodeId);
-        }
+        writeClusterManager(out);
         out.writeVInt(nodes.size());
         for (DiscoveryNode node : this) {
             node.writeTo(out);
         }
     }
 
-    public void writeToSorted(StreamOutput out) throws IOException {
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
+        writeClusterManager(out);
+        out.writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo(stream));
+    }
+
+    private void writeClusterManager(StreamOutput out) throws IOException {
         if (clusterManagerNodeId == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             out.writeString(clusterManagerNodeId);
         }
-        out.writeMapValuesOrdered(nodes, Map.Entry.comparingByKey(), (stream, val) -> val.writeToSorted(stream));
     }
 
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {

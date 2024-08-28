@@ -39,6 +39,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -71,7 +72,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiscoveryNode implements Writeable, ToXContentFragment {
+public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -358,37 +359,33 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(nodeName);
-        out.writeString(nodeId);
-        out.writeString(ephemeralId);
-        out.writeString(hostName);
-        out.writeString(hostAddress);
-        address.writeTo(out);
+        writeNodeDetails(out);
+
         out.writeVInt(attributes.size());
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        out.writeVInt(roles.size());
-        for (final DiscoveryNodeRole role : roles) {
-            final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
-            out.writeString(compatibleRole.roleName());
-            out.writeString(compatibleRole.roleNameAbbreviation());
-            out.writeBoolean(compatibleRole.canContainData());
-        }
-        out.writeVersion(version);
+        writeRolesAndVersion(out);
     }
 
-    public void writeToSorted(StreamOutput out) throws IOException {
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
+        writeNodeDetails(out);
+        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        writeRolesAndVersion(out);
+    }
+
+    private void writeNodeDetails(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         out.writeString(nodeId);
         out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
+    }
 
-        out.writeMapOrdered(attributes, Map.Entry.comparingByKey(), StreamOutput::writeString, StreamOutput::writeString);
-
+    private void writeRolesAndVersion(StreamOutput out) throws IOException {
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());

@@ -122,15 +122,6 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         out.writeMap(this.componentTemplates, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
 
-    public void writeToSorted(StreamOutput out) throws IOException {
-        out.writeMapOrdered(
-            this.componentTemplates,
-            Map.Entry.comparingByKey(),
-            StreamOutput::writeString,
-            (stream, val) -> val.writeTo(stream)
-        );
-    }
-
     public static ComponentTemplateMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }

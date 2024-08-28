@@ -81,10 +81,6 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
         out.writeMap((Map<String, Object>) (Map) innerMap);
     }
 
-    public void writeToSorted(StreamOutput out) throws IOException {
-        out.writeMapWithConsistentOrder((Map<String, Object>) (Map) innerMap);
-    }
-
     @Override
     public Diff<DiffableStringMap> diff(DiffableStringMap previousState) {
         return new DiffableStringMapDiff(previousState, this);

@@ -44,6 +44,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
@@ -70,7 +71,7 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
+public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable>, VerifiableWriteable {
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
 
@@ -403,9 +404,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
-    public void writeToSorted(StreamOutput out) throws IOException {
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
         out.writeLong(version);
-        out.writeMapValuesOrdered(indicesRouting, Map.Entry.comparingByKey(), (stream, value) -> value.writeToSorted(stream));
+        out.writeMapValues(indicesRouting, (stream, value) -> value.writeVerifiableTo(stream));
     }
 
     private static class RoutingTableDiff implements Diff<RoutingTable> {

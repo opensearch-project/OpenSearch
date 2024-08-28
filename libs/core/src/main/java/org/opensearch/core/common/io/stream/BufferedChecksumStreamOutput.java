@@ -33,9 +33,20 @@
 package org.opensearch.core.common.io.stream;
 
 import org.apache.lucene.store.BufferedChecksum;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -89,5 +100,87 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
 
     public void resetDigest() {
         digest.reset();
+    }
+
+    @Override
+    public void writeMap(@Nullable Map<String, Object> map) throws IOException {
+        Map<String, Object> newMap = new TreeMap<>(map);
+        writeGenericValue(newMap);
+    }
+
+    @Override
+    public <K, V> void writeMap(final Map<K, V> map, final Writeable.Writer<K> keyWriter, final Writeable.Writer<V> valueWriter) throws IOException {
+        writeVInt(map.size());
+        map.entrySet().stream().sorted(Comparator.comparing(o -> ( o.getKey().hashCode()))).forEachOrdered(entry->
+            {
+                try {
+                    keyWriter.write(this, entry.getKey());
+                    valueWriter.write(this, entry.getValue());
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to write map.", e);
+                }
+            }
+        );
+    }
+
+    /**
+     *
+     * @param map
+     * @param valueWriter
+     * @param <K>
+     * @param <V>
+     * @throws IOException
+     */
+    @Override
+    public <K, V> void writeMapValues(final Map<K, V> map, final Writeable.Writer<V> valueWriter) throws IOException {
+        writeVInt(map.size());
+        map.entrySet().stream().sorted(Comparator.comparing(o -> ( o.getKey().hashCode()))).forEachOrdered(entry->
+            {
+                try {
+                    valueWriter.write(this, entry.getValue());
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to write map values.", e);
+                }
+            }
+        );
+    }
+
+    @Override
+    public void writeStringArray(String[] array) throws IOException {
+        Arrays.sort(array);
+        super.writeStringArray(array);
+    }
+
+    @Override
+    public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
+        List<? extends Writeable> sortedList = collection.stream().sorted(Comparator.comparing(Object::hashCode)).collect(Collectors.toList());
+        writeCollection(sortedList, (o, v) -> v.writeTo(o));
+    }
+
+    @Override
+    public void writeStringCollection(final Collection<String> collection) throws IOException {
+        List<String> listCollection = new ArrayList<>(collection);
+        Collections.sort(listCollection);
+        writeCollection(listCollection, StreamOutput::writeString);
+    }
+
+    @Override
+    public void writeList(List<? extends Writeable> list) throws IOException {
+        //copy to new to handle unmodifiable lists
+        List<? extends Writeable> newList = new ArrayList<>(list);
+        newList.sort(Comparator.comparing(Object::hashCode));
+        writeCollection(newList);
+    }
+
+    @Override
+    public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
+        if (collection != null) {
+            List<String> listCollection = new ArrayList<>(collection);
+            Collections.sort(listCollection);
+            writeBoolean(true);
+            writeCollection(listCollection, StreamOutput::writeString);
+        } else {
+            writeBoolean(false);
+        }
     }
 }

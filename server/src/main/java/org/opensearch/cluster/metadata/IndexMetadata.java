@@ -56,6 +56,7 @@ import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -96,7 +97,6 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
-import static org.opensearch.common.settings.Settings.writeSettingsToStreamSorted;
 
 /**
  * Index metadata information
@@ -104,7 +104,7 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStreamSorte
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
+public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment, VerifiableWriteable {
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(
         5,
@@ -1214,7 +1214,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeBoolean(isSystem);
     }
 
-    public void writeToSorted(StreamOutput out) throws IOException {
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
         out.writeVLong(mappingVersion);
@@ -1222,23 +1223,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeVLong(aliasesVersion);
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
-        writeSettingsToStreamSorted(settings, out);
+        writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
-        out.writeMapValuesOrdered(mappings, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
-        out.writeMapValuesOrdered(aliases, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
-        out.writeMapOrdered(
-            customData,
-            Map.Entry.comparingByKey(),
-            StreamOutput::writeString,
-            (stream, val) -> val.writeToSorted(stream)
-        );
-        out.writeMapOrdered(
+        out.writeMapValues(mappings,(stream, val) -> val.writeTo(stream));
+        out.writeMapValues(aliases,(stream, val) -> val.writeTo(stream));
+        out.writeMap(customData,  StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(
             inSyncAllocationIds,
-            Map.Entry.comparingByKey(),
             StreamOutput::writeVInt,
             (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
         );
-        out.writeMapValuesOrdered(rolloverInfos, Map.Entry.comparingByKey(), (stream, val) -> val.writeTo(stream));
+        out.writeMapValues(rolloverInfos,  (stream, val) -> val.writeTo(stream));
         out.writeBoolean(isSystem);
     }
 

@@ -1136,7 +1136,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
 
-        public static void writeToSorted(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
+        public static void writeVerifiableTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
             out.writeVInt(indexShard.shardId.id());
             out.writeVInt(indexShard.shards.size());
             // Order allocated shards by allocationId

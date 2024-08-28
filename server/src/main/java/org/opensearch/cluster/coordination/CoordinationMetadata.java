@@ -37,6 +37,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -60,7 +61,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class CoordinationMetadata implements Writeable, ToXContentFragment {
+public class CoordinationMetadata implements VerifiableWriteable, ToXContentFragment {
 
     public static final CoordinationMetadata EMPTY_METADATA = builder().build();
 
@@ -150,11 +151,9 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         out.writeCollection(votingConfigExclusions);
     }
 
-    public void writeToSorted(StreamOutput out) throws IOException {
-        out.writeLong(term);
-        lastCommittedConfiguration.writeToSorted(out);
-        lastAcceptedConfiguration.writeToSorted(out);
-        out.writeCollectionOrdered(votingConfigExclusions, Comparator.comparing(VotingConfigExclusion::getNodeId),  (o, v) -> v.writeTo(o));
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
+        writeTo(out);
     }
 
     @Override
@@ -397,10 +396,6 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringArray(nodeIds.toArray(new String[0]));
-        }
-
-        public void writeToSorted(StreamOutput out) throws IOException {
-            out.writeStringArrayOrdered(nodeIds.toArray(new String[0]));
         }
 
         public boolean hasQuorum(Collection<String> votes) {
