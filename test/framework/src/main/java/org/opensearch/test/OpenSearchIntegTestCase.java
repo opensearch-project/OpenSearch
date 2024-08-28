@@ -1952,7 +1952,18 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             segmentRepoPath = randomRepoPath().toAbsolutePath();
             translogRepoPath = randomRepoPath().toAbsolutePath();
         }
-        builder.put(remoteStoreClusterSettings("test-remote-store-repo", segmentRepoPath, "test-remote-store-repo-2", translogRepoPath));
+        String segmentRepoName = "test-remote-store-repo";
+        String stateRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+        String prefixModeVerificationSuffix = BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING.getKey();
+        String stateRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
         String routingTableRepoName = "remote-routing-repo";
         String routingTableRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
@@ -1964,7 +1975,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             routingTableRepoName
         );
-        builder.put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+        builder.put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
+            .put(stateRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put(stateRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, prefixModeVerificationEnable)
+            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
