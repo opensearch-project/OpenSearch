@@ -44,7 +44,7 @@ class ReactorNetty4StreamingRequestConsumer<T extends HttpContent> implements Co
     }
 
     HttpChunk createChunk(HttpContent chunk, boolean last) {
-        return new ReactorNetty4HttpChunk(chunk.copy().content(), last);
+        return new ReactorNetty4HttpChunk(chunk.copy().content().retain(), last);
     }
 
     StreamingHttpChannel httpChannel() {
