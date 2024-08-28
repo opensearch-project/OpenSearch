@@ -11,12 +11,12 @@ package org.opensearch.gateway.remote;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
+import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateCustoms;
 import org.opensearch.gateway.remote.model.RemoteDiscoveryNodes;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * A Manager which provides APIs to upload and download attributes of ClusterState to the {@link RemoteClusterStateBlobStore}
+ * A Manager which provides APIs to upload and download attributes of ClusterState to the {@link RemoteWriteableEntityBlobStore}
  *
  * @opensearch.internal
  */
@@ -47,32 +47,35 @@ public class RemoteClusterStateAttributesManager extends AbstractRemoteWritableE
     ) {
         this.remoteWritableEntityStores.put(
             RemoteDiscoveryNodes.DISCOVERY_NODES,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemoteClusterBlocks.CLUSTER_BLOCKS,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.remoteWritableEntityStores.put(
             RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
     }
@@ -80,7 +83,7 @@ public class RemoteClusterStateAttributesManager extends AbstractRemoteWritableE
     @Override
     protected ActionListener<Void> getWrappedWriteListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
@@ -92,7 +95,7 @@ public class RemoteClusterStateAttributesManager extends AbstractRemoteWritableE
     @Override
     protected ActionListener<Object> getWrappedReadListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<RemoteReadResult> listener
     ) {
         return ActionListener.wrap(

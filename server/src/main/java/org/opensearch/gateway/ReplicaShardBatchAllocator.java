@@ -173,7 +173,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         RoutingAllocation allocation,
         Supplier<Map<DiscoveryNode, StoreFilesMetadata>> nodeStoreFileMetaDataMapSupplier
     ) {
-        if (!isResponsibleFor(shardRouting)) {
+        if (isResponsibleFor(shardRouting) == false) {
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
         Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(shardRouting, allocation);
@@ -183,7 +183,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         if (allocationDecision.type() != Decision.Type.YES && (!explain || !hasInitiatedFetching(shardRouting))) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
-            logger.trace("{}: ignoring allocation, can't be allocated on any node", shardRouting);
+            logger.trace("{}: ignoring allocation, can't be allocated on any node. Decision: {}", shardRouting, allocationDecision.type());
             return AllocateUnassignedDecision.no(
                 UnassignedInfo.AllocationStatus.fromDecision(allocationDecision.type()),
                 result.v2() != null ? new ArrayList<>(result.v2().values()) : null

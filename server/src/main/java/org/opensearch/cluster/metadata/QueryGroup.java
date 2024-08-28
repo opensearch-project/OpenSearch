@@ -29,38 +29,40 @@ import java.util.Objects;
  * Class to define the QueryGroup schema
  * {
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
- *              "resourceLimits": {
- *                  "jvm": 0.4
+ *              "resource_limits": {
+ *                  "memory": 0.4
  *              },
  *              "resiliency_mode": "enforced",
  *              "name": "analytics",
- *              "updatedAt": 4513232415
+ *              "updated_at": 4513232415
  * }
  */
 @ExperimentalApi
 public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXContentObject {
 
+    public static final String _ID_STRING = "_id";
+    public static final String NAME_STRING = "name";
+    public static final String RESILIENCY_MODE_STRING = "resiliency_mode";
+    public static final String UPDATED_AT_STRING = "updated_at";
+    public static final String RESOURCE_LIMITS_STRING = "resource_limits";
     private static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final String _id;
     private final ResiliencyMode resiliencyMode;
     // It is an epoch in millis
     private final long updatedAtInMillis;
-    private final Map<ResourceType, Object> resourceLimits;
+    private final Map<ResourceType, Double> resourceLimits;
 
-    public QueryGroup(String name, ResiliencyMode resiliencyMode, Map<ResourceType, Object> resourceLimits) {
+    public QueryGroup(String name, ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits) {
         this(name, UUIDs.randomBase64UUID(), resiliencyMode, resourceLimits, Instant.now().getMillis());
     }
 
-    public QueryGroup(String name, String _id, ResiliencyMode resiliencyMode, Map<ResourceType, Object> resourceLimits, long updatedAt) {
+    public QueryGroup(String name, String _id, ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits, long updatedAt) {
         Objects.requireNonNull(name, "QueryGroup.name can't be null");
         Objects.requireNonNull(resourceLimits, "QueryGroup.resourceLimits can't be null");
         Objects.requireNonNull(resiliencyMode, "QueryGroup.resiliencyMode can't be null");
         Objects.requireNonNull(_id, "QueryGroup._id can't be null");
-
-        if (name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
-            throw new IllegalArgumentException("QueryGroup.name shouldn't be more than 50 chars long");
-        }
+        validateName(name);
 
         if (resourceLimits.isEmpty()) {
             throw new IllegalArgumentException("QueryGroup.resourceLimits should at least have 1 resource limit");
@@ -92,7 +94,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             in.readString(),
             in.readString(),
             ResiliencyMode.fromName(in.readString()),
-            in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readGenericValue),
+            in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readDouble),
             in.readLong()
         );
     }
@@ -102,18 +104,24 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         out.writeString(name);
         out.writeString(_id);
         out.writeString(resiliencyMode.getName());
-        out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeGenericValue);
+        out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeDouble);
         out.writeLong(updatedAtInMillis);
     }
 
-    private void validateResourceLimits(Map<ResourceType, Object> resourceLimits) {
-        for (Map.Entry<ResourceType, Object> resource : resourceLimits.entrySet()) {
-            Double threshold = (Double) resource.getValue();
+    public static void validateName(String name) {
+        if (name == null || name.isEmpty() || name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
+            throw new IllegalArgumentException("QueryGroup.name shouldn't be null, empty or more than 50 chars long");
+        }
+    }
+
+    private void validateResourceLimits(Map<ResourceType, Double> resourceLimits) {
+        for (Map.Entry<ResourceType, Double> resource : resourceLimits.entrySet()) {
+            Double threshold = resource.getValue();
             Objects.requireNonNull(resource.getKey(), "resourceName can't be null");
             Objects.requireNonNull(threshold, "resource limit threshold for" + resource.getKey().getName() + " : can't be null");
 
-            if (Double.compare(threshold, 1.0) > 0) {
-                throw new IllegalArgumentException("resource value should be less than 1.0");
+            if (Double.compare(threshold, 0.0) <= 0 || Double.compare(threshold, 1.0) > 0) {
+                throw new IllegalArgumentException("resource value should be greater than 0 and less or equal to 1.0");
             }
         }
     }
@@ -121,12 +129,12 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field("_id", _id);
-        builder.field("name", name);
-        builder.field("resiliency_mode", resiliencyMode.getName());
-        builder.field("updatedAt", updatedAtInMillis);
+        builder.field(_ID_STRING, _id);
+        builder.field(NAME_STRING, name);
+        builder.field(RESILIENCY_MODE_STRING, resiliencyMode.getName());
+        builder.field(UPDATED_AT_STRING, updatedAtInMillis);
         // write resource limits
-        builder.startObject("resourceLimits");
+        builder.startObject(RESOURCE_LIMITS_STRING);
         for (ResourceType resourceType : ResourceType.values()) {
             if (resourceLimits.containsKey(resourceType)) {
                 builder.field(resourceType.getName(), resourceLimits.get(resourceType));
@@ -139,56 +147,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     }
 
     public static QueryGroup fromXContent(final XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) { // fresh parser? move to the first token
-            parser.nextToken();
-        }
-
-        Builder builder = builder();
-
-        XContentParser.Token token = parser.currentToken();
-
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
-        }
-
-        String fieldName = "";
-        // Map to hold resources
-        final Map<ResourceType, Object> resourceLimits = new HashMap<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (fieldName.equals("_id")) {
-                    builder._id(parser.text());
-                } else if (fieldName.equals("name")) {
-                    builder.name(parser.text());
-                } else if (fieldName.equals("resiliency_mode")) {
-                    builder.mode(parser.text());
-                } else if (fieldName.equals("updatedAt")) {
-                    builder.updatedAt(parser.longValue());
-                } else {
-                    throw new IllegalArgumentException(fieldName + " is not a valid field in QueryGroup");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-
-                if (!fieldName.equals("resourceLimits")) {
-                    throw new IllegalArgumentException(
-                        "QueryGroup.resourceLimits is an object and expected token was { " + " but found " + token
-                    );
-                }
-
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        fieldName = parser.currentName();
-                    } else {
-                        resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
-                    }
-                }
-
-            }
-        }
-        builder.resourceLimits(resourceLimits);
-        return builder.build();
+        return Builder.fromXContent(parser).build();
     }
 
     public static Diff<QueryGroup> readDiff(final StreamInput in) throws IOException {
@@ -201,6 +160,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         if (o == null || getClass() != o.getClass()) return false;
         QueryGroup that = (QueryGroup) o;
         return Objects.equals(name, that.name)
+            && Objects.equals(resiliencyMode, that.resiliencyMode)
             && Objects.equals(resourceLimits, that.resourceLimits)
             && Objects.equals(_id, that._id)
             && updatedAtInMillis == that.updatedAtInMillis;
@@ -219,7 +179,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         return resiliencyMode;
     }
 
-    public Map<ResourceType, Object> getResourceLimits() {
+    public Map<ResourceType, Double> getResourceLimits() {
         return resourceLimits;
     }
 
@@ -268,7 +228,6 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             }
             throw new IllegalArgumentException("Invalid value for QueryGroupMode: " + s);
         }
-
     }
 
     /**
@@ -280,9 +239,61 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         private String _id;
         private ResiliencyMode resiliencyMode;
         private long updatedAt;
-        private Map<ResourceType, Object> resourceLimits;
+        private Map<ResourceType, Double> resourceLimits;
 
         private Builder() {}
+
+        public static Builder fromXContent(XContentParser parser) throws IOException {
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+
+            Builder builder = builder();
+
+            XContentParser.Token token = parser.currentToken();
+
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
+            }
+
+            String fieldName = "";
+            // Map to hold resources
+            final Map<ResourceType, Double> resourceLimits = new HashMap<>();
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    fieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (fieldName.equals(_ID_STRING)) {
+                        builder._id(parser.text());
+                    } else if (fieldName.equals(NAME_STRING)) {
+                        builder.name(parser.text());
+                    } else if (fieldName.equals(RESILIENCY_MODE_STRING)) {
+                        builder.mode(parser.text());
+                    } else if (fieldName.equals(UPDATED_AT_STRING)) {
+                        builder.updatedAt(parser.longValue());
+                    } else {
+                        throw new IllegalArgumentException(fieldName + " is not a valid field in QueryGroup");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+
+                    if (!fieldName.equals(RESOURCE_LIMITS_STRING)) {
+                        throw new IllegalArgumentException(
+                            "QueryGroup.resourceLimits is an object and expected token was { " + " but found " + token
+                        );
+                    }
+
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else {
+                            resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
+                        }
+                    }
+
+                }
+            }
+            return builder.resourceLimits(resourceLimits);
+        }
 
         public Builder name(String name) {
             this.name = name;
@@ -304,7 +315,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             return this;
         }
 
-        public Builder resourceLimits(Map<ResourceType, Object> resourceLimits) {
+        public Builder resourceLimits(Map<ResourceType, Double> resourceLimits) {
             this.resourceLimits = resourceLimits;
             return this;
         }
@@ -312,6 +323,5 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         public QueryGroup build() {
             return new QueryGroup(name, _id, resiliencyMode, resourceLimits, updatedAt);
         }
-
     }
 }

@@ -29,7 +29,7 @@ public interface RemoteWritableEntityManager {
      *                 {@link ActionListener#onFailure(Exception)} method is called with
      *                 an exception if the read operation fails.
      */
-    void readAsync(String component, AbstractRemoteWritableBlobEntity entity, ActionListener<RemoteReadResult> listener);
+    void readAsync(String component, AbstractClusterMetadataWriteableBlobEntity entity, ActionListener<RemoteReadResult> listener);
 
     /**
      * Performs an asynchronous write operation for the specified component and entity.
@@ -43,5 +43,5 @@ public interface RemoteWritableEntityManager {
      *                 {@link ActionListener#onFailure(Exception)} method is called with
      *                 an exception if the write operation fails.
      */
-    void writeAsync(String component, AbstractRemoteWritableBlobEntity entity, ActionListener<UploadedMetadata> listener);
+    void writeAsync(String component, AbstractClusterMetadataWriteableBlobEntity entity, ActionListener<UploadedMetadata> listener);
 }
