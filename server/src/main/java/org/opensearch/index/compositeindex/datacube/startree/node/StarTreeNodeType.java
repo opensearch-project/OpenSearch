@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
 /**
- * Represents the different types of nodes in a StarTree data structure.
+ * Represents the different types of nodes in a StarTreeFactory data structure.
  *
  * <p>
  * In order to handle different node types, we use a byte value to represent the node type.

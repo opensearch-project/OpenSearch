@@ -58,6 +58,8 @@ public class StarTreeMetaWriter {
         long initialMetaFilePointer = metaOut.getFilePointer();
 
         writeMetaHeader(metaOut);
+
+        // TODO: Replace the parameters with StarTreeMetadata class object
         writeMeta(metaOut, metricAggregatorInfos, starTreeField, numNodes, segmentAggregatedCount, dataFilePointer, dataFileLength);
 
         logger.debug(

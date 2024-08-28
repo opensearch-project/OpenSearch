@@ -557,7 +557,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         int numAggregatedStarTreeDocument = numStarTreeDocs - numStarTreeDocument - numStarTreeDocumentUnderStarNode;
         logger.debug("Finished creating aggregated documents : {}", numAggregatedStarTreeDocument);
 
-        // TODO: When StarTree Codec is ready
+        // TODO: When StarTreeFactory Codec is ready
         // Create doc values indices in disk
         // Serialize and save in disk
         // Write star tree metadata for off heap implementation

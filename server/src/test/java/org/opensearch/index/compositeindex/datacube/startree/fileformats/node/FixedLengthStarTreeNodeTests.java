@@ -15,7 +15,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
-import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -98,9 +98,8 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         StarTreeMetadata starTreeMetadata = mock(StarTreeMetadata.class);
         when(starTreeMetadata.getDataLength()).thenReturn(starTreeDataLength);
         when(starTreeMetadata.getDataStartFilePointer()).thenReturn(0L);
-        StarTree starTree = new StarTree(dataIn, starTreeMetadata);
 
-        starTreeNode = (FixedLengthStarTreeNode) starTree.getRoot();
+        starTreeNode = (FixedLengthStarTreeNode) StarTreeFactory.createStarTree(dataIn, starTreeMetadata);
 
     }
 

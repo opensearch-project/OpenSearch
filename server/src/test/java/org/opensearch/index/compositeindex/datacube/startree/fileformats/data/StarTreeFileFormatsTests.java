@@ -15,7 +15,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
-import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -64,9 +64,8 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         StarTreeMetadata starTreeMetadata = mock(StarTreeMetadata.class);
         when(starTreeMetadata.getDataLength()).thenReturn(starTreeDataLength);
         when(starTreeMetadata.getDataStartFilePointer()).thenReturn(0L);
-        StarTree starTree = new StarTree(dataIn, starTreeMetadata);
 
-        StarTreeNode starTreeNode = starTree.getRoot();
+        StarTreeNode starTreeNode = StarTreeFactory.createStarTree(dataIn, starTreeMetadata);
         Queue<StarTreeNode> queue = new ArrayDeque<>();
         queue.add(starTreeNode);
 
@@ -116,9 +115,8 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         StarTreeMetadata starTreeMetadata = mock(StarTreeMetadata.class);
         when(starTreeMetadata.getDataLength()).thenReturn(starTreeDataLength);
         when(starTreeMetadata.getDataStartFilePointer()).thenReturn(0L);
-        StarTree starTree = new StarTree(dataIn, starTreeMetadata);
 
-        StarTreeNode starTreeNode = starTree.getRoot();
+        StarTreeNode starTreeNode = StarTreeFactory.createStarTree(dataIn, starTreeMetadata);
         InMemoryTreeNode inMemoryTreeNode = inMemoryTreeNodeMap.get(starTreeNode.getDimensionValue());
         assertNotNull(inMemoryTreeNode);
 
