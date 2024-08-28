@@ -23,11 +23,11 @@ import java.util.Objects;
  * {
  *     "queryGroupID": {
  *          "completions": 1233234234,
- *          "rejections": 1243545,
+ *          "rejections": 12,
  *          "failures": 97,
  *          "total_cancellations": 474,
- *          "CPU": { "current_usage": 49.6, "cancellation": 432 },
- *          "MEMORY": { "current_usage": 39.6, "cancellation": 42 }
+ *          "CPU": { "current_usage": 49.6, "cancellation": 432, "rejections": 8 },
+ *          "MEMORY": { "current_usage": 39.6, "cancellation": 42, "rejections": 4 }
  *     },
  *     ...
  *     ...
