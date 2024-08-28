@@ -10,6 +10,7 @@ package org.opensearch.cluster.service;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.ingest.IngestPipelineValidator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -36,5 +37,17 @@ public class ClusterServiceTests extends OpenSearchTestCase {
             ClusterManagerService clusterManagerService = clusterService.getClusterManagerService();
             assertThat(masterService, equalTo(clusterManagerService));
         }
+    }
+
+    public void testUpdateMaxIngestProcessorCountSetting() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // verify defaults
+        assertEquals(Integer.MAX_VALUE, clusterSettings.get(IngestPipelineValidator.MAX_NUMBER_OF_INGEST_PROCESSORS).intValue());
+
+        // verify update max processor
+        Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 3).build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(3, clusterSettings.get(IngestPipelineValidator.MAX_NUMBER_OF_INGEST_PROCESSORS).intValue());
     }
 }

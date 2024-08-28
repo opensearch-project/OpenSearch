@@ -91,6 +91,7 @@ class SimulateExecutionService {
     }
 
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
+
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
             final AtomicInteger counter = new AtomicInteger();
             final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>(

@@ -494,6 +494,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
+
+        IngestPipelineValidator.validateIngestPipeline(pipeline, clusterService);
+
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
@@ -1099,6 +1102,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     processorFactories,
                     scriptService
                 );
+                IngestPipelineValidator.validateIngestPipeline(newPipeline, clusterService);
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
                 if (previous == null) {
