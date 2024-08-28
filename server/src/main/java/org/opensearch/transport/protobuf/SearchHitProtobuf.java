@@ -110,11 +110,36 @@ public class SearchHitProtobuf extends SearchHit {
         version = proto.getVersion();
         primaryTerm = proto.getPrimaryTerm();
         id = new Text(proto.getId());
-        source = BytesReference.fromByteBuffer(proto.getSource().asReadOnlyByteBuffer());
-        explanation = explanationFromProto(proto.getExplanation());
         sortValues = searchSortValuesFromProto(proto.getSortValues());
-        nestedIdentity = nestedIdentityFromProto(proto.getNestedIdentity());
         matchedQueries = proto.getMatchedQueriesMap();
+
+        if (proto.hasNestedIdentity()) {
+            nestedIdentity = nestedIdentityFromProto(proto.getNestedIdentity());
+        } else {
+            nestedIdentity = null;
+        }
+
+        if (proto.hasSource()) {
+            source = BytesReference.fromByteBuffer(proto.getSource().asReadOnlyByteBuffer());
+        } else {
+            source = null;
+        }
+
+        if (proto.hasExplanation()) {
+            explanation = explanationFromProto(proto.getExplanation());
+        } else {
+            explanation = null;
+        }
+
+        if (proto.hasShard()) {
+            shard = searchShardTargetFromProto(proto.getShard());
+            index = shard.getIndex();
+            clusterAlias = shard.getClusterAlias();
+        } else {
+            shard = null;
+            index = null;
+            clusterAlias = null;
+        }
 
         documentFields = new HashMap<>();
         proto.getDocumentFieldsMap().forEach((key, value) -> documentFields.put(key, documentFieldFromProto(value)));
@@ -127,10 +152,6 @@ public class SearchHitProtobuf extends SearchHit {
 
         innerHits = new HashMap<>();
         proto.getInnerHitsMap().forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
-
-        shard = searchShardTargetFromProto(proto.getShard());
-        index = shard.getIndex();
-        clusterAlias = shard.getClusterAlias();
     }
 
     static NestedIdentityProto nestedIdentityToProto(SearchHit.NestedIdentity nestedIdentity) {
