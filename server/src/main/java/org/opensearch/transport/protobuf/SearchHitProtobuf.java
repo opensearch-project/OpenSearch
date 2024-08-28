@@ -14,11 +14,14 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.search.SearchHit;
+import org.opensearch.serde.proto.SearchHitsTransportProto;
 import org.opensearch.serde.proto.SearchHitsTransportProto.NestedIdentityProto;
 import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitProto;
+import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitsProto;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.documentFieldFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.documentFieldToProto;
@@ -141,17 +144,29 @@ public class SearchHitProtobuf extends SearchHit {
             clusterAlias = null;
         }
 
+        Map<String, SearchHitsProto> innerHitsProto = proto.getInnerHitsMap();
+        if (!innerHitsProto.isEmpty()) {
+            innerHits = new HashMap<>();
+            innerHitsProto.forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
+        }
+
         documentFields = new HashMap<>();
-        proto.getDocumentFieldsMap().forEach((key, value) -> documentFields.put(key, documentFieldFromProto(value)));
+        Map<String, SearchHitsTransportProto.DocumentFieldProto> documentFieldProtoMap = proto.getDocumentFieldsMap();
+        if (!documentFieldProtoMap.isEmpty()) {
+            documentFieldProtoMap.forEach((key, value) -> documentFields.put(key, documentFieldFromProto(value)));
+        }
 
         metaFields = new HashMap<>();
-        proto.getMetaFieldsMap().forEach((key, value) -> metaFields.put(key, documentFieldFromProto(value)));
+        Map<String, SearchHitsTransportProto.DocumentFieldProto> metaFieldProtoMap = proto.getMetaFieldsMap();
+        if (!metaFieldProtoMap.isEmpty()) {
+            metaFieldProtoMap.forEach((key, value) -> metaFields.put(key, documentFieldFromProto(value)));
+        }
 
         highlightFields = new HashMap<>();
-        proto.getHighlightFieldsMap().forEach((key, value) -> highlightFields.put(key, highlightFieldFromProto(value)));
-
-        innerHits = new HashMap<>();
-        proto.getInnerHitsMap().forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
+        Map<String, SearchHitsTransportProto.HighlightFieldProto> highlightFieldProtoMap = proto.getHighlightFieldsMap();
+        if (!highlightFieldProtoMap.isEmpty()) {
+            highlightFieldProtoMap.forEach((key, value) -> highlightFields.put(key, highlightFieldFromProto(value)));
+        }
     }
 
     static NestedIdentityProto nestedIdentityToProto(SearchHit.NestedIdentity nestedIdentity) {
