@@ -33,6 +33,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -756,10 +757,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2() throws Exception {
-
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
@@ -826,9 +826,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testMixedSnapshotCreationWithV2RepositorySetting() throws Exception {
 
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
@@ -908,9 +908,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -989,9 +989,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1043,9 +1043,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2WithIndexingLoad() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1117,9 +1117,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSnapshotV2WithShallowCopySettingDisabled() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1173,8 +1173,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testClusterManagerFailoverDuringSnapshotCreation() throws Exception {
 
-        internalCluster().startClusterManagerOnlyNodes(3, Settings.EMPTY);
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNodes(3, pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1253,9 +1253,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentV1SnapshotAndV2RepoSettingUpdate() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String snapshotRepoName = "test-create-snapshot-repo";
         String snapshotName1 = "test-create-snapshot-v1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -1339,6 +1339,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         enableV2Thread.join();
         createV1SnapshotThread.join();
+    }
+
+    private Settings pinnedTimestampSettings() {
+        Settings settings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .build();
+        return settings;
     }
 
 }
