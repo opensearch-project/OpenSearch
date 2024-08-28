@@ -51,11 +51,13 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("query_groups");
         for (Map.Entry<String, QueryGroupStatsHolder> queryGroupStats : stats.entrySet()) {
             builder.startObject(queryGroupStats.getKey());
             queryGroupStats.getValue().toXContent(builder, params);
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 
