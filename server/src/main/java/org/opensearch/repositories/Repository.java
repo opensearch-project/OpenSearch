@@ -194,7 +194,7 @@ public interface Repository extends LifecycleComponent {
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        boolean isSnapshotV2,
+        boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
         throw new UnsupportedOperationException();

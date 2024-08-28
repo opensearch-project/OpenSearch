@@ -900,7 +900,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        boolean isSnapshotV2,
+        boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
         if (isReadOnly()) {
@@ -922,7 +922,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         repositoryData,
                         repositoryMetaVersion,
                         remoteStoreLockManagerFactory,
-                        isSnapshotV2,
+                        isShallowSnapshotV2,
                         listener
                     );
                 }
@@ -1022,7 +1022,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData repositoryData,
         Version repoMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        boolean isSnapshotV2,
+        boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
         // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
@@ -1060,7 +1060,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Once we have updated the repository, run the clean-ups
         writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
             int groupSize = 2;
-            if (isSnapshotV2) {
+            if (isShallowSnapshotV2) {
                 groupSize = 1;
             }
             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
@@ -1076,7 +1076,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreLockManagerFactory,
                 afterCleanupsListener
             );
-            if (isSnapshotV2 == false) {
+            if (isShallowSnapshotV2 == false) {
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
                     snapshotIds,

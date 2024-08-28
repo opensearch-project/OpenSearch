@@ -462,6 +462,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
 
                 List<String> indices = new ArrayList<>(currentState.metadata().indices().keySet());
+
                 final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
                     currentState,
                     request.indicesOptions(),
@@ -608,7 +609,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     ) {
         remoteStorePinnedTimestampService.unpinTimestamp(
             timestampToUnpin,
-            repository + "__" + snapshotId.getUUID(),
+            repository + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotId.getUUID(),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -625,7 +626,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         e
                     );
                     listener.onFailure(e);
-
                 }
             }
         );
