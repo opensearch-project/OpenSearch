@@ -39,6 +39,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Priority;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.core.action.ActionListener;
@@ -104,6 +105,7 @@ public class FilterRepository implements Repository {
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     ) {
         in.finalizeSnapshot(
@@ -113,6 +115,7 @@ public class FilterRepository implements Repository {
             snapshotInfo,
             repositoryMetaVersion,
             stateTransformer,
+            repositoryUpdatePriority,
             listener
         );
     }

@@ -51,6 +51,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
@@ -669,6 +670,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             SnapshotInfo snapshotInfo,
             Version repositoryMetaVersion,
             Function<ClusterState, ClusterState> stateTransformer,
+            Priority repositoryUpdatePriority,
             ActionListener<RepositoryData> listener
         ) {
             listener.onResponse(null);
