@@ -14,7 +14,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.ResourceType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,7 +23,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Class to hold the fields that can be updated in a QueryGroup
+ * Class to hold the fields that can be updated in a QueryGroup.
  */
 @ExperimentalApi
 public class ChangeableQueryGroup extends AbstractDiffable<ChangeableQueryGroup> {

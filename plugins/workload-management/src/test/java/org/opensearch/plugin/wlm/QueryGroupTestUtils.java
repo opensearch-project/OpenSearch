@@ -20,9 +20,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.ChangeableQueryGroup;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.ArrayList;
 import java.util.Collection;

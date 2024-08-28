@@ -10,7 +10,6 @@ package org.opensearch.wlm;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

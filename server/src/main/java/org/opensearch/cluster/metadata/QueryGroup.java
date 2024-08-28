@@ -17,9 +17,9 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.ChangeableQueryGroup;
 import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
 import org.joda.time.Instant;
 
 import java.io.IOException;

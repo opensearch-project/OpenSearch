@@ -15,9 +15,9 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.ChangeableQueryGroup;
 import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -177,9 +177,9 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         assertEquals(
             "{\"_id\":\""
                 + queryGroupId
-                + "\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updated_at\":"
+                + "\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4},\"updated_at\":"
                 + currentTimeInMillis
-                + ",\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4}}",
+                + "}",
             builder.toString()
         );
     }

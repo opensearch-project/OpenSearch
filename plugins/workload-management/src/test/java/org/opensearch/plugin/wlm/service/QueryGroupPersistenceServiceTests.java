@@ -26,11 +26,11 @@ import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupResponse;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.ChangeableQueryGroup;
 import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -29,13 +29,11 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
-
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupResponse;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.ChangeableQueryGroup;
 import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
 import org.joda.time.Instant;
 
 import java.util.Collection;

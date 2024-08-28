@@ -14,9 +14,9 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.ChangeableQueryGroup;
 import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -94,7 +94,6 @@ public class UpdateQueryGroupRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(name);
         changeableQueryGroup.writeTo(out);
     }

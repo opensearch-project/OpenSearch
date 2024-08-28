@@ -10,10 +10,10 @@ package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.ChangeableQueryGroup;
 import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.HashMap;
