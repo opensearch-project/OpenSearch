@@ -58,6 +58,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
@@ -2056,6 +2057,18 @@ public class IngestServiceTests extends OpenSearchTestCase {
             Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4)
         );
         assertEquals(4, batches.size());
+    }
+
+    public void testUpdateMaxIngestProcessorCountSetting() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // verify defaults
+        assertEquals(Integer.MAX_VALUE, clusterSettings.get(IngestService.MAX_NUMBER_OF_INGEST_PROCESSORS).intValue());
+
+        // verify update max processor
+        Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 3).build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(3, clusterSettings.get(IngestService.MAX_NUMBER_OF_INGEST_PROCESSORS).intValue());
     }
 
     private IngestService.IndexRequestWrapper createIndexRequestWrapper(String index, List<String> pipelines) {

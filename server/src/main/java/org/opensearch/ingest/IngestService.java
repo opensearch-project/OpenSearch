@@ -62,6 +62,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -107,6 +108,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static final String INGEST_ORIGIN = "ingest";
 
+    /**
+     * Defines the limit for the number of processors which can run on a given document during ingestion.
+     */
+    public static final Setting<Integer> MAX_NUMBER_OF_INGEST_PROCESSORS = Setting.intSetting(
+        "cluster.ingest.max_number_processors",
+        Integer.MAX_VALUE,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(IngestService.class);
 
     private final ClusterService clusterService;
@@ -123,6 +136,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ClusterManagerTaskThrottler.ThrottlingKey putPipelineTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey deletePipelineTaskKey;
     private volatile ClusterState state;
+    private volatile int maxIngestProcessorCount;
 
     public IngestService(
         ClusterService clusterService,
@@ -156,6 +170,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_PIPELINE_KEY, true);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_NUMBER_OF_INGEST_PROCESSORS, this::setMaxIngestProcessorCount);
+        setMaxIngestProcessorCount(clusterService.getClusterSettings().get(MAX_NUMBER_OF_INGEST_PROCESSORS));
+    }
+
+    private void setMaxIngestProcessorCount(Integer maxIngestProcessorCount) {
+        this.maxIngestProcessorCount = maxIngestProcessorCount;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -495,7 +515,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
 
-        IngestPipelineValidator.validateIngestPipeline(pipeline, clusterService);
+        validateProcessorCountForIngestPipeline(pipeline);
 
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
@@ -508,6 +528,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    public void validateProcessorCountForIngestPipeline(Pipeline pipeline) {
+        List<Processor> processors = pipeline.getCompoundProcessor().getProcessors();
+
+        if (processors.size() > maxIngestProcessorCount) {
+            throw new IllegalStateException(
+                "Cannot use more than the maximum processors allowed. Number of processors being configured is ["
+                    + processors.size()
+                    + "] which exceeds the maximum allowed configuration of ["
+                    + maxIngestProcessorCount
+                    + "] processors."
+            );
+        }
     }
 
     public void executeBulkRequest(
@@ -1102,7 +1136,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     processorFactories,
                     scriptService
                 );
-                IngestPipelineValidator.validateIngestPipeline(newPipeline, clusterService);
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
                 if (previous == null) {

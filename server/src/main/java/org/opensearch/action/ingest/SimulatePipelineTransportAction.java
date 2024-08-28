@@ -38,7 +38,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.ingest.IngestPipelineValidator;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -89,7 +88,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
             return;
         }
 
-        IngestPipelineValidator.validateIngestPipeline(simulateRequest.getPipeline(), ingestService.getClusterService());
+        ingestService.validateProcessorCountForIngestPipeline(simulateRequest.getPipeline());
 
         executionService.execute(simulateRequest, listener);
     }
