@@ -8,7 +8,6 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
 
 import java.util.List;

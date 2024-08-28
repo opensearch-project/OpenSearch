@@ -18,7 +18,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -43,6 +42,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;

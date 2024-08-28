@@ -9,7 +9,7 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.common.util.Streak;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.Map;
 import java.util.function.BooleanSupplier;
