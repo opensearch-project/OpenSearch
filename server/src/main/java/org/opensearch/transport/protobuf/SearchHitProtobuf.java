@@ -72,7 +72,9 @@ public class SearchHitProtobuf extends SearchHit {
             builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity));
         }
 
-        builder.setSource(ByteString.copyFrom(source.toBytesRef().bytes));
+        if (source != null) {
+            builder.setSource(ByteString.copyFrom(source.toBytesRef().bytes));
+        }
 
         if (explanation != null) {
             builder.setExplanation(explanationToProto(explanation));

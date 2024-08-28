@@ -104,7 +104,7 @@ public class ProtoSerDeHelpers {
                 val = proto.getDoubleValue();
                 break;
             default:
-                throw new SerializationException("Unknown numeric type: Explanation.value");
+                // No value, leave null
         }
 
         for (ExplanationProto det : proto.getDetailsList()) {
