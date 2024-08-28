@@ -73,8 +73,9 @@ public class SearchHits implements Writeable, ToXContentFragment, Iterable<Searc
     public static final SearchHit[] EMPTY = new SearchHit[0];
 
     protected SearchHit[] hits;
-    protected TotalHits totalHits;
     protected float maxScore;
+    @Nullable
+    protected TotalHits totalHits;
     @Nullable
     protected SortField[] sortFields;
     @Nullable
