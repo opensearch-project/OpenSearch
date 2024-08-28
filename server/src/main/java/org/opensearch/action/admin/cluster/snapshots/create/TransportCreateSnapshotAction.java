@@ -113,7 +113,6 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
     ) {
         Repository repository = repositoriesService.repository(request.repository());
         boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
-
         if (request.waitForCompletion() || isSnapshotV2) {
             snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {
