@@ -124,6 +124,7 @@ jobs:
             // Any maintainers that do not want to be included on these requests
             const excludedMaintainers = [
               'peternied',
+              'hyandell',
             ];
             return maintainersResponse.data
               .map(item => item.login)
@@ -136,7 +137,7 @@ jobs:
           approvers: ${{ steps.get_approvers.outputs.result }}
           minimum-approvals: 1
           issue-title: 'Request to approve/deny benchmark run for PR #${{ env.PR_NUMBER }}'
-          issue-body: "Please approve or deny the benchmark run for PR #${{ env.PR_NUMBER }}"
+          issue-body: "Please approve or deny the benchmark run for PR #${{ env.PR_NUMBER }}, please update this [workflow](../tree/main/.github/workflows/benchmark-pull-request.yml) to opt-out of future requests."
           exclude-workflow-initiator-as-approver: false
       - name: Checkout PR Repo
         uses: actions/checkout@v4
