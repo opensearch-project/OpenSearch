@@ -62,7 +62,9 @@ public class SearchHitsProtobuf extends SearchHits {
         }
 
         if (totalHits != null) {
-            TotalHitsProto.Builder totHitsBuilder = TotalHitsProto.newBuilder().setRelation(totalHits.relation.ordinal()).setValue(totalHits.value);
+            TotalHitsProto.Builder totHitsBuilder = TotalHitsProto.newBuilder()
+                .setRelation(totalHits.relation.ordinal())
+                .setValue(totalHits.value);
             builder.setTotalHits(totHitsBuilder);
         }
 

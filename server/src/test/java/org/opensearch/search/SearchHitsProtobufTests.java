@@ -35,26 +35,12 @@ package org.opensearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.lucene.LuceneTests;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.transport.protobuf.SearchHitsProtobuf;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.function.Predicate;
 
 public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<SearchHitsProtobuf> {
 
@@ -75,7 +61,11 @@ public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<Sea
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
 
-    public static SearchHitsProtobuf createTestItem(final MediaType mediaType, boolean withOptionalInnerHits, boolean transportSerialization) {
+    public static SearchHitsProtobuf createTestItem(
+        final MediaType mediaType,
+        boolean withOptionalInnerHits,
+        boolean transportSerialization
+    ) {
         return createTestItem(mediaType, withOptionalInnerHits, transportSerialization, randomFrom(TotalHits.Relation.values()));
     }
 

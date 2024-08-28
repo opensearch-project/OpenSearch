@@ -47,7 +47,9 @@ public class SearchHitProtobuf extends SearchHit {
         fromProtobufStream(in);
     }
 
-    public SearchHitProtobuf(SearchHitProto proto) { fromProto(proto); }
+    public SearchHitProtobuf(SearchHitProto proto) {
+        fromProto(proto);
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

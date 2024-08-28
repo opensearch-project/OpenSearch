@@ -12,11 +12,9 @@ import com.google.protobuf.ByteString;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -34,7 +32,6 @@ import org.opensearch.serde.proto.SearchHitsTransportProto.ShardIdProto;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import static org.opensearch.common.lucene.Lucene.readSortValue;
 import static org.opensearch.common.lucene.Lucene.writeSortValue;
@@ -151,9 +148,7 @@ public class ProtoSerDeHelpers {
     }
 
     public static HighlightFieldProto highlightFieldToProto(HighlightField field) {
-        HighlightFieldProto.Builder builder = HighlightFieldProto.newBuilder()
-            .setName(field.getName())
-            .setFragsNull(true);
+        HighlightFieldProto.Builder builder = HighlightFieldProto.newBuilder().setName(field.getName()).setFragsNull(true);
 
         if (field.getFragments() != null) {
             builder.setFragsNull(false);
