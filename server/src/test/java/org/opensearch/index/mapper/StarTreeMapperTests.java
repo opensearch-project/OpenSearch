@@ -333,6 +333,9 @@ public class StarTreeMapperTests extends MapperTestCase {
         assertEquals(n1, n2);
         n2 = new NumericDimension("name1");
         assertNotEquals(n1, n2);
+    }
+
+    public void testReadDimensions() {
         ReadDimension r1 = new ReadDimension("name");
         ReadDimension r2 = new ReadDimension("name");
         assertEquals(r1, r2);

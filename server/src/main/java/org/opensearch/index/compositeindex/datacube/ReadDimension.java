@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Composite index merge dimension class
+ * Represents a dimension for reconstructing StarTreeField from file formats during searches and merges.
  *
  * @opensearch.experimental
  */

@@ -57,7 +57,7 @@ public class StarTreeMetaWriter {
 
         long initialMetaFilePointer = metaOut.getFilePointer();
 
-        writeMetaHeader(metaOut, CompositeMappedFieldType.CompositeFieldType.STAR_TREE, starTreeField.getName());
+        writeMetaHeader(metaOut);
         writeMeta(metaOut, metricAggregatorInfos, starTreeField, numNodes, segmentAggregatedCount, dataFilePointer, dataFileLength);
 
         logger.debug(
@@ -71,26 +71,14 @@ public class StarTreeMetaWriter {
      * Writes the star-tree metadata header.
      *
      * @param metaOut            the IndexOutput to write the header
-     * @param compositeFieldType the composite field type of the star-tree field
-     * @param starTreeFieldName  the name of the star-tree field
      * @throws IOException if an I/O error occurs while writing the header
      */
-    private static void writeMetaHeader(
-        IndexOutput metaOut,
-        CompositeMappedFieldType.CompositeFieldType compositeFieldType,
-        String starTreeFieldName
-    ) throws IOException {
+    private static void writeMetaHeader(IndexOutput metaOut) throws IOException {
         // magic marker for sanity
         metaOut.writeLong(COMPOSITE_FIELD_MARKER);
 
         // version
         metaOut.writeVInt(VERSION_CURRENT);
-
-        // star tree field name
-        metaOut.writeString(starTreeFieldName);
-
-        // star tree field type
-        metaOut.writeString(compositeFieldType.getName());
     }
 
     /**
@@ -114,6 +102,12 @@ public class StarTreeMetaWriter {
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
+
+        // star tree field name
+        metaOut.writeString(starTreeField.getName());
+
+        // star tree field type
+        metaOut.writeString(CompositeMappedFieldType.CompositeFieldType.STAR_TREE.getName());
 
         // number of nodes
         metaOut.writeInt(numNodes);
