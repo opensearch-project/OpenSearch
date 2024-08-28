@@ -947,7 +947,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             repositoryStateId,
             repositoryMetaVersion,
             null, // Passing null since no remote store lock files need to be cleaned up.
-            false,
+            false, // true only for shallow snapshot v2
             listener
         );
     }
@@ -1076,7 +1076,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreLockManagerFactory,
                 afterCleanupsListener
             );
-            if (!isSnapshotV2) {
+            if (isSnapshotV2 == false) {
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
                     snapshotIds,
