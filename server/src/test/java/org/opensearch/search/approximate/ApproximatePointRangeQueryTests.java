@@ -21,12 +21,14 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.apache.lucene.document.LongPoint.pack;
+import static org.mockito.Mockito.mock;
 
 public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
@@ -304,5 +306,52 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 }
             }
         }
+    }
+
+    public void testSize() {
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery("point", pack(0).bytes, pack(20).bytes, 1) {
+            protected String toString(int dimension, byte[] value) {
+                return Long.toString(LongPoint.decodeDimension(value, 0));
+            }
+        };
+        assertEquals(query.getSize(), 10_000);
+
+        query.setSize(100);
+        assertEquals(query.getSize(), 100);
+
+    }
+
+    public void testSortOrder() {
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery("point", pack(0).bytes, pack(20).bytes, 1) {
+            protected String toString(int dimension, byte[] value) {
+                return Long.toString(LongPoint.decodeDimension(value, 0));
+            }
+        };
+        assertNull(query.getSortOrder());
+
+        query.setSortOrder(SortOrder.ASC);
+        assertEquals(query.getSortOrder(), SortOrder.ASC);
+    }
+
+    public void testCanApproximate() {
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery("point", pack(0).bytes, pack(20).bytes, 1) {
+            protected String toString(int dimension, byte[] value) {
+                return Long.toString(LongPoint.decodeDimension(value, 0));
+            }
+        };
+
+        assertFalse(query.canApproximate(null));
+
+        ApproximatePointRangeQuery queryCanApproximate = new ApproximatePointRangeQuery("point", pack(0).bytes, pack(20).bytes, 1) {
+            protected String toString(int dimension, byte[] value) {
+                return Long.toString(LongPoint.decodeDimension(value, 0));
+            }
+
+            public boolean canApproximate(SearchContext context) {
+                return true;
+            }
+        };
+        SearchContext searchContext = mock(SearchContext.class);
+        assertTrue(queryCanApproximate.canApproximate(searchContext));
     }
 }
