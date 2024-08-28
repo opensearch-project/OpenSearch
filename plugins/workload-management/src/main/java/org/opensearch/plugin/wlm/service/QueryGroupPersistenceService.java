@@ -18,7 +18,6 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
-import org.opensearch.cluster.metadata.QueryGroup.ResiliencyMode;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler.ThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -32,12 +31,12 @@ import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.plugin.wlm.UpdateQueryGroupRequest;
-import org.opensearch.plugin.wlm.UpdateQueryGroupResponse;
-
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupResponse;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.ChangeableQueryGroup;
+import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.joda.time.Instant;
 
 import java.util.Collection;
 import java.util.EnumMap;
@@ -45,7 +44,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.HashMap;
 
 /**
  * This class defines the functions for QueryGroup persistence
@@ -249,7 +247,7 @@ public class QueryGroupPersistenceService {
             .orElseThrow(() -> new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name));
 
         return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(queryGroupToRemove).build()).build();
-        }
+    }
 
     /**
      * Modify cluster state to update the QueryGroup
@@ -320,9 +318,8 @@ public class QueryGroupPersistenceService {
         final QueryGroup updatedGroup = new QueryGroup(
             name,
             existingGroup.get_id(),
-            mode,
-            updatedResourceLimits,
-            updateQueryGroupRequest.getUpdatedAtInMillis()
+            new ChangeableQueryGroup(mode, updatedResourceLimits),
+            Instant.now().getMillis()
         );
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(metadata).remove(existingGroup).put(updatedGroup).build())

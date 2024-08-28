@@ -16,7 +16,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.cluster.metadata.QueryGroup.ResiliencyMode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
@@ -25,16 +24,13 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
-import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.ResourceType;
-import org.opensearch.cluster.metadata.QueryGroup.ResiliencyMode;
-import org.opensearch.plugin.wlm.UpdateQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupResponse;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ChangeableQueryGroup;
+import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,8 +44,6 @@ import java.util.stream.Collectors;
 import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MEMORY_STRING;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MONITOR_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_TWO;
@@ -92,7 +86,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         List<QueryGroup> listTwo = new ArrayList<>();
         listOne.add(queryGroupOne);
         listTwo.add(updatedGroupsMap.get(_ID_ONE));
-        assertEqualQueryGroups(listOne, listTwo);
+        assertEqualQueryGroups(listOne, listTwo, false);
     }
 
     /**
@@ -108,7 +102,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertEquals(2, updatedGroups.size());
         assertTrue(updatedGroups.containsKey(_ID_TWO));
         Collection<QueryGroup> values = updatedGroups.values();
-        assertEqualQueryGroups(queryGroupList(), new ArrayList<>(values));
+        assertEqualQueryGroups(queryGroupList(), new ArrayList<>(values), false);
     }
 
     /**
@@ -120,8 +114,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterState clusterState = setup.v2();
         QueryGroup toCreate = builder().name(NAME_ONE)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
-            .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.3))
+            .changeableQueryGroup(new ChangeableQueryGroup(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.3)))
             .updatedAt(1690934400000L)
             .build();
         assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveQueryGroupInClusterState(toCreate, clusterState));
@@ -135,8 +128,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         Tuple<QueryGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(Map.of(_ID_TWO, queryGroupTwo));
         QueryGroup toCreate = builder().name(NAME_ONE)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
-            .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.41))
+            .changeableQueryGroup(new ChangeableQueryGroup(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.41)))
             .updatedAt(1690934400000L)
             .build();
 
@@ -152,8 +144,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testCreateQueryGroupOverflowCount() {
         QueryGroup toCreate = builder().name(NAME_NONE_EXISTED)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
-            .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.5))
+            .changeableQueryGroup(new ChangeableQueryGroup(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.5)))
             .updatedAt(1690934400000L)
             .build();
         Metadata metadata = Metadata.builder().queryGroups(Map.of(_ID_ONE, queryGroupOne, _ID_TWO, queryGroupTwo)).build();
@@ -276,7 +267,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         List<QueryGroup> listTwo = new ArrayList<>();
         listOne.add(QueryGroupTestUtils.queryGroupOne);
         listTwo.add(queryGroup);
-        QueryGroupTestUtils.assertEqualQueryGroups(listOne, listTwo);
+        QueryGroupTestUtils.assertEqualQueryGroups(listOne, listTwo, false);
     }
 
     /**
@@ -290,7 +281,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         Set<String> currentNAME = res.stream().map(QueryGroup::getName).collect(Collectors.toSet());
         assertTrue(currentNAME.contains(QueryGroupTestUtils.NAME_ONE));
         assertTrue(currentNAME.contains(QueryGroupTestUtils.NAME_TWO));
-        QueryGroupTestUtils.assertEqualQueryGroups(QueryGroupTestUtils.queryGroupList(), res);
+        QueryGroupTestUtils.assertEqualQueryGroups(QueryGroupTestUtils.queryGroupList(), res, false);
     }
 
     /**
@@ -325,7 +316,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertEquals(1, afterDeletionGroups.size());
         List<QueryGroup> oldQueryGroups = new ArrayList<>();
         oldQueryGroups.add(queryGroupOne);
-        assertEqualQueryGroups(new ArrayList<>(afterDeletionGroups.values()), oldQueryGroups);
+        assertEqualQueryGroups(new ArrayList<>(afterDeletionGroups.values()), oldQueryGroups, false);
     }
 
     /**
@@ -372,16 +363,10 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testUpdateQueryGroupAllFields() {
         QueryGroup updated = builder().name(NAME_ONE)
             ._id(_ID_ONE)
-            .mode("enforced")
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.15))
+            .changeableQueryGroup(new ChangeableQueryGroup(ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.15)))
             .updatedAt(1690934400000L)
             .build();
-        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
-            NAME_ONE,
-            ResiliencyMode.fromName("enforced"),
-            Map.of(ResourceType.fromName(MEMORY_STRING), 0.15),
-            1690934400000L
-        );
+        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(NAME_ONE, updated.getChangeableQueryGroup());
         ClusterState newClusterState = queryGroupPersistenceService().updateQueryGroupInClusterState(
             updateQueryGroupRequest,
             clusterState()
@@ -391,7 +376,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         List<QueryGroup> expectedList = new ArrayList<>();
         expectedList.add(queryGroupTwo);
         expectedList.add(updated);
-        assertEqualQueryGroups(expectedList, updatedQueryGroups);
+        assertEqualQueryGroups(expectedList, updatedQueryGroups, true);
     }
 
     /**
@@ -400,16 +385,10 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testUpdateQueryGroupResourceLimitsOnly() {
         QueryGroup updated = builder().name(NAME_ONE)
             ._id(_ID_ONE)
-            .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.15))
+            .changeableQueryGroup(new ChangeableQueryGroup(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.15)))
             .updatedAt(1690934400000L)
             .build();
-        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
-            NAME_ONE,
-            ResiliencyMode.fromName(MONITOR_STRING),
-            Map.of(ResourceType.fromName(MEMORY_STRING), 0.15),
-            1690934400000L
-        );
+        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(NAME_ONE, updated.getChangeableQueryGroup());
         ClusterState newClusterState = queryGroupPersistenceService().updateQueryGroupInClusterState(
             updateQueryGroupRequest,
             clusterState()
@@ -434,7 +413,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         list1.add(updated);
         List<QueryGroup> list2 = new ArrayList<>();
         list2.add(findUpdatedGroupOne.get());
-        assertEqualQueryGroups(list1, list2);
+        assertEqualQueryGroups(list1, list2, true);
     }
 
     /**
@@ -444,9 +423,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         QueryGroupPersistenceService queryGroupPersistenceService = queryGroupPersistenceService();
         UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
             NAME_NONE_EXISTED,
-            ResiliencyMode.fromName(MONITOR_STRING),
-            Map.of(ResourceType.fromName(MEMORY_STRING), 0.15),
-            1690934400000L
+            new ChangeableQueryGroup(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.15))
         );
         assertThrows(
             RuntimeException.class,
@@ -459,7 +436,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         List<QueryGroup> expectedList = new ArrayList<>();
         expectedList.add(queryGroupTwo);
         expectedList.add(queryGroupOne);
-        assertEqualQueryGroups(expectedList, updatedQueryGroups);
+        assertEqualQueryGroups(expectedList, updatedQueryGroups, true);
     }
 
     /**
@@ -492,9 +469,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         );
         UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
             NAME_TWO,
-            ResiliencyMode.SOFT,
-            new HashMap<>(),
-            2435465879685L
+            new ChangeableQueryGroup(ResiliencyMode.SOFT, new HashMap<>())
         );
         ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         queryGroupPersistenceService.updateInClusterStateMetadata(updateQueryGroupRequest, listener);
@@ -525,9 +500,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         );
         UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
             NAME_TWO,
-            ResiliencyMode.SOFT,
-            new HashMap<>(),
-            2435465879685L
+            new ChangeableQueryGroup(ResiliencyMode.SOFT, new HashMap<>())
         );
         doAnswer(invocation -> {
             ClusterStateUpdateTask task = invocation.getArgument(1);

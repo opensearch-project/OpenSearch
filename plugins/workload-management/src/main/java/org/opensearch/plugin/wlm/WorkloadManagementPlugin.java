@@ -70,7 +70,12 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestCreateQueryGroupAction(), new RestGetQueryGroupAction(), new RestDeleteQueryGroupAction(), new RestUpdateQueryGroupAction());
+        return List.of(
+            new RestCreateQueryGroupAction(),
+            new RestGetQueryGroupAction(),
+            new RestDeleteQueryGroupAction(),
+            new RestUpdateQueryGroupAction()
+        );
     }
 
     @Override

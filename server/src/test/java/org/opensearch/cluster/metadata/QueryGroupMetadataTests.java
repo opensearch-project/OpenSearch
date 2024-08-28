@@ -16,6 +16,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.ChangeableQueryGroup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,8 +34,7 @@ public class QueryGroupMetadataTests extends AbstractDiffableSerializationTestCa
                 new QueryGroup(
                     "test",
                     "ajakgakg983r92_4242",
-                    QueryGroup.ResiliencyMode.ENFORCED,
-                    Map.of(ResourceType.MEMORY, 0.5),
+                    new ChangeableQueryGroup(ChangeableQueryGroup.ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.5)),
                     updatedAt
                 )
             )

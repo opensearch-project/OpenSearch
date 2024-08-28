@@ -20,8 +20,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ChangeableQueryGroup;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,7 +33,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
-import static org.opensearch.wlm.ResourceType.fromName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -44,21 +44,17 @@ public class QueryGroupTestUtils {
     public static final String _ID_ONE = "AgfUO5Ja9yfsYlONlYi3TQ==";
     public static final String _ID_TWO = "G5iIqHy4g7eK1qIAAAAIH53=1";
     public static final String NAME_NONE_EXISTED = "query_group_none_existed";
-    public static final String MEMORY_STRING = "memory";
-    public static final String MONITOR_STRING = "monitor";
     public static final long TIMESTAMP_ONE = 4513232413L;
     public static final long TIMESTAMP_TWO = 4513232415L;
     public static final QueryGroup queryGroupOne = builder().name(NAME_ONE)
         ._id(_ID_ONE)
-        .mode(MONITOR_STRING)
-        .resourceLimits(Map.of(fromName(MEMORY_STRING), 0.3))
+        .changeableQueryGroup(new ChangeableQueryGroup(ChangeableQueryGroup.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.3)))
         .updatedAt(TIMESTAMP_ONE)
         .build();
 
     public static final QueryGroup queryGroupTwo = builder().name(NAME_TWO)
         ._id(_ID_TWO)
-        .mode(MONITOR_STRING)
-        .resourceLimits(Map.of(fromName(MEMORY_STRING), 0.6))
+        .changeableQueryGroup(new ChangeableQueryGroup(ChangeableQueryGroup.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.6)))
         .updatedAt(TIMESTAMP_TWO)
         .build();
 
@@ -140,14 +136,27 @@ public class QueryGroupTestUtils {
         assertTrue(resourceLimitMapOne.values().containsAll(resourceLimitMapTwo.values()));
     }
 
-    public static void assertEqualQueryGroups(Collection<QueryGroup> collectionOne, Collection<QueryGroup> collectionTwo) {
+    public static void assertEqualQueryGroups(
+        Collection<QueryGroup> collectionOne,
+        Collection<QueryGroup> collectionTwo,
+        boolean assertUpdateAt
+    ) {
         assertEquals(collectionOne.size(), collectionTwo.size());
         List<QueryGroup> listOne = new ArrayList<>(collectionOne);
         List<QueryGroup> listTwo = new ArrayList<>(collectionTwo);
         listOne.sort(Comparator.comparing(QueryGroup::getName));
         listTwo.sort(Comparator.comparing(QueryGroup::getName));
         for (int i = 0; i < listOne.size(); i++) {
-            assertTrue(listOne.get(i).equals(listTwo.get(i)));
+            if (assertUpdateAt) {
+                QueryGroup one = listOne.get(i);
+                QueryGroup two = listTwo.get(i);
+                assertEquals(one.getName(), two.getName());
+                assertEquals(one.getResourceLimits(), two.getResourceLimits());
+                assertEquals(one.getResiliencyMode(), two.getResiliencyMode());
+                assertEquals(one.get_id(), two.get_id());
+            } else {
+                assertEquals(listOne.get(i), listTwo.get(i));
+            }
         }
     }
 }

@@ -41,7 +41,7 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
 
         GetQueryGroupResponse otherResponse = new GetQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups(), false);
     }
 
     /**
@@ -58,7 +58,7 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         GetQueryGroupResponse otherResponse = new GetQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getQueryGroups().size());
-        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups(), false);
     }
 
     /**

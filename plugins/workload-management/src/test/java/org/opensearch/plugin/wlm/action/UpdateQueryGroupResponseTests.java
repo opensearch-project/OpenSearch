@@ -43,7 +43,7 @@ public class UpdateQueryGroupResponseTests extends OpenSearchTestCase {
         List<QueryGroup> list2 = new ArrayList<>();
         list1.add(responseGroup);
         list2.add(otherResponseGroup);
-        QueryGroupTestUtils.assertEqualQueryGroups(list1, list2);
+        QueryGroupTestUtils.assertEqualQueryGroups(list1, list2, false);
     }
 
     /**
