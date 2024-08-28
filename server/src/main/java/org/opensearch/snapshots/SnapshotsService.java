@@ -515,7 +515,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     Collections.emptyList(),
                     request.includeGlobalState(),
                     userMeta,
-                    remoteStoreIndexShallowCopy,
+                    true,
                     pinnedTimestamp
                 );
                 if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {

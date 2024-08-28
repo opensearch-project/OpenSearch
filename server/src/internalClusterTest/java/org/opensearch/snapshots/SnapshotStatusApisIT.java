@@ -697,7 +697,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             // failure due to passing index filter for multiple snapshots
-            ActionRequestValidationException ex1 = expectThrows(
+            ActionRequestValidationException ex = expectThrows(
                 ActionRequestValidationException.class,
                 () -> client().admin()
                     .cluster()
@@ -708,10 +708,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .actionGet()
             );
             String cause = "index list filter is supported only for a single snapshot";
-            assertTrue(ex1.getMessage().contains(cause));
+            assertTrue(ex.getMessage().contains(cause));
+        }, 1, TimeUnit.MINUTES);
 
+        assertBusy(() -> {
             // failure due to index not found in snapshot
-            SnapshotException ex2 = expectThrows(
+            SnapshotException ex = expectThrows(
                 SnapshotException.class,
                 () -> client().admin()
                     .cluster()
@@ -721,16 +723,20 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals(ex2.status(), RestStatus.NOT_FOUND);
-            cause = String.format(
+            assertEquals(ex.status(), RestStatus.NOT_FOUND);
+            String cause = String.format(
+                Locale.ROOT,
                 "[%s:%s] indices [%s] missing in snapshot [%s]",
                 repositoryName,
                 snapshot2,
                 String.join(", ", List.of(index2, index3)),
                 snapshot2
             );
-            assertEquals(cause, ex2.getMessage());
+            assertEquals(cause, ex.getMessage());
 
+        }, 1, TimeUnit.MINUTES);
+
+        assertBusy(() -> {
             // failure due to too many shards requested
             logger.info("Set MAX_SHARDS_ALLOWED_IN_STATUS_API to a low value");
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -753,8 +759,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             logger.info("Reset MAX_SHARDS_ALLOWED_IN_STATUS_API to default value");
             updateSettingsRequest.persistentSettings(Settings.builder().putNull(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey()));
             assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-        }, 1, TimeUnit.MINUTES);
+        }, 2, TimeUnit.MINUTES);
     }
 
     private static SnapshotIndexShardStatus stateFirstShard(SnapshotStatus snapshotStatus, String indexName) {

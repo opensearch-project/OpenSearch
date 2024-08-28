@@ -41,6 +41,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -50,7 +51,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-import static org.opensearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_V2;
 import static org.opensearch.snapshots.SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -206,7 +206,10 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
 
         logger.info("Create repository for shallow V2 snapshots");
         final String snapshotRepoName = "snapshot-repo-name";
-        Settings.Builder snapshotV2RepoSettings = snapshotRepoSettingsForShallowCopy().put(SNAPSHOT_V2.getKey(), Boolean.TRUE);
+        Settings.Builder snapshotV2RepoSettings = snapshotRepoSettingsForShallowCopy().put(
+            BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(),
+            Boolean.TRUE
+        );
         createRepository(snapshotRepoName, "fs", snapshotV2RepoSettings);
 
         final String index1 = "remote-index-1";
