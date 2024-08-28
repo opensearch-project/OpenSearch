@@ -12,8 +12,8 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.search.ResourceType;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.HashMap;

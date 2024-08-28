@@ -8,8 +8,8 @@
 
 package org.opensearch.wlm.stats;
 
-import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.ArrayList;
 import java.util.List;

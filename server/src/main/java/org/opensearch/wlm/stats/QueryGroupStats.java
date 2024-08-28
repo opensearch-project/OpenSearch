@@ -13,7 +13,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.Map;

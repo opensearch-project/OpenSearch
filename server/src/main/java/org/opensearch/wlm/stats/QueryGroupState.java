@@ -9,7 +9,7 @@
 package org.opensearch.wlm.stats;
 
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -45,8 +45,11 @@ public class QueryGroupState {
 
     public QueryGroupState() {
         resourceState = new EnumMap<>(ResourceType.class);
-        resourceState.put(ResourceType.CPU, new ResourceTypeState(ResourceType.CPU));
-        resourceState.put(ResourceType.MEMORY, new ResourceTypeState(ResourceType.MEMORY));
+        for (ResourceType resourceType : ResourceType.values()) {
+            if (resourceType.hasStatsEnabled()) {
+                resourceState.put(resourceType, new ResourceTypeState(resourceType));
+            }
+        }
     }
 
     /**
