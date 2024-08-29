@@ -81,7 +81,10 @@ import java.util.function.Predicate;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable>, VerifiableWriteable {
+public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
+    implements
+        Iterable<IndexShardRoutingTable>,
+        VerifiableWriteable {
 
     private final Index index;
     private final ShardShuffler shuffler;
@@ -385,7 +388,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         index.writeTo(out);
-        out.writeMapValues(shards, (stream, value) -> IndexShardRoutingTable.Builder.writeVerifiableTo(value, stream));
+        out.writeMapValuesOrdered(
+            shards,
+            (stream, value) -> IndexShardRoutingTable.Builder.writeVerifiableTo(value, stream),
+            Map.Entry.comparingByKey()
+        );
     }
 
     public static Builder builder(Index index) {

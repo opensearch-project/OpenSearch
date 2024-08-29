@@ -26,6 +26,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import com.jcraft.jzlib.JZlib;
@@ -95,7 +96,11 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             templatesMetadataChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            checksumOut.writeMapValues(clusterState.metadata().customs(), (stream, value) -> value.writeTo(stream));
+            checksumOut.writeMapValuesOrdered(
+                clusterState.metadata().customs(),
+                (stream, value) -> value.writeTo(stream),
+                Map.Entry.comparingByKey()
+            );
             customMetadataMapChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
@@ -103,15 +108,23 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             hashesOfConsistentSettingsChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            checksumOut.writeMapValues(clusterState.metadata().indices(), (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
+            checksumOut.writeMapValuesOrdered(
+                clusterState.metadata().indices(),
+                (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream),
+                Map.Entry.comparingByKey()
+            );
             indicesChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            clusterState.blocks().writeTo(checksumOut);
+            clusterState.blocks().writeVerifiableTo(checksumOut);
             blocksChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            checksumOut.writeMapValues(clusterState.customs(), (stream, value) -> checksumOut.writeNamedWriteable(value));
+            checksumOut.writeMapValuesOrdered(
+                clusterState.customs(),
+                (stream, value) -> checksumOut.writeNamedWriteable(value),
+                Map.Entry.comparingByKey()
+            );
             clusterStateCustomsChecksum = checksumOut.getChecksum();
         } catch (IOException e) {
             logger.error("Failed to create checksum for cluster state.", e);

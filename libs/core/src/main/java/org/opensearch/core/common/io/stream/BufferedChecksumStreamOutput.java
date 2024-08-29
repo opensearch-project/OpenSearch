@@ -107,32 +107,30 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         writeGenericValue(newMap);
     }
 
-    @Override
-    public <K, V> void writeMap(final Map<K, V> map, final Writeable.Writer<K> keyWriter, final Writeable.Writer<V> valueWriter)
-        throws IOException {
+    public <K, V> void writeMapOrdered(
+        Map<K, V> map,
+        final Writeable.Writer<K> keyWriter,
+        final Writeable.Writer<V> valueWriter,
+        Comparator<Map.Entry<K, V>> entryComparator
+    ) throws IOException {
         writeVInt(map.size());
-        map.entrySet().stream().sorted(Comparator.comparing(o -> (o.getKey().hashCode()))).forEachOrdered(entry -> {
+        map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry -> {
             try {
                 keyWriter.write(this, entry.getKey());
                 valueWriter.write(this, entry.getValue());
             } catch (IOException e) {
-                throw new RuntimeException("Failed to write map.", e);
+                throw new RuntimeException("Failed to write map values.", e);
             }
         });
     }
 
-    /**
-     *
-     * @param map
-     * @param valueWriter
-     * @param <K>
-     * @param <V>
-     * @throws IOException
-     */
-    @Override
-    public <K, V> void writeMapValues(final Map<K, V> map, final Writeable.Writer<V> valueWriter) throws IOException {
+    public <K, V> void writeMapValuesOrdered(
+        Map<K, V> map,
+        final Writeable.Writer<V> valueWriter,
+        Comparator<Map.Entry<K, V>> entryComparator
+    ) throws IOException {
         writeVInt(map.size());
-        map.entrySet().stream().sorted(Comparator.comparing(o -> (o.getKey().hashCode()))).forEachOrdered(entry -> {
+        map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry -> {
             try {
                 valueWriter.write(this, entry.getValue());
             } catch (IOException e) {
@@ -153,12 +151,10 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         super.writeVLongArray(values);
     }
 
-    @Override
-    public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
-        List<? extends Writeable> sortedList = collection.stream()
-            .sorted(Comparator.comparing(Object::hashCode))
-            .collect(Collectors.toList());
-        writeCollection(sortedList, (o, v) -> v.writeTo(o));
+    public <T> void writeCollectionOrdered(Collection<T> collection, final Writeable.Writer<T> valueWriter, Comparator<T> comparing)
+        throws IOException {
+        List<T> sortedList = collection.stream().sorted(comparing).collect(Collectors.toList());
+        writeCollection(sortedList, valueWriter);
     }
 
     @Override
@@ -166,14 +162,6 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         List<String> listCollection = new ArrayList<>(collection);
         Collections.sort(listCollection);
         writeCollection(listCollection, StreamOutput::writeString);
-    }
-
-    @Override
-    public void writeList(List<? extends Writeable> list) throws IOException {
-        // copy to new to handle unmodifiable lists
-        List<? extends Writeable> newList = new ArrayList<>(list);
-        newList.sort(Comparator.comparing(Object::hashCode));
-        writeCollection(newList);
     }
 
     @Override
@@ -187,4 +175,5 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
             writeBoolean(false);
         }
     }
+
 }

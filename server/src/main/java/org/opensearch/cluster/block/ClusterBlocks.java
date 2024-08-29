@@ -39,12 +39,15 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,7 +65,7 @@ import static java.util.stream.Collectors.toSet;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
+public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements VerifiableWriteable {
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), Map.of());
 
     private final Set<ClusterBlock> global;
@@ -303,8 +306,23 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         out.writeMap(indicesBlocks, StreamOutput::writeString, (o, s) -> writeBlockSet(s, o));
     }
 
+    @Override
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        writeVerifiableBlockSet(global, out);
+        out.writeMapOrdered(
+            indicesBlocks,
+            StreamOutput::writeString,
+            (o, s) -> writeVerifiableBlockSet(s, (BufferedChecksumStreamOutput) o),
+            Map.Entry.comparingByKey()
+        );
+    }
+
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {
         out.writeCollection(blocks);
+    }
+
+    private static void writeVerifiableBlockSet(Set<ClusterBlock> blocks, BufferedChecksumStreamOutput out) throws IOException {
+        out.writeCollectionOrdered(blocks, (o, v) -> v.writeTo(o), Comparator.comparing(ClusterBlock::id));
     }
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {

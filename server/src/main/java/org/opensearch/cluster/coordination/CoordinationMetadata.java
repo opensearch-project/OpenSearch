@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -153,7 +154,10 @@ public class CoordinationMetadata implements VerifiableWriteable, ToXContentFrag
 
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
-        writeTo(out);
+        out.writeLong(term);
+        lastCommittedConfiguration.writeTo(out);
+        lastAcceptedConfiguration.writeTo(out);
+        out.writeCollectionOrdered(votingConfigExclusions, (o, v) -> v.writeTo(o), Comparator.comparing(VotingConfigExclusion::getNodeId));
     }
 
     @Override
