@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -34,15 +35,37 @@ public class ChangeableQueryGroup extends AbstractDiffable<ChangeableQueryGroup>
     private Map<ResourceType, Double> resourceLimits;
 
     public static final List<String> acceptedFieldNames = List.of(RESILIENCY_MODE_STRING, RESOURCE_LIMITS_STRING);
-    private final Map<String, Function<XContentParser, Void>> fromXContentMap = Map.of(RESILIENCY_MODE_STRING, (parser) -> {
-        try {
-            setResiliencyMode(ResiliencyMode.fromName(parser.text()));
-            return null;
-        } catch (IOException e) {
-            throw new IllegalArgumentException("parsing error encountered for the field " + RESILIENCY_MODE_STRING);
+
+    public ChangeableQueryGroup() {}
+
+    public ChangeableQueryGroup(ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits) {
+        validateResourceLimits(resourceLimits);
+        this.resiliencyMode = resiliencyMode;
+        this.resourceLimits = resourceLimits;
+    }
+
+    public ChangeableQueryGroup(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            resourceLimits = in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readDouble);
+        } else {
+            resourceLimits = new HashMap<>();
         }
-    }, RESOURCE_LIMITS_STRING, (parser) -> {
-        try {
+        String updatedResiliencyMode = in.readOptionalString();
+        resiliencyMode = updatedResiliencyMode == null ? null : ResiliencyMode.fromName(updatedResiliencyMode);
+    }
+
+    interface FieldParser<T> {
+        T parseField(XContentParser parser) throws IOException;
+    }
+
+    static class ResiliencyModeParser implements FieldParser<ResiliencyMode> {
+        public ResiliencyMode parseField(XContentParser parser) throws IOException {
+            return ResiliencyMode.fromName(parser.text());
+        }
+    }
+
+    static class ResourceLimitsParser implements FieldParser<Map<ResourceType, Double>> {
+        public Map<ResourceType, Double> parseField(XContentParser parser) throws IOException {
             String fieldName = "";
             XContentParser.Token token;
             final Map<ResourceType, Double> resourceLimits = new HashMap<>();
@@ -53,12 +76,20 @@ public class ChangeableQueryGroup extends AbstractDiffable<ChangeableQueryGroup>
                     resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
                 }
             }
-            setResourceLimits(resourceLimits);
-            return null;
-        } catch (IOException e) {
-            throw new IllegalArgumentException("parsing error encountered for the object " + RESOURCE_LIMITS_STRING);
+            return resourceLimits;
         }
-    });
+    }
+
+    static class FieldParserFactory {
+        static Optional<FieldParser<?>> fieldParserFor(String fieldName) {
+            if (fieldName.equals(RESOURCE_LIMITS_STRING)) {
+                return Optional.of(new ResourceLimitsParser());
+            } else if (fieldName.equals(RESILIENCY_MODE_STRING)) {
+                return Optional.of(new ResiliencyModeParser());
+            }
+            return Optional.empty();
+        }
+    }
 
     private final Map<String, Function<XContentBuilder, Void>> toXContentMap = Map.of(RESILIENCY_MODE_STRING, (builder) -> {
         try {
@@ -82,30 +113,23 @@ public class ChangeableQueryGroup extends AbstractDiffable<ChangeableQueryGroup>
         }
     });
 
-    public ChangeableQueryGroup() {}
-
-    public ChangeableQueryGroup(ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits) {
-        validateResourceLimits(resourceLimits);
-        this.resiliencyMode = resiliencyMode;
-        this.resourceLimits = resourceLimits;
-    }
-
-    public ChangeableQueryGroup(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            resourceLimits = in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readDouble);
-        } else {
-            resourceLimits = new HashMap<>();
-        }
-        String updatedResiliencyMode = in.readOptionalString();
-        resiliencyMode = updatedResiliencyMode == null ? null : ResiliencyMode.fromName(updatedResiliencyMode);
-    }
-
     public static boolean shouldParse(String field) {
-        return acceptedFieldNames.contains(field);
+        return FieldParserFactory.fieldParserFor(field).isPresent();
     }
 
     public void parseField(XContentParser parser, String field) {
-        fromXContentMap.get(field).apply(parser);
+        FieldParserFactory.fieldParserFor(field).ifPresent(fieldParser -> {
+            try {
+                Object value = fieldParser.parseField(parser);
+                if (field.equals(RESILIENCY_MODE_STRING)) {
+                    setResiliencyMode((ResiliencyMode) value);
+                } else if (field.equals(RESOURCE_LIMITS_STRING)) {
+                    setResourceLimits((Map<ResourceType, Double>) value);
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException("parsing error encountered for the field " + field);
+            }
+        });
     }
 
     public void writeField(XContentBuilder builder, String field) {
