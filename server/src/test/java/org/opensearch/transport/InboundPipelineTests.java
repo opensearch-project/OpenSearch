@@ -81,9 +81,8 @@ public abstract class InboundPipelineTests extends OpenSearchTestCase {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
         final List<Tuple<MessageData, Exception>> actual = new ArrayList<>();
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
-        final BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler = (c, m) -> {
+        final BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, message) -> {
             try {
-                InboundMessage message = (InboundMessage) m;
                 final Header header = message.getHeader();
                 final MessageData actualData;
                 final Version version = header.getVersion();
@@ -198,7 +197,7 @@ public abstract class InboundPipelineTests extends OpenSearchTestCase {
     }
 
     public void testDecodeExceptionIsPropagated() throws IOException {
-        BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler = (c, m) -> {};
+        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -228,7 +227,7 @@ public abstract class InboundPipelineTests extends OpenSearchTestCase {
     }
 
     public void testEnsureBodyIsNotPrematurelyReleased() throws IOException {
-        BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler = (c, m) -> {};
+        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
