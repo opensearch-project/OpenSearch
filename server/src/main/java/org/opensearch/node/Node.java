@@ -185,6 +185,7 @@ import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
@@ -200,6 +201,7 @@ import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
+import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.IngestPlugin;
@@ -215,6 +217,7 @@ import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SystemIndexPlugin;
+import org.opensearch.plugins.TaskManagerClientPlugin;
 import org.opensearch.plugins.TelemetryAwarePlugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -239,6 +242,7 @@ import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.task.commons.clients.TaskManagerClient;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellationMonitoringService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -298,9 +302,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
@@ -521,19 +528,6 @@ public class Node implements Closeable {
                 identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
             }
 
-            final IdentityService identityService = new IdentityService(settings, identityPlugins);
-
-            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
-                Set<Setting<?>> additionalSettings = new HashSet<>();
-                for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
-                    additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
-                }
-                this.extensionsManager = new ExtensionsManager(additionalSettings, identityService);
-            } else {
-                this.extensionsManager = new NoopExtensionsManager();
-            }
-
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()
                 .map(Plugin::getRoles)
@@ -570,6 +564,19 @@ public class Node implements Closeable {
 
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
+
+            final IdentityService identityService = new IdentityService(settings, threadPool, identityPlugins);
+
+            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+                final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
+                Set<Setting<?>> additionalSettings = new HashSet<>();
+                for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
+                    additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
+                }
+                this.extensionsManager = new ExtensionsManager(additionalSettings, identityService);
+            } else {
+                this.extensionsManager = new NoopExtensionsManager(identityService);
+            }
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
@@ -807,6 +814,18 @@ public class Node implements Closeable {
                 remoteIndexPathUploader = null;
                 remoteClusterStateCleanupManager = null;
             }
+            final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService;
+            if (isRemoteDataAttributePresent(settings) && CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.get(settings)) {
+                remoteStorePinnedTimestampService = new RemoteStorePinnedTimestampService(
+                    repositoriesServiceReference::get,
+                    settings,
+                    threadPool,
+                    clusterService
+                );
+                resourcesToClose.add(remoteStorePinnedTimestampService);
+            } else {
+                remoteStorePinnedTimestampService = null;
+            }
 
             // collect engine factory providers from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
@@ -995,6 +1014,9 @@ public class Node implements Closeable {
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
+            List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
+            identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
+
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
                 new SearchRequestOperationsCompositeListenerFactory(
@@ -1170,7 +1192,8 @@ public class Node implements Closeable {
                 clusterModule.getIndexNameExpressionResolver(),
                 repositoryService,
                 transportService,
-                actionModule.getActionFilters()
+                actionModule.getActionFilters(),
+                remoteStorePinnedTimestampService
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,
@@ -1314,6 +1337,13 @@ public class Node implements Closeable {
                 .flatMap(List::stream)
                 .collect(toList());
 
+            final Optional<TaskManagerClient> taskManagerClientOptional = FeatureFlags.isEnabled(BACKGROUND_TASK_EXECUTION_EXPERIMENTAL)
+                ? pluginsService.filterPlugins(TaskManagerClientPlugin.class)
+                    .stream()
+                    .map(plugin -> plugin.getTaskManagerClient(client, clusterService, threadPool))
+                    .findFirst()
+                : Optional.empty();
+
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
                 settings,
@@ -1416,10 +1446,13 @@ public class Node implements Closeable {
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(RemoteIndexPathUploader.class).toProvider(() -> remoteIndexPathUploader);
+                b.bind(RemoteStorePinnedTimestampService.class).toProvider(() -> remoteStorePinnedTimestampService);
                 b.bind(RemoteClusterStateCleanupManager.class).toProvider(() -> remoteClusterStateCleanupManager);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
+
+                taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
             injector = modules.createInjector();
 
@@ -1568,6 +1601,12 @@ public class Node implements Closeable {
         final RemoteIndexPathUploader remoteIndexPathUploader = injector.getInstance(RemoteIndexPathUploader.class);
         if (remoteIndexPathUploader != null) {
             remoteIndexPathUploader.start();
+        }
+        final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = injector.getInstance(
+            RemoteStorePinnedTimestampService.class
+        );
+        if (remoteStorePinnedTimestampService != null) {
+            remoteStorePinnedTimestampService.start();
         }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);

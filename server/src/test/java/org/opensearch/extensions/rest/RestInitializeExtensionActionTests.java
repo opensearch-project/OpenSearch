@@ -121,7 +121,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
     }
 
     public void testRestInitializeExtensionActionFailure() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()));
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, threadPool, List.of()));
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
 
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"\",\"hostAddress\":\"127.0.0.1\","
@@ -156,7 +156,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         );
         ExtensionsManager extensionsManager = new ExtensionsManager(
             Set.of(boolSetting, stringSetting, intSetting, listSetting),
-            new IdentityService(Settings.EMPTY, List.of())
+            new IdentityService(Settings.EMPTY, threadPool, List.of())
         );
         ExtensionsManager spy = spy(extensionsManager);
 
@@ -206,7 +206,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         );
         ExtensionsManager extensionsManager = new ExtensionsManager(
             Set.of(boolSetting, stringSetting, intSetting, listSetting),
-            new IdentityService(Settings.EMPTY, List.of())
+            new IdentityService(Settings.EMPTY, threadPool, List.of())
         );
         ExtensionsManager spy = spy(extensionsManager);
 

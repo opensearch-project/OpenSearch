@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.MapperTestUtils;
-import org.opensearch.index.codec.composite.Composite99Codec;
+import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesModule;
 import org.junit.After;
@@ -126,7 +126,7 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             b.field("name", "field");
             b.startArray("stats");
             b.value("sum");
-            b.value("count"); // TODO : THIS TEST FAILS.
+            b.value("value_count");
             b.endArray();
             b.endObject();
             b.endArray();

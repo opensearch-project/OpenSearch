@@ -10,7 +10,10 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -81,4 +84,19 @@ public abstract class AggregatorBridge {
         BiConsumer<Long, Long> incrementDocCount,
         Ranges ranges
     ) throws IOException;
+
+    /**
+     * Checks whether the top level query matches all documents on the segment
+     *
+     * <p>This method creates a weight from the search context's query and checks whether the weight's
+     * document count matches the total number of documents in the leaf reader context.
+     *
+     * @param ctx      the search context
+     * @param leafCtx  the leaf reader context for the segment
+     * @return {@code true} if the segment matches all documents, {@code false} otherwise
+     */
+    public static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
+        Weight weight = ctx.query().rewrite(ctx.searcher()).createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
+    }
 }

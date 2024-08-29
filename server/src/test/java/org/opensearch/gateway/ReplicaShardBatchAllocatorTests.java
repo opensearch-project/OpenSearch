@@ -744,6 +744,24 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
     }
 
+    public void testAllocateUnassignedBatchOnTimeoutSkipIgnoringNewReplicaShards() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            yesAllocationDeciders(),
+            Settings.EMPTY,
+            UnassignedInfo.Reason.INDEX_CREATED
+        );
+        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        Set<ShardId> shards = new HashSet<>();
+        while (iterator.hasNext()) {
+            ShardRouting sr = iterator.next();
+            if (sr.primary() == false) {
+                shards.add(sr.shardId());
+            }
+        }
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
+    }
+
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
         return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.CLUSTER_RECOVERED);
     }

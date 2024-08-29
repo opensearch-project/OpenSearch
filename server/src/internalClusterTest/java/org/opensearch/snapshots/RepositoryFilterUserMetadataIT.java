@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -127,6 +128,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         SnapshotInfo snapshotInfo,
                         Version repositoryMetaVersion,
                         Function<ClusterState, ClusterState> stateTransformer,
+                        Priority repositoryUpdatePriority,
                         ActionListener<RepositoryData> listener
                     ) {
                         super.finalizeSnapshot(
@@ -136,6 +138,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                             snapshotInfo,
                             repositoryMetaVersion,
                             stateTransformer,
+                            repositoryUpdatePriority,
                             listener
                         );
                     }

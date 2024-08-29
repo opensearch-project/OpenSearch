@@ -9,15 +9,15 @@
 package org.opensearch.gateway.remote;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
+import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -58,12 +58,13 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
     ) {
         this.remoteWritableEntityStores.put(
             RemoteIndexMetadata.INDEX,
-            new RemoteClusterStateBlobStore<>(
+            new RemoteWriteableEntityBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
                 clusterName,
                 threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
+                ThreadPool.Names.REMOTE_STATE_READ,
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
             )
         );
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
@@ -106,7 +107,7 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
     @Override
     protected ActionListener<Void> getWrappedWriteListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
@@ -118,7 +119,7 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
     @Override
     protected ActionListener<Object> getWrappedReadListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteEntity,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
         ActionListener<RemoteReadResult> listener
     ) {
         return ActionListener.wrap(

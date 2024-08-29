@@ -8,9 +8,14 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * This class represents the claims of an OnBehalfOf token.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class OnBehalfOfClaims {
 
     private final String audience;
