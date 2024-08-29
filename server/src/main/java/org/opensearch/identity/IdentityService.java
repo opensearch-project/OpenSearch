@@ -29,11 +29,9 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
-    private final ThreadPool threadPool;
 
     public IdentityService(final Settings settings, final ThreadPool threadPool, final List<IdentityPlugin> identityPlugins) {
         this.settings = settings;
-        this.threadPool = threadPool;
 
         if (identityPlugins.size() == 0) {
             log.debug("Identity plugins size is 0");
