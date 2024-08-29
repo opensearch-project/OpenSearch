@@ -20,6 +20,7 @@ import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.crypto.CryptoHandlerRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
@@ -50,20 +51,33 @@ public class CryptoDirectoryFactory implements IndexStorePlugin.DirectoryFactory
     public static final Setting<Provider> INDEX_CRYPTO_PROVIDER_SETTING = new Setting<>("index.store.crypto.provider", "SunJCE", (s) -> {
         Provider p = Security.getProvider(s);
         if (p == null) {
-            throw new IllegalArgumentException("unrecognized [index.store.crypto.provider] \"" + s + "\"");
+            throw new SettingsException("unrecognized [index.store.crypto.provider] \"" + s + "\"");
         } else return p;
     }, Property.IndexScope, Property.InternalIndex);
 
     /**
      *  Specifies the Key management plugin type to be used. The desired KMS plugin should be installed.
      */
-    public static final Setting<String> INDEX_KMS_TYPE_SETTING = new Setting<>(
-        "index.store.kms.type",
-        "",
-        Function.identity(),
-        Property.NodeScope,
-        Property.IndexScope
-    );
+    public static final Setting<String> INDEX_KMS_TYPE_SETTING = new Setting<>("index.store.kms.type", "", Function.identity(), (s) -> {
+        if (s == null || s.isEmpty()) {
+            throw new SettingsException("index.store.kms.type must be set");
+        }
+    }, Property.NodeScope, Property.IndexScope);
+
+    MasterKeyProvider getKeyProvider(IndexSettings indexSettings) {
+        final String KEY_PROVIDER_TYPE = indexSettings.getValue(INDEX_KMS_TYPE_SETTING);
+        final Settings settings = Settings.builder().put(indexSettings.getNodeSettings(), false).build();
+        CryptoMetadata cryptoMetadata = new CryptoMetadata("", KEY_PROVIDER_TYPE, settings);
+        MasterKeyProvider keyProvider;
+        try {
+            keyProvider = CryptoHandlerRegistry.getInstance()
+                .getCryptoKeyProviderPlugin(KEY_PROVIDER_TYPE)
+                .createKeyProvider(cryptoMetadata);
+        } catch (NullPointerException npe) {
+            throw new RuntimeException("could not find key provider: " + KEY_PROVIDER_TYPE, npe);
+        }
+        return keyProvider;
+    }
 
     /**
      * {@inheritDoc}
@@ -76,12 +90,6 @@ public class CryptoDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         final LockFactory lockFactory = indexSettings.getValue(org.opensearch.index.store.FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING);
         Files.createDirectories(location);
         final Provider provider = indexSettings.getValue(INDEX_CRYPTO_PROVIDER_SETTING);
-        final String KEY_PROVIDER_TYPE = indexSettings.getValue(INDEX_KMS_TYPE_SETTING);
-        final Settings settings = Settings.builder().put(indexSettings.getNodeSettings(), false).build();
-        CryptoMetadata cryptoMetadata = new CryptoMetadata(KEY_PROVIDER_TYPE, KEY_PROVIDER_TYPE, settings);
-        MasterKeyProvider keyProvider = CryptoHandlerRegistry.getInstance()
-            .getCryptoKeyProviderPlugin(KEY_PROVIDER_TYPE)
-            .createKeyProvider(cryptoMetadata);
-        return new CryptoDirectory(lockFactory, location, provider, keyProvider);
+        return new CryptoDirectory(lockFactory, location, provider, getKeyProvider(indexSettings));
     }
 }

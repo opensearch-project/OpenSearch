@@ -38,13 +38,6 @@ public class CryptoDirectoryTests extends OpenSearchBaseDirectoryTestCase {
 
     static final String KEY_FILE_NAME = "keyfile";
 
-    /*    static java.util.Random rnd;
-
-    @BeforeClass
-    private static void setup() {
-        rnd = new java.util.Random(); //Randomness.get();
-    }
-    */
     @Override
     protected Directory getDirectory(Path file) throws IOException {
         MasterKeyProvider keyProvider = mock(MasterKeyProvider.class);
@@ -57,13 +50,6 @@ public class CryptoDirectoryTests extends OpenSearchBaseDirectoryTestCase {
         when(keyProvider.generateDataPair()).thenReturn(dataKeyPair);
         return new CryptoDirectory(FSLockFactory.getDefault(), file, Security.getProvider("SunJCE"), keyProvider);
     }
-
-    /*public void testCreateOutputForExistingFile() throws IOException {
-
-          This test is disabled because {@link SmbDirectoryWrapper} opens existing file
-          with an explicit StandardOpenOption.TRUNCATE_EXISTING option.
-
-    }*/
 
     @Override
     public void testCreateTempOutput() throws Throwable {
@@ -160,6 +146,6 @@ public class CryptoDirectoryTests extends OpenSearchBaseDirectoryTestCase {
 
             writer.join();
             reader.join();
-        }*/
+        } */
     }
 }
