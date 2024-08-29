@@ -95,6 +95,12 @@ public class TransferManager {
     @SuppressWarnings("removal")
     private static FileCachedIndexInput createIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
         try {
+            // This local file cache is ref counted and may not strictly enforce configured capacity.
+            // If we find available capacity is exceeded, deny further BlobFetchRequests.
+            if (fileCache.capacity() < fileCache.usage().usage()) {
+                fileCache.prune();
+                throw new IOException("Local file cache capacity (" + fileCache.capacity() + ") exceeded (" + fileCache.usage().usage() + ") - BlobFetchRequest failed: " + request.getFilePath());
+            }
             if (Files.exists(request.getFilePath()) == false) {
                 logger.trace("Fetching from Remote in createIndexInput of Transfer Manager");
                 try (
