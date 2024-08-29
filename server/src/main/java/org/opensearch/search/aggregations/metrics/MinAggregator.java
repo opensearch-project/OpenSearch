@@ -43,6 +43,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.NumericDoubleValues;
@@ -161,7 +162,11 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         throws IOException {
         StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
-        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, "min");
+        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+            starTree.getField(),
+            fieldName,
+            MetricStat.MIN.getTypeName()
+        );
         SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(metricName);
 
         final BigArrays bigArrays = context.bigArrays();
