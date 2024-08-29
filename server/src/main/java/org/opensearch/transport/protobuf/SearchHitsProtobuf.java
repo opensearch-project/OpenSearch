@@ -55,10 +55,14 @@ public class SearchHitsProtobuf extends SearchHits {
     }
 
     SearchHitsProto toProto() {
-        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder().setMaxScore(maxScore).setCollapseField(collapseField);
+        SearchHitsProto.Builder builder = SearchHitsProto.newBuilder().setMaxScore(maxScore);
 
         for (SearchHit hit : hits) {
             builder.addHits(new SearchHitProtobuf(hit).toProto());
+        }
+
+        if (collapseField != null) {
+            builder.setCollapseField(collapseField);
         }
 
         if (totalHits != null) {

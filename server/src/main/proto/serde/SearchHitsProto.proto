@@ -23,7 +23,7 @@ Object[] collapseValues
  */
 message SearchHitsProto {
   float max_score = 1;
-  string collapse_field = 2;
+  optional string collapse_field = 2;
   bytes sort_fields = 3;
   bytes collapse_values = 4;
   optional TotalHitsProto total_hits = 5;
