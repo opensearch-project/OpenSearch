@@ -173,7 +173,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     public static final Setting<TimeValue> ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.balanced_shards_allocator.allocator_timeout",
-        TimeValue.timeValueSeconds(20),
+        TimeValue.MINUS_ONE,
         TimeValue.MINUS_ONE,
         timeValue -> {
             if (timeValue.compareTo(MIN_ALLOCATOR_TIMEOUT) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {

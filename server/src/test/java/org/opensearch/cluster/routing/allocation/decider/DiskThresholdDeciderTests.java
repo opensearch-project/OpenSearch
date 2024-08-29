@@ -530,6 +530,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         // Primary should initialize, even though both nodes are over the limit initialize
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
+        // below checks are unnecessary as the primary shard is always assigned to node2 as BSA always picks up that node
+        // first as both node1 and node2 have equal weight as both of them contain zero shards.
         String nodeWithPrimary, nodeWithoutPrimary;
         if (clusterState.getRoutingNodes().node("node1").size() == 1) {
             nodeWithPrimary = "node1";
@@ -679,10 +681,12 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logShardStates(clusterState);
-        // primary shard already has been relocated away
-        assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
-        // node with increased space still has its shard
-        assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
+        // primary shard already has been relocated away - this is a wrong expectation as we don't really move
+        // primary first unless explicitly set by setting. This is caught with PR
+        // https://github.com/opensearch-project/OpenSearch/pull/14761/
+        // as it randomises nodes to check for potential moves
+        // assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
+        // assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
 
