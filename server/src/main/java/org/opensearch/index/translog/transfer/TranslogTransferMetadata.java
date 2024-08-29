@@ -101,6 +101,7 @@ public class TranslogTransferMetadata {
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(createdAt),
                 String.valueOf(Objects.hash(nodeId)),
+                RemoteStoreUtils.invertLong(minTranslogGeneration),
                 String.valueOf(CURRENT_VERSION)
             )
         );
