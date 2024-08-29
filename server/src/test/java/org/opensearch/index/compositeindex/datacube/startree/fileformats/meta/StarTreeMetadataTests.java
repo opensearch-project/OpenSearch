@@ -49,7 +49,7 @@ import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOS
 import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 import static org.opensearch.index.mapper.CompositeMappedFieldType.CompositeFieldType.STAR_TREE;
 
-public class StarTreeMetaTests extends OpenSearchTestCase {
+public class StarTreeMetadataTests extends OpenSearchTestCase {
 
     private IndexOutput metaOut;
     private IndexInput metaIn;

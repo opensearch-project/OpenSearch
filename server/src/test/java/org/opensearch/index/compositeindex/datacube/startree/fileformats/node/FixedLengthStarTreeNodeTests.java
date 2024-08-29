@@ -186,6 +186,44 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         assertThrows(AssertionError.class, () -> starTreeNode.getChildForDimensionValue(invalidDimensionValue));
     }
 
+    public void testOnlyRootNodePresent() throws IOException {
+
+        Directory directory = newFSDirectory(createTempDir());
+
+        IndexOutput dataOut = directory.createOutput("star-tree-data-1", IOContext.DEFAULT);
+        StarTreeWriter starTreeWriter = new StarTreeWriter();
+
+        InMemoryTreeNode node = new InMemoryTreeNode();
+        node.dimensionId = 0;
+        node.startDocId = randomInt();
+        node.endDocId = randomInt();
+        node.childDimensionId = 1;
+        node.aggregatedDocId = randomInt();
+        node.nodeType = randomFrom((byte) 0, (byte) -1, (byte) 2);
+        node.children = new HashMap<>();
+
+        long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, node, 1, "star-tree");
+
+        // asserting on the actual length of the star tree data file
+        assertEquals(starTreeDataLength, 33);
+        dataOut.close();
+
+        IndexInput dataIn = directory.openInput("star-tree-data-1", IOContext.READONCE);
+        StarTreeMetadata starTreeMetadata = mock(StarTreeMetadata.class);
+        when(starTreeMetadata.getDataLength()).thenReturn(starTreeDataLength);
+        when(starTreeMetadata.getDataStartFilePointer()).thenReturn(0L);
+
+        FixedLengthStarTreeNode starTreeNode = (FixedLengthStarTreeNode) StarTreeFactory.createStarTree(dataIn, starTreeMetadata);
+
+        assertEquals(starTreeNode.getNumChildren(), 0);
+        assertNull(starTreeNode.getChildForDimensionValue(randomLong()));
+        assertThrows(IllegalArgumentException.class, () -> starTreeNode.getChildrenIterator().next());
+        assertThrows(UnsupportedOperationException.class, () -> starTreeNode.getChildrenIterator().remove());
+
+        dataIn.close();
+        directory.close();
+    }
+
     public void tearDown() throws Exception {
         super.tearDown();
         dataIn.close();
