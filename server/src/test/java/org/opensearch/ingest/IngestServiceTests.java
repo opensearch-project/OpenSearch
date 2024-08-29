@@ -152,8 +152,10 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testIngestPlugin() {
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         IngestService ingestService = new IngestService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -187,8 +189,10 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecuteIndexPipelineDoesNotExist() {
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         IngestService ingestService = new IngestService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -719,6 +723,32 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestService.validatePipeline(ingestInfos, putRequest);
+    }
+
+    public void testValidateProcessorCountForIngestPipelineThrowsException(){
+        IngestService ingestService = createWithProcessors();
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray(
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
+                    + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
+            ),
+            MediaTypeRegistry.JSON
+        );
+
+        DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
+        ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
+
+        Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 1).build();
+        ingestService.getClusterService().getClusterSettings().applySettings(newSettings);
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest)
+        );
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
@@ -1507,8 +1537,10 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         // Create ingest service:
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         IngestService ingestService = new IngestService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -2106,7 +2138,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        return new IngestService(mock(ClusterService.class), threadPool, null, null, null, Collections.singletonList(new IngestPlugin() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        return new IngestService(clusterService, threadPool, null, null, null, Collections.singletonList(new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
