@@ -726,22 +726,23 @@ public class RemoteFsTranslog extends Translog {
     private Set<Long> getGenerationsToBeDeleted(List<String> metadataFilesToBeDeleted) throws IOException {
         Set<Long> generationsToBeDeleted = new HashSet<>();
 
-        // From the remaining files, read oldest and latest
-        String oldestMetadataFileToBeDeleted = metadataFilesToBeDeleted.get(metadataFilesToBeDeleted.size() - 1);
+        // From the remaining files, read the latest file to get max generation to be deleted
         String latestMetadataFileToBeDeleted = metadataFilesToBeDeleted.get(0);
-
-        // Delete generations
-        long minGenerationToBeDeleted;
-        long maxGenerationToBeDeleted;
-        if (pinnedMetadataFileGenerationMap.containsKey(latestMetadataFileToBeDeleted) == false) {
-            TranslogTransferMetadata metadata = translogTransferManager.readMetadata(latestMetadataFileToBeDeleted);
-            maxGenerationToBeDeleted = metadata.getMinTranslogGeneration() - 1;
-        } else {
-            maxGenerationToBeDeleted = pinnedMetadataFileGenerationMap.get(latestMetadataFileToBeDeleted).v1() - 1;
+        long maxGenerationToBeDeleted = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep();
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+            if (pinnedMetadataFileGenerationMap.containsKey(latestMetadataFileToBeDeleted) == false) {
+                TranslogTransferMetadata metadata = translogTransferManager.readMetadata(latestMetadataFileToBeDeleted);
+                maxGenerationToBeDeleted = metadata.getMinTranslogGeneration() - 1;
+            } else {
+                maxGenerationToBeDeleted = pinnedMetadataFileGenerationMap.get(latestMetadataFileToBeDeleted).v1() - 1;
+            }
+            long minGenerationToKeep = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep();
+            maxGenerationToBeDeleted = Math.min(maxGenerationToBeDeleted, minGenerationToKeep);
         }
-        long minGenerationToKeep = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep();
-        maxGenerationToBeDeleted = Math.min(maxGenerationToBeDeleted, minGenerationToKeep);
 
+        // From the remaining files, read the oldest file to get min generation to be deleted
+        String oldestMetadataFileToBeDeleted = metadataFilesToBeDeleted.get(metadataFilesToBeDeleted.size() - 1);
+        long minGenerationToBeDeleted;
         if (pinnedMetadataFileGenerationMap.containsKey(oldestMetadataFileToBeDeleted) == false) {
             TranslogTransferMetadata metadata = translogTransferManager.readMetadata(oldestMetadataFileToBeDeleted);
             minGenerationToBeDeleted = metadata.getMinTranslogGeneration() - 1;

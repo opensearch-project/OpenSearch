@@ -121,12 +121,12 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private AtomicLong globalCheckpoint;
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
-    private final AtomicLong primaryTerm = new AtomicLong();
+    protected final AtomicLong primaryTerm = new AtomicLong();
     private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
-    private final static String METADATA_DIR = "metadata";
-    private final static String DATA_DIR = "data";
+    protected final static String METADATA_DIR = "metadata";
+    protected final static String DATA_DIR = "data";
     AtomicInteger writeCalls = new AtomicInteger();
     BlobStoreRepository repository;
 
@@ -277,7 +277,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         return loc;
     }
 
-    private Translog.Location addToTranslogAndListAndUpload(Translog translog, List<Translog.Operation> list, Translog.Operation op)
+    protected Translog.Location addToTranslogAndListAndUpload(Translog translog, List<Translog.Operation> list, Translog.Operation op)
         throws IOException {
         Translog.Location loc = translog.add(op);
         translog.ensureSynced(loc);
@@ -914,7 +914,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
     }
 
-    private BlobPath getTranslogDirectory() {
+    protected BlobPath getTranslogDirectory() {
         return repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG.getName());
     }
 
