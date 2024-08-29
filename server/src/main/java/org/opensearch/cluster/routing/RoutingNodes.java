@@ -1439,7 +1439,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator(ShardMovementStrategy shardMovementStrategy) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
+        List<Map.Entry<String, RoutingNode>> nodesToShardsEntrySet = new ArrayList<>(nodesToShards.entrySet());
+        Randomness.shuffle(nodesToShardsEntrySet);
+        for (Map.Entry<String, RoutingNode> entry : nodesToShardsEntrySet) {
             queue.add(entry.getValue().copyShards().iterator());
         }
         if (shardMovementStrategy == ShardMovementStrategy.PRIMARY_FIRST) {
