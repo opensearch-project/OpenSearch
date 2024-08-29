@@ -633,17 +633,10 @@ public abstract class StreamOutput extends OutputStream {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
+    public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
         writeVInt(map.size());
         for (final Map.Entry<K, V> entry : map.entrySet()) {
             keyWriter.write(this, entry.getKey());
-            valueWriter.write(this, entry.getValue());
-        }
-    }
-
-    public <K, V> void writeMapValues(final Map<K, V> map, final Writer<V> valueWriter) throws IOException {
-        writeVInt(map.size());
-        for (final Map.Entry<K, V> entry : map.entrySet()) {
             valueWriter.write(this, entry.getValue());
         }
     }

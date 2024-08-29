@@ -91,6 +91,11 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
         return templates != null ? templates.hashCode() : 0;
     }
 
+    @Override
+    public String toString() {
+        return "TemplatesMetadata{" + "templates=" + templates + '}';
+    }
+
     /**
      * Builder for the templates metadata
      *
