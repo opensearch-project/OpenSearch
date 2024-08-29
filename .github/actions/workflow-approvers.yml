@@ -1,0 +1,20 @@
+name: 'Get the list of approvers for a workflow'
+
+inputs:
+  workflow-name:
+    description: 'The name of the workflow to check for approvals, e.g. performance-benchmarks'
+    required: true
+
+outputs:
+  workflow-approvers:
+    description: 'The list of approvers for this workflow'
+    value: ${{ steps.extract-approvers.outputs.workflow-approvers }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: extract-approvers
+      shell: bash
+      run: |
+        approvers=$(grep "/workflows/${{ inputs.workflow-name }}" .github/CODEOWNERS | cut -d' ' -f2- | sed 's/@//g' | tr ' ' ',')
+        echo "approvers=$approvers" >> $GITHUB_ENV
