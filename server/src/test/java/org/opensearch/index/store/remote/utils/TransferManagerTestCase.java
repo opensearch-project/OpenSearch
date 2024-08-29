@@ -33,7 +33,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public abstract class TransferManagerTestCase extends OpenSearchTestCase {
@@ -104,9 +103,7 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         IndexInput i1 = fetchBlobWithName("1");
         IndexInput i2 = fetchBlobWithName("2");
 
-        assertThrows(IOException.class, () -> {
-            IndexInput i3 = fetchBlobWithName("3");
-        });
+        assertThrows(IOException.class, () -> { IndexInput i3 = fetchBlobWithName("3"); });
     }
 
     public void testDownloadFails() throws Exception {
