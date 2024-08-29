@@ -15,7 +15,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
-import org.junit.Test;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -29,9 +29,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class DelegatingRestHandlerTests {
+public class DelegatingRestHandlerTests extends OpenSearchTestCase {
 
-    @Test
     public void testDelegatingRestHandlerShouldActAsOriginal() throws Exception {
         RestHandler rh = new RestHandler() {
             @Override
