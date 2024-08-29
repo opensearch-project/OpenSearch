@@ -768,6 +768,7 @@ public class GatewayMetaState implements Closeable {
             if (lastAcceptedState == null
                 || lastAcceptedManifest == null
                 || lastAcceptedState.term() != clusterState.term()
+                || lastAcceptedManifest.getOpensearchVersion() != Version.CURRENT
                 || lastAcceptedManifest.getCodecVersion() != codecVersion) {
                 return true;
             }

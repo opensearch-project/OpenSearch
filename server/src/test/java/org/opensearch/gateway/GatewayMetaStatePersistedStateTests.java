@@ -799,6 +799,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             .clusterTerm(1L)
             .stateVersion(5L)
             .codecVersion(CODEC_V1)
+            .opensearchVersion(Version.CURRENT)
             .build();
         Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any(), eq(CODEC_V1)))
             .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest2"));
@@ -821,6 +822,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             .clusterTerm(1L)
             .stateVersion(5L)
             .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+            .opensearchVersion(Version.CURRENT)
             .build();
         Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any(), eq(MANIFEST_CURRENT_CODEC_VERSION)))
             .thenReturn(new RemoteClusterStateManifestInfo(manifest2, "path/to/manifest"));
