@@ -51,6 +51,11 @@ public class SearchTaskSettings {
         Defaults.CANCELLATION_RATIO,
         0.0,
         1.0,
+        value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_ratio must be greater than zero");
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -64,6 +69,12 @@ public class SearchTaskSettings {
         "search_backpressure.search_task.cancellation_rate",
         Defaults.CANCELLATION_RATE,
         0.0,
+        Double.MAX_VALUE,
+        value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_rate must be greater than zero");
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

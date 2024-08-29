@@ -98,3 +98,116 @@
   - match: {error.root_cause.0.type: "illegal_argument_exception"}
   - match: { error.root_cause.0.reason: "Invalid SearchBackpressureMode: monitor-only" }
   - match: { status: 400 }
+
+
+---
+"Test setting search backpressure cancellation settings":
+  - skip:
+      version: "- 2.3.99"
+      reason: "Introduced in 2.4.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_burst: 11
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.cancellation_burst: "11"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_rate: 0.1
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.cancellation_rate: "0.1"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_ratio: 0.2
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.cancellation_ratio: "0.2"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_burst: 12
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.cancellation_burst: "12"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_rate: 0.3
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.cancellation_rate: "0.3"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_ratio: 0.4
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.cancellation_ratio: "0.4"}
+
+---
+"Test setting invalid search backpressure cancellation_rate and cancellation_ratio":
+  - skip:
+      version: "- 2.99.99"
+      reason: "Fixed in 3.0.0"
+
+  - do:
+      catch: /search_backpressure.search_task.cancellation_rate must be greater than zero/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_rate: 0.0
+
+  - do:
+      catch: /search_backpressure.search_task.cancellation_ratio must be greater than zero/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_ratio: 0.0
+
+  - do:
+      catch: /search_backpressure.search_shard_task.cancellation_rate must be greater than zero/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_rate: 0.0
+
+  - do:
+      catch: /search_backpressure.search_shard_task.cancellation_ratio must be greater than zero/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_ratio: 0.0

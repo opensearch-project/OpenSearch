@@ -160,14 +160,16 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 timeNanosSupplier,
                 getSettings().getSearchTaskSettings().getCancellationRateNanos(),
                 getSettings().getSearchTaskSettings().getCancellationBurst(),
-                getSettings().getSearchTaskSettings().getCancellationRatio()
+                getSettings().getSearchTaskSettings().getCancellationRatio(),
+                getSettings().getSearchTaskSettings().getCancellationRate()
             ),
             SearchShardTask.class,
             new SearchBackpressureState(
                 timeNanosSupplier,
                 getSettings().getSearchShardTaskSettings().getCancellationRateNanos(),
                 getSettings().getSearchShardTaskSettings().getCancellationBurst(),
-                getSettings().getSearchShardTaskSettings().getCancellationRatio()
+                getSettings().getSearchShardTaskSettings().getCancellationRatio(),
+                getSettings().getSearchShardTaskSettings().getCancellationRate()
             )
         );
         this.settings.getSearchTaskSettings().addListener(searchBackpressureStates.get(SearchTask.class));
