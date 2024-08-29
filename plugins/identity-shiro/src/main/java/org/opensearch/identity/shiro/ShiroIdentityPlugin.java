@@ -29,6 +29,7 @@ import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.identity.tokens.TokenManager;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -49,7 +50,7 @@ import java.util.function.UnaryOperator;
  * Identity implementation with Shiro
  */
 @ExperimentalApi
-public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin {
+public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin, ActionPlugin {
     private Logger log = LogManager.getLogger(this.getClass());
 
     private final Settings settings;
@@ -109,7 +110,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     }
 
     @Override
-    public UnaryOperator<RestHandler> authenticate(ThreadContext threadContext) {
+    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
         return AuthcRestHandler::new;
     }
 

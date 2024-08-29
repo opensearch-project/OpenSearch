@@ -110,8 +110,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final PathTrie<RestMethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
-    public static final UnaryOperator<RestHandler> PASS_THROUGH_REST_HANDLER_WRAPPER = (h) -> h;
-
     private final UnaryOperator<RestHandler> handlerWrapper;
 
     private final NodeClient client;
@@ -132,10 +130,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
-            this.handlerWrapper = PASS_THROUGH_REST_HANDLER_WRAPPER;
-        } else {
-            this.handlerWrapper = handlerWrapper;
+            handlerWrapper = h -> h; // passthrough if no wrapper set
         }
+
+        this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(

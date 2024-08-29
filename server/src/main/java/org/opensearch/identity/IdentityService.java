@@ -14,11 +14,9 @@ import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestHandler;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -63,13 +61,6 @@ public class IdentityService {
      */
     public TokenManager getTokenManager() {
         return identityPlugin.getTokenManager();
-    }
-
-    /**
-     * Gets the RestHandlerWrapper to authenticate the request
-     */
-    public UnaryOperator<RestHandler> authenticate() {
-        return identityPlugin.authenticate(this.threadPool.getThreadContext());
     }
 
     public void initializeIdentityAwarePlugins(final List<IdentityAwarePlugin> identityAwarePlugins) {
