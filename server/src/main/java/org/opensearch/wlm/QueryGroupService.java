@@ -15,14 +15,6 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
  */
 public class QueryGroupService {
     /**
-     * updates the failure stats for the query group
-     * @param queryGroupId query group identifier
-     */
-    public void requestFailedFor(final String queryGroupId) {
-
-    }
-
-    /**
      *
      * @param queryGroupId query group identifier
      */
