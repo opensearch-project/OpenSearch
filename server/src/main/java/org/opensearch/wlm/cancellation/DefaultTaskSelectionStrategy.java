@@ -80,7 +80,6 @@ public class DefaultTaskSelectionStrategy {
 
     /**
      * Selects tasks for cancellation from deleted query group.
-     * </n>
      * This method iterates over the provided list of tasks and selects those that are instances of
      * {@link CancellableTask}. For each selected task, it creates a cancellation reason and adds
      * a {@link TaskCancellation} object to the list of selected tasks.
