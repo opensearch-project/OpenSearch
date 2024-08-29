@@ -42,9 +42,11 @@ public enum ResourceType {
         }
         throw new IllegalArgumentException("Unknown resource type: [" + s + "]");
     }
+
     public static void writeTo(StreamOutput out, ResourceType resourceType) throws IOException {
         out.writeString(resourceType.getName());
     }
+
     public String getName() {
         return name;
     }
