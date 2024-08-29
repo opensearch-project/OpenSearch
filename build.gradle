@@ -462,6 +462,7 @@ subprojects {
       if (BuildParams.isCi()) {
         maxRetries = 3
         maxFailures = 10
+        failFast = true
       }
       failOnPassedAfterRetry = false
       filter {
