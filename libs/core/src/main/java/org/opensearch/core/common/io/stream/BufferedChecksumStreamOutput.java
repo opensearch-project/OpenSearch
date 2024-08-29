@@ -148,6 +148,12 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
     }
 
     @Override
+    public void writeVLongArray(long[] values) throws IOException {
+        Arrays.sort(values);
+        super.writeVLongArray(values);
+    }
+
+    @Override
     public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
         List<? extends Writeable> sortedList = collection.stream()
             .sorted(Comparator.comparing(Object::hashCode))
