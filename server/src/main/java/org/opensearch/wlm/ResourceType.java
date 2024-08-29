@@ -18,8 +18,11 @@ import java.util.function.Function;
 
 /**
  * Enum to hold the resource type
+ *
+ * @opensearch.api
+ *
  */
-@PublicApi(since = "2.x")
+@PublicApi(since = "2.17.0")
 public enum ResourceType {
     CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU), true),
     MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY), true);
