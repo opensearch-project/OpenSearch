@@ -747,7 +747,6 @@ public final class IndexSettings {
         0,
         0,
         Property.PrivateIndex,
-        Property.Dynamic,
         Property.IndexScope
     );
 

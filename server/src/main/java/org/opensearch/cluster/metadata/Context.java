@@ -127,4 +127,13 @@ public class Context extends AbstractDiffable<Context> implements ToXContentObje
     public int hashCode() {
         return Objects.hash(name, version, params);
     }
+
+    @Override
+    public String toString() {
+        return "Context{" +
+            "name='" + name + '\'' +
+            ", version='" + version + '\'' +
+            ", params=" + params +
+            '}';
+    }
 }

@@ -597,7 +597,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             context(Context.fromXContent(parser));
             return this;
         } catch (IOException e) {
-            throw new OpenSearchParseException("Failed to parse aliases", e);
+            throw new OpenSearchParseException("Failed to parse context", e);
         }
     }
 
@@ -653,6 +653,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             + '\''
             + ", aliases="
             + aliases
+            + '\''
+            + ", context="
+            + context
             + ", waitForActiveShards="
             + waitForActiveShards
             + '}';
