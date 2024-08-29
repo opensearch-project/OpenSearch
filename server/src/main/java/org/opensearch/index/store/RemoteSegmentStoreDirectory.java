@@ -196,7 +196,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             metadataFiles,
             Set.of(timestamp),
             MetadataFilenameUtils::getTimestamp,
-            MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+            MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen,
+            true
         );
         if (lockedMetadataFiles.isEmpty()) {
             return null;
