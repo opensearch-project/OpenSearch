@@ -2175,7 +2175,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 PathType.fromCode(pathType),
                 PathHashAlgorithm.fromCode(pathHashAlgorithm)
             );
-            SNAPSHOT_SHARD_PATHS_FORMAT.writeAsyncWithUrgentPriority(
+            SNAPSHOT_SHARD_PATHS_FORMAT.write(
                 shardPaths,
                 snapshotShardPathBlobContainer(),
                 blobName,
