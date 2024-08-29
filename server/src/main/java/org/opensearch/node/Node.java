@@ -235,6 +235,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.deciders.ConcurrentSearchDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
@@ -1336,7 +1337,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 circuitBreakerService,
                 searchModule.getIndexSearcherExecutor(threadPool),
-                taskResourceTrackingService
+                taskResourceTrackingService,
+                searchModule.getConcurrentSearchDeciders()
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -1993,7 +1995,8 @@ public class Node implements Closeable {
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        Collection<ConcurrentSearchDecider> concurrentSearchDecidersList
     ) {
         return new SearchService(
             clusterService,
@@ -2006,7 +2009,8 @@ public class Node implements Closeable {
             responseCollectorService,
             circuitBreakerService,
             indexSearcherExecutor,
-            taskResourceTrackingService
+            taskResourceTrackingService,
+            concurrentSearchDecidersList
         );
     }
 
