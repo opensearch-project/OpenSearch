@@ -311,14 +311,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.allocatorTimeout = allocatorTimeout;
     }
 
-    protected boolean allocatorTimedOut(long currentTime) {
+    protected boolean allocatorTimedOut() {
         if (allocatorTimeout.equals(TimeValue.MINUS_ONE)) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Allocator timeout is disabled. Will not short circuit allocator tasks");
             }
             return false;
         }
-        return currentTime - this.startTime > allocatorTimeout.nanos();
+        return System.nanoTime() - this.startTime > allocatorTimeout.nanos();
     }
 
     @Override
@@ -361,7 +361,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
             ignoreThrottleInRestore,
-            x -> false // as we don't need to check if timed out or not while just understanding ShardAllocationDecision
+            () -> false // as we don't need to check if timed out or not while just understanding ShardAllocationDecision
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -625,7 +625,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, x -> false);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, () -> false);
         }
     }
 

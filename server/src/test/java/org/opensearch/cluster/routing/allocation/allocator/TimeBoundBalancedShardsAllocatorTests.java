@@ -412,7 +412,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
     public void testAllocatorNeverTimedOutIfValueIsMinusOne() {
         Settings build = Settings.builder().put("cluster.routing.allocation.balanced_shards_allocator.allocator_timeout", "-1").build();
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(build);
-        assertFalse(allocator.allocatorTimedOut(randomLong()));
+        assertFalse(allocator.allocatorTimedOut());
     }
 
     public void testAllocatorTimeout() {
@@ -468,7 +468,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         }
 
         @Override
-        protected boolean allocatorTimedOut(long currentTime) {
+        protected boolean allocatorTimedOut() {
             if (timedOutLatch.getCount() == 0) {
                 return true;
             }

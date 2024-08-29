@@ -41,7 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -72,7 +72,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
-    private final Function<Long, Boolean> timedOutFunc;
+    private final Supplier<Boolean> timedOutFunc;
     private int totalShardCount = 0;
 
     public LocalShardsBalancer(
@@ -84,7 +84,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         boolean preferPrimaryBalance,
         boolean preferPrimaryRebalance,
         boolean ignoreThrottleInRestore,
-        Function<Long, Boolean> timedOutFunc
+        Supplier<Boolean> timedOutFunc
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -349,7 +349,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final float[] weights = sorter.weights;
         for (String index : buildWeightOrderedIndices()) {
             // Terminate if the time allocated to the balanced shards allocator has elapsed
-            if (timedOutFunc != null && timedOutFunc.apply(System.nanoTime())) {
+            if (timedOutFunc != null && timedOutFunc.get()) {
                 logger.info(
                     "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
                         + ". Skipping indices iteration"
@@ -381,7 +381,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             int highIdx = relevantNodes - 1;
             while (true) {
                 // break if the time allocated to the balanced shards allocator has elapsed
-                if (timedOutFunc != null && timedOutFunc.apply(System.nanoTime())) {
+                if (timedOutFunc != null && timedOutFunc.get()) {
                     logger.info(
                         "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
                             + ". Skipping relevant nodes iteration"
@@ -593,7 +593,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             }
 
             // Terminate if the time allocated to the balanced shards allocator has elapsed
-            if (timedOutFunc != null && timedOutFunc.apply(System.nanoTime())) {
+            if (timedOutFunc != null && timedOutFunc.get()) {
                 logger.info(
                     "Cannot move any shard in the cluster as time allocated to balanced shards allocator has elapsed"
                         + ". Skipping shard iteration"
@@ -833,7 +833,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         }
         do {
             for (int i = 0; i < primaryLength; i++) {
-                if (timedOutFunc != null && timedOutFunc.apply(System.nanoTime())) {
+                if (timedOutFunc != null && timedOutFunc.get()) {
                     // TODO - maybe check if we can allow wait for active shards thingy bypass this condition
                     logger.info(
                         "Ignoring [{}] unassigned shards for allocation as time allocated to balanced shards allocator has elapsed",
