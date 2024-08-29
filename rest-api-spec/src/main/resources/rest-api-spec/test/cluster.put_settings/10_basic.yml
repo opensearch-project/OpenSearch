@@ -85,8 +85,8 @@
 "Test set invalid search backpressure mode":
 
   - skip:
-      version: "- 2.99.99"
-      reason: "Parsing and validation of SearchBackpressureMode does not exist in versions < 3.0"
+      version: "- 2.8.99"
+      reason: "Fixed in 2.9.0"
 
   - do:
       catch: bad_request
