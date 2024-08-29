@@ -12,6 +12,8 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.ResourceType;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 
@@ -173,21 +175,52 @@ public class DefaultTaskCancellation {
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
-        return defaultTaskSelectionStrategy.selectTasksForCancellation(
-            queryGroup,
-            // get the active tasks in the query group
+        List<Task> selectedTasksToCancel = defaultTaskSelectionStrategy.selectTasksForCancellation(
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
             getReduceBy(queryGroup, resourceType),
             resourceType
         );
+        List<TaskCancellation> taskCancellations = new ArrayList<>();
+        for(Task task : selectedTasksToCancel) {
+            String cancellationReason = createCancellationReason(queryGroup, task, resourceType);
+            taskCancellations.add(createTaskCancellation((CancellableTask) task, cancellationReason));
+        }
+        return taskCancellations;
+    }
+
+    private String createCancellationReason(QueryGroup querygroup, Task task, ResourceType resourceType) {
+        Double thresholdInPercent = getThresholdInPercent(querygroup, resourceType);
+        return "[Workload Management] Cancelling Task ID : "
+            + task.getId()
+            + " from QueryGroup ID : "
+            + querygroup.get_id()
+            + " breached the resource limit of : "
+            + thresholdInPercent
+            + " for resource type : "
+            + resourceType.getName();
+    }
+
+    private Double getThresholdInPercent(QueryGroup querygroup, ResourceType resourceType) {
+        return ((Double) (querygroup.getResourceLimits().get(resourceType))) * 100;
+    }
+
+    private TaskCancellation createTaskCancellation(CancellableTask task, String cancellationReason) {
+        return new TaskCancellation(task, List.of(new TaskCancellation.Reason(cancellationReason, 5)), List.of(this::callbackOnCancel));
     }
 
     protected List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
-        return defaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(
-            queryGroup,
-            // get the active tasks in the query group
+        List<Task> tasks = defaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks()
         );
+        List<TaskCancellation> taskCancellations = new ArrayList<>();
+        for(Task task : tasks) {
+            String cancellationReason = "[Workload Management] Cancelling Task ID : "
+                + task.getId()
+                + " from QueryGroup ID : "
+                + queryGroup.get_id();
+            taskCancellations.add(createTaskCancellation((CancellableTask) task, cancellationReason));
+        }
+        return taskCancellations;
     }
 
     private long getReduceBy(QueryGroup queryGroup, ResourceType resourceType) {
@@ -228,5 +261,9 @@ public class DefaultTaskCancellation {
         long resourceUsageInMillis = resourceUsage / 1_000_000;
         // Check if resource usage is breaching the threshold
         return resourceUsageInMillis > convertThresholdIntoLong(resourceType, resourceThresholdInPercentage);
+    }
+
+    private void callbackOnCancel() {
+        // TODO Implement callback logic here mostly used for Stats
     }
 }
