@@ -10,6 +10,11 @@ package org.opensearch.core.common.io.stream;
 
 import java.io.IOException;
 
+/**
+ * Provides a method for serialization which will give ordered stream, creating same byte array on every invocation.
+ * This should be invoked with a stream that provides ordered serialization.
+ */
 public interface VerifiableWriteable extends Writeable {
-    void writeVerifiableTo(StreamOutput out) throws IOException;
+
+    void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException;
 }

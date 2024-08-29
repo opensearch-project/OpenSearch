@@ -41,6 +41,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.VerifiableWriteable;
@@ -697,9 +698,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     @Override
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeClusterManager(out);
-        out.writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo(stream));
+        out.writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
     }
 
     private void writeClusterManager(StreamOutput out) throws IOException {

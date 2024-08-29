@@ -35,6 +35,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.VerifiableWriteable;
@@ -48,7 +49,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -152,7 +152,7 @@ public class CoordinationMetadata implements VerifiableWriteable, ToXContentFrag
     }
 
     @Override
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeTo(out);
     }
 

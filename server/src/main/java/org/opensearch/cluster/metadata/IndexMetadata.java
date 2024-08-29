@@ -54,6 +54,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.VerifiableWriteable;
@@ -1215,7 +1216,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     @Override
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
         out.writeVLong(mappingVersion);
@@ -1225,15 +1226,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
-        out.writeMapValues(mappings,(stream, val) -> val.writeTo(stream));
-        out.writeMapValues(aliases,(stream, val) -> val.writeTo(stream));
-        out.writeMap(customData,  StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMapValues(mappings, (stream, val) -> val.writeTo(stream));
+        out.writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
+        out.writeMap(customData, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
         out.writeMap(
             inSyncAllocationIds,
             StreamOutput::writeVInt,
             (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
         );
-        out.writeMapValues(rolloverInfos,  (stream, val) -> val.writeTo(stream));
+        out.writeMapValues(rolloverInfos, (stream, val) -> val.writeTo(stream));
         out.writeBoolean(isSystem);
     }
 

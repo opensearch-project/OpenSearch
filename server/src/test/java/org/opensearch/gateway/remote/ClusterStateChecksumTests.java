@@ -179,7 +179,7 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
                     .templates(templatesMetadata)
                     .hashesOfConsistentSettings(Map.of("key1", "value1", "key2", "value2"))
                     .putCustom(customMetadata1.getWriteableName(), customMetadata1)
-                    .indices(Map.of(indexMetadata.getIndex().getName(), indexMetadata))
+                    .indices(Map.of(indexMetadata.getIndex().getName(), indexMetadata, indexMetadata2.getIndex().getName(), indexMetadata2))
                     .build()
             )
             .nodes(DiscoveryNodes.builder().clusterManagerNodeId("test-node").build())

@@ -10,6 +10,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -67,8 +68,8 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
     }
 
     @Override
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
-        out.writeMapValues(templates, (stream, value) -> value.writeVerifiableTo(stream));
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeMapValues(templates, (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
     }
 
     @Override

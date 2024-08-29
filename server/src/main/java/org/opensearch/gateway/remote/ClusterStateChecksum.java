@@ -26,7 +26,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import com.jcraft.jzlib.JZlib;
@@ -104,7 +103,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             hashesOfConsistentSettingsChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            checksumOut.writeMapValues(clusterState.metadata().indices(), (stream, value) -> value.writeVerifiableTo(stream));
+            checksumOut.writeMapValues(clusterState.metadata().indices(), (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
             indicesChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
