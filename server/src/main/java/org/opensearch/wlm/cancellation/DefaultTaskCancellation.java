@@ -16,6 +16,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,6 +48,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 public class DefaultTaskCancellation {
     private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
 
+    protected final WorkloadManagementSettings workloadManagementSettings;
     protected final DefaultTaskSelectionStrategy defaultTaskSelectionStrategy;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     protected final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
@@ -55,12 +57,14 @@ public class DefaultTaskCancellation {
     protected BooleanSupplier isNodeInDuress;
 
     public DefaultTaskCancellation(
+        WorkloadManagementSettings workloadManagementSettings,
         DefaultTaskSelectionStrategy defaultTaskSelectionStrategy,
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
         Collection<QueryGroup> activeQueryGroups,
         Collection<QueryGroup> deletedQueryGroups,
         BooleanSupplier isNodeInDuress
     ) {
+        this.workloadManagementSettings = workloadManagementSettings;
         this.defaultTaskSelectionStrategy = defaultTaskSelectionStrategy;
         this.queryGroupLevelResourceUsageViews = queryGroupLevelResourceUsageViews;
         this.activeQueryGroups = activeQueryGroups;
@@ -181,7 +185,7 @@ public class DefaultTaskCancellation {
             resourceType
         );
         List<TaskCancellation> taskCancellations = new ArrayList<>();
-        for(Task task : selectedTasksToCancel) {
+        for (Task task : selectedTasksToCancel) {
             String cancellationReason = createCancellationReason(queryGroup, task, resourceType);
             taskCancellations.add(createTaskCancellation((CancellableTask) task, cancellationReason));
         }
@@ -213,7 +217,7 @@ public class DefaultTaskCancellation {
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks()
         );
         List<TaskCancellation> taskCancellations = new ArrayList<>();
-        for(Task task : tasks) {
+        for (Task task : tasks) {
             String cancellationReason = "[Workload Management] Cancelling Task ID : "
                 + task.getId()
                 + " from QueryGroup ID : "
@@ -235,12 +239,16 @@ public class DefaultTaskCancellation {
         Long threshold = null;
         if (resourceType == ResourceType.MEMORY) {
             // Check if resource usage is breaching the threshold
-            threshold = (long) (resourceThresholdInPercentage * HEAP_SIZE_BYTES);
+            double nodeLevelCancellationThreshold = this.workloadManagementSettings.getNodeLevelMemoryCancellationThreshold()
+                * HEAP_SIZE_BYTES;
+            threshold = (long) (resourceThresholdInPercentage * nodeLevelCancellationThreshold);
         } else if (resourceType == ResourceType.CPU) {
             // Get the total CPU time of the process in milliseconds
             long cpuTotalTimeInMillis = ProcessProbe.getInstance().getProcessCpuTotalTime();
+            double nodeLevelCancellationThreshold = this.workloadManagementSettings.getNodeLevelCpuCancellationThreshold()
+                * cpuTotalTimeInMillis;
             // Check if resource usage is breaching the threshold
-            threshold = (long) (resourceThresholdInPercentage * cpuTotalTimeInMillis);
+            threshold = (long) (resourceThresholdInPercentage * nodeLevelCancellationThreshold);
         }
         return threshold;
     }

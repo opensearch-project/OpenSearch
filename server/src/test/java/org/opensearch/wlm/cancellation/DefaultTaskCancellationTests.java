@@ -17,6 +17,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
+import org.opensearch.wlm.WorkloadManagementSettings;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -39,13 +40,21 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
     private static class TestTaskCancellationImpl extends DefaultTaskCancellation {
 
         public TestTaskCancellationImpl(
+            WorkloadManagementSettings workloadManagementSettings,
             DefaultTaskSelectionStrategy defaultTaskSelectionStrategy,
             Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelViews,
             Set<QueryGroup> activeQueryGroups,
             Set<QueryGroup> deletedQueryGroups,
             BooleanSupplier isNodeInDuress
         ) {
-            super(defaultTaskSelectionStrategy, queryGroupLevelViews, activeQueryGroups, deletedQueryGroups, isNodeInDuress);
+            super(
+                workloadManagementSettings,
+                defaultTaskSelectionStrategy,
+                queryGroupLevelViews,
+                activeQueryGroups,
+                deletedQueryGroups,
+                isNodeInDuress
+            );
         }
     }
 
@@ -53,13 +62,16 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
     private Set<QueryGroup> activeQueryGroups;
     private Set<QueryGroup> deletedQueryGroups;
     private DefaultTaskCancellation taskCancellation;
+    private WorkloadManagementSettings workloadManagementSettings;
 
     @Before
     public void setup() {
+        workloadManagementSettings = mock(WorkloadManagementSettings.class);
         queryGroupLevelViews = new HashMap<>();
         activeQueryGroups = new HashSet<>();
         deletedQueryGroups = new HashSet<>();
         taskCancellation = new TestTaskCancellationImpl(
+            workloadManagementSettings,
             new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
@@ -156,6 +168,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
+        when(workloadManagementSettings.getNodeLevelCpuCancellationThreshold()).thenReturn(0.90);
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getCancellableTasksFrom(queryGroup1);
         assertTrue(cancellableTasksFrom.isEmpty());
@@ -179,6 +192,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         activeQueryGroups.add(queryGroup1);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
+            workloadManagementSettings,
             new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
@@ -208,6 +222,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         activeQueryGroups.add(queryGroup1);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
+            workloadManagementSettings,
             new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
@@ -254,6 +269,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         deletedQueryGroups.add(deletedQueryGroup);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
+            workloadManagementSettings,
             new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
@@ -310,6 +326,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         deletedQueryGroups.add(deletedQueryGroup);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
+            workloadManagementSettings,
             new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
@@ -365,6 +382,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         Collections.addAll(activeQueryGroups, queryGroup1, queryGroup2);
 
         TestTaskCancellationImpl taskCancellation = new TestTaskCancellationImpl(
+            workloadManagementSettings,
             new DefaultTaskSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
@@ -470,18 +488,10 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         return mockView;
     }
 
-    private QueryGroupLevelResourceUsageView createResourceUsageViewMock(
-        ResourceType resourceType,
-        Long usage,
-        Collection<Integer> ids
-    ) {
+    private QueryGroupLevelResourceUsageView createResourceUsageViewMock(ResourceType resourceType, Long usage, Collection<Integer> ids) {
         QueryGroupLevelResourceUsageView mockView = mock(QueryGroupLevelResourceUsageView.class);
         when(mockView.getResourceUsageData()).thenReturn(Collections.singletonMap(resourceType, usage));
-        when(mockView.getActiveTasks()).thenReturn(
-            ids.stream()
-                .map(this::getRandomSearchTask)
-                .collect(Collectors.toList())
-        );
+        when(mockView.getActiveTasks()).thenReturn(ids.stream().map(this::getRandomSearchTask).collect(Collectors.toList()));
         return mockView;
     }
 

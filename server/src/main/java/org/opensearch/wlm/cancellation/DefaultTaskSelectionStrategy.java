@@ -46,11 +46,7 @@ public class DefaultTaskSelectionStrategy {
      * @return The list of selected tasks
      * @throws IllegalArgumentException If the limit is less than zero
      */
-    public List<Task> selectTasksForCancellation(
-        List<Task> tasks,
-        long limit,
-        ResourceType resourceType
-    ) {
+    public List<Task> selectTasksForCancellation(List<Task> tasks, long limit, ResourceType resourceType) {
         if (limit < 0) {
             throw new IllegalArgumentException("limit has to be greater than zero");
         }
@@ -84,9 +80,6 @@ public class DefaultTaskSelectionStrategy {
      * @return A list of {@link TaskCancellation} objects representing the tasks selected for cancellation.
      */
     public List<Task> selectTasksFromDeletedQueryGroup(List<Task> tasks) {
-        return tasks
-            .stream()
-            .filter(task -> task instanceof CancellableTask)
-            .collect(Collectors.toList());
+        return tasks.stream().filter(task -> task instanceof CancellableTask).collect(Collectors.toList());
     }
 }
