@@ -24,7 +24,6 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
-import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -56,6 +55,7 @@ final class Helper {
         queryWrappers.put(FunctionScoreQuery.class, q -> ((FunctionScoreQuery) q).getSubQuery());
         queryWrappers.put(DateRangeIncludingNowQuery.class, q -> ((DateRangeIncludingNowQuery) q).getQuery());
         queryWrappers.put(IndexOrDocValuesQuery.class, q -> ((IndexOrDocValuesQuery) q).getIndexQuery());
+        queryWrappers.put(ApproximateIndexOrDocValuesQuery.class, q -> ((ApproximateIndexOrDocValuesQuery) q).getOriginalQuery());
     }
 
     /**
@@ -125,19 +125,6 @@ final class Helper {
             final long[] indexBounds = getShardBounds(leaves, fieldName);
             if (indexBounds == null) return null;
             return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
-        } else if (cq instanceof ApproximateIndexOrDocValuesQuery) {
-            final ApproximateIndexOrDocValuesQuery aiodvq = (ApproximateIndexOrDocValuesQuery) cq;
-            final long[] indexBounds = getShardBounds(leaves, fieldName);
-            if (indexBounds == null) return null;
-            if ((aiodvq.getApproximationQuery() instanceof ApproximatePointRangeQuery)) {
-                ApproximatePointRangeQuery aprq = (ApproximatePointRangeQuery) aiodvq.getApproximationQuery();
-                if (aprq.canApproximate(context)) {
-                    return getBoundsWithRangeQuery(aprq.pointRangeQuery, fieldName, indexBounds);
-                }
-                final IndexOrDocValuesQuery iodvq = (IndexOrDocValuesQuery) aiodvq.getOriginalQuery();
-                final PointRangeQuery prq = (PointRangeQuery) iodvq.getIndexQuery();
-                return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
-            }
         } else if (cq instanceof MatchAllDocsQuery) {
             return getShardBounds(leaves, fieldName);
         } else if (cq instanceof FieldExistsQuery) {

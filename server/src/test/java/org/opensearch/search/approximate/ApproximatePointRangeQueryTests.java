@@ -15,7 +15,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -61,11 +60,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
-                        Query query = new PointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
+                        Query query = LongPoint.newRangeQuery("point", lower, upper);
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 10);
                         TopDocs topDocs1 = searcher.search(query, 10);
@@ -224,11 +219,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
-                        Query query = new PointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
+                        Query query = LongPoint.newRangeQuery("point", lower, upper);
+                        ;
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 10);
                         TopDocs topDocs1 = searcher.search(query, 10);
@@ -279,11 +271,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
-                        Query query = new PointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
+                        Query query = LongPoint.newRangeQuery("point", lower, upper);
+                        ;
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 10);
                         TopDocs topDocs1 = searcher.search(query, 10);

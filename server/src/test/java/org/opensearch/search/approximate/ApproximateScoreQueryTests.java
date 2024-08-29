@@ -42,7 +42,7 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
             }
         };
 
-        ApproximateableQuery approximateQuery = new ApproximatePointRangeQuery(
+        ApproximateQuery approximateQuery = new ApproximatePointRangeQuery(
             "test-index",
             pack(new long[] { l }).bytes,
             pack(new long[] { u }).bytes,

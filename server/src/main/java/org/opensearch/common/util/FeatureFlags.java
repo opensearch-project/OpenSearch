@@ -122,6 +122,16 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    /**
+     * Gates the functionality of ApproximatePointRangeQuery where we approximate query results.
+     */
+    public static final String APPROXIMATE_POINT_RANGE_QUERY = "opensearch.experimental.feature.approximate_point_range_query.enabled";
+    public static final Setting<Boolean> APPROXIMATE_POINT_RANGE_QUERY_SETTING = Setting.boolSetting(
+        APPROXIMATE_POINT_RANGE_QUERY,
+        false,
+        Property.NodeScope
+    );
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,

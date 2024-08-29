@@ -184,16 +184,11 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         );
         assertEquals(
             new ApproximateIndexOrDocValuesQuery(
-                new PointRangeQuery(
+                LongPoint.newRangeQuery(
                     DATE_FIELD_NAME,
-                    pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
-                    pack(new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }).bytes,
-                    new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length
-                ) {
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                },
+                    parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
+                    parser.parse(upperBoundExact, () -> 0).toEpochMilli()
+                ),
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
                     pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,

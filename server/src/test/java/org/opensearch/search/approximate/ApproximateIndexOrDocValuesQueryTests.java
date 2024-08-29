@@ -14,7 +14,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -51,18 +50,9 @@ public class ApproximateIndexOrDocValuesQueryTests extends OpenSearchTestCase {
 
         long l = Long.MIN_VALUE;
         long u = Long.MAX_VALUE;
-        Query indexQuery = new PointRangeQuery(
-            "test-index",
-            pack(new long[] { l }).bytes,
-            pack(new long[] { u }).bytes,
-            new long[] { l }.length
-        ) {
-            protected String toString(int dimension, byte[] value) {
-                return Long.toString(LongPoint.decodeDimension(value, 0));
-            }
-        };
+        Query indexQuery = LongPoint.newRangeQuery("test-index", l, u);
 
-        ApproximateableQuery approximateIndexQuery = new ApproximatePointRangeQuery(
+        ApproximateQuery approximateIndexQuery = new ApproximatePointRangeQuery(
             "test-index",
             pack(new long[] { l }).bytes,
             pack(new long[] { u }).bytes,
@@ -89,7 +79,7 @@ public class ApproximateIndexOrDocValuesQueryTests extends OpenSearchTestCase {
         // we only get weight since we're expecting to call IODVQ
         assertFalse(weight instanceof ConstantScoreWeight);
 
-        ApproximateableQuery approximateIndexQueryCanApproximate = new ApproximatePointRangeQuery(
+        ApproximateQuery approximateIndexQueryCanApproximate = new ApproximatePointRangeQuery(
             "test-index",
             pack(new long[] { l }).bytes,
             pack(new long[] { u }).bytes,

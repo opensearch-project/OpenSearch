@@ -19,18 +19,17 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * Base class for a query that can be approximated.
- *
+ * Entry-point for the approximation framework.
  * This class is heavily inspired by {@link org.apache.lucene.search.IndexOrDocValuesQuery}. It acts as a wrapper that consumer two queries, a regular query and an approximate version of the same. By default, it executes the regular query and returns {@link Weight#scorer} for the original query. At run-time, depending on certain constraints, we can re-write the {@code Weight} to use the approximate weight instead.
  */
 public class ApproximateScoreQuery extends Query {
 
     private final Query originalQuery;
-    private final ApproximateableQuery approximationQuery;
+    private final ApproximateQuery approximationQuery;
 
-    private SearchContext context;
+    protected Query resolvedQuery;
 
-    public ApproximateScoreQuery(Query originalQuery, ApproximateableQuery approximationQuery) {
+    public ApproximateScoreQuery(Query originalQuery, ApproximateQuery approximationQuery) {
         this.originalQuery = originalQuery;
         this.approximationQuery = approximationQuery;
     }
@@ -39,24 +38,23 @@ public class ApproximateScoreQuery extends Query {
         return originalQuery;
     }
 
-    public ApproximateableQuery getApproximationQuery() {
+    public ApproximateQuery getApproximationQuery() {
         return approximationQuery;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        if (approximationQuery.canApproximate(context)) {
-            return approximationQuery.createWeight(searcher, scoreMode, boost);
+        if (resolvedQuery == null) {
+            throw new IllegalStateException("Cannot create weight without setContext being called");
         }
-        return originalQuery.createWeight(searcher, scoreMode, boost);
+        return resolvedQuery.createWeight(searcher, scoreMode, boost);
     }
 
     public void setContext(SearchContext context) {
-        this.context = context;
-    };
-
-    public SearchContext getContext() {
-        return context;
+        if (resolvedQuery != null) {
+            throw new IllegalStateException("Query already resolved, duplicate call to setContext");
+        }
+        resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
     };
 
     @Override

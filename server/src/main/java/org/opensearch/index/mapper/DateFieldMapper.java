@@ -38,8 +38,8 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -109,6 +109,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING)
             ? DEFAULT_DATE_TIME_FORMATTER
             : LEGACY_DEFAULT_DATE_TIME_FORMATTER;
+    }
+
+    public static Query getDefaultQuery(Query pointRangeQuery, Query dvQuery, String name, long l, long u) {
+        return FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)
+            ? new ApproximateIndexOrDocValuesQuery(
+                pointRangeQuery,
+                new ApproximatePointRangeQuery(name, pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                },
+                dvQuery
+            )
+            : new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
     }
 
     /**
@@ -466,24 +481,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query pointRangeQuery = isSearchable() ? createPointRangeQuery(l, u) : null;
+                Query pointRangeQuery = isSearchable() ? LongPoint.newRangeQuery(name(), l, u) : null;
                 Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
                 if (isSearchable() && hasDocValues()) {
-                    Query query = new ApproximateIndexOrDocValuesQuery(
-                        pointRangeQuery,
-                        new ApproximatePointRangeQuery(
-                            name(),
-                            pack(new long[] { l }).bytes,
-                            pack(new long[] { u }).bytes,
-                            new long[] { l }.length
-                        ) {
-                            @Override
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        },
-                        dvQuery
-                    );
+                    Query query = getDefaultQuery(pointRangeQuery, dvQuery, name(), l, u);
                     if (context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                     }
@@ -497,14 +498,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 }
                 return pointRangeQuery;
             });
-        }
-
-        private Query createPointRangeQuery(long l, long u) {
-            return new PointRangeQuery(name(), pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            };
         }
 
         public static Query dateRangeQuery(

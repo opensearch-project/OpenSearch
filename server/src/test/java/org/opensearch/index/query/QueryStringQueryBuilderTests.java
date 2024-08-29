@@ -52,7 +52,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -867,16 +866,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     private ApproximateIndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {
         return new ApproximateIndexOrDocValuesQuery(
-            new PointRangeQuery(
-                DATE_FIELD_NAME,
-                pack(new long[] { lower }).bytes,
-                pack(new long[] { upper }).bytes,
-                new long[] { lower }.length
-            ) {
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            },
+            LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
             new ApproximatePointRangeQuery(
                 DATE_FIELD_NAME,
                 pack(new long[] { lower }).bytes,

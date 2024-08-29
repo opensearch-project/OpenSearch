@@ -14,7 +14,7 @@ import org.opensearch.search.internal.SearchContext;
 /**
  * Abstract class that can be inherited by queries that can be approximated. Queries should implement {@link #canApproximate(SearchContext)} to specify conditions on when they can be approximated
 */
-public abstract class ApproximateableQuery extends Query {
+public abstract class ApproximateQuery extends Query {
 
     protected abstract boolean canApproximate(SearchContext context);
 

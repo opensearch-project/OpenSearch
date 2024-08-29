@@ -43,7 +43,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
@@ -211,16 +210,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
         Query expected = new ApproximateIndexOrDocValuesQuery(
-            new PointRangeQuery(
-                "field",
-                pack(new long[] { instant }).bytes,
-                pack(new long[] { instant + 999 }).bytes,
-                new long[] { instant }.length
-            ) {
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            },
+            LongPoint.newRangeQuery("field", instant, instant + 999),
             new ApproximatePointRangeQuery(
                 "field",
                 pack(new long[] { instant }).bytes,
@@ -281,16 +271,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
         Query expected = new ApproximateIndexOrDocValuesQuery(
-            new PointRangeQuery(
-                "field",
-                pack(new long[] { instant1 }).bytes,
-                pack(new long[] { instant2 }).bytes,
-                new long[] { instant1 }.length
-            ) {
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            },
+            LongPoint.newRangeQuery("field", instant1, instant2),
             new ApproximatePointRangeQuery(
                 "field",
                 pack(new long[] { instant1 }).bytes,
@@ -313,16 +294,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         instant2 = instant1 + 100;
         expected = new DateRangeIncludingNowQuery(
             new ApproximateIndexOrDocValuesQuery(
-                new PointRangeQuery(
-                    "field",
-                    pack(new long[] { instant1 }).bytes,
-                    pack(new long[] { instant2 }).bytes,
-                    new long[] { instant1 }.length
-                ) {
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                },
+                LongPoint.newRangeQuery("field", instant1, instant2),
                 new ApproximatePointRangeQuery(
                     "field",
                     pack(new long[] { instant1 }).bytes,
@@ -399,16 +371,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             instant1,
             instant2,
             new ApproximateIndexOrDocValuesQuery(
-                new PointRangeQuery(
-                    "field",
-                    pack(new long[] { instant1 }).bytes,
-                    pack(new long[] { instant2 }).bytes,
-                    new long[] { instant1 }.length
-                ) {
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                },
+                LongPoint.newRangeQuery("field", instant1, instant2),
                 new ApproximatePointRangeQuery(
                     "field",
                     pack(new long[] { instant1 }).bytes,

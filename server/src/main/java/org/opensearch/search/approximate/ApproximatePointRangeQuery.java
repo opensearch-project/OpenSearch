@@ -37,12 +37,10 @@ import java.util.Objects;
  * An approximate-able version of {@link PointRangeQuery}. It creates an instance of {@link PointRangeQuery} but short-circuits the intersect logic
  * after {@code size} is hit
  */
-public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
+public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
     private int size;
 
     private SortOrder sortOrder;
-
-    private long[] docCount = { 0 };
 
     public final PointRangeQuery pointRangeQuery;
 
@@ -134,7 +132,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                 }
             }
 
-            public PointValues.IntersectVisitor getIntersectVisitor(DocIdSetBuilder result) {
+            public PointValues.IntersectVisitor getIntersectVisitor(DocIdSetBuilder result, long[] docCount) {
                 return new PointValues.IntersectVisitor() {
 
                     DocIdSetBuilder.BulkAdder adder;
@@ -217,18 +215,21 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                 return true;
             }
 
-            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor) throws IOException {
-                intersectLeft(visitor, pointTree);
+            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount)
+                throws IOException {
+                intersectLeft(visitor, pointTree, docCount);
                 assert pointTree.moveToParent() == false;
             }
 
-            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor) throws IOException {
-                intersectRight(visitor, pointTree);
+            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount)
+                throws IOException {
+                intersectRight(visitor, pointTree, docCount);
                 assert pointTree.moveToParent() == false;
             }
 
             // custom intersect visitor to walk the left of the tree
-            public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException {
+            public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
+                throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] > size) {
                     return;
@@ -242,7 +243,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                         // we have sufficient doc count. We first move down and then move to the left child
                         if (pointTree.moveToChild() && docCount[0] < size) {
                             do {
-                                intersectLeft(visitor, pointTree);
+                                intersectLeft(visitor, pointTree, docCount);
                             } while (pointTree.moveToSibling() && docCount[0] < size);
                             pointTree.moveToParent();
                         } else {
@@ -257,7 +258,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                         // through and do full filtering:
                         if (pointTree.moveToChild() && docCount[0] < size) {
                             do {
-                                intersectLeft(visitor, pointTree);
+                                intersectLeft(visitor, pointTree, docCount);
                             } while (pointTree.moveToSibling() && docCount[0] < size);
                             pointTree.moveToParent();
                         } else {
@@ -275,7 +276,8 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
             }
 
             // custom intersect visitor to walk the right of tree
-            public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException {
+            public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
+                throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] > size) {
                     return;
@@ -288,13 +290,13 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                     case CELL_INSIDE_QUERY:
                         // If the cell is fully inside, we keep moving right as long as the point tree size is over our size requirement
                         if (pointTree.size() > size && docCount[0] < size && moveRight(pointTree)) {
-                            intersectRight(visitor, pointTree);
+                            intersectRight(visitor, pointTree, docCount);
                             pointTree.moveToParent();
                         }
                         // if point tree size is no longer over, we have to go back one level where it still was over and the intersect left
                         else if (pointTree.size() <= size && docCount[0] < size) {
                             pointTree.moveToParent();
-                            intersectLeft(visitor, pointTree);
+                            intersectLeft(visitor, pointTree, docCount);
                         }
                         // if we've reached leaf, it means out size is under the size of the leaf, we can just collect all docIDs
                         else {
@@ -307,13 +309,13 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                     case CELL_CROSSES_QUERY:
                         // If the cell is fully inside, we keep moving right as long as the point tree size is over our size requirement
                         if (pointTree.size() > size && docCount[0] < size && moveRight(pointTree)) {
-                            intersectRight(visitor, pointTree);
+                            intersectRight(visitor, pointTree, docCount);
                             pointTree.moveToParent();
                         }
                         // if point tree size is no longer over, we have to go back one level where it still was over and the intersect left
                         else if (pointTree.size() <= size && docCount[0] < size) {
                             pointTree.moveToParent();
-                            intersectLeft(visitor, pointTree);
+                            intersectLeft(visitor, pointTree, docCount);
                         }
                         // if we've reached leaf, it means out size is under the size of the leaf, we can just collect all doc values
                         else {
@@ -335,6 +337,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 LeafReader reader = context.reader();
+                long[] docCount = { 0 };
 
                 PointValues values = reader.getPointValues(pointRangeQuery.getField());
                 if (checkValidPointValues(values) == false) {
@@ -348,12 +351,12 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                         return new ScorerSupplier() {
 
                             final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
-                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result);
+                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
-                                intersectLeft(values.getPointTree(), visitor);
+                                intersectLeft(values.getPointTree(), visitor, docCount);
                                 DocIdSetIterator iterator = result.build().iterator();
                                 return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
                             }
@@ -376,12 +379,12 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
                         return new ScorerSupplier() {
 
                             final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
-                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result);
+                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
-                                intersectRight(values.getPointTree(), visitor);
+                                intersectRight(values.getPointTree(), visitor, docCount);
                                 DocIdSetIterator iterator = result.build().iterator();
                                 return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
                             }
@@ -432,7 +435,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateableQuery {
         if (!(context.query() instanceof ApproximateIndexOrDocValuesQuery)) {
             return false;
         }
-        this.setSize(Math.max(context.size(), context.trackTotalHitsUpTo()));
+        this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null

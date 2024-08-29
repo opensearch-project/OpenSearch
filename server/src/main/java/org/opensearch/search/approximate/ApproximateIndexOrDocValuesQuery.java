@@ -19,15 +19,15 @@ import java.io.IOException;
 
 /**
  * A wrapper around {@link IndexOrDocValuesQuery} that can be used to run approximate queries.
- * It delegates to either {@link ApproximateableQuery} or {@link IndexOrDocValuesQuery} based on whether the query can be approximated or not.
- * @see ApproximateableQuery
+ * It delegates to either {@link ApproximateQuery} or {@link IndexOrDocValuesQuery} based on whether the query can be approximated or not.
+ * @see ApproximateQuery
  */
 public final class ApproximateIndexOrDocValuesQuery extends ApproximateScoreQuery {
 
-    private final ApproximateableQuery approximateIndexQuery;
+    private final ApproximateQuery approximateIndexQuery;
     private final IndexOrDocValuesQuery indexOrDocValuesQuery;
 
-    public ApproximateIndexOrDocValuesQuery(Query indexQuery, ApproximateableQuery approximateIndexQuery, Query dvQuery) {
+    public ApproximateIndexOrDocValuesQuery(Query indexQuery, ApproximateQuery approximateIndexQuery, Query dvQuery) {
         super(new IndexOrDocValuesQuery(indexQuery, dvQuery), approximateIndexQuery);
         this.approximateIndexQuery = approximateIndexQuery;
         this.indexOrDocValuesQuery = new IndexOrDocValuesQuery(indexQuery, dvQuery);
@@ -67,9 +67,11 @@ public final class ApproximateIndexOrDocValuesQuery extends ApproximateScoreQuer
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        if (approximateIndexQuery.canApproximate(this.getContext())) {
-            return approximateIndexQuery.createWeight(searcher, scoreMode, boost);
+        // it means we haven't called setContext, some internal test might try to call this without setting context, just return IODVQ's
+        // weight
+        if (this.resolvedQuery == null) {
+            return indexOrDocValuesQuery.createWeight(searcher, scoreMode, boost);
         }
-        return indexOrDocValuesQuery.createWeight(searcher, scoreMode, boost);
+        return this.resolvedQuery.createWeight(searcher, scoreMode, boost);
     }
 }
