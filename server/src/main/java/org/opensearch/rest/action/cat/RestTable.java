@@ -91,7 +91,6 @@ public class RestTable {
         if (table.isPaginated()) {
             assert table.getPaginatedElement() != null : "Paginated element is required in-case nextToken is not null";
             builder.startObject();
-            builder.field("previous_token", table.getPreviousToken());
             builder.field("next_token", table.getNextToken());
             builder.startArray(table.getPaginatedElement());
         } else {
@@ -147,10 +146,8 @@ public class RestTable {
             }
             out.append("\n");
         }
-        // Adding a nextToken row, post an empty line, in the response if the table is paginated.
+        // Adding a new row for next_token, in the response if the table is paginated.
         if (table.isPaginated()) {
-            out.append("previous_token" + " " + table.getPreviousToken());
-            out.append("\n");
             out.append("next_token" + " " + table.getNextToken());
             out.append("\n");
         }

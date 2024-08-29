@@ -61,7 +61,7 @@ public class Table {
     private List<Cell> currentCells;
     private boolean inHeaders = false;
     private boolean withTime = false;
-    private PaginationMetadata paginationMetadata = new PaginationMetadata(false, null, null, null);
+    private PaginationMetadata paginationMetadata = new PaginationMetadata(false, null, null);
     public static final String EPOCH = "epoch";
     public static final String TIMESTAMP = "timestamp";
 
@@ -253,10 +253,6 @@ public class Table {
         return paginationMetadata.nextToken;
     }
 
-    public String getPreviousToken() {
-        return paginationMetadata.previousToken;
-    }
-
     /**
      * Cell in a table
      *
@@ -304,22 +300,11 @@ public class Table {
          */
         public final String nextToken;
 
-        /**
-         * String denoting the previous_token of paginated response, which will be used to fetch previous page (if any).
-         */
-        public final String previousToken;
-
-        public PaginationMetadata(
-            @NonNull boolean isResponsePaginated,
-            @Nullable String paginatedElement,
-            @Nullable String nextToken,
-            @Nullable String previousToken
-        ) {
+        public PaginationMetadata(@NonNull boolean isResponsePaginated, @Nullable String paginatedElement, @Nullable String nextToken) {
             this.isResponsePaginated = isResponsePaginated;
             assert !isResponsePaginated || paginatedElement != null : "paginatedElement must be specified for a table which is paginated";
             this.paginatedElement = paginatedElement;
             this.nextToken = nextToken;
-            this.previousToken = previousToken;
         }
     }
 }

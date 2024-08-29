@@ -21,17 +21,11 @@ public interface PaginationStrategy<T> {
      *
      * @return Base64 encoded string, which can be used to fetch next page of response.
      */
-    String getNextToken();
+    PageToken getNextToken();
 
     /**
      *
-     * @return Base64 encoded string, which can be used to fetch previous page.
+     * @return List of elements fetched corresponding to the store and token received by the strategy.
      */
-    String getPreviousToken();
-
-    /**
-     *
-     * @return List of elements to be displayed for the current page.
-     */
-    List<T> getPageElements();
+    List<T> getElementsFromRequestedToken();
 }

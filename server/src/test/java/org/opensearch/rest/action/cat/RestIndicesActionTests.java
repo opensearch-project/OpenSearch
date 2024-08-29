@@ -137,8 +137,14 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
             }
         }
 
-        final RestIndicesAction action = new RestIndicesAction();
-        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas, null);
+        final Table table = RestIndicesAction.RestIndicesActionCommonUtils.buildTable(
+            new FakeRestRequest(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            null
+        );
 
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
