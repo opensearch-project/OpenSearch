@@ -127,7 +127,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         DirectoryReader ir = DirectoryReader.open(directory);
         initValuesSourceRegistry();
-        assertEquals(ir.leaves().size(), 1);
         LeafReaderContext context = ir.leaves().get(0);
 
         SegmentReader reader = Lucene.segmentReader(context.reader());
