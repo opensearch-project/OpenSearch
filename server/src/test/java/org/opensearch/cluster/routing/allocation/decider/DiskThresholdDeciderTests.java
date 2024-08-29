@@ -683,7 +683,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         logShardStates(clusterState);
         // primary shard already has been relocated away - this is a wrong expectation as we don't really move
         // primary first unless explicitly set by setting. This is caught with PR
-        // https://github.com/opensearch-project/OpenSearch/pull/14761/
+        // https://github.com/opensearch-project/OpenSearch/pull/15239/
         // as it randomises nodes to check for potential moves
         // assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
         // assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
