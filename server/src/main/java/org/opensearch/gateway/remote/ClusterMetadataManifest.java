@@ -23,6 +23,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +45,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     // also we introduce index routing-metadata, diff and other attributes as part of manifest
     // required for state publication
     public static final int CODEC_V3 = 3; // In Codec V3, we have introduced new diff field in diff-manifest's routing_table_diff
+
+    public static final int[] CODEC_VERSIONS = { CODEC_V0, CODEC_V1, CODEC_V2, CODEC_V3 };
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
@@ -246,6 +249,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         declareParser(PARSER_V2, CODEC_V2);
         declareParser(PARSER_V3, CODEC_V3);
 
+        assert Arrays.stream(CODEC_VERSIONS).max().getAsInt() == MANIFEST_CURRENT_CODEC_VERSION;
         Map<Version, Integer> versionToCodecMapping = new HashMap<>();
         for (Version version : Version.getDeclaredVersions(Version.class)) {
             if (version.onOrAfter(Version.V_2_10_0) && version.before(Version.V_2_12_0)) {
