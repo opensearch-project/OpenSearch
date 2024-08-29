@@ -349,7 +349,8 @@ public class TranslogTransferManager {
                 metadataFiles,
                 Set.of(timestamp),
                 file -> RemoteStoreUtils.invertLong(file.split(METADATA_SEPARATOR)[3]),
-                TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
+                TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen,
+                true
             );
             if (metadataFilesMatchingTimestamp.isEmpty()) {
                 return null;
