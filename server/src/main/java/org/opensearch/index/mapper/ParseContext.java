@@ -346,6 +346,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         public void checkFieldArrayDepthLimit() {
             in.checkFieldArrayDepthLimit();
         }
+
+        @Override
+        public boolean getUnmapFieldsBeyondTotalFieldsLimit() {
+            return in.getUnmapFieldsBeyondTotalFieldsLimit();
+        }
+
+        @Override
+        public long getTotalFieldsLimit() {
+            return in.getTotalFieldsLimit();
+        }
     }
 
     /**
@@ -392,6 +402,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private boolean docsReversed = false;
 
         private final Set<String> ignoredFields = new HashSet<>();
+        private final boolean unmapFieldsBeyondTotalFieldsLimit;
+        private final long totalFieldsLimit;
 
         public InternalParseContext(
             IndexSettings indexSettings,
@@ -417,6 +429,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             this.currentArrayDepth = 0L;
             this.maxAllowedFieldDepth = indexSettings.getMappingDepthLimit();
             this.maxAllowedArrayDepth = indexSettings.getMappingDepthLimit();
+            this.unmapFieldsBeyondTotalFieldsLimit = indexSettings.getUnmapFieldsBeyondTotalFieldsLimit();
+            this.totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
         }
 
         @Override
@@ -622,6 +636,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
                 );
             }
         }
+
+        @Override
+        public boolean getUnmapFieldsBeyondTotalFieldsLimit() {
+            return this.unmapFieldsBeyondTotalFieldsLimit;
+        }
+
+        @Override
+        public long getTotalFieldsLimit() {
+            return this.totalFieldsLimit;
+        }
     }
 
     /**
@@ -799,5 +823,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
     public abstract void decrementFieldArrayDepth();
 
     public abstract void checkFieldArrayDepthLimit();
+
+    public abstract boolean getUnmapFieldsBeyondTotalFieldsLimit();
+
+    public abstract long getTotalFieldsLimit();
 
 }

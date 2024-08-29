@@ -60,8 +60,9 @@ public final class MappingLookup implements Iterable<Mapper> {
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
-    private final int metadataFieldCount;
     private final FieldNameAnalyzer indexAnalyzer;
+    private final int nonMetadataFieldCount;
+    private int dynamicFieldCount;
 
     private static void put(Map<String, Analyzer> analyzers, String key, Analyzer value, Analyzer defaultValue) {
         if (value == null) {
@@ -138,7 +139,6 @@ public final class MappingLookup implements Iterable<Mapper> {
             MappedFieldType fieldType = mapper.fieldType();
             put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
         }
-        this.metadataFieldCount = metadataFieldCount;
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
             if (objects.containsKey(aliasMapper.name())) {
@@ -154,6 +154,7 @@ public final class MappingLookup implements Iterable<Mapper> {
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
         this.objectMappers = Collections.unmodifiableMap(objects);
+        this.nonMetadataFieldCount = fieldMappers.size() + objectMappers.size() - metadataFieldCount;
     }
 
     /**
@@ -190,8 +191,58 @@ public final class MappingLookup implements Iterable<Mapper> {
         checkNestedLimit(settings.getMappingNestedFieldsLimit());
     }
 
+    /**
+     *
+     * @param limit the value of the setting index.mapping.total_fields_limit
+     * @return true if adding new fields will cause to exceed the total fields limit
+     */
+    public boolean exceedTotalFieldsLimit(long limit) {
+        return nonMetadataFieldCount + dynamicFieldCount >= limit;
+    }
+
+    /**
+     *
+     * @param limit the value of the setting index.mapping.total_fields_limit
+     * @param fieldCount the field count in the new detected field
+     * @return true if adding a new field will cause to exceed the total fields limit
+     */
+    public boolean exceedTotalFieldsLimitIfAddNewField(long limit, long fieldCount) {
+        return nonMetadataFieldCount + dynamicFieldCount + fieldCount > limit;
+    }
+
+    /**
+     * increase the dynamic field count by 1
+     */
+    public void increaseDynamicFieldCount() {
+        this.dynamicFieldCount++;
+    }
+
+    /**
+     * increase the dynamic field count by the given field count
+     * @param fieldCount the field count in the new detected field
+     */
+    public void increaseDynamicFieldCount(long fieldCount) {
+        this.dynamicFieldCount += fieldCount;
+    }
+
+    /**
+     * count the total fields in the specified field mapper
+     * @param mapper the field mapper
+     * @return the field count in the specified field mapper
+     */
+    public long countFields(Mapper mapper) {
+        long count = 0;
+        if (mapper instanceof ObjectMapper || mapper instanceof FieldMapper) {
+            count++;
+        }
+        for (Mapper child : mapper) {
+            count += countFields(child);
+        }
+        return count;
+    }
+
     private void checkFieldLimit(long limit) {
-        if (fieldMappers.size() + objectMappers.size() - metadataFieldCount > limit) {
+        if (nonMetadataFieldCount > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
         }
     }

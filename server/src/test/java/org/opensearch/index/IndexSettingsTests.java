@@ -60,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
@@ -785,6 +786,35 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertTrue(settings.isRemoteStoreEnabled());
+    }
+
+    public void testUnmapFieldsBeyondTotalFieldsLimitSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.getUnmapFieldsBeyondTotalFieldsLimit());
+
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.getUnmapFieldsBeyondTotalFieldsLimit());
+
+        Settings.Builder newSettings = Settings.builder()
+            .put(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), false)
+                    .build()
+            );
+        settings.updateIndexMetadata(newIndexMeta("index", newSettings.build()));
+        assertFalse(settings.getUnmapFieldsBeyondTotalFieldsLimit());
     }
 
     public void testRemoteTranslogStoreDefaultSetting() {

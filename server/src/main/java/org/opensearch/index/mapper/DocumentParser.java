@@ -554,6 +554,12 @@ final class DocumentParser {
                     throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), mapper.fullPath(), currentFieldName);
                 case TRUE:
                 case STRICT_ALLOW_TEMPLATES:
+                    // if dynamic is true or strict_allow_templates, we check if we need to unmap the fields beyond the total fields limit
+                    if (checkIfUnmapFieldsBeyondTotalFieldsLimit(context)) {
+                        context.parser().skipChildren();
+                        break;
+                    }
+
                     Mapper.Builder builder = findTemplateBuilder(
                         context,
                         currentFieldName,
@@ -568,6 +574,7 @@ final class DocumentParser {
                     Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
                     objectMapper = builder.build(builderContext);
                     context.addDynamicMapper(objectMapper);
+                    increaseDynamicFieldCountIfNeed(context);
                     context.path().add(currentFieldName);
                     parseObjectOrField(context, objectMapper);
                     context.path().remove();
@@ -576,9 +583,43 @@ final class DocumentParser {
                     // not dynamic, read everything up to end object
                     context.parser().skipChildren();
             }
+
             for (int i = 0; i < parentMapperTuple.v1(); i++) {
                 context.path().remove();
             }
+        }
+    }
+
+    /**
+     * if the setting `index.mapping.total_fields.unmap_fields_beyond_limit` is true, we check if the current total fields count exceed the
+     * total fields limit
+     * @param context the parse context
+     * @return true if `index.mapping.total_fields.unmap_fields_beyond_limit` is true and the current total fields count exceed the limit
+     */
+    private static boolean checkIfUnmapFieldsBeyondTotalFieldsLimit(ParseContext context) {
+        return context.getUnmapFieldsBeyondTotalFieldsLimit()
+            && context.docMapper().mappers().exceedTotalFieldsLimit(context.getTotalFieldsLimit());
+    }
+
+    /**
+     * if the setting `index.mapping.total_fields.unmap_fields_beyond_limit` is true, increase the dynamic field count by 1
+     * @param context the parse context
+     */
+    private static void increaseDynamicFieldCountIfNeed(ParseContext context) {
+        if (context.getUnmapFieldsBeyondTotalFieldsLimit()) {
+            context.docMapper().mappers().increaseDynamicFieldCount();
+        }
+    }
+
+    /**
+     * if the setting `index.mapping.total_fields.unmap_fields_beyond_limit` is true, increase the dynamic field count by the specified
+     * field count
+     * @param context the parse context
+     * @param fieldCount the field count
+     */
+    private static void increaseDynamicFieldCountIfNeed(ParseContext context, long fieldCount) {
+        if (context.getUnmapFieldsBeyondTotalFieldsLimit()) {
+            context.docMapper().mappers().increaseDynamicFieldCount(fieldCount);
         }
     }
 
@@ -632,6 +673,7 @@ final class DocumentParser {
                             assert mapper != null;
                             if (parsesArrayValue(mapper)) {
                                 context.addDynamicMapper(mapper);
+                                increaseDynamicFieldCountIfNeed(context);
                                 context.path().add(arrayFieldName);
                                 parseObjectOrField(context, mapper);
                                 context.path().remove();
@@ -864,13 +906,27 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), parentMapper.fullPath(), currentFieldName);
         }
-        if (dynamic == ObjectMapper.Dynamic.FALSE) {
+        // if dynamic is true or strict_allow_templates, and index.mapping.total_fields.unmap_fields_beyond_limit is true,
+        // then we check if we need to unmap the fields beyond the total fields limit
+        if (dynamic == ObjectMapper.Dynamic.FALSE || checkIfUnmapFieldsBeyondTotalFieldsLimit(context)) {
             return;
         }
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName, dynamic, parentMapper.fullPath());
         Mapper mapper = builder.build(builderContext);
+
+        // edge case, adding a new field may increase the dynamic field count by 2 or more,
+        // so we check if adding a new field will cause the total field count to exceed the total fields limit, if so we don't add it
+        long fieldCount = 0;
+        if (context.getUnmapFieldsBeyondTotalFieldsLimit()) {
+            fieldCount = context.docMapper().mappers().countFields(mapper);
+            if (context.docMapper().mappers().exceedTotalFieldsLimitIfAddNewField(context.getTotalFieldsLimit(), fieldCount)) {
+                return;
+            }
+        }
+
         context.addDynamicMapper(mapper);
+        increaseDynamicFieldCountIfNeed(context, fieldCount);
 
         parseObjectOrField(context, mapper);
     }
@@ -959,6 +1015,11 @@ final class DocumentParser {
                         throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), parent.fullPath(), paths[i]);
                     case STRICT_ALLOW_TEMPLATES:
                     case TRUE:
+                        // if dynamic is true or strict_allow_templates, we check if we need to unmap the fields beyond the total fields
+                        // limit
+                        if (checkIfUnmapFieldsBeyondTotalFieldsLimit(context)) {
+                            return new Tuple<>(pathsAdded, parent);
+                        }
                         Mapper.Builder builder = findTemplateBuilder(
                             context,
                             paths[i],
@@ -982,6 +1043,7 @@ final class DocumentParser {
                             );
                         }
                         context.addDynamicMapper(mapper);
+                        increaseDynamicFieldCountIfNeed(context);
                         break;
                     case FALSE:
                         // Should not dynamically create any more mappers so return the last mapper
