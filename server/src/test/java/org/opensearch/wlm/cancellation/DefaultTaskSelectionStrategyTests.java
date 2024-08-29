@@ -10,20 +10,17 @@ package org.opensearch.wlm.cancellation;
 
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchTask;
-import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
 
@@ -43,11 +40,7 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         long reduceBy = 50L;
         ResourceType resourceType = ResourceType.MEMORY;
         List<Task> tasks = getListOfTasks(thresholdInLong);
-        List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(
-            tasks,
-            reduceBy,
-            resourceType
-        );
+        List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertFalse(selectedTasks.isEmpty());
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
     }
@@ -72,11 +65,7 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         long reduceBy = 0;
         ResourceType resourceType = ResourceType.MEMORY;
         List<Task> tasks = getListOfTasks(thresholdInLong);
-        List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(
-            tasks,
-            reduceBy,
-            resourceType
-        );
+        List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertTrue(selectedTasks.isEmpty());
     }
 
