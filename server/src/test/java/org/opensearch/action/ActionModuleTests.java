@@ -187,7 +187,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
-        IdentityService identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
@@ -202,7 +201,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 usageService,
                 null,
-                identityService,
+                null,
                 null
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -239,7 +238,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
-        IdentityService identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
@@ -254,7 +252,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 usageService,
                 null,
-                identityService,
+                null,
                 null
             );
             actionModule.initRestHandlers(null);
