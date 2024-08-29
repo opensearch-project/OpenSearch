@@ -10,6 +10,7 @@ package org.opensearch.identity.noop;
 
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.UserSubject;
 import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;
@@ -22,7 +23,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class NoopSubject implements Subject {
+public class NoopSubject implements UserSubject {
 
     @Override
     public Principal getPrincipal() {
