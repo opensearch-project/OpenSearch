@@ -209,28 +209,40 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         return tasksThreshold.get(taskKey);
     }
 
+    private void checkForClusterManagerThrottling(
+        final ThrottlingKey clusterManagerThrottlingKey,
+        final String taskThrottlingKey,
+        final long taskCount,
+        final int tasksSize
+    ) {
+        if (clusterManagerThrottlingKey.isThrottlingEnabled()) {
+            Long threshold = tasksThreshold.get(taskThrottlingKey);
+            if (threshold != null && shouldThrottle(threshold, taskCount, tasksSize)) {
+                clusterManagerTaskThrottlerListener.onThrottle(taskThrottlingKey, tasksSize);
+                logger.warn(
+                    "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
+                    taskThrottlingKey,
+                    tasksSize,
+                    threshold
+                );
+                throw new ClusterManagerThrottlingException("Throttling Exception : Limit exceeded for " + taskThrottlingKey);
+            }
+        }
+    }
+
     @Override
     public void onBeginSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
-        ThrottlingKey clusterManagerThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey)
+        final ThrottlingKey clusterManagerThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey)
             .getClusterManagerThrottlingKey();
-        tasksCount.putIfAbsent(clusterManagerThrottlingKey.getTaskThrottlingKey(), 0L);
-        tasksCount.computeIfPresent(clusterManagerThrottlingKey.getTaskThrottlingKey(), (key, count) -> {
+        final String taskThrottlingKey = clusterManagerThrottlingKey.getTaskThrottlingKey();
+        tasksCount.putIfAbsent(taskThrottlingKey, 0L);
+
+        // Performing shallow check before taking lock, performing throttle check and computing new count
+        checkForClusterManagerThrottling(clusterManagerThrottlingKey, taskThrottlingKey, tasksCount.get(taskThrottlingKey), tasks.size());
+
+        tasksCount.computeIfPresent(taskThrottlingKey, (key, count) -> {
             int size = tasks.size();
-            if (clusterManagerThrottlingKey.isThrottlingEnabled()) {
-                Long threshold = tasksThreshold.get(clusterManagerThrottlingKey.getTaskThrottlingKey());
-                if (threshold != null && shouldThrottle(threshold, count, size)) {
-                    clusterManagerTaskThrottlerListener.onThrottle(clusterManagerThrottlingKey.getTaskThrottlingKey(), size);
-                    logger.warn(
-                        "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
-                        clusterManagerThrottlingKey.getTaskThrottlingKey(),
-                        tasks.size(),
-                        threshold
-                    );
-                    throw new ClusterManagerThrottlingException(
-                        "Throttling Exception : Limit exceeded for " + clusterManagerThrottlingKey.getTaskThrottlingKey()
-                    );
-                }
-            }
+            checkForClusterManagerThrottling(clusterManagerThrottlingKey, taskThrottlingKey, count, size);
             return count + size;
         });
     }
