@@ -41,6 +41,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -201,20 +202,25 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
 
     public void testStatusAPICallForShallowV2Snapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(2);
+        Settings pinnedTimestampSettings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .build();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings);
+        internalCluster().startDataOnlyNodes(2, pinnedTimestampSettings);
+
+        final String index1 = "remote-index-1";
+        final String index2 = "remote-index-2";
+        final String index3 = "remote-index-3";
+        final String snapshotRepoName = "snapshot-repo-name";
+        final String snapshot = "snapshot";
 
         logger.info("Create repository for shallow V2 snapshots");
-        final String snapshotRepoName = "snapshot-repo-name";
         Settings.Builder snapshotV2RepoSettings = snapshotRepoSettingsForShallowCopy().put(
             BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(),
             Boolean.TRUE
         );
         createRepository(snapshotRepoName, "fs", snapshotV2RepoSettings);
 
-        final String index1 = "remote-index-1";
-        final String index2 = "remote-index-2";
-        final String index3 = "remote-index-3";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(index1, remoteStoreEnabledIndexSettings);
         createIndex(index2, remoteStoreEnabledIndexSettings);
@@ -229,7 +235,6 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
         }
         refresh();
 
-        final String snapshot = "snapshot";
         SnapshotInfo snapshotInfo = createFullSnapshot(snapshotRepoName, snapshot);
         assertTrue(snapshotInfo.getPinnedTimestamp() > 0); // to assert creation of a shallow v2 snapshot
 
@@ -238,8 +243,8 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
         updateSettingsRequest.persistentSettings(Settings.builder().put(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey(), 2));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        // without index filter
         assertBusy(() -> {
+            // without index filter
             // although no. of shards in snapshot (3) is greater than the max value allowed in a status api call, the request does not fail
             SnapshotStatus snapshotStatusWithoutIndexFilter = client().admin()
                 .cluster()
@@ -252,6 +257,7 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
 
             assertShallowV2SnapshotStatus(snapshotStatusWithoutIndexFilter, false);
 
+            // with index filter
             SnapshotStatus snapshotStatusWithIndexFilter = client().admin()
                 .cluster()
                 .prepareSnapshotStatus(snapshotRepoName)

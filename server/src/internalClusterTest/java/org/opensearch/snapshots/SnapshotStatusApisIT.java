@@ -54,6 +54,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -601,21 +602,20 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         // across a single snapshot
         assertBusy(() -> {
-            SnapshotException snapshotException = expectThrows(
-                SnapshotException.class,
+            TooManyShardsInSnapshotsStatusException exception = expectThrows(
+                TooManyShardsInSnapshotsStatusException.class,
                 () -> client().admin().cluster().prepareSnapshotStatus(repositoryName).setSnapshots(snapshot1).execute().actionGet()
             );
-            assertEquals(snapshotException.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
+            assertEquals(exception.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
             assertTrue(
-                snapshotException.getMessage()
-                    .endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request")
+                exception.getMessage().endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request")
             );
         }, 1, TimeUnit.MINUTES);
 
         // across multiple snapshots
         assertBusy(() -> {
-            SnapshotException snapshotException = expectThrows(
-                SnapshotException.class,
+            TooManyShardsInSnapshotsStatusException exception = expectThrows(
+                TooManyShardsInSnapshotsStatusException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareSnapshotStatus(repositoryName)
@@ -623,10 +623,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals(snapshotException.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
+            assertEquals(exception.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
             assertTrue(
-                snapshotException.getMessage()
-                    .endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request")
+                exception.getMessage().endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request")
             );
         }, 1, TimeUnit.MINUTES);
 
@@ -713,8 +712,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             // failure due to index not found in snapshot
-            SnapshotException ex = expectThrows(
-                SnapshotException.class,
+            IndexNotFoundException ex = expectThrows(
+                IndexNotFoundException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareSnapshotStatus(repositoryName)
@@ -726,13 +725,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             assertEquals(ex.status(), RestStatus.NOT_FOUND);
             String cause = String.format(
                 Locale.ROOT,
-                "[%s:%s] indices [%s] missing in snapshot [%s]",
-                repositoryName,
-                snapshot2,
+                "indices [%s] missing in snapshot [%s] of repository [%s]",
                 String.join(", ", List.of(index2, index3)),
-                snapshot2
+                snapshot2,
+                repositoryName
             );
-            assertEquals(cause, ex.getMessage());
+            assertEquals(cause, ex.getCause().getMessage());
 
         }, 1, TimeUnit.MINUTES);
 
@@ -743,8 +741,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey(), 2));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-            SnapshotException ex3 = expectThrows(
-                SnapshotException.class,
+            TooManyShardsInSnapshotsStatusException ex = expectThrows(
+                TooManyShardsInSnapshotsStatusException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareSnapshotStatus(repositoryName)
@@ -753,8 +751,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals(ex3.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
-            assertTrue(ex3.getMessage().endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request"));
+            assertEquals(ex.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
+            assertTrue(ex.getMessage().endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request"));
 
             logger.info("Reset MAX_SHARDS_ALLOWED_IN_STATUS_API to default value");
             updateSettingsRequest.persistentSettings(Settings.builder().putNull(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey()));

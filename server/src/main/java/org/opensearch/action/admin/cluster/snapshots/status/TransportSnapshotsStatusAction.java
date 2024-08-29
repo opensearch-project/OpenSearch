@@ -52,14 +52,13 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.snapshots.Snapshot;
-import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotMissingException;
@@ -67,6 +66,7 @@ import org.opensearch.snapshots.SnapshotShardFailure;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -458,17 +458,13 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             snapshotsInfoMap.put(snapshotId, snapshotInfo);
         }
         if (totalShardsAcrossSnapshots > maximumAllowedShardCount && request.indices().length == 0) {
-            String cause = "Total shard count ["
+            String message = "Total shard count ["
                 + totalShardsAcrossSnapshots
                 + "] is more than the maximum allowed value of shard count ["
                 + maximumAllowedShardCount
                 + "] for snapshot status request";
-            throw new SnapshotException(repositoryName, String.join(", ", requestedSnapshotNames), cause) {
-                @Override
-                public RestStatus status() {
-                    return RestStatus.REQUEST_ENTITY_TOO_LARGE;
-                }
-            };
+
+            throw new TooManyShardsInSnapshotsStatusException(repositoryName, message, request.snapshots());
         }
         return unmodifiableMap(snapshotsInfoMap);
     }
@@ -524,19 +520,15 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         }
 
         if (totalShardsAcrossIndices > maximumAllowedShardCount && requestedIndexNames.isEmpty() == false && isV2Snapshot == false) {
-            String cause = "Total shard count ["
+            String message = "Total shard count ["
                 + totalShardsAcrossIndices
                 + "] across the requested indices ["
                 + requestedIndexNames.stream().collect(Collectors.joining(", "))
                 + "] is more than the maximum allowed value of shard count ["
                 + maximumAllowedShardCount
                 + "] for snapshot status request";
-            throw new SnapshotException(repositoryName, snapshotName, cause) {
-                @Override
-                public RestStatus status() {
-                    return RestStatus.REQUEST_ENTITY_TOO_LARGE;
-                }
-            };
+
+            throw new TooManyShardsInSnapshotsStatusException(repositoryName, message, snapshotName);
         }
 
         final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
@@ -587,13 +579,8 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                 repositoryName
             );
         } else {
-            String cause = "indices [" + index + "] missing in snapshot [" + snapshotName + "]";
-            throw new SnapshotException(repositoryName, snapshotName, cause) {
-                @Override
-                public RestStatus status() {
-                    return RestStatus.NOT_FOUND;
-                }
-            };
+            String cause = "indices [" + index + "] missing in snapshot [" + snapshotName + "] of repository [" + repositoryName + "]";
+            throw new IndexNotFoundException(index, new IllegalArgumentException(cause));
         }
     }
 
