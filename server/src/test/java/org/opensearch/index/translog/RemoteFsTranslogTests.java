@@ -489,13 +489,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             // Trims from remote now
             translog.trimUnreferencedReaders();
             assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
-            Set<String> dataFiles = blobStoreTransferService.listAll(
-                getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))
-            );
-            assertEquals(10, dataFiles.size());
-            blobStoreTransferService.deleteBlobs(
-                getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get())),
-                new ArrayList<>(dataFiles)
+            assertEquals(
+                6,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         }
 
@@ -728,7 +724,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> {
             assertEquals(4, translog.allUploaded().size());
             assertEquals(
-                6,
+                4,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
@@ -742,7 +738,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> {
             assertEquals(2, translog.allUploaded().size());
             assertEquals(
-                6,
+                4,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
@@ -761,11 +757,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> {
             assertEquals(2, translog.allUploaded().size());
             assertEquals(
-                6,
+                4,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
-
     }
 
     public void testMetadataFileDeletion() throws Exception {

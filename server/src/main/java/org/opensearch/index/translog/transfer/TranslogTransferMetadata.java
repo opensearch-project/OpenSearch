@@ -128,6 +128,15 @@ public class TranslogTransferMetadata {
         return new Tuple<>(primaryTermAndGen, nodeId);
     }
 
+    public static Tuple<Long, Long> getMinMaxTranslogGenerationFromFilename(String filename) {
+        String[] tokens = filename.split(METADATA_SEPARATOR);
+        if (tokens.length < 7) {
+            // For versions < 2.17, we don't have min translog generation.
+            return null;
+        }
+        return new Tuple<>(RemoteStoreUtils.invertLong(tokens[5]), RemoteStoreUtils.invertLong(tokens[2]));
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(primaryTerm, generation);
