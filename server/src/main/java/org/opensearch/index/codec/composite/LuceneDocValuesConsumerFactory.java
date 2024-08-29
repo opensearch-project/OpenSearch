@@ -34,17 +34,15 @@ public class LuceneDocValuesConsumerFactory {
         String metaCodec,
         String metaExtension
     ) throws IOException {
-        try (
-            Lucene90DocValuesConsumerWrapper lucene90DocValuesConsumerWrapper = new Lucene90DocValuesConsumerWrapper(
-                state,
-                dataCodec,
-                dataExtension,
-                metaCodec,
-                metaExtension
-            )
-        ) {
-            return lucene90DocValuesConsumerWrapper.getLucene90DocValuesConsumer();
-        }
+        Lucene90DocValuesConsumerWrapper lucene90DocValuesConsumerWrapper = new Lucene90DocValuesConsumerWrapper(
+            state,
+            dataCodec,
+            dataExtension,
+            metaCodec,
+            metaExtension
+        );
+        return lucene90DocValuesConsumerWrapper.getLucene90DocValuesConsumer();
+
     }
 
 }

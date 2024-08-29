@@ -56,17 +56,23 @@ public class StarTreeFieldConfiguration implements ToXContent {
     @ExperimentalApi
     public enum StarTreeBuildMode {
         // TODO : remove onheap support unless this proves useful
-        ON_HEAP("onheap"),
-        OFF_HEAP("offheap");
+        ON_HEAP("onheap", (byte) 0),
+        OFF_HEAP("offheap", (byte) 1);
 
         private final String typeName;
+        private final byte buildModeOrdinal;
 
-        StarTreeBuildMode(String typeName) {
+        StarTreeBuildMode(String typeName, byte buildModeOrdinal) {
             this.typeName = typeName;
+            this.buildModeOrdinal = buildModeOrdinal;
         }
 
         public String getTypeName() {
             return typeName;
+        }
+
+        public byte getBuildModeOrdinal() {
+            return buildModeOrdinal;
         }
 
         public static StarTreeBuildMode fromTypeName(String typeName) {
@@ -77,6 +83,16 @@ public class StarTreeFieldConfiguration implements ToXContent {
             }
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid star tree build mode: [%s] ", typeName));
         }
+
+        public static StarTreeBuildMode fromBuildModeOrdinal(byte buildModeOrdinal) {
+            for (StarTreeBuildMode starTreeBuildMode : StarTreeBuildMode.values()) {
+                if (starTreeBuildMode.getBuildModeOrdinal() == buildModeOrdinal) {
+                    return starTreeBuildMode;
+                }
+            }
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid star tree build mode: [%s] ", buildModeOrdinal));
+        }
+
     }
 
     public int maxLeafDocs() {

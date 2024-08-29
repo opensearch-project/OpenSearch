@@ -36,8 +36,10 @@ import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -1314,7 +1316,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         Iterator<StarTreeDocument> expectedStarTreeDocumentIterator = expectedStarTreeDocuments();
         Iterator<StarTreeDocument> resultStarTreeDocumentIterator = resultStarTreeDocuments.iterator();
         Map<Integer, Map<Long, Integer>> dimValueToDocIdMap = new HashMap<>();
-        builder.rootNode.isStarNode = true;
+        builder.rootNode.nodeType = StarTreeNodeType.STAR.getValue();
         traverseStarTree(builder.rootNode, dimValueToDocIdMap, true);
 
         Map<Integer, Map<Long, Double>> expectedDimToValueMap = getExpectedDimToValueMap();
@@ -2784,13 +2786,13 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         return sf;
     }
 
-    private void traverseStarTree(TreeNode root, Map<Integer, Map<Long, Integer>> dimValueToDocIdMap, boolean traverStarNodes) {
-        TreeNode starTree = root;
+    private void traverseStarTree(InMemoryTreeNode root, Map<Integer, Map<Long, Integer>> dimValueToDocIdMap, boolean traverStarNodes) {
+        InMemoryTreeNode starTree = root;
         // Use BFS to traverse the star tree
-        Queue<TreeNode> queue = new ArrayDeque<>();
+        Queue<InMemoryTreeNode> queue = new ArrayDeque<>();
         queue.add(starTree);
         int currentDimensionId = -1;
-        TreeNode starTreeNode;
+        InMemoryTreeNode starTreeNode;
         List<Integer> docIds = new ArrayList<>();
         while ((starTreeNode = queue.poll()) != null) {
             int dimensionId = starTreeNode.dimensionId;
@@ -2801,17 +2803,17 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             // store aggregated document of the node
             int docId = starTreeNode.aggregatedDocId;
             Map<Long, Integer> map = dimValueToDocIdMap.getOrDefault(dimensionId, new HashMap<>());
-            if (starTreeNode.isStarNode) {
+            if (starTreeNode.nodeType == StarTreeNodeType.STAR.getValue()) {
                 map.put(Long.MAX_VALUE, docId);
             } else {
                 map.put(starTreeNode.dimensionValue, docId);
             }
             dimValueToDocIdMap.put(dimensionId, map);
 
-            if (starTreeNode.children != null && (!traverStarNodes || starTreeNode.isStarNode)) {
-                Iterator<TreeNode> childrenIterator = starTreeNode.children.values().iterator();
+            if (starTreeNode.children != null && (!traverStarNodes || starTreeNode.nodeType == StarTreeNodeType.STAR.getValue())) {
+                Iterator<InMemoryTreeNode> childrenIterator = starTreeNode.children.values().iterator();
                 while (childrenIterator.hasNext()) {
-                    TreeNode childNode = childrenIterator.next();
+                    InMemoryTreeNode childNode = childrenIterator.next();
                     queue.add(childNode);
                 }
             }
@@ -2933,43 +2935,48 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         validateStarTree(builder.getRootNode(), 4, 1, builder.getStarTreeDocuments());
     }
 
-    private void validateStarTree(TreeNode root, int totalDimensions, int maxLeafDocuments, List<StarTreeDocument> starTreeDocuments) {
+    private void validateStarTree(
+        InMemoryTreeNode root,
+        int totalDimensions,
+        int maxLeafDocuments,
+        List<StarTreeDocument> starTreeDocuments
+    ) {
         Queue<Object[]> queue = new LinkedList<>();
         queue.offer(new Object[] { root, false });
         while (!queue.isEmpty()) {
             Object[] current = queue.poll();
-            TreeNode node = (TreeNode) current[0];
+            InMemoryTreeNode node = (InMemoryTreeNode) current[0];
             boolean currentIsStarNode = (boolean) current[1];
 
             assertNotNull(node);
 
             // assert dimensions
-            if (node.dimensionId != TreeNode.ALL) {
+            if (node.dimensionId != StarTreeUtils.ALL) {
                 assertTrue(node.dimensionId >= 0 && node.dimensionId < totalDimensions);
             }
             if (node.children != null && !node.children.isEmpty()) {
                 assertEquals(node.dimensionId + 1, node.childDimensionId);
                 assertTrue(node.childDimensionId < totalDimensions);
-                TreeNode starNode = null;
+                InMemoryTreeNode starNode = null;
                 Object[] nonStarNodeCumulativeMetrics = getMetrics(starTreeDocuments);
-                for (Map.Entry<Long, TreeNode> entry : node.children.entrySet()) {
+                for (Map.Entry<Long, InMemoryTreeNode> entry : node.children.entrySet()) {
                     Long childDimensionValue = entry.getKey();
-                    TreeNode child = entry.getValue();
+                    InMemoryTreeNode child = entry.getValue();
                     Object[] currMetrics = getMetrics(starTreeDocuments);
-                    if (!child.isStarNode) {
+                    if (child.nodeType != StarTreeNodeType.STAR.getValue()) {
                         // Validate dimension values in documents
                         for (int i = child.startDocId; i < child.endDocId; i++) {
                             StarTreeDocument doc = starTreeDocuments.get(i);
                             int j = 0;
                             addMetrics(doc, currMetrics, j);
-                            if (!child.isStarNode) {
+                            if (child.nodeType != StarTreeNodeType.STAR.getValue()) {
                                 Long dimension = doc.dimensions[child.dimensionId];
                                 assertEquals(childDimensionValue, dimension);
                                 if (dimension != null) {
                                     assertEquals(child.dimensionValue, (long) dimension);
                                 } else {
                                     // TODO : fix this ?
-                                    assertEquals(child.dimensionValue, TreeNode.ALL);
+                                    assertEquals(child.dimensionValue, StarTreeUtils.ALL);
                                 }
                             }
                         }

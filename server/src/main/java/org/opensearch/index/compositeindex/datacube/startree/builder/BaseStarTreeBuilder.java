@@ -26,8 +26,9 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.ValueAggregator;
+import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -46,7 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode.ALL;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
 /**
  * Builder for star tree. Defines the algorithm to construct star-tree
@@ -72,7 +73,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     protected int numStarTreeNodes;
     protected final int maxLeafDocuments;
 
-    protected final TreeNode rootNode = getNewNode();
+    protected final InMemoryTreeNode rootNode = getNewNode();
 
     protected final StarTreeField starTreeField;
     private final SegmentWriteState state;
@@ -556,7 +557,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         int numAggregatedStarTreeDocument = numStarTreeDocs - numStarTreeDocument - numStarTreeDocumentUnderStarNode;
         logger.debug("Finished creating aggregated documents : {}", numAggregatedStarTreeDocument);
 
-        // TODO: When StarTree Codec is ready
+        // TODO: When StarTreeFactory Codec is ready
         // Create doc values indices in disk
         // Serialize and save in disk
         // Write star tree metadata for off heap implementation
@@ -578,9 +579,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      *
      * @return return new star-tree node
      */
-    private TreeNode getNewNode() {
+    private InMemoryTreeNode getNewNode() {
         numStarTreeNodes++;
-        return new TreeNode();
+        return new InMemoryTreeNode();
     }
 
     /**
@@ -591,7 +592,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @param endDocId   end document id
      * @throws IOException throws an exception if we are unable to construct the tree
      */
-    private void constructStarTree(TreeNode node, int startDocId, int endDocId) throws IOException {
+    private void constructStarTree(InMemoryTreeNode node, int startDocId, int endDocId) throws IOException {
 
         int childDimensionId = node.dimensionId + 1;
         if (childDimensionId == numDimensions) {
@@ -600,7 +601,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         // Construct all non-star children nodes
         node.childDimensionId = childDimensionId;
-        Map<Long, TreeNode> children = constructNonStarNodes(startDocId, endDocId, childDimensionId);
+        Map<Long, InMemoryTreeNode> children = constructNonStarNodes(startDocId, endDocId, childDimensionId);
         node.children = children;
 
         // Construct star-node if required
@@ -609,7 +610,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
 
         // Further split on child nodes if required
-        for (TreeNode child : children.values()) {
+        for (InMemoryTreeNode child : children.values()) {
             if (child.endDocId - child.startDocId > maxLeafDocuments) {
                 constructStarTree(child, child.startDocId, child.endDocId);
             }
@@ -625,14 +626,14 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return root node with non-star nodes constructed
      * @throws IOException throws an exception if we are unable to construct non-star nodes
      */
-    private Map<Long, TreeNode> constructNonStarNodes(int startDocId, int endDocId, int dimensionId) throws IOException {
-        Map<Long, TreeNode> nodes = new HashMap<>();
+    private Map<Long, InMemoryTreeNode> constructNonStarNodes(int startDocId, int endDocId, int dimensionId) throws IOException {
+        Map<Long, InMemoryTreeNode> nodes = new HashMap<>();
         int nodeStartDocId = startDocId;
         Long nodeDimensionValue = getDimensionValue(startDocId, dimensionId);
         for (int i = startDocId + 1; i < endDocId; i++) {
             Long dimensionValue = getDimensionValue(i, dimensionId);
             if (Objects.equals(dimensionValue, nodeDimensionValue) == false) {
-                TreeNode child = getNewNode();
+                InMemoryTreeNode child = getNewNode();
                 child.dimensionId = dimensionId;
                 child.dimensionValue = nodeDimensionValue != null ? nodeDimensionValue : ALL;
                 child.startDocId = nodeStartDocId;
@@ -643,7 +644,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 nodeDimensionValue = dimensionValue;
             }
         }
-        TreeNode lastNode = getNewNode();
+        InMemoryTreeNode lastNode = getNewNode();
         lastNode.dimensionId = dimensionId;
         lastNode.dimensionValue = nodeDimensionValue != null ? nodeDimensionValue : ALL;
         lastNode.startDocId = nodeStartDocId;
@@ -661,11 +662,11 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return root node with star nodes constructed
      * @throws IOException throws an exception if we are unable to construct non-star nodes
      */
-    private TreeNode constructStarNode(int startDocId, int endDocId, int dimensionId) throws IOException {
-        TreeNode starNode = getNewNode();
+    private InMemoryTreeNode constructStarNode(int startDocId, int endDocId, int dimensionId) throws IOException {
+        InMemoryTreeNode starNode = getNewNode();
         starNode.dimensionId = dimensionId;
         starNode.dimensionValue = ALL;
-        starNode.isStarNode = true;
+        starNode.nodeType = StarTreeNodeType.STAR.getValue();
         starNode.startDocId = numStarTreeDocs;
         Iterator<StarTreeDocument> starTreeDocumentIterator = generateStarTreeDocumentsForStarNode(startDocId, endDocId, dimensionId);
         while (starTreeDocumentIterator.hasNext()) {
@@ -682,7 +683,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return aggregated star-tree documents
      * @throws IOException throws an exception upon failing to create new aggregated docs based on star tree
      */
-    private StarTreeDocument createAggregatedDocs(TreeNode node) throws IOException {
+    private StarTreeDocument createAggregatedDocs(InMemoryTreeNode node) throws IOException {
         StarTreeDocument aggregatedStarTreeDocument = null;
         if (node.children == null) {
 
@@ -709,8 +710,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             // For non-leaf node
             if (node.children.containsKey((long) ALL)) {
                 // If it has star child, use the star child aggregated document directly
-                for (TreeNode child : node.children.values()) {
-                    if (child.isStarNode) {
+                for (InMemoryTreeNode child : node.children.values()) {
+                    if (child.nodeType == StarTreeNodeType.STAR.getValue()) {
                         aggregatedStarTreeDocument = createAggregatedDocs(child);
                         node.aggregatedDocId = child.aggregatedDocId;
                     } else {
@@ -720,12 +721,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             } else {
                 // If no star child exists, aggregate all aggregated documents from non-star children
                 if (node.children.values().size() == 1) {
-                    for (TreeNode child : node.children.values()) {
+                    for (InMemoryTreeNode child : node.children.values()) {
                         aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
                         node.aggregatedDocId = child.aggregatedDocId;
                     }
                 } else {
-                    for (TreeNode child : node.children.values()) {
+                    for (InMemoryTreeNode child : node.children.values()) {
                         aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
                     }
                     if (null == aggregatedStarTreeDocument) {
@@ -760,7 +761,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
     abstract Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValues) throws IOException;
 
-    public TreeNode getRootNode() {
+    public InMemoryTreeNode getRootNode() {
         return rootNode;
     }
 }
