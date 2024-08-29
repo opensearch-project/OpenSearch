@@ -105,7 +105,7 @@ public class RemoteFsTranslog extends Translog {
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
     private final boolean isTranslogMetadataEnabled;
     private final Map<Long, String> metadataFilePinnedTimestampMap;
-    private final Map<String, Tuple<Long, Long>> metadataFileGenerationMap;
+    private final Map<String, Tuple<Long, Long>> pinnedMetadataFileGenerationMap;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -157,7 +157,7 @@ public class RemoteFsTranslog extends Translog {
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         isTranslogMetadataEnabled = indexSettings().isTranslogMetadataEnabled();
         this.metadataFilePinnedTimestampMap = new HashMap<>();
-        this.metadataFileGenerationMap = new HashMap<>();
+        this.pinnedMetadataFileGenerationMap = new HashMap<>();
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -613,8 +613,14 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public void trimUnreferencedReaders() throws IOException {
-        // clean up local translog files and updates readers
-        super.trimUnreferencedReaders();
+        trimUnreferencedReaders(false, true);
+    }
+
+    private void trimUnreferencedReaders(boolean indexDeleted, boolean trimLocal) throws IOException {
+        if (trimLocal) {
+            // clean up local translog files and updates readers
+            super.trimUnreferencedReaders();
+        }
 
         // Update file tracker to reflect local translog state
         Optional<Long> minLiveGeneration = readers.stream().map(BaseTranslogReader::getGeneration).min(Long::compareTo);
@@ -672,9 +678,9 @@ public class RemoteFsTranslog extends Translog {
 
                     List<String> metadataFilesToBeDeleted = getMetadataFilesToBeDeleted(metadataFiles);
 
-                    // If no metadata file is filtered out, make sure to keep latest metadata file
-                    if (metadataFiles.size() == metadataFilesToBeDeleted.size() && metadataFiles.equals(metadataFilesToBeDeleted)) {
-                        metadataFilesToBeDeleted = metadataFiles.subList(1, metadataFiles.size());
+                    // If index is not deleted, make sure to keep latest metadata file
+                    if (indexDeleted == false) {
+                        metadataFilesToBeDeleted.remove(metadataFiles.get(0));
                     }
 
                     if (metadataFilesToBeDeleted.isEmpty()) {
@@ -727,20 +733,20 @@ public class RemoteFsTranslog extends Translog {
         // Delete generations
         long minGenerationToBeDeleted;
         long maxGenerationToBeDeleted;
-        if (metadataFileGenerationMap.containsKey(latestMetadataFileToBeDeleted) == false) {
+        if (pinnedMetadataFileGenerationMap.containsKey(latestMetadataFileToBeDeleted) == false) {
             TranslogTransferMetadata metadata = translogTransferManager.readMetadata(latestMetadataFileToBeDeleted);
             maxGenerationToBeDeleted = metadata.getMinTranslogGeneration() - 1;
         } else {
-            maxGenerationToBeDeleted = metadataFileGenerationMap.get(latestMetadataFileToBeDeleted).v1() - 1;
+            maxGenerationToBeDeleted = pinnedMetadataFileGenerationMap.get(latestMetadataFileToBeDeleted).v1() - 1;
         }
         long minGenerationToKeep = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep();
         maxGenerationToBeDeleted = Math.min(maxGenerationToBeDeleted, minGenerationToKeep);
 
-        if (metadataFileGenerationMap.containsKey(oldestMetadataFileToBeDeleted) == false) {
+        if (pinnedMetadataFileGenerationMap.containsKey(oldestMetadataFileToBeDeleted) == false) {
             TranslogTransferMetadata metadata = translogTransferManager.readMetadata(oldestMetadataFileToBeDeleted);
             minGenerationToBeDeleted = metadata.getMinTranslogGeneration() - 1;
         } else {
-            minGenerationToBeDeleted = metadataFileGenerationMap.get(oldestMetadataFileToBeDeleted).v1() - 1;
+            minGenerationToBeDeleted = pinnedMetadataFileGenerationMap.get(oldestMetadataFileToBeDeleted).v1() - 1;
         }
 
         TreeSet<Tuple<Long, Long>> pinnedGenerations = getOrderedPinnedMetadataGenerations();
@@ -806,18 +812,18 @@ public class RemoteFsTranslog extends Translog {
                 return o1.v2().compareTo(o2.v2());
             }
         });
-        pinnedGenerations.addAll(metadataFileGenerationMap.values());
+        pinnedGenerations.addAll(pinnedMetadataFileGenerationMap.values());
         return pinnedGenerations;
     }
 
     private void readAndCacheGenerationForPinnedTimestamp(Set<String> implicitLockedFiles) throws IOException {
         Set<String> nonCachedMetadataFiles = implicitLockedFiles.stream()
-            .filter(f -> metadataFileGenerationMap.containsKey(f) == false)
+            .filter(f -> pinnedMetadataFileGenerationMap.containsKey(f) == false)
             .collect(Collectors.toSet());
-        metadataFileGenerationMap.keySet().retainAll(implicitLockedFiles);
+        pinnedMetadataFileGenerationMap.keySet().retainAll(implicitLockedFiles);
         for (String metadataFile : nonCachedMetadataFiles) {
             TranslogTransferMetadata metadata = translogTransferManager.readMetadata(metadataFile);
-            metadataFileGenerationMap.put(metadataFile, new Tuple<>(metadata.getMinTranslogGeneration(), metadata.getGeneration()));
+            pinnedMetadataFileGenerationMap.put(metadataFile, new Tuple<>(metadata.getMinTranslogGeneration(), metadata.getGeneration()));
         }
     }
 
@@ -876,7 +882,11 @@ public class RemoteFsTranslog extends Translog {
     protected void onDelete() {
         ClusterService.assertClusterOrClusterManagerStateThread();
         // clean up all remote translog files
-        translogTransferManager.delete();
+        try {
+            trimUnreferencedReaders(true, false);
+        } catch (IOException e) {
+            logger.error("Exception while deleting translog files from remote store", e);
+        }
     }
 
     // Visible for testing
