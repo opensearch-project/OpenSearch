@@ -89,8 +89,8 @@ teardown:
 # and no dynamic fields were created.
 "Mappings":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   - do:
       indices.get_mapping:
@@ -106,8 +106,8 @@ teardown:
 ---
 "Supported queries":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
 
   # Verify Document Count
