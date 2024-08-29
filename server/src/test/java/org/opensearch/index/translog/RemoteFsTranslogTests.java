@@ -124,7 +124,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     protected final AtomicLong primaryTerm = new AtomicLong();
     private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
-    private ThreadPool threadPool;
+    protected ThreadPool threadPool;
     protected final static String METADATA_DIR = "metadata";
     protected final static String DATA_DIR = "data";
     AtomicInteger writeCalls = new AtomicInteger();
@@ -390,7 +390,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     }
 
-    private TranslogConfig getConfig(int gensToKeep) {
+    protected TranslogConfig getConfig(int gensToKeep) {
         Path tempDir = createTempDir();
         final TranslogConfig temp = getTranslogConfig(tempDir, gensToKeep);
         final TranslogConfig config = new TranslogConfig(
@@ -405,7 +405,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         return config;
     }
 
-    private ChannelFactory getChannelFactory() {
+    protected ChannelFactory getChannelFactory() {
         writeCalls = new AtomicInteger();
         final ChannelFactory channelFactory = (file, openOption) -> {
             FileChannel delegate = FileChannel.open(file, openOption);
