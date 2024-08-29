@@ -93,6 +93,7 @@ import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepo
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -517,7 +518,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
             listener.onResponse(result);
             return null;
-        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any());
+        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), anyMap());
 
         AtomicReference<Collection<DeleteResult>> resultReference = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -536,7 +537,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             survivingIndexIds,
             mockRemoteStoreLockManagerFactory,
             listener,
-            mockSnapshotShardPaths
+            mockSnapshotShardPaths,
+            Collections.emptyMap()
         );
 
         assertTrue("Cleanup did not complete within the expected time", latch.await(30, TimeUnit.SECONDS));

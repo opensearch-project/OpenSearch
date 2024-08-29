@@ -126,7 +126,7 @@ public class SnapshotShardPaths implements ToXContent {
          * @param indexId    The ID of the index associated with this shard.
          * @param shardCount The total number of shards for this index.
          */
-        ShardInfo(IndexId indexId, int shardCount) {
+        public ShardInfo(IndexId indexId, int shardCount) {
             this.indexId = indexId;
             this.shardCount = shardCount;
         }
