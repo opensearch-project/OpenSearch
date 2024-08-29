@@ -34,7 +34,7 @@ public interface StarTreeBuilder extends Closeable {
     void build(Map<String, DocValuesProducer> fieldProducerMap) throws IOException;
 
     /**
-     * Builds the star tree using StarTree values from multiple segments
+     * Builds the star tree using StarTreeFactory values from multiple segments
      *
      * @param starTreeValuesSubs           contains the star tree values from multiple segments
      * @throws IOException when we are unable to build star-tree
