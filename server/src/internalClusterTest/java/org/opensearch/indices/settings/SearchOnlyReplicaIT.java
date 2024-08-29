@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.settings;
 
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
@@ -79,9 +81,9 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
         assertEquals(expectedFailureMessage, illegalArgumentException.getMessage());
     }
 
-    public void testSearchReplicasAreNotPrimaryEligible() throws IOException {
-        int numSearchReplicas = randomIntBetween(0, 3);
-        int numWriterReplicas = randomIntBetween(0, 3);
+    public void testFailoverWithSearchReplica_WithWriterReplicas() throws IOException {
+        int numSearchReplicas = 1;
+        int numWriterReplicas = 1;
         internalCluster().startClusterManagerOnlyNode();
         String primaryNodeName = internalCluster().startDataOnlyNode();
         createIndex(
@@ -93,9 +95,8 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
                 .build()
         );
         ensureYellow(TEST_INDEX);
-        for (int i = 0; i < numSearchReplicas + numWriterReplicas; i++) {
-            internalCluster().startDataOnlyNode();
-        }
+        // add 2 nodes for the replicas
+        internalCluster().startDataOnlyNodes(2);
         ensureGreen(TEST_INDEX);
 
         // assert shards are on separate nodes & all active
@@ -103,19 +104,42 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
 
         // stop the primary and ensure search shard is not promoted:
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName));
-        ensureRed(TEST_INDEX);
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
 
-        if (numWriterReplicas > 0) {
-            assertActiveShardCounts(numSearchReplicas, numWriterReplicas - 1); // 1 repl is inactive that was promoted to primary
-            // add back a node
-            internalCluster().startDataOnlyNode();
-            ensureGreen(TEST_INDEX);
-        } else {
-            // index falls red and does not recover
-            // Without any writer replica with n2n replication this is an unrecoverable scenario and snapshot restore is required.
-            ensureRed(TEST_INDEX);
-            assertActiveSearchShards(numSearchReplicas);
-        }
+        assertActiveShardCounts(numSearchReplicas, 0); // 1 repl is inactive that was promoted to primary
+        // add back a node
+        internalCluster().startDataOnlyNode();
+        ensureGreen(TEST_INDEX);
+
+    }
+
+    public void testFailoverWithSearchReplica_WithoutWriterReplicas() throws IOException {
+        int numSearchReplicas = 1;
+        int numWriterReplicas = 0;
+        internalCluster().startClusterManagerOnlyNode();
+        String primaryNodeName = internalCluster().startDataOnlyNode();
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+        ensureYellow(TEST_INDEX);
+        client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // start a node for our search replica
+        String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(TEST_INDEX);
+        assertActiveSearchShards(numSearchReplicas);
+        assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
+
+        // stop the primary and ensure search shard is not promoted:
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName));
+        ensureRed(TEST_INDEX);
+        assertActiveSearchShards(numSearchReplicas);
+        // while red our search shard is still searchable
+        assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
     }
 
     public void testSearchReplicaScaling() {

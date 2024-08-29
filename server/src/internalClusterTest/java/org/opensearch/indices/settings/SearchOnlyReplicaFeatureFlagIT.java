@@ -17,7 +17,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
@@ -32,18 +31,8 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
             .build();
     }
 
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
-            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
-    }
-
     public void testCreateFeatureFlagDisabled() {
         Settings settings = Settings.builder().put(indexSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, false).build();
-
         SettingsException settingsException = expectThrows(SettingsException.class, () -> createIndex(TEST_INDEX, settings));
         assertTrue(settingsException.getMessage().contains("unknown setting"));
     }
@@ -51,8 +40,6 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
     public void testUpdateFeatureFlagDisabled() {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0ms") // so that after we punt a node we can immediately try to
-            // reallocate after node left.
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
 
