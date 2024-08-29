@@ -104,7 +104,7 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         final CatShardsRequest shardsRequest = new CatShardsRequest();
         TimeValue timeoutInterval = timeValueMillis(1000);
         shardsRequest.setCancelAfterTimeInterval(timeoutInterval);
-        shardsRequest.setClusterManagerNodeTimeout(timeValueMillis(2500));
+        shardsRequest.clusterManagerNodeTimeout(timeValueMillis(2500));
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
         client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
             @Override

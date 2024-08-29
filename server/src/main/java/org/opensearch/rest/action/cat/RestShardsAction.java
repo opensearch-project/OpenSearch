@@ -110,7 +110,7 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final CatShardsRequest shardsRequest = new CatShardsRequest();
         shardsRequest.setLocal(request.paramAsBoolean("local", shardsRequest.local()));
-        shardsRequest.setClusterManagerNodeTimeout(
+        shardsRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", shardsRequest.clusterManagerNodeTimeout())
         );
         shardsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));

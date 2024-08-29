@@ -41,14 +41,6 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
         return null;
     }
 
-    public void setClusterManagerNodeTimeout(TimeValue timeout) {
-        this.clusterManagerNodeTimeout = timeout;
-    }
-
-    public TimeValue getClusterManagerNodeTimeout() {
-        return this.clusterManagerNodeTimeout;
-    }
-
     public void setLocal(boolean local) {
         this.local = local;
     }
@@ -67,6 +59,10 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     public void setCancelAfterTimeInterval(TimeValue timeout) {
         this.cancelAfterTimeInterval = timeout;
+    }
+
+    public TimeValue getCancelAfterTimeInterval() {
+        return this.cancelAfterTimeInterval;
     }
 
     @Override
