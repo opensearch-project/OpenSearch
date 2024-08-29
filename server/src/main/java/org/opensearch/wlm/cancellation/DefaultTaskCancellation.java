@@ -219,7 +219,6 @@ public class DefaultTaskCancellation {
         return queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getResourceUsageData().get(resourceType);
     }
 
-
     private boolean isBreachingThreshold(ResourceType resourceType, Double resourceThresholdInPercentage, long resourceUsage) {
         if (resourceType == ResourceType.MEMORY) {
             // Check if resource usage is breaching the threshold
