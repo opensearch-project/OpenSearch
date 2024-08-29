@@ -31,6 +31,7 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.test.OpenSearchIntegTestCase;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -111,13 +112,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("test-repo")
-            .setType("s3")
-            .setSettings(settings)
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "s3", settings);
     }
 
     @Override

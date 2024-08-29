@@ -131,13 +131,14 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
             .get(0);
         Settings.Builder updatedSettings = Settings.builder().put(repositoryMetadata.settings()).put("chunk_size", new ByteSizeValue(20));
         updatedSettings.remove("system_repository");
-
-        client.admin()
-            .cluster()
-            .preparePutRepository(repositoryMetadata.name())
-            .setType(repositoryMetadata.type())
-            .setSettings(updatedSettings)
-            .get();
+        OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+            client.admin().cluster(),
+            repositoryMetadata.name(),
+            repositoryMetadata.type(),
+            true,
+            updatedSettings,
+            null
+        ).get();
 
         ensureStableCluster(3, nodesInOneSide.stream().findAny().get());
         networkDisruption.stopDisrupting();
@@ -161,12 +162,7 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         Settings.Builder updatedSettings = Settings.builder().put(repositoryMetadata.settings()).put("chunk_size", new ByteSizeValue(20));
         updatedSettings.remove("system_repository");
 
-        client.admin()
-            .cluster()
-            .preparePutRepository(repositoryMetadata.name())
-            .setType(repositoryMetadata.type())
-            .setSettings(updatedSettings)
-            .get();
+        createRepository(repositoryMetadata.name(), repositoryMetadata.type(), updatedSettings);
 
         internalCluster().restartRandomDataNode();
 

@@ -125,18 +125,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().prepareDeleteRepository(repoName));
 
         logger.info("--> recreate repository");
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository(repoName)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", repo)
-                        .put("compress", false)
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", repo)
+            .put("compress", false)
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository(repoName, "fs", settings);
 
         startDeleteSnapshot(repoName, snapshot).get();
 
@@ -153,20 +146,12 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository(repoName)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", repo)
-                        .put("compress", false)
-                        .put(BlobStoreRepository.ALLOW_CONCURRENT_MODIFICATION.getKey(), true)
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
-
+        Settings.Builder settings = Settings.builder()
+            .put("location", repo)
+            .put("compress", false)
+            .put(BlobStoreRepository.ALLOW_CONCURRENT_MODIFICATION.getKey(), true)
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository(repoName, "fs", settings);
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
         indexRandom(

@@ -36,7 +36,6 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -141,13 +140,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         final String repositoryName = "test-repo";
 
         logger.info("-->  creating repository");
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repositoryName)
-            .setType(REPO_TYPE)
-            .setSettings(Settings.builder().put(node().settings()).put("location", location))
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder().put(node().settings()).put("location", location);
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repositoryName, REPO_TYPE, settings);
 
         logger.info("--> creating an index and indexing documents");
         final String indexName = "test-idx";
@@ -266,20 +260,13 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         final Client client = client();
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
-
+        Settings.Builder settings = Settings.builder()
+            .put(node().settings())
+            .put("location", location)
+            .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES);
         expectThrows(
             RepositoryException.class,
-            () -> client.admin()
-                .cluster()
-                .preparePutRepository(repositoryName)
-                .setType(REPO_TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(node().settings())
-                        .put("location", location)
-                        .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES)
-                )
-                .get()
+            () -> OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repositoryName, REPO_TYPE, settings)
         );
     }
 
@@ -287,18 +274,11 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         final Client client = client();
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repositoryName)
-            .setType(REPO_TYPE)
-            .setSettings(
-                Settings.builder()
-                    .put(node().settings())
-                    .put("location", location)
-                    .put(BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING.getKey(), true)
-            )
-            .get();
-        assertTrue(putRepositoryResponse.isAcknowledged());
+        Settings.Builder settings = Settings.builder()
+            .put(node().settings())
+            .put("location", location)
+            .put(BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING.getKey(), true);
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repositoryName, REPO_TYPE, settings);
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
@@ -332,13 +312,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repositoryName)
-            .setType(REPO_TYPE)
-            .setSettings(Settings.builder().put(node().settings()).put("location", location))
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder().put(node().settings()).put("location", location);
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repositoryName, REPO_TYPE, settings);
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);

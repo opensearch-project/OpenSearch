@@ -476,14 +476,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
     private Path registerCustomRepository() {
         Path path = randomRepoPath();
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("custom-repo")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", path).put("compress", false))
-                .get()
-        );
+        createRepository("custom-repo", "fs", Settings.builder().put("location", path).put("compress", false));
         return path;
     }
 

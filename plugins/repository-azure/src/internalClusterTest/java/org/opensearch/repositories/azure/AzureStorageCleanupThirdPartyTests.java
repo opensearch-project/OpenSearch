@@ -53,6 +53,7 @@ import java.net.HttpURLConnection;
 import java.util.Collection;
 import java.util.function.Supplier;
 
+import org.opensearch.test.OpenSearchIntegTestCase;
 import reactor.core.scheduler.Schedulers;
 
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -103,17 +104,11 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType("azure")
-            .setSettings(
-                Settings.builder()
-                    .put("container", System.getProperty("test.azure.container"))
-                    .put("base_path", System.getProperty("test.azure.base"))
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder()
+            .put("container", System.getProperty("test.azure.container"))
+            .put("base_path", System.getProperty("test.azure.base"));
+
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, "azure", settings);
         if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
             ensureSasTokenPermissions();
         }

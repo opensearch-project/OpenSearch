@@ -115,13 +115,14 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         secondCluster.startClusterManagerOnlyNode();
         secondCluster.startDataOnlyNode();
-        secondCluster.client()
-            .admin()
-            .cluster()
-            .preparePutRepository(repoNameOnSecondCluster)
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", repoPath))
-            .get();
+        OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+            secondCluster.client().admin().cluster(),
+            repoNameOnSecondCluster,
+            "fs",
+            true,
+            Settings.builder().put("location", repoPath),
+            null
+        ).get();
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoNameOnFirstCluster, "snap-1");

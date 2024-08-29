@@ -56,7 +56,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,16 +111,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> check that trying to create a repository with the same settings repeatedly does not update cluster state");
         String beforeStateUuid = clusterStateResponse.getState().stateUUID();
-        assertThat(
-            client.admin()
-                .cluster()
-                .preparePutRepository("test-repo-1")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", location))
-                .get()
-                .isAcknowledged(),
-            equalTo(true)
-        );
+        createRepository("test-repo-1", "fs", Settings.builder().put("location", location));
         assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
 
         logger.info("--> delete repository test-repo-1");
@@ -225,12 +215,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Path invalidRepoPath = createTempDir().toAbsolutePath();
         String location = invalidRepoPath.toString();
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", location))
-                .get();
+            createRepository("test-repo", "fs", Settings.builder().put("location", location));
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
             assertThat(
@@ -242,33 +227,19 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
     public void testRepositoryAckTimeout() throws Exception {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("test-repo-1")
-            .setType("fs")
-            .setSettings(
-                Settings.builder()
-                    .put("location", randomRepoPath())
-                    .put("compress", randomBoolean())
-                    .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
-            )
-            .setTimeout("0s")
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
+
+        Settings.Builder settings = Settings.builder()
+            .put("location", randomRepoPath())
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES);
+        createRepository("test-repo-1", "fs", settings, "0s");
 
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
-        putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("test-repo-2")
-            .setType("fs")
-            .setSettings(
-                Settings.builder()
-                    .put("location", randomRepoPath())
-                    .put("compress", randomBoolean())
-                    .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        settings = Settings.builder()
+            .put("location", randomRepoPath())
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES);
+        createRepository("test-repo-2", "fs", settings);
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
         AcknowledgedResponse deleteRepositoryResponse = client().admin()
@@ -292,25 +263,43 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Settings readonlySettings = Settings.builder().put(settings).put("readonly", true).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
         assertRequestBuilderThrows(
-            client.admin().cluster().preparePutRepository("test-repo-1").setType("mock").setSettings(settings),
+            OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+                client.admin().cluster(),
+                "test-repo-1",
+                "mock",
+                true,
+                Settings.builder().put(settings),
+                null
+            ),
             RepositoryVerificationException.class
         );
 
         logger.info("-->  creating read-only repository that cannot read any files - should fail");
         assertRequestBuilderThrows(
-            client.admin().cluster().preparePutRepository("test-repo-2").setType("mock").setSettings(readonlySettings),
+            OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+                client.admin().cluster(),
+                "test-repo-2",
+                "mock",
+                true,
+                Settings.builder().put(readonlySettings),
+                null
+            ),
             RepositoryVerificationException.class
         );
 
         logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo-1").setType("mock").setSettings(settings).setVerify(false));
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), "test-repo-1", "mock", false, Settings.builder().put(settings));
 
         logger.info("-->  verifying repository");
         assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
 
         logger.info("-->  creating read-only repository that cannot read any files, but suppress verification - should be acked");
-        assertAcked(
-            client.admin().cluster().preparePutRepository("test-repo-2").setType("mock").setSettings(readonlySettings).setVerify(false)
+        OpenSearchIntegTestCase.putRepository(
+            client.admin().cluster(),
+            "test-repo-2",
+            "mock",
+            false,
+            Settings.builder().put(readonlySettings)
         );
 
         logger.info("-->  verifying repository");
@@ -320,12 +309,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  creating repository");
         try {
-            client.admin()
-                .cluster()
-                .preparePutRepository("test-repo-1")
-                .setType("mock")
-                .setSettings(Settings.builder().put("location", location).put("localize_location", true))
-                .get();
+            Settings.Builder settingsBuilder = Settings.builder().put("location", location).put("localize_location", true);
+            createRepository("test-repo-1", "mock", settingsBuilder);
             fail("RepositoryVerificationException wasn't generated");
         } catch (RepositoryVerificationException ex) {
             assertThat(ex.getMessage(), containsString("is not shared"));

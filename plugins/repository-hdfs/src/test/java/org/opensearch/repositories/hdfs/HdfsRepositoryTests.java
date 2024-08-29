@@ -40,6 +40,7 @@ import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 
@@ -61,20 +62,13 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType("hdfs")
-            .setSettings(
-                Settings.builder()
-                    .put("uri", "hdfs:///")
-                    .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                    .put("path", "foo")
-                    .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                    .put("compress", randomBoolean())
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder()
+            .put("uri", "hdfs:///")
+            .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
+            .put("path", "foo")
+            .put("chunk_size", randomIntBetween(100, 1000) + "k")
+            .put("compress", randomBoolean());
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, "hdfs", settings);
     }
 
     // HDFS repository doesn't have precise cleanup stats so we only check whether or not any blobs were removed

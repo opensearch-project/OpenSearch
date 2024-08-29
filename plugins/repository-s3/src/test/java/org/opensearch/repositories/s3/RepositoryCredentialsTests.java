@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.test.OpenSearchIntegTestCase;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.services.s3.DelegatingS3Client;
@@ -277,14 +278,8 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(name)
-                .setType(S3Repository.TYPE)
-                .setVerify(false)
-                .setSettings(repositorySettings)
-        );
+        Settings.Builder settings = Settings.builder().put(repositorySettings);
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), name, S3Repository.TYPE, false, settings);
     }
 
     /**

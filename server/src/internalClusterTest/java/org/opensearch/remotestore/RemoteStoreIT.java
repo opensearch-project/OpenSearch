@@ -500,9 +500,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
 
         Path absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository("test-repo").setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
+        createRepository("test-repo", "fs", Settings.builder().put("location", absolutePath));
 
         logger.info("--> Create index and ingest 50 docs");
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
