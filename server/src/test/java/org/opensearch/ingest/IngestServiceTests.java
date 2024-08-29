@@ -153,7 +153,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
     public void testIngestPlugin() {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -190,7 +192,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
     public void testExecuteIndexPipelineDoesNotExist() {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -725,7 +729,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         ingestService.validatePipeline(ingestInfos, putRequest);
     }
 
-    public void testValidateProcessorCountForIngestPipelineThrowsException(){
+    public void testValidateProcessorCountForIngestPipelineThrowsException() {
         IngestService ingestService = createWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
@@ -745,10 +749,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 1).build();
         ingestService.getClusterService().getClusterSettings().applySettings(newSettings);
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> ingestService.validatePipeline(ingestInfos, putRequest)
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
@@ -1538,7 +1539,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
         // Create ingest service:
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -2139,7 +2142,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         return new IngestService(clusterService, threadPool, null, null, null, Collections.singletonList(new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
