@@ -54,6 +54,7 @@ public class StarTreeWriter {
      * @param metricAggregatorInfos  metric aggregator infos
      * @param numNodes               number of nodes in the star tree
      * @param segmentAggregatedCount segment aggregated count
+     * @param numStarTreeDocs           the total number of star tree documents for the segment
      * @param dataFilePointer        data file pointer
      * @param dataFileLength         data file length
      * @throws IOException when star-tree data serialization fails
@@ -64,6 +65,7 @@ public class StarTreeWriter {
         List<MetricAggregatorInfo> metricAggregatorInfos,
         Integer numNodes,
         Integer segmentAggregatedCount,
+        Integer numStarTreeDocs,
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
@@ -73,6 +75,7 @@ public class StarTreeWriter {
             metricAggregatorInfos,
             numNodes,
             segmentAggregatedCount,
+            numStarTreeDocs,
             dataFilePointer,
             dataFileLength
         );

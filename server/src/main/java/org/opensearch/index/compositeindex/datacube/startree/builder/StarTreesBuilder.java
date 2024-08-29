@@ -10,11 +10,13 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
@@ -25,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Builder to construct star-trees based on multiple star-tree fields.
@@ -39,6 +42,7 @@ public class StarTreesBuilder implements Closeable {
     private final List<StarTreeField> starTreeFields;
     private final SegmentWriteState state;
     private final MapperService mapperService;
+    private AtomicInteger fieldNumberAcrossStarTrees;
 
     public StarTreesBuilder(SegmentWriteState segmentWriteState, MapperService mapperService) {
         List<StarTreeField> starTreeFields = new ArrayList<>();
@@ -58,12 +62,24 @@ public class StarTreesBuilder implements Closeable {
         this.starTreeFields = starTreeFields;
         this.state = segmentWriteState;
         this.mapperService = mapperService;
+        this.fieldNumberAcrossStarTrees = new AtomicInteger();
     }
 
     /**
-     * Builds the star-trees.
+     * Builds all star-trees for given star-tree fields.
+     *
+     * @param metaOut                      an IndexInput for star-tree metadata
+     * @param dataOut                      an IndexInput for star-tree data
+     * @param fieldProducerMap             fetches iterators for the fields (dimensions and metrics)
+     * @param starTreeDocValuesConsumer    a consumer to write star-tree doc values
+     * @throws IOException                 when an error occurs while building the star-trees
      */
-    public void build(Map<String, DocValuesProducer> fieldProducerMap) throws IOException {
+    public void build(
+        IndexOutput metaOut,
+        IndexOutput dataOut,
+        Map<String, DocValuesProducer> fieldProducerMap,
+        DocValuesConsumer starTreeDocValuesConsumer
+    ) throws IOException {
         if (starTreeFields.isEmpty()) {
             logger.debug("no star-tree fields found, returning from star-tree builder");
             return;
@@ -75,8 +91,8 @@ public class StarTreesBuilder implements Closeable {
 
         // Build all star-trees
         for (StarTreeField starTreeField : starTreeFields) {
-            try (StarTreeBuilder starTreeBuilder = getStarTreeBuilder(starTreeField, state, mapperService)) {
-                starTreeBuilder.build(fieldProducerMap);
+            try (StarTreeBuilder starTreeBuilder = getStarTreeBuilder(metaOut, dataOut, starTreeField, state, mapperService)) {
+                starTreeBuilder.build(fieldProducerMap, fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
             }
         }
         logger.debug("Took {} ms to build {} star-trees with star-tree fields", System.currentTimeMillis() - startTime, numStarTrees);
@@ -90,9 +106,17 @@ public class StarTreesBuilder implements Closeable {
     /**
      * Merges star tree fields from multiple segments
      *
+     * @param metaOut                      an IndexInput for star-tree metadata
+     * @param dataOut                      an IndexInput for star-tree data
      * @param starTreeValuesSubsPerField   starTreeValuesSubs per field
+     * @param starTreeDocValuesConsumer    a consumer to write star-tree doc values
      */
-    public void buildDuringMerge(final Map<String, List<StarTreeValues>> starTreeValuesSubsPerField) throws IOException {
+    public void buildDuringMerge(
+        IndexOutput metaOut,
+        IndexOutput dataOut,
+        final Map<String, List<StarTreeValues>> starTreeValuesSubsPerField,
+        DocValuesConsumer starTreeDocValuesConsumer
+    ) throws IOException {
         logger.debug("Starting merge of {} star-trees with star-tree fields", starTreeValuesSubsPerField.size());
         long startTime = System.currentTimeMillis();
         for (Map.Entry<String, List<StarTreeValues>> entry : starTreeValuesSubsPerField.entrySet()) {
@@ -102,8 +126,9 @@ public class StarTreesBuilder implements Closeable {
                 continue;
             }
             StarTreeField starTreeField = starTreeValuesList.get(0).getStarTreeField();
-            try (StarTreeBuilder builder = getStarTreeBuilder(starTreeField, state, mapperService)) {
-                builder.build(starTreeValuesList);
+            try (StarTreeBuilder builder = getStarTreeBuilder(metaOut, dataOut, starTreeField, state, mapperService)) {
+                builder.build(starTreeValuesList, fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
+                builder.close();
             }
         }
         logger.debug(
@@ -116,13 +141,18 @@ public class StarTreesBuilder implements Closeable {
     /**
      * Get star-tree builder based on build mode.
      */
-    StarTreeBuilder getStarTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService)
-        throws IOException {
+    StarTreeBuilder getStarTreeBuilder(
+        IndexOutput metaOut,
+        IndexOutput dataOut,
+        StarTreeField starTreeField,
+        SegmentWriteState state,
+        MapperService mapperService
+    ) throws IOException {
         switch (starTreeField.getStarTreeConfig().getBuildMode()) {
             case ON_HEAP:
-                return new OnHeapStarTreeBuilder(starTreeField, state, mapperService);
+                return new OnHeapStarTreeBuilder(metaOut, dataOut, starTreeField, state, mapperService);
             case OFF_HEAP:
-                return new OffHeapStarTreeBuilder(starTreeField, state, mapperService);
+                return new OffHeapStarTreeBuilder(metaOut, dataOut, starTreeField, state, mapperService);
             default:
                 throw new IllegalArgumentException(
                     String.format(

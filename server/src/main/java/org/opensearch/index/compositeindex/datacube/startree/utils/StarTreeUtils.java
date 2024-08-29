@@ -87,6 +87,17 @@ public class StarTreeUtils {
      * @return new field info instance
      */
     public static FieldInfo getFieldInfo(String fieldName, int fieldNumber) {
+        return getFieldInfo(fieldName, DocValuesType.SORTED_NUMERIC, fieldNumber);
+    }
+
+    /**
+     * Get new field info instance for a given field name and field number
+     * @param fieldName name of the field
+     * @param docValuesType doc value type of the field
+     * @param fieldNumber number of the field
+     * @return new field info instance
+     */
+    public static FieldInfo getFieldInfo(String fieldName, DocValuesType docValuesType, int fieldNumber) {
         return new FieldInfo(
             fieldName,
             fieldNumber,
@@ -94,7 +105,7 @@ public class StarTreeUtils {
             false,
             true,
             IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
-            DocValuesType.SORTED_NUMERIC,
+            docValuesType,
             -1,
             Collections.emptyMap(),
             0,

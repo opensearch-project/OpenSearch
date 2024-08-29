@@ -10,14 +10,16 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeDocumentsSorter;
 import org.opensearch.index.mapper.MapperService;
@@ -31,9 +33,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
 
 /**
  * Off-heap implementation of the star tree builder.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
@@ -46,12 +52,20 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * Builds star tree based on star tree field configuration consisting of dimensions, metrics and star tree index
      * specific configuration.
      *
+     * @param metaOut       an index output to write star-tree metadata
+     * @param dataOut       an index output to write star-tree data
      * @param starTreeField holds the configuration for the star tree
      * @param state         stores the segment write state
      * @param mapperService helps to find the original type of the field
      */
-    protected OffHeapStarTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService) throws IOException {
-        super(starTreeField, state, mapperService);
+    protected OffHeapStarTreeBuilder(
+        IndexOutput metaOut,
+        IndexOutput dataOut,
+        StarTreeField starTreeField,
+        SegmentWriteState state,
+        MapperService mapperService
+    ) throws IOException {
+        super(metaOut, dataOut, starTreeField, state, mapperService);
         segmentDocumentFileManager = new SegmentDocsFileManager(state, starTreeField, metricAggregatorInfos);
         try {
             starTreeDocumentFileManager = new StarTreeDocsFileManager(state, starTreeField, metricAggregatorInfos);
@@ -73,10 +87,14 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param starTreeValuesSubs contains the star tree values from multiple segments
      */
     @Override
-    public void build(List<StarTreeValues> starTreeValuesSubs) throws IOException {
+    public void build(
+        List<StarTreeValues> starTreeValuesSubs,
+        AtomicInteger fieldNumberAcrossStarTrees,
+        DocValuesConsumer starTreeDocValuesConsumer
+    ) throws IOException {
         boolean success = false;
         try {
-            build(mergeStarTrees(starTreeValuesSubs));
+            build(mergeStarTrees(starTreeValuesSubs), fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
             success = true;
         } finally {
             starTreeDocumentFileManager.deleteFiles(success);
@@ -141,7 +159,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 }
                 int currentDocId = 0;
                 int numSegmentDocs = Integer.parseInt(
-                    starTreeValues.getAttributes().getOrDefault(NUM_SEGMENT_DOCS, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
+                    starTreeValues.getAttributes().getOrDefault(SEGMENT_DOCS_COUNT, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
                 );
                 while (currentDocId < numSegmentDocs) {
                     StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders);
@@ -240,6 +258,11 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     @Override
     public StarTreeDocument getStarTreeDocument(int docId) throws IOException {
         return starTreeDocumentFileManager.readStarTreeDocument(docId, true);
+    }
+
+    @Override
+    public StarTreeDocument getStarTreeDocumentForCreatingDocValues(int docId) throws IOException {
+        return getStarTreeDocument(docId);
     }
 
     // This should be only used for testing

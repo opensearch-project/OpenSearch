@@ -51,6 +51,7 @@ public class StarTreeMetaWriter {
         List<MetricAggregatorInfo> metricAggregatorInfos,
         Integer numNodes,
         Integer segmentAggregatedCount,
+        Integer numStarTreeDocs,
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
@@ -60,7 +61,16 @@ public class StarTreeMetaWriter {
         writeMetaHeader(metaOut);
 
         // TODO: Replace the parameters with StarTreeMetadata class object
-        writeMeta(metaOut, metricAggregatorInfos, starTreeField, numNodes, segmentAggregatedCount, dataFilePointer, dataFileLength);
+        writeMeta(
+            metaOut,
+            metricAggregatorInfos,
+            starTreeField,
+            numNodes,
+            segmentAggregatedCount,
+            numStarTreeDocs,
+            dataFilePointer,
+            dataFileLength
+        );
 
         logger.debug(
             "Star tree meta size in bytes : {} for star-tree field {}",
@@ -81,6 +91,7 @@ public class StarTreeMetaWriter {
 
         // version
         metaOut.writeVInt(VERSION_CURRENT);
+
     }
 
     /**
@@ -91,6 +102,7 @@ public class StarTreeMetaWriter {
      * @param starTreeField             the star tree field
      * @param numNodes                  number of nodes in the star tree
      * @param segmentAggregatedDocCount the aggregated document count for the segment
+     * @param numStarTreeDocs           the total number of star tree documents for the segment
      * @param dataFilePointer           the file pointer to the start of the star-tree data
      * @param dataFileLength            the length of the star-tree data file
      * @throws IOException if an I/O error occurs while writing the metadata
@@ -101,6 +113,7 @@ public class StarTreeMetaWriter {
         StarTreeField starTreeField,
         int numNodes,
         Integer segmentAggregatedDocCount,
+        Integer numStarTreeDocs,
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
@@ -136,6 +149,9 @@ public class StarTreeMetaWriter {
 
         // segment aggregated document count
         metaOut.writeVInt(segmentAggregatedDocCount);
+
+        // segment star tree document count
+        metaOut.writeVInt(numStarTreeDocs);
 
         // max leaf docs
         metaOut.writeVInt(starTreeField.getStarTreeConfig().maxLeafDocs());
