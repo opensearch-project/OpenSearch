@@ -27,7 +27,6 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.IdentityPlugin;
