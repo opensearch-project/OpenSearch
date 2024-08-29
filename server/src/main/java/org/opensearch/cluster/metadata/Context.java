@@ -130,10 +130,6 @@ public class Context extends AbstractDiffable<Context> implements ToXContentObje
 
     @Override
     public String toString() {
-        return "Context{" +
-            "name='" + name + '\'' +
-            ", version='" + version + '\'' +
-            ", params=" + params +
-            '}';
+        return "Context{" + "name='" + name + '\'' + ", version='" + version + '\'' + ", params=" + params + '}';
     }
 }
