@@ -704,6 +704,16 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
     }
 
+    /**
+     * Test that the sort builder fieldType is set properly
+     */
+    public void testSortFieldFieldType() throws IOException {
+        QueryShardContext shardContextMock = createMockShardContext();
+        FieldSortBuilder fieldSortBuilder = new FieldSortBuilder("value");
+        fieldSortBuilder.build(shardContextMock);
+        assertEquals(fieldSortBuilder.getFieldType(), "double");
+    }
+
     @Override
     protected void assertWarnings(FieldSortBuilder testItem) {
         List<String> expectedWarnings = new ArrayList<>();
