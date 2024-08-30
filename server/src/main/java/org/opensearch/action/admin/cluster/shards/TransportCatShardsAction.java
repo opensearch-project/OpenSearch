@@ -42,7 +42,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
     public void doExecute(Task parentTask, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.setShouldCancelOnTimeout(true);
-        clusterStateRequest.local(shardsRequest.getLocal());
+        clusterStateRequest.local(shardsRequest.local());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.clusterManagerNodeTimeout());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
         assert parentTask instanceof CancellableTask;

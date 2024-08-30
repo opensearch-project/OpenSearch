@@ -58,7 +58,6 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        shouldCancelOnTimeout = in.readBoolean();
     }
 
     protected BroadcastRequest(String... indices) {
@@ -126,7 +125,6 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeBoolean(shouldCancelOnTimeout);
         indicesOptions.writeIndicesOptions(out);
     }
 

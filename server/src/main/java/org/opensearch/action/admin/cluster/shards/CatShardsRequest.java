@@ -18,8 +18,6 @@ import org.opensearch.rest.action.admin.cluster.ClusterAdminTask;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.search.SearchService.NO_TIMEOUT;
-
 /**
  * A request of _cat/shards.
  *
@@ -39,14 +37,6 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    public void setLocal(boolean local) {
-        this.local = local;
-    }
-
-    public boolean getLocal() {
-        return this.local;
     }
 
     public void setIndices(String[] indices) {

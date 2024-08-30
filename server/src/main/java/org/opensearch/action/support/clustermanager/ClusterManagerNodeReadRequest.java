@@ -54,14 +54,12 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
     protected ClusterManagerNodeReadRequest(StreamInput in) throws IOException {
         super(in);
         local = in.readBoolean();
-        shouldCancelOnTimeout = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(local);
-        out.writeBoolean(shouldCancelOnTimeout);
     }
 
     @SuppressWarnings("unchecked")
