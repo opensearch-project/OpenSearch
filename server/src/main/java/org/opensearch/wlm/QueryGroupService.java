@@ -22,8 +22,15 @@ import java.util.Map;
 public class QueryGroupService {
     // This map does not need to be concurrent since we will process the cluster state change serially and update
     // this map with new additions and deletions of entries. QueryGroupState is thread safe
-    private final Map<String, QueryGroupState> queryGroupStateMap = new HashMap<>();
+    private final Map<String, QueryGroupState> queryGroupStateMap;
 
+    public QueryGroupService() {
+        this(new HashMap<>());
+    }
+
+    public QueryGroupService(Map<String, QueryGroupState> queryGroupStateMap) {
+        this.queryGroupStateMap = queryGroupStateMap;
+    }
 
     /**
      * updates the failure stats for the query group
@@ -33,22 +40,28 @@ public class QueryGroupService {
         QueryGroupState queryGroupState = queryGroupStateMap.get(queryGroupId);
         // This can happen if the request failed for a deleted query group
         // or new queryGroup is being created and has not been acknowledged yet
-        if (queryGroupId == null) {
-            return ;
+        if (queryGroupState == null) {
+            return;
         }
         queryGroupState.failures.inc();
     }
 
+    /**
+     *
+     * @return node level query group stats
+     */
     public QueryGroupStats nodeStats() {
-        Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
+        final Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
         for (Map.Entry<String, QueryGroupState> queryGroupsState : queryGroupStateMap.entrySet()) {
             final String queryGroupId = queryGroupsState.getKey();
-//            final
-        }
-        QueryGroupStats queryGroupStats = new QueryGroupStats();
-        return queryGroupStats;
+            final QueryGroupState currentState = queryGroupsState.getValue();
 
+            statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+        }
+
+        return new QueryGroupStats(statsHolderMap);
     }
+
     /**
      *
      * @param queryGroupId query group identifier
