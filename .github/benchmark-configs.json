@@ -167,5 +167,59 @@
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
     },
     "baseline_cluster_config": "x64-r5.xlarge-single-node-1-shard-0-replica-baseline"
+  },
+  "id_11": {
+    "description": "Search only test-procedure for big5 with concurrent segment search setting enabled",
+    "supported_major_versions": ["3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "TEST_WORKLOAD": "big5",
+      "ADDITIONAL_CONFIG": "search.concurrent_segment_search.enabled:true",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-300\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots-300\",\"snapshot_name\":\"big5_1_shard\"}",
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+  },
+  "id_12": {
+    "description": "Search only test-procedure for big5 with concurrent segment search mode as all",
+    "supported_major_versions": ["3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "TEST_WORKLOAD": "big5",
+      "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:all",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-300\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots-300\",\"snapshot_name\":\"big5_1_shard\"}",
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+  },
+  "id_13": {
+    "description": "Search only test-procedure for big5 with concurrent segment search mode as auto",
+    "supported_major_versions": ["3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "TEST_WORKLOAD": "big5",
+      "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:auto",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-300\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots-300\",\"snapshot_name\":\"big5_1_shard\"}",
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   }
 }
