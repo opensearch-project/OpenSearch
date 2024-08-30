@@ -80,7 +80,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     private final SearchBackpressureSettings settings;
     private final TaskResourceTrackingService taskResourceTrackingService;
     private final ThreadPool threadPool;
-    private final LongSupplier timeNanosSupplier;
 
     private final NodeDuressTrackers nodeDuressTrackers;
     private final Map<Class<? extends SearchBackpressureTask>, TaskResourceUsageTrackers> taskTrackers;
@@ -150,7 +149,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
         this.threadPool = threadPool;
-        this.timeNanosSupplier = timeNanosSupplier;
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.taskManager = taskManager;
 
