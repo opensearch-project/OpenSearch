@@ -84,22 +84,32 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         if (indicesSegments != null) {
             return indicesSegments;
         }
+        Map<String, IndexSegments> indicesSegments = new HashMap<>();
+        if (shards.length == 0) {
+            this.indicesSegments = indicesSegments;
+            return indicesSegments;
+        }
 
         Arrays.sort(shards, Comparator.comparing(shardSegment -> shardSegment.getShardRouting().getIndexName()));
-        Map<String, IndexSegments> indicesSegments = new HashMap<>();
-
-        int lastIdx = 0;
+        int startIndexPos = 0;
+        String startIndexName = shards[startIndexPos].getShardRouting().getIndexName();
         for (int i = 0; i < shards.length; i++) {
-            String lastIndexName = shards[lastIdx].getShardRouting().getIndexName();
-            String currentIndexName = shards[i].getShardRouting().getIndexName();
-            if (!currentIndexName.equals(lastIndexName)) {
-                indicesSegments.put(lastIndexName, new IndexSegments(lastIndexName, Arrays.copyOfRange(shards, lastIdx, i)));
-                lastIdx = i;
-            }
-            if (i == shards.length - 1) {
-                indicesSegments.put(currentIndexName, new IndexSegments(currentIndexName, Arrays.copyOfRange(shards, lastIdx, i + 1)));
+            if (!shards[i].getShardRouting().getIndexName().equals(startIndexName)) {
+                indicesSegments.put(startIndexName, new IndexSegments(startIndexName, Arrays.copyOfRange(shards, startIndexPos, i)));
+                startIndexPos = i;
+                startIndexName = shards[startIndexPos].getShardRouting().getIndexName();
             }
         }
+        // Add the last shardSegment from shards list which would have got missed in the loop above
+        indicesSegments.put(
+            shards[shards.length - 1].getShardRouting().getIndexName(),
+            new IndexSegments(
+                shards[shards.length - 1].getShardRouting().getIndexName(),
+                Arrays.copyOfRange(shards, startIndexPos, shards.length)
+            )
+        );
+
+        this.indicesSegments = indicesSegments;
         return indicesSegments;
     }
 
