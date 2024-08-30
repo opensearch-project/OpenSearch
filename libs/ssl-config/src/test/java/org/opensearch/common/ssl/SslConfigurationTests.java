@@ -166,7 +166,7 @@ public class SslConfigurationTests extends OpenSearchTestCase {
             randomFrom(SslVerificationMode.values()),
             randomFrom(SslClientAuthenticationMode.values()),
             DEFAULT_CIPHERS,
-            SslConfigurationLoader.DEFAULT_PROTOCOLS
+            SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS
         );
 
         final Path dir = createTempDir();
@@ -184,7 +184,7 @@ public class SslConfigurationTests extends OpenSearchTestCase {
     public void testBuildSslContext() {
         final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
         final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
-        final String protocol = randomFrom(SslConfigurationLoader.DEFAULT_PROTOCOLS);
+        final String protocol = randomFrom(SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS);
         final SslConfiguration configuration = new SslConfiguration(
             trustConfig,
             keyConfig,

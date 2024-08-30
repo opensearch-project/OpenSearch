@@ -60,6 +60,7 @@ import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.WarningsHandler;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.crypto.KeyStoreFactory;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -841,8 +842,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
-                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+                KeyStore keyStore = KeyStoreFactory.getInstanceBasedOnFileExtension(keystorePath);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }

@@ -20,6 +20,8 @@ base {
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  compileOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  compileOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   /*******
    *  !!!! NO THIRD PARTY DEPENDENCIES !!!!

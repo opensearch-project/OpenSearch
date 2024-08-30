@@ -63,6 +63,7 @@ forbiddenPatterns {
   exclude '**/*.pem'
   exclude '**/*.p12'
   exclude '**/*.jks'
+  exclude '**/*.bcfks'
 }
 
 tasks.test {
