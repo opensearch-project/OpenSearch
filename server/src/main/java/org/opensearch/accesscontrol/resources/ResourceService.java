@@ -8,7 +8,7 @@ package org.opensearch.accesscontrol.resources;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.plugins.NoOpResourcePlugin;
+import org.opensearch.plugins.NoOpResourceAccessControlPlugin;
 import org.opensearch.plugins.ResourceAccessControlPlugin;
 import org.opensearch.plugins.ResourcePlugin;
 
@@ -23,19 +23,22 @@ import java.util.stream.Collectors;
 public class ResourceService {
     private static final Logger log = LogManager.getLogger(ResourceService.class);
 
-    private final ResourcePlugin resourcePlugin;
+    private final ResourceAccessControlPlugin resourceACPlugin;
+    private final List<ResourcePlugin> resourcePlugins;
 
-    public ResourceService(final List<ResourceAccessControlPlugin> resourcePlugins) {
-        if (resourcePlugins.isEmpty()) {
-            log.info("Security plugin disabled: Using NoOpResourcePlugin");
-            resourcePlugin = new NoOpResourcePlugin();
-        } else if (resourcePlugins.size() == 1) {
+    public ResourceService(final List<ResourceAccessControlPlugin> resourceACPlugins, List<ResourcePlugin> resourcePlugins) {
+        this.resourcePlugins = resourcePlugins;
+
+        if (resourceACPlugins.isEmpty()) {
+            log.info("Security plugin disabled: Using NoOpResourceAccessControlPlugin");
+            resourceACPlugin = new NoOpResourceAccessControlPlugin();
+        } else if (resourceACPlugins.size() == 1) {
             log.info("Security plugin enabled: Using OpenSearchSecurityPlugin");
-            resourcePlugin = resourcePlugins.get(0);
+            resourceACPlugin = resourceACPlugins.get(0);
         } else {
             throw new OpenSearchException(
                 "Multiple resource access control plugins are not supported, found: "
-                    + resourcePlugins.stream().map(Object::getClass).map(Class::getName).collect(Collectors.joining(","))
+                    + resourceACPlugins.stream().map(Object::getClass).map(Class::getName).collect(Collectors.joining(","))
             );
         }
     }
@@ -43,7 +46,14 @@ public class ResourceService {
     /**
      * Gets the current ResourcePlugin to perform authorization
      */
-    public ResourcePlugin getResourceAccessControlPlugin() {
-        return resourcePlugin;
+    public ResourceAccessControlPlugin getResourceAccessControlPlugin() {
+        return resourceACPlugin;
+    }
+
+    /**
+     * List active plugins that define resources
+     */
+    public List<ResourcePlugin> listResourcePlugins() {
+        return resourcePlugins;
     }
 }

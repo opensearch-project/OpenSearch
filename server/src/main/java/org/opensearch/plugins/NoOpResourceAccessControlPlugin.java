@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * @opensearch.experimental
  */
-public class NoOpResourcePlugin implements ResourcePlugin {
+public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlugin {
 
     /**
      * Returns an empty list since security plugin is not defined.

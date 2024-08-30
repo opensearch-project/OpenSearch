@@ -214,6 +214,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ResourceAccessControlPlugin;
+import org.opensearch.plugins.ResourcePlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
@@ -1063,7 +1064,8 @@ public class Node implements Closeable {
             final List<ResourceAccessControlPlugin> resourceAccessControlPlugins = pluginsService.filterPlugins(
                 ResourceAccessControlPlugin.class
             );
-            ResourceService resourceService = new ResourceService(resourceAccessControlPlugins);
+            final List<ResourcePlugin> resourcePlugins = pluginsService.filterPlugins(ResourcePlugin.class);
+            ResourceService resourceService = new ResourceService(resourceAccessControlPlugins, resourcePlugins);
 
             final RestController restController = actionModule.getRestController();
 
