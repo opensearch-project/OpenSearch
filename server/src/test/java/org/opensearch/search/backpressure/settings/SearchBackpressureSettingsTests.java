@@ -39,13 +39,13 @@ public class SearchBackpressureSettingsTests extends OpenSearchTestCase {
     }
 
     public void testInvalidCancellationRate() {
-        Settings settings1 = Settings.builder().put("search_backpressure.search_task.cancellation_rate", randomFrom(-1,0)).build();
+        Settings settings1 = Settings.builder().put("search_backpressure.search_task.cancellation_rate", randomFrom(-1, 0)).build();
         assertThrows(
             IllegalArgumentException.class,
             () -> new SearchBackpressureSettings(settings1, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         );
 
-        Settings settings2 = Settings.builder().put("search_backpressure.search_shard_task.cancellation_rate", randomFrom(-1,0)).build();
+        Settings settings2 = Settings.builder().put("search_backpressure.search_shard_task.cancellation_rate", randomFrom(-1, 0)).build();
         assertThrows(
             IllegalArgumentException.class,
             () -> new SearchBackpressureSettings(settings2, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
@@ -53,13 +53,13 @@ public class SearchBackpressureSettingsTests extends OpenSearchTestCase {
     }
 
     public void testInvalidCancellationRatio() {
-        Settings settings1 = Settings.builder().put("search_backpressure.search_task.cancellation_ratio", randomFrom(-1,0)).build();
+        Settings settings1 = Settings.builder().put("search_backpressure.search_task.cancellation_ratio", randomFrom(-1, 0)).build();
         assertThrows(
             IllegalArgumentException.class,
             () -> new SearchBackpressureSettings(settings1, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         );
 
-        Settings settings2 = Settings.builder().put("search_backpressure.search_shard_task.cancellation_ratio", randomFrom(-1,0)).build();
+        Settings settings2 = Settings.builder().put("search_backpressure.search_shard_task.cancellation_ratio", randomFrom(-1, 0)).build();
         assertThrows(
             IllegalArgumentException.class,
             () -> new SearchBackpressureSettings(settings2, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
