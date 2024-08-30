@@ -180,10 +180,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     }
 
     public void markPendingJoinsAsComplete(List<DiscoveryNode> nodesConnected) {
-        for (final DiscoveryNode discoveryNode: nodesConnected) {
+        for (final DiscoveryNode discoveryNode : nodesConnected) {
             transportService.markPendingJoinAsCompleted(discoveryNode);
         }
     }
+
     public void disconnectFromNonBlockedNodesExcept(DiscoveryNodes discoveryNodes, DiscoveryNodes.Delta nodesDelta) {
         final List<Runnable> runnables = new ArrayList<>();
         synchronized (mutex) {

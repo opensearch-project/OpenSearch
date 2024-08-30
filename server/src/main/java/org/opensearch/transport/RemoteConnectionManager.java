@@ -128,6 +128,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     ) throws ConnectTransportException {
         throw new UnsupportedOperationException("not implemented");
     }
+
     @Override
     public Set<DiscoveryNode> getNodesJoinInProgress() {
         throw new UnsupportedOperationException("not implemented");
@@ -137,6 +138,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     public boolean markPendingJoinCompleted(DiscoveryNode node) {
         throw new UnsupportedOperationException("not implemented");
     }
+
     public Transport.Connection getAnyRemoteConnection() {
         List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;

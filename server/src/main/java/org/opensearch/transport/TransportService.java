@@ -40,7 +40,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Streamables;
@@ -487,7 +486,8 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNodeAndBlockDisconnects(node, null, listener);
     }
 
-    public void connectToNodeAndBlockDisconnects(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) throws ConnectTransportException {
+    public void connectToNodeAndBlockDisconnects(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener)
+        throws ConnectTransportException {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
@@ -502,8 +502,6 @@ public class TransportService extends AbstractLifecycleComponent
     public boolean markPendingJoinAsCompleted(DiscoveryNode node) {
         return connectionManager.markPendingJoinCompleted(node);
     }
-
-
 
     public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToExtensionNode(node, null, listener);

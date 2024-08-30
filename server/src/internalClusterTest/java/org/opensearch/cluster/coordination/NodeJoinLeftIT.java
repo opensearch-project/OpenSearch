@@ -32,9 +32,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -54,10 +51,19 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
-import org.opensearch.transport.*;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportConnectionListener;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportService;
 
-import static org.hamcrest.Matchers.is;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
@@ -99,7 +105,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
             .build();
         // start a cluster-manager node
-        final String cm =internalCluster().startNode(nodeSettings);
+        final String cm = internalCluster().startNode(nodeSettings);
 
         System.out.println("--> spawning node t1");
         final String blueNodeName = internalCluster().startNode(
@@ -126,8 +132,10 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             .get();
         System.out.println("--> done creating index");
         MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, cm);
-        MockTransportService redTransportService =
-            (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
+        MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            redNodeName
+        );
 
         ClusterService cmClsService = internalCluster().getInstance(ClusterService.class, cm);
         // simulate a slow applier on the cm
@@ -147,82 +155,79 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
             @Override
             public void onConnectionOpened(Transport.Connection connection) {
-                //                                try {
-                //                                    Thread.sleep(500);
-                //                                } catch (InterruptedException e) {
-                //                                    throw new RuntimeException(e);
-                //                                }
+                // try {
+                // Thread.sleep(500);
+                // } catch (InterruptedException e) {
+                // throw new RuntimeException(e);
+                // }
 
             }
 
             @Override
             public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
-                //                if (node.getName().equals("node_t2")) {
-                //                    try {
-                //                        Thread.sleep(250);
-                //                    } catch (InterruptedException e) {
-                //                        throw new RuntimeException(e);
-                //                    }
-                //                }
+                // if (node.getName().equals("node_t2")) {
+                // try {
+                // Thread.sleep(250);
+                // } catch (InterruptedException e) {
+                // throw new RuntimeException(e);
+                // }
+                // }
             }
 
-            //            @Override
-            //            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
-            //                try {
-            //                    Thread.sleep(5000);
-            //                } catch (InterruptedException e) {
-            //                    throw new RuntimeException(e);
-            //                }
-            //           }
+            // @Override
+            // public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            // try {
+            // Thread.sleep(5000);
+            // } catch (InterruptedException e) {
+            // throw new RuntimeException(e);
+            // }
+            // }
         });
         AtomicBoolean bb = new AtomicBoolean();
         // simulate followerchecker failure
 
-        ConnectionDelay handlingBehavior = new ConnectionDelay(
-            FOLLOWER_CHECK_ACTION_NAME,
-            ()->{
-                if (bb.get()) {
-                    return;
-                }
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                throw new NodeHealthCheckFailureException("non writable exception");
-            });
+        ConnectionDelay handlingBehavior = new ConnectionDelay(FOLLOWER_CHECK_ACTION_NAME, () -> {
+            if (bb.get()) {
+                return;
+            }
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            throw new NodeHealthCheckFailureException("non writable exception");
+        });
         redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, handlingBehavior);
 
-
-//        for (int i=0 ;i < 1; i++) {
-//            //cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
-//            System.out.println("--> follower check, iteration: " + i);
-//            bb.set(true); // pass followerchecker
-//            System.out.println("--> setting bb to true, sleeping for 1500ms, iteration: " + i);
-//            Thread.sleep(1500);
-//            bb.set(false); // fail followerchecker
-//            System.out.println("--> setting bb to false, iteration: " + i);
-//            System.out.println("--> checking cluster health 2 nodes, iteration: " + i);
-//            ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
-//            assertThat(response1.isTimedOut(), is(false));
-//            System.out.println("--> completed checking cluster health 2 nodes, iteration: " + i);
-//            //internalCluster().stopRandomNode(InternalTestCluster.nameFilter(blueNodeName));
-//            System.out.println("--> checking cluster health 3 nodes, iteration: " + i);
-//            ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
-//            assertThat(response2.isTimedOut(), is(false));
-//            System.out.println("--> completed checking cluster health 3 nodes, iteration: " + i);
-//        }
-//        for (int i=0 ;i < 1; i++) {
-//
-//            bb.set(true); // pass followerchecker
-//
-//            Thread.sleep(1500);
-//            System.out.println("--> manually disconnecting node, iteration: " + i);
-//            cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
-//        }
+        // for (int i=0 ;i < 1; i++) {
+        // //cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+        // System.out.println("--> follower check, iteration: " + i);
+        // bb.set(true); // pass followerchecker
+        // System.out.println("--> setting bb to true, sleeping for 1500ms, iteration: " + i);
+        // Thread.sleep(1500);
+        // bb.set(false); // fail followerchecker
+        // System.out.println("--> setting bb to false, iteration: " + i);
+        // System.out.println("--> checking cluster health 2 nodes, iteration: " + i);
+        // ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
+        // assertThat(response1.isTimedOut(), is(false));
+        // System.out.println("--> completed checking cluster health 2 nodes, iteration: " + i);
+        // //internalCluster().stopRandomNode(InternalTestCluster.nameFilter(blueNodeName));
+        // System.out.println("--> checking cluster health 3 nodes, iteration: " + i);
+        // ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        // assertThat(response2.isTimedOut(), is(false));
+        // System.out.println("--> completed checking cluster health 3 nodes, iteration: " + i);
+        // }
+        // for (int i=0 ;i < 1; i++) {
+        //
+        // bb.set(true); // pass followerchecker
+        //
+        // Thread.sleep(1500);
+        // System.out.println("--> manually disconnecting node, iteration: " + i);
+        // cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+        // }
 
         // FAILS WITHOUT CODE CHANGES
-        for (int i=0 ; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             bb.set(false); // fail followerchecker by force to trigger node disconnect
             System.out.println("--> disconnecting from red node, iteration: " + i);
             // cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
@@ -261,15 +266,13 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }
+
     private class ConnectionDelay implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
 
         private final String actionName;
         private final Runnable connectionBreaker;
 
-        private ConnectionDelay(
-            String actionName,
-            Runnable connectionBreaker
-        ) {
+        private ConnectionDelay(String actionName, Runnable connectionBreaker) {
             this.actionName = actionName;
             this.connectionBreaker = connectionBreaker;
         }
@@ -281,7 +284,6 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             TransportChannel channel,
             Task task
         ) throws Exception {
-
 
             connectionBreaker.run();
             handler.messageReceived(request, channel, task);

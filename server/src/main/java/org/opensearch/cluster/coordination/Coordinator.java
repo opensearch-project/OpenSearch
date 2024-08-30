@@ -420,7 +420,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getClusterManagerNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
-            logger.info("handlePublishRequest: handling version [{}] from [{}]", publishRequest.getAcceptedState().getVersion(), sourceNode);
+            logger.info(
+                "handlePublishRequest: handling version [{}] from [{}]",
+                publishRequest.getAcceptedState().getVersion(),
+                sourceNode
+            );
 
             if (sourceNode.equals(getLocalNode()) && mode != Mode.LEADER) {
                 // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
@@ -1367,18 +1371,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // join publish is failing
                 // before we publish, we might need
                 // can we recreate connections as part of publish if we don't find it?
-                // reconnect to any nodes that are trying to join, redundancy to avoid node connection wiping by concurrent node-join and left
+                // reconnect to any nodes that are trying to join, redundancy to avoid node connection wiping by concurrent node-join and
+                // left
                 // find diff of nodes from old state and new publishNodes
                 // this fails because we can't add blocking code to cluster manager thread
-//                for (DiscoveryNode addedNode : clusterChangedEvent.nodesDelta().addedNodes()) {
-//                    // maybe add a listener here to handle failures
-//                    try {
-//                        transportService.connectToNode(addedNode);
-//                    }
-//                    catch (Exception e) {
-//                        logger.info(() -> new ParameterizedMessage("[{}] failed reconnecting to [{}]", clusterChangedEvent.source(), addedNode), e);
-//                    }
-//                }
+                // for (DiscoveryNode addedNode : clusterChangedEvent.nodesDelta().addedNodes()) {
+                // // maybe add a listener here to handle failures
+                // try {
+                // transportService.connectToNode(addedNode);
+                // }
+                // catch (Exception e) {
+                // logger.info(() -> new ParameterizedMessage("[{}] failed reconnecting to [{}]", clusterChangedEvent.source(), addedNode),
+                // e);
+                // }
+                // }
 
                 publication.start(followersChecker.getFaultyNodes());
             }

@@ -43,7 +43,11 @@ import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -109,12 +113,12 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public Set<DiscoveryNode> getNodesJoinInProgress(){
+    public Set<DiscoveryNode> getNodesJoinInProgress() {
         return this.pendingJoins;
     }
 
     @Override
-    public boolean markPendingJoinCompleted(DiscoveryNode discoveryNode){
+    public boolean markPendingJoinCompleted(DiscoveryNode discoveryNode) {
         return pendingJoins.remove(discoveryNode);
     }
 
@@ -283,7 +287,6 @@ public class ClusterConnectionManager implements ConnectionManager {
             failConnectionListeners(node, releaseOnce, e, currentListener);
         }));
     }
-
 
     /**
      * Returns a connection for the given node if the node is connected.

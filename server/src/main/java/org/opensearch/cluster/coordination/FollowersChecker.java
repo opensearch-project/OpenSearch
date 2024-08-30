@@ -396,16 +396,18 @@ public class FollowersChecker {
 
                         final String reason;
 
-//                        if (exp instanceof NodeNotConnectedException || exp.getCause() instanceof NodeNotConnectedException){
-//                            // NodeNotConnectedException will only happen if getConnection fails in TransportService.sendRequest
-//                            // This only happens if clusterConnectionManager.getConnection() does not find the entry in connectedNodes list
-//                            // This happens on node disconnection
-//                            // Need to validate that this only gets triggered from node-left side. we want to ensure actual disconnections work
-//                            failureCountSinceLastSuccess--;
-//                            logger.info(() -> new ParameterizedMessage("{} cache entry not found, but node is still in cluster state. ignoring this failure", FollowerChecker.this), exp);
-//                            scheduleNextWakeUp();
-//                            return;
-//                        }
+                        // if (exp instanceof NodeNotConnectedException || exp.getCause() instanceof NodeNotConnectedException){
+                        // // NodeNotConnectedException will only happen if getConnection fails in TransportService.sendRequest
+                        // // This only happens if clusterConnectionManager.getConnection() does not find the entry in connectedNodes list
+                        // // This happens on node disconnection
+                        // // Need to validate that this only gets triggered from node-left side. we want to ensure actual disconnections
+                        // work
+                        // failureCountSinceLastSuccess--;
+                        // logger.info(() -> new ParameterizedMessage("{} cache entry not found, but node is still in cluster state.
+                        // ignoring this failure", FollowerChecker.this), exp);
+                        // scheduleNextWakeUp();
+                        // return;
+                        // }
 
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.info(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);

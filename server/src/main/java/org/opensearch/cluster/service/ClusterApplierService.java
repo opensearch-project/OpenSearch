@@ -69,7 +69,12 @@ import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -579,7 +584,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         logger.info("apply cluster state with version {}", newClusterState.version());
         callClusterStateAppliers(clusterChangedEvent, stopWatch);
 
-        //nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
+        // nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
         nodeConnectionsService.disconnectFromNonBlockedNodesExcept(newClusterState.nodes(), clusterChangedEvent.nodesDelta());
 
         assert newClusterState.coordinationMetadata()
