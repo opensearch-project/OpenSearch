@@ -185,28 +185,28 @@
       reason: "Fixed in 3.0.0"
 
   - do:
-      catch: /search_backpressure.search_task.cancellation_rate must be greater than zero/
+      catch: /search_backpressure.search_task.cancellation_rate must be > 0/
       cluster.put_settings:
         body:
           transient:
             search_backpressure.search_task.cancellation_rate: 0.0
 
   - do:
-      catch: /search_backpressure.search_task.cancellation_ratio must be greater than zero/
+      catch: /search_backpressure.search_task.cancellation_ratio must be > 0/
       cluster.put_settings:
         body:
           transient:
             search_backpressure.search_task.cancellation_ratio: 0.0
 
   - do:
-      catch: /search_backpressure.search_shard_task.cancellation_rate must be greater than zero/
+      catch: /search_backpressure.search_shard_task.cancellation_rate must be > 0/
       cluster.put_settings:
         body:
           transient:
             search_backpressure.search_shard_task.cancellation_rate: 0.0
 
   - do:
-      catch: /search_backpressure.search_shard_task.cancellation_ratio must be greater than zero/
+      catch: /search_backpressure.search_shard_task.cancellation_ratio must be > 0/
       cluster.put_settings:
         body:
           transient:

@@ -49,11 +49,12 @@ public class SearchTaskSettings {
     public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
         "search_backpressure.search_task.cancellation_ratio",
         Defaults.CANCELLATION_RATIO,
-        0.0,
-        1.0,
         value -> {
             if (value <= 0.0) {
-                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_ratio must be greater than zero");
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_ratio must be > 0");
+            }
+            if (value > 1.0) {
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_ratio must be <= 1.0");
             }
         },
         Setting.Property.Dynamic,
@@ -68,11 +69,9 @@ public class SearchTaskSettings {
     public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
         "search_backpressure.search_task.cancellation_rate",
         Defaults.CANCELLATION_RATE,
-        0.0,
-        Double.MAX_VALUE,
         value -> {
             if (value <= 0.0) {
-                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_rate must be greater than zero");
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_rate must be > 0");
             }
         },
         Setting.Property.Dynamic,
