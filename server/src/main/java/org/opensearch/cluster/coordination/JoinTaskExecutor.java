@@ -494,6 +494,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     public static void ensureNodeNotAlreadyInClusterState(DiscoveryNode node, DiscoveryNodes currentNodes){
         if (currentNodes.nodeExists(node)){
+            logger.info("node already exists exception");
             throw new NodeAlreadyJoinedException(
                 "node [{}] is already present in current nodes list from cluster state." +
                 "This might be due to ongoing node-left which has not completed",

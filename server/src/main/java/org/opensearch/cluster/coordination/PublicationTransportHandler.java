@@ -52,12 +52,7 @@ import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.BytesTransportRequest;
-import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.TransportService;
+import org.opensearch.transport.*;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -473,10 +468,10 @@ public class PublicationTransportHandler {
                 logger.trace("sending remote cluster state version [{}] to [{}]", newState.version(), destination);
                 sendRemoteClusterState(destination, publishRequest.getAcceptedState(), responseActionListener);
             } else if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
-                logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
+                logger.info("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, responseActionListener);
             } else {
-                logger.trace("sending cluster state diff for version [{}] to [{}]", newState.version(), destination);
+                logger.info("sending cluster state diff for version [{}] to [{}]", newState.version(), destination);
                 sendClusterStateDiff(destination, responseActionListener);
             }
         }
@@ -612,8 +607,13 @@ public class PublicationTransportHandler {
                     if (retryWithFullClusterStateOnFailure && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug("resending full cluster state to node {} reason {}", destination, exp.getDetailedMessage());
                         sendFullClusterState(destination, listener);
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("failed to send cluster state to {}", destination), exp);
+                    }
+//                    else if (exp instanceof NodeNotConnectedException){
+//                        // in case node is not connected, try to recreate the connection and retry?
+//                        transportService.connectToNode();
+//                    }
+                    else {
+                        logger.info(() -> new ParameterizedMessage("failed to send cluster state to {}", destination), exp);
                         listener.onFailure(exp);
                     }
                 };

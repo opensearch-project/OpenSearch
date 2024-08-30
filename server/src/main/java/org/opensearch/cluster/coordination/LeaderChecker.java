@@ -220,20 +220,20 @@ public class LeaderChecker {
                 + "since node is unhealthy ["
                 + statusInfo.getInfo()
                 + "]";
-            logger.debug(message);
+            logger.info(message);
             throw new NodeHealthCheckFailureException(message);
         } else if (discoveryNodes.isLocalNodeElectedClusterManager() == false) {
-            logger.debug("rejecting leader check on non-cluster-manager {}", request);
+            logger.info("rejecting leader check on non-cluster-manager {}", request);
             throw new CoordinationStateRejectedException(
                 "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the cluster-manager"
             );
         } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
-            logger.debug("rejecting leader check from removed node: {}", request);
+            logger.info("rejecting leader check from removed node: {}", request);
             throw new CoordinationStateRejectedException(
                 "rejecting leader check since [" + request.getSender() + "] has been removed from the cluster"
             );
         } else {
-            logger.trace("handling {}", request);
+            logger.info("handling {}", request);
         }
     }
 
@@ -308,17 +308,17 @@ public class LeaderChecker {
                             return;
                         }
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
+                            logger.info(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
                             leaderFailed(new ConnectTransportException(leader, "disconnected during check", exp));
                             return;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
+                            logger.info(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
                             leaderFailed(new NodeHealthCheckFailureException("node [" + leader + "] failed health checks", exp));
                             return;
                         }
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();
                         if (failureCount >= leaderCheckRetryCount) {
-                            logger.debug(
+                            logger.info(
                                 new ParameterizedMessage(
                                     "leader [{}] has failed {} consecutive checks (limit [{}] is {}); last failure was:",
                                     leader,

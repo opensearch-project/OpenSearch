@@ -119,6 +119,30 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
+    public void connectToNodeAndBlockDisconnects(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Void> listener
+    ) throws ConnectTransportException {
+        delegate.connectToNodeAndBlockDisconnects(
+            node,
+            connectionProfile,
+            connectionValidator,
+            listener
+        );
+    }
+    @Override
+    public Set<DiscoveryNode> getNodesJoinInProgress() {
+        return delegate.getNodesJoinInProgress();
+    }
+
+    @Override
+    public boolean markPendingJoinCompleted(DiscoveryNode node) {
+        return delegate.markPendingJoinCompleted(node);
+    }
+
+    @Override
     public void disconnectFromNode(DiscoveryNode node) {
         delegate.disconnectFromNode(node);
     }

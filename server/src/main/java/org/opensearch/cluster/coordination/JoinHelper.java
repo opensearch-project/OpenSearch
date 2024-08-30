@@ -379,7 +379,7 @@ public class JoinHelper {
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
-            logger.debug("attempting to join {} with {}", destination, joinRequest);
+            logger.info("attempting to join {} with {}", destination, joinRequest);
             transportService.sendRequest(
                 destination,
                 JOIN_ACTION_NAME,
@@ -394,7 +394,7 @@ public class JoinHelper {
                     @Override
                     public void handleResponse(Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
-                        logger.debug("successfully joined {} with {}", destination, joinRequest);
+                        logger.info("successfully joined {} with {}", destination, joinRequest);
                         lastFailedJoinAttempt.set(null);
                         nodeCommissioned.accept(true);
                         onCompletion.run();

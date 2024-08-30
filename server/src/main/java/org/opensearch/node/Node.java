@@ -60,14 +60,7 @@ import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ClusterInfoService;
-import org.opensearch.cluster.ClusterManagerMetrics;
-import org.opensearch.cluster.ClusterModule;
-import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.InternalClusterInfoService;
-import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.*;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
@@ -670,6 +663,24 @@ public class Node implements Closeable {
                 clusterManagerMetrics
             );
             clusterService.addStateApplier(scriptService);
+            /*
+            if (DiscoveryNode.isClusterManagerNode(settings)) {
+                // dummy applier for repro race condition
+                clusterService.addStateApplier(new ClusterStateApplier() {
+                    @Override
+                    public void applyClusterState(ClusterChangedEvent event) {
+                        if (event.nodesRemoved()) {
+                            try {
+                                Thread.sleep(5000);
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                });
+            }
+
+             */
             resourcesToClose.add(clusterService);
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
             if (consistentSettings.isEmpty() == false) {
