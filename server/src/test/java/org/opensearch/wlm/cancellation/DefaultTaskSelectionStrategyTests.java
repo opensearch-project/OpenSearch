@@ -14,7 +14,8 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -28,8 +29,8 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
         long thresholdInLong = 100L;
         long reduceBy = Long.MIN_VALUE;
-        List<Task> tasks = getListOfTasks(thresholdInLong);
-        List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(tasks);
+        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
+        List<QueryGroupTask> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(tasks);
         assertFalse(selectedTasks.isEmpty());
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
     }
@@ -39,8 +40,8 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         long thresholdInLong = 100L;
         long reduceBy = 50L;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<Task> tasks = getListOfTasks(thresholdInLong);
-        List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
+        List<QueryGroupTask> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertFalse(selectedTasks.isEmpty());
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
     }
@@ -50,7 +51,7 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         long thresholdInLong = 100L;
         long reduceBy = -50L;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<Task> tasks = getListOfTasks(thresholdInLong);
+        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
         try {
             testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         } catch (Exception e) {
@@ -64,7 +65,7 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         long thresholdInLong = 100L;
         long reduceBy = 0;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<Task> tasks = getListOfTasks(thresholdInLong);
+        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
         List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertTrue(selectedTasks.isEmpty());
     }
@@ -80,12 +81,12 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         return false;
     }
 
-    private List<Task> getListOfTasks(long totalMemory) {
-        List<Task> tasks = new ArrayList<>();
+    private List<QueryGroupTask> getListOfTasks(long totalMemory) {
+        List<QueryGroupTask> tasks = new ArrayList<>();
 
         while (totalMemory > 0) {
             long id = randomLong();
-            final Task task = getRandomSearchTask(id);
+            final QueryGroupTask task = getRandomSearchTask(id);
             long initial_memory = randomLongBetween(1, 100);
 
             ResourceUsageMetric[] initialTaskResourceMetrics = new ResourceUsageMetric[] {
@@ -106,7 +107,7 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         return tasks;
     }
 
-    private Task getRandomSearchTask(long id) {
+    private QueryGroupTask getRandomSearchTask(long id) {
         return new SearchTask(
             id,
             "transport",

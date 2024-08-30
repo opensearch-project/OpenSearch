@@ -11,9 +11,9 @@ package org.opensearch.wlm.cancellation;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.WorkloadManagementSettings;
@@ -179,20 +179,20 @@ public class DefaultTaskCancellation {
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
-        List<Task> selectedTasksToCancel = defaultTaskSelectionStrategy.selectTasksForCancellation(
+        List<QueryGroupTask> selectedTasksToCancel = defaultTaskSelectionStrategy.selectTasksForCancellation(
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
             getReduceBy(queryGroup, resourceType),
             resourceType
         );
         List<TaskCancellation> taskCancellations = new ArrayList<>();
-        for (Task task : selectedTasksToCancel) {
+        for (QueryGroupTask task : selectedTasksToCancel) {
             String cancellationReason = createCancellationReason(queryGroup, task, resourceType);
-            taskCancellations.add(createTaskCancellation((CancellableTask) task, cancellationReason));
+            taskCancellations.add(createTaskCancellation(task, cancellationReason));
         }
         return taskCancellations;
     }
 
-    private String createCancellationReason(QueryGroup querygroup, Task task, ResourceType resourceType) {
+    private String createCancellationReason(QueryGroup querygroup, QueryGroupTask task, ResourceType resourceType) {
         Double thresholdInPercent = getThresholdInPercent(querygroup, resourceType);
         return "[Workload Management] Cancelling Task ID : "
             + task.getId()
@@ -213,16 +213,15 @@ public class DefaultTaskCancellation {
     }
 
     protected List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
-        List<Task> tasks = defaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(
-            queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks()
-        );
+        List<QueryGroupTask> tasks = queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks();
+
         List<TaskCancellation> taskCancellations = new ArrayList<>();
-        for (Task task : tasks) {
+        for (QueryGroupTask task : tasks) {
             String cancellationReason = "[Workload Management] Cancelling Task ID : "
                 + task.getId()
                 + " from QueryGroup ID : "
                 + queryGroup.get_id();
-            taskCancellations.add(createTaskCancellation((CancellableTask) task, cancellationReason));
+            taskCancellations.add(createTaskCancellation(task, cancellationReason));
         }
         return taskCancellations;
     }
@@ -231,7 +230,7 @@ public class DefaultTaskCancellation {
         if (queryGroup.getResourceLimits().get(resourceType) == null) {
             return 0;
         }
-        Double threshold = (Double) queryGroup.getResourceLimits().get(resourceType);
+        Double threshold = queryGroup.getResourceLimits().get(resourceType);
         return getResourceUsage(queryGroup, resourceType) - convertThresholdIntoLong(resourceType, threshold);
     }
 

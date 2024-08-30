@@ -8,7 +8,6 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.tasks.Task;
 
 import java.util.List;
 import java.util.Map;
@@ -22,9 +21,9 @@ public class QueryGroupLevelResourceUsageView {
     // resourceUsage holds the resource usage data for a QueryGroup at a point in time
     private final Map<ResourceType, Long> resourceUsage;
     // activeTasks holds the list of active tasks for a QueryGroup at a point in time
-    private final List<Task> activeTasks;
+    private final List<QueryGroupTask> activeTasks;
 
-    public QueryGroupLevelResourceUsageView(Map<ResourceType, Long> resourceUsage, List<Task> activeTasks) {
+    public QueryGroupLevelResourceUsageView(Map<ResourceType, Long> resourceUsage, List<QueryGroupTask> activeTasks) {
         this.resourceUsage = resourceUsage;
         this.activeTasks = activeTasks;
     }
@@ -43,7 +42,7 @@ public class QueryGroupLevelResourceUsageView {
      *
      * @return The list of active tasks
      */
-    public List<Task> getActiveTasks() {
+    public List<QueryGroupTask> getActiveTasks() {
         return activeTasks;
     }
 }

@@ -44,11 +44,11 @@ public class QueryGroupResourceUsageTrackerService {
      * @return Map of QueryGroup views
      */
     public Map<String, QueryGroupLevelResourceUsageView> constructQueryGroupLevelUsageViews() {
-        final Map<String, List<Task>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
+        final Map<String, List<QueryGroupTask>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
         final Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = new HashMap<>();
 
         // Iterate over each QueryGroup entry
-        for (Map.Entry<String, List<Task>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
+        for (Map.Entry<String, List<QueryGroupTask>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
             // Compute the QueryGroup usage
             final EnumMap<ResourceType, Long> queryGroupUsage = new EnumMap<>(ResourceType.class);
             for (ResourceType resourceType : TRACKED_RESOURCES) {
@@ -73,12 +73,12 @@ public class QueryGroupResourceUsageTrackerService {
      *
      * @return Map of tasks grouped by QueryGroup
      */
-    private Map<String, List<Task>> getTasksGroupedByQueryGroup() {
+    private Map<String, List<QueryGroupTask>> getTasksGroupedByQueryGroup() {
         return taskResourceTrackingService.getResourceAwareTasks()
             .values()
             .stream()
             .filter(QueryGroupTask.class::isInstance)
             .map(QueryGroupTask.class::cast)
-            .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> (Task) task, Collectors.toList())));
+            .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> task, Collectors.toList())));
     }
 }

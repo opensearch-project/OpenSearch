@@ -8,9 +8,9 @@
 
 package org.opensearch.wlm.cancellation;
 
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
 import java.util.ArrayList;
@@ -32,8 +32,8 @@ public class DefaultTaskSelectionStrategy {
      *
      * @return The comparator
      */
-    public Comparator<Task> sortingCondition() {
-        return Comparator.comparingLong(Task::getStartTime);
+    public Comparator<QueryGroupTask> sortingCondition() {
+        return Comparator.comparingLong(QueryGroupTask::getStartTime);
     }
 
     /**
@@ -46,7 +46,7 @@ public class DefaultTaskSelectionStrategy {
      * @return The list of selected tasks
      * @throws IllegalArgumentException If the limit is less than zero
      */
-    public List<Task> selectTasksForCancellation(List<Task> tasks, long limit, ResourceType resourceType) {
+    public List<QueryGroupTask> selectTasksForCancellation(List<QueryGroupTask> tasks, long limit, ResourceType resourceType) {
         if (limit < 0) {
             throw new IllegalArgumentException("limit has to be greater than zero");
         }
@@ -54,17 +54,15 @@ public class DefaultTaskSelectionStrategy {
             return Collections.emptyList();
         }
 
-        List<Task> sortedTasks = tasks.stream().sorted(sortingCondition()).collect(Collectors.toList());
+        List<QueryGroupTask> sortedTasks = tasks.stream().sorted(sortingCondition()).collect(Collectors.toList());
 
-        List<Task> selectedTasks = new ArrayList<>();
+        List<QueryGroupTask> selectedTasks = new ArrayList<>();
         long accumulated = 0;
-        for (Task task : sortedTasks) {
-            if (task instanceof CancellableTask) {
-                selectedTasks.add(task);
-                accumulated += resourceType.getResourceUsage(task);
-                if (accumulated >= limit) {
-                    break;
-                }
+        for (QueryGroupTask task : sortedTasks) {
+            selectedTasks.add(task);
+            accumulated += resourceType.getResourceUsage(task);
+            if (accumulated >= limit) {
+                break;
             }
         }
         return selectedTasks;
@@ -79,7 +77,7 @@ public class DefaultTaskSelectionStrategy {
      * @param tasks The list of {@link Task} objects to be evaluated for cancellation.
      * @return A list of {@link TaskCancellation} objects representing the tasks selected for cancellation.
      */
-    public List<Task> selectTasksFromDeletedQueryGroup(List<Task> tasks) {
+    public List<QueryGroupTask> selectTasksFromDeletedQueryGroup(List<QueryGroupTask> tasks) {
         return tasks.stream().filter(task -> task instanceof CancellableTask).collect(Collectors.toList());
     }
 }

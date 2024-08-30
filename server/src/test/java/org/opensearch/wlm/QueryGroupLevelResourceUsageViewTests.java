@@ -10,7 +10,6 @@ package org.opensearch.wlm;
 
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -19,7 +18,7 @@ import java.util.Map;
 
 public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
     Map<ResourceType, Long> resourceUsage;
-    List<Task> activeTasks;
+    List<QueryGroupTask> activeTasks;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -41,7 +40,7 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
             resourceUsage,
             activeTasks
         );
-        List<Task> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
+        List<QueryGroupTask> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
         assertEquals(1, activeTasks.size());
         assertEquals(4321, activeTasks.get(0).getId());
     }
@@ -50,8 +49,8 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
         return resourceUsageData.get(ResourceType.fromName("memory")) == 34L && resourceUsageData.get(ResourceType.fromName("cpu")) == 12L;
     }
 
-    private Task getRandomTask(long id) {
-        return new Task(
+    private QueryGroupTask getRandomTask(long id) {
+        return new QueryGroupTask(
             id,
             "transport",
             SearchAction.NAME,
