@@ -33,6 +33,8 @@
 package org.opensearch.common.ssl;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -95,7 +97,7 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
     private KeyStore getSystemTrustStore() {
         if (isPkcs11Truststore(systemProperties) && trustStorePassword != null) {
             try {
-                KeyStore keyStore = KeyStore.getInstance("PKCS11");
+                KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.PKCS_11);
                 keyStore.load(null, trustStorePassword);
                 return keyStore;
             } catch (GeneralSecurityException | IOException e) {

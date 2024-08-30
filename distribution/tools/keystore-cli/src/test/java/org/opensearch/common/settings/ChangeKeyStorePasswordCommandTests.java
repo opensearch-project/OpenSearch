@@ -54,6 +54,7 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
     }
 
     public void testSetKeyStorePassword() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         createKeystore("");
         loadKeystore("");
         terminal.addSecretInput("thepassword");
@@ -67,14 +68,15 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
         terminal.addSecretInput("theoldpassword");
-        terminal.addSecretInput("thepassword");
-        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("thenewpassword");
+        terminal.addSecretInput("thenewpassword");
         // Prompted thrice: Once for the existing and twice for the new password
         execute();
-        loadKeystore("thepassword");
+        loadKeystore("thenewpassword");
     }
 
     public void testChangeKeyStorePasswordToEmpty() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
         terminal.addSecretInput("theoldpassword");
