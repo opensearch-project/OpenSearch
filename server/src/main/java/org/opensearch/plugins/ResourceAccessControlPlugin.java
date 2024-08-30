@@ -8,8 +8,8 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.accesscontrol.resources.Resource;
-import org.opensearch.accesscontrol.resources.ShareWith;
+import org.opensearch.accesscontrol.resources.EntityType;
+import org.opensearch.accesscontrol.resources.ResourceSharing;
 
 import java.util.List;
 import java.util.Map;
@@ -28,27 +28,34 @@ import java.util.Map;
 public interface ResourceAccessControlPlugin {
     /**
      * Returns all accessible resources for current user.
-     *
-     * @return list of {@link Resource} items accessible by current user.
+     * @return a map of resources accessible by user separated by system index names
      */
-    List<Resource> listAccessibleResources();
+    Map<String, List<String>> listAccessibleResources();
+
+    /**
+     * Returns all accessible resources for current user for a given system .
+     *
+     * @return list of {@link ResourceSharing} items accessible by current user.
+     */
+    List<String> listAccessibleResourcesForPlugin(String systemIndex);
 
     /**
      * Checks whether current user has permission to given resource.
      *
-     *
-     * @param resource the resource on which access is to be checked
+     * @param resourceId the resource on which access is to be checked
+     * @param systemIndexName where the resource exists
      * @return true if current user has access, false otherwise
      */
-    boolean hasPermission(Resource resource);
+    boolean hasPermission(String resourceId, String systemIndexName);
 
     /**
      * Adds an entity to the share-with. Resource needs to be in restricted mode.
-     * @param type One of the {@link ShareWith} types
-     * @param entities List of names with whom to share this resource with
-     * @return a message whether sharing was successful.
+     * @param resourceId if of the resource to be updated
+     * @param systemIndexName index where this resource is defined
+     * @param entities a map that contains entries of entities with whom the resource should be shared with
+     * @return updated resource sharing record
      */
-    String shareWith(ShareWith type, List<String> entities);
+    ResourceSharing shareWith(String resourceId, String systemIndexName, Map<EntityType, List<String>> entities);
 
     /**
      * Revokes given permission to a resource
@@ -56,16 +63,17 @@ public interface ResourceAccessControlPlugin {
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
      * @param revokeAccess a map that contains entries of entities whose access should be revoked
-     * @return true if revoke was successful, false if there was a failure
+     * @return the updated ResourceSharing record
      */
-    boolean revoke(String resourceId, String systemIndexName, Map<ShareWith, List<String>> revokeAccess);
+    ResourceSharing revokeAccess(String resourceId, String systemIndexName, Map<EntityType, List<String>> revokeAccess);
 
     /**
      * Deletes an entry from .resource_sharing index
-     * @param resource The resource to be removed from the index
+     * @param resourceId if of the resource to be updated
+     * @param systemIndexName index where this resource is defined
      * @return true if resource record was deleted, false otherwise
      */
-    boolean deleteResourceSharingRecord(Resource resource);
+    boolean deleteResourceSharingRecord(String resourceId, String systemIndexName);
 
     // TODO: Check whether methods for bulk updates are required
 }

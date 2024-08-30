@@ -8,16 +8,54 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import java.util.List;
+
 /**
- * This enum contains the type of entities a resource can be shared with.
+ * This class contains information about whom a resource is shared with.
+ * It could be a user-name, a role or a backend_role.
  *
  * @opensearch.experimental
  */
-public enum ShareWith {
+public class ShareWith {
 
-    USERS,
+    private List<String> users;
 
-    ROLES,
+    private List<String> roles;
 
-    BACKEND_ROLES,
+    private List<String> backendRoles;
+
+    public ShareWith(List<String> users, List<String> backendRoles, List<String> roles) {
+        this.users = users;
+        this.backendRoles = backendRoles;
+        this.roles = roles;
+    }
+
+    public List<String> getUsers() {
+        return users;
+    }
+
+    public void setUsers(List<String> users) {
+        this.users = users;
+    }
+
+    public List<String> getRoles() {
+        return roles;
+    }
+
+    public void setRoles(List<String> roles) {
+        this.roles = roles;
+    }
+
+    public List<String> getBackendRoles() {
+        return backendRoles;
+    }
+
+    public void setBackendRoles(List<String> backendRoles) {
+        this.backendRoles = backendRoles;
+    }
+
+    @Override
+    public String toString() {
+        return "ShareWith {" + "users=" + users + ", roles=" + roles + ", backendRoles=" + backendRoles + '}';
+    }
 }

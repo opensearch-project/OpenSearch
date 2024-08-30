@@ -8,8 +8,8 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.accesscontrol.resources.Resource;
-import org.opensearch.accesscontrol.resources.ShareWith;
+import org.opensearch.accesscontrol.resources.EntityType;
+import org.opensearch.accesscontrol.resources.ResourceSharing;
 
 import java.util.List;
 import java.util.Map;
@@ -22,13 +22,22 @@ import java.util.Map;
 public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlugin {
 
     /**
+     *
+     * @return an empty map of resource names accessible by this user.
+     */
+    @Override
+    public Map<String, List<String>> listAccessibleResources() {
+        return Map.of();
+    }
+
+    /**
      * Returns an empty list since security plugin is not defined.
      * This method alone doesn't determine permissions.
      *
      * @return empty list
      */
     @Override
-    public List<Resource> listAccessibleResources() {
+    public List<String> listAccessibleResourcesForPlugin(String systemIndexName) {
         // returns an empty list since security plugin is disabled
         return List.of();
     }
@@ -36,23 +45,26 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     /**
      * Returns true since no authorization is required.
      *
-     * @param resource the resource on which access is to be checked
+     * @param resourceId the resource on which access is to be checked
+     * @param systemIndexName where the resource exists
      * @return true
      */
-    public boolean hasPermission(Resource resource) {
+    @Override
+    public boolean hasPermission(String resourceId, String systemIndexName) {
         return true;
     }
 
     /**
      * Adds an entity to the share-with. Resource needs to be in restricted mode.
      *
-     * @param type One of the {@link ShareWith} types
-     * @param entities List of names with whom to share this resource with
-     * @return a message whether sharing was successful.
+     * @param resourceId if of the resource to be updated
+     * @param systemIndexName index where this resource is defined
+     * @param revokeAccess a map that contains entries of entities with whom this resource should be shared with
+     * @return null since security plugin is disabled in the cluster
      */
-    public String shareWith(ShareWith type, List<String> entities) {
-
-        return "Unable to share as security plugin is disabled in the cluster.";
+    @Override
+    public ResourceSharing shareWith(String resourceId, String systemIndexName, Map<EntityType, List<String>> revokeAccess) {
+        return null;
     }
 
     /**
@@ -61,20 +73,21 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
      * @param revokeAccess a map that contains entries of entities whose access should be revoked
-     * @return false since no resource-sharing information is required as security plugin is disabled
+     * @return null since security plugin is disabled in the cluster
      */
     @Override
-    public boolean revoke(String resourceId, String systemIndexName, Map<ShareWith, List<String>> revokeAccess) {
-        return false;
+    public ResourceSharing revokeAccess(String resourceId, String systemIndexName, Map<EntityType, List<String>> revokeAccess) {
+        return null;
     }
 
     /**
      * Delete a resource sharing record
-     * @param resource The resource to be removed from the index
+     * @param resourceId if of the resource to be updated
+     * @param systemIndexName index where this resource is defined
      * @return false since security plugin is disabled
      */
     @Override
-    public boolean deleteResourceSharingRecord(Resource resource) {
+    public boolean deleteResourceSharingRecord(String resourceId, String systemIndexName) {
         return false;
     }
 

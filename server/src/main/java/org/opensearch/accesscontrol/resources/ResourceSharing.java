@@ -8,54 +8,94 @@
 
 package org.opensearch.accesscontrol.resources;
 
-import java.util.List;
+import java.util.Objects;
 
 /**
- * This class contains information about whom a resource is shared with.
- * It could be a user-name, a role or a backend_role.
+ * A document in .resource_sharing index.
+ * Holds information about the resource (obtained from defining plugin's meta-data),
+ * the index which defines the resources, the creator of the resource,
+ * and the information on whom this resource is shared with.
  *
  * @opensearch.experimental
  */
 public class ResourceSharing {
 
-    private List<String> users;
+    private String sourceIdx;
 
-    private List<String> roles;
+    private String resourceId;
 
-    private List<String> backendRoles;
+    private CreatedBy createdBy;
 
-    public ResourceSharing(List<String> users, List<String> backendRoles, List<String> roles) {
-        this.users = users;
-        this.backendRoles = backendRoles;
-        this.roles = roles;
+    private ShareWith sharedWith;
+
+    public ResourceSharing(String sourceIdx, String resourceId, CreatedBy createdBy, ShareWith sharedWith) {
+        this.sourceIdx = sourceIdx;
+        this.resourceId = resourceId;
+        this.createdBy = createdBy;
+        this.sharedWith = sharedWith;
     }
 
-    public List<String> getUsers() {
-        return users;
+    public String getSourceIdx() {
+        return sourceIdx;
     }
 
-    public void setUsers(List<String> users) {
-        this.users = users;
+    public void setSourceIdx(String sourceIdx) {
+        this.sourceIdx = sourceIdx;
     }
 
-    public List<String> getRoles() {
-        return roles;
+    public String getResourceId() {
+        return resourceId;
     }
 
-    public void setRoles(List<String> roles) {
-        this.roles = roles;
+    public void setResourceId(String resourceId) {
+        this.resourceId = resourceId;
     }
 
-    public List<String> getBackendRoles() {
-        return backendRoles;
+    public CreatedBy getCreatedBy() {
+        return createdBy;
     }
 
-    public void setBackendRoles(List<String> backendRoles) {
-        this.backendRoles = backendRoles;
+    public void setCreatedBy(CreatedBy createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public ShareWith getSharedWith() {
+        return sharedWith;
+    }
+
+    public void setSharedWith(ShareWith sharedWith) {
+        this.sharedWith = sharedWith;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ResourceSharing resourceSharing = (ResourceSharing) o;
+        return Objects.equals(getSourceIdx(), resourceSharing.getSourceIdx())
+            && Objects.equals(getResourceId(), resourceSharing.getResourceId())
+            && Objects.equals(getCreatedBy(), resourceSharing.getCreatedBy())
+            && Objects.equals(getSharedWith(), resourceSharing.getSharedWith());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getSourceIdx(), getResourceId(), getCreatedBy(), getSharedWith());
     }
 
     @Override
     public String toString() {
-        return "ResourceSharing {" + "users=" + users + ", roles=" + roles + ", backendRoles=" + backendRoles + '}';
+        return "Resource {"
+            + "sourceIdx='"
+            + sourceIdx
+            + '\''
+            + ", resourceId='"
+            + resourceId
+            + '\''
+            + ", createdBy="
+            + createdBy
+            + ", sharedWith="
+            + sharedWith
+            + '}';
     }
 }
