@@ -26,7 +26,7 @@ public class ResourceService {
     private final ResourcePlugin resourcePlugin;
 
     public ResourceService(final List<ResourceAccessControlPlugin> resourcePlugins) {
-        if (resourcePlugins.size() == 0) {
+        if (resourcePlugins.isEmpty()) {
             log.info("Security plugin disabled: Using NoOpResourcePlugin");
             resourcePlugin = new NoOpResourcePlugin();
         } else if (resourcePlugins.size() == 1) {
