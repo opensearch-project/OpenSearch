@@ -53,7 +53,7 @@ public class SearchShardTaskSettings {
                 throw new IllegalArgumentException("search_backpressure.search_shard_task.cancellation_ratio must be > 0");
             }
             if (value > 1.0) {
-                throw new IllegalArgumentException("search_backpressure.search_shard_task.cancellation_ratio must <= 1.0");
+                throw new IllegalArgumentException("search_backpressure.search_shard_task.cancellation_ratio must be <= 1.0");
             }
         },
         Setting.Property.Dynamic,
