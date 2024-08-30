@@ -52,6 +52,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -96,6 +97,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
 
     private final RemoteStoreLockManagerFactory remoteStoreLockManagerFactory;
 
+    private final RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory;
+
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
@@ -123,6 +126,10 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
         this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService);
+        this.remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            () -> repositoriesService,
+            threadPool
+        );
         // We add a state applier that will remove any dangling repository cleanup actions on cluster-manager failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
@@ -272,6 +279,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
                                         repositoryStateId,
                                         snapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
                                         remoteStoreLockManagerFactory,
+                                        remoteSegmentStoreDirectoryFactory,
                                         ActionListener.wrap(result -> after(null, result), e -> after(e, null))
                                     )
                                 )

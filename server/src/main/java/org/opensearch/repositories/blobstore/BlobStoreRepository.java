@@ -111,6 +111,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -152,6 +153,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.rmi.Remote;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -900,6 +902,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
@@ -922,6 +925,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         repositoryData,
                         repositoryMetaVersion,
                         remoteStoreLockManagerFactory,
+                        remoteSegmentStoreDirectoryFactory,
                         isShallowSnapshotV2,
                         listener
                     );
@@ -936,6 +940,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
+    public void deleteSnapshotsWithPinnedTimestamp(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        ActionListener<RepositoryData> listener
+    ) {
+        deleteSnapshotsAndReleaseLockFiles(
+            snapshotIds,
+            repositoryStateId,
+            repositoryMetaVersion,
+            null, // Passing null since no remote store lock files need to be cleaned up.
+            remoteSegmentStoreDirectoryFactory,
+            true, // true only for shallow snapshot v2
+            listener
+        );
+    }
+
+    @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
@@ -947,6 +970,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             repositoryStateId,
             repositoryMetaVersion,
             null, // Passing null since no remote store lock files need to be cleaned up.
+            null, //Passing null since no remote store segment files need to be cleaned up
             false, // true only for shallow snapshot v2
             listener
         );
@@ -1022,6 +1046,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData repositoryData,
         Version repoMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
@@ -1073,7 +1098,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 foundIndices,
                 rootBlobs,
                 updatedRepoData,
+                repositoryData,
                 remoteStoreLockManagerFactory,
+                remoteSegmentStoreDirectoryFactory,
                 afterCleanupsListener
             );
             if (isShallowSnapshotV2 == false) {
@@ -1094,7 +1121,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData updatedRepoData,
+        RepositoryData oldRepoData,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<Void> listener
     ) {
         cleanupStaleBlobs(
@@ -1102,7 +1131,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             foundIndices,
             rootBlobs,
             updatedRepoData,
+            oldRepoData,
             remoteStoreLockManagerFactory,
+            remoteSegmentStoreDirectoryFactory,
             ActionListener.map(listener, ignored -> null)
         );
     }
@@ -1461,7 +1492,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData newRepoData,
+        RepositoryData oldRepoData,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<DeleteResult> listener
     ) {
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
@@ -1487,7 +1520,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (foundIndices.keySet().equals(survivingIndexIds)) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            cleanupStaleIndices(foundIndices, survivingIndexIds, remoteStoreLockManagerFactory, groupedListener);
+            cleanupStaleIndices(
+                foundIndices,
+                survivingIndexIds,
+                remoteStoreLockManagerFactory,
+                remoteSegmentStoreDirectoryFactory,
+                oldRepoData,
+                groupedListener
+            );
         }
     }
 
@@ -1510,6 +1550,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<RepositoryCleanupResult> listener
     ) {
         try {
@@ -1541,8 +1582,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             Collections.emptyList(),
                             foundIndices,
                             rootBlobs,
+                            v,
                             repositoryData,
                             remoteStoreLockManagerFactory,
+                            null,
                             ActionListener.map(listener, RepositoryCleanupResult::new)
                         ),
                         listener::onFailure
@@ -1635,6 +1678,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Set<String> survivingIndexIds,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RepositoryData oldRepoData,
         GroupedActionListener<DeleteResult> listener
     ) {
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
@@ -1659,7 +1704,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 foundIndices.size() - survivingIndexIds.size()
             );
             for (int i = 0; i < workers; ++i) {
-                executeOneStaleIndexDelete(staleIndicesToDelete, remoteStoreLockManagerFactory, groupedListener);
+                executeOneStaleIndexDelete(
+                    staleIndicesToDelete,
+                    remoteStoreLockManagerFactory,
+                    remoteSegmentStoreDirectoryFactory,
+                    oldRepoData,
+                    groupedListener
+                );
             }
         } catch (Exception e) {
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
@@ -1682,6 +1733,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void executeOneStaleIndexDelete(
         BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RepositoryData oldRepoData,
         GroupedActionListener<DeleteResult> listener
     ) throws InterruptedException {
         Map.Entry<String, BlobContainer> indexEntry = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
@@ -1706,7 +1759,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 }
                             }
                         }
+                    } else {
+                        cleanRemoteStoreDirectoryIfNeeded(indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
                     }
+
                     // Deleting the index folder
                     deleteResult = indexEntry.getValue().delete();
                     logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
@@ -1725,7 +1781,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(new ParameterizedMessage("[{}] Exception during single stale index delete", metadata.name()), e);
                 }
 
-                executeOneStaleIndexDelete(staleIndicesToDelete, remoteStoreLockManagerFactory, listener);
+                executeOneStaleIndexDelete(
+                    staleIndicesToDelete,
+                    remoteStoreLockManagerFactory,
+                    remoteSegmentStoreDirectoryFactory,
+                    oldRepoData,
+                    listener
+                );
                 return deleteResult;
             }));
         }
@@ -1820,6 +1882,51 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 )
             );
         }, onUpdateFailure);
+    }
+
+    private void cleanRemoteStoreDirectoryIfNeeded(
+        String indexSnId,
+        RepositoryData oldRepoData,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory
+    ) {
+        IndexId indexId = null;
+        List<SnapshotId> snapshotIds = Collections.emptyList();
+        for (Map.Entry<IndexId, List<SnapshotId>> entry : oldRepoData.getIndexSnapshots().entrySet()) {
+            indexId = entry.getKey();
+            if (indexId.getId().equals(indexSnId)) {
+                snapshotIds = entry.getValue();
+                break;
+            }
+        }
+
+        for (SnapshotId snapshotId : snapshotIds) {
+            try {
+                IndexMetadata prevIndexMetadata = this.getSnapshotIndexMetaData(oldRepoData, snapshotId, indexId);
+                if (prevIndexMetadata != null && !isIndexPresent(clusterService, prevIndexMetadata.getIndexUUID())) {
+                    String remoteStoreRepository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
+                        prevIndexMetadata.getSettings()
+                    );
+                    if (remoteStoreRepository == null) {
+                        break;
+                    }
+                    RemoteStorePathStrategy remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(prevIndexMetadata);
+                    for (int shardId = 0; shardId < prevIndexMetadata.getNumberOfShards(); shardId++) {
+                        remoteDirectoryCleanupAsync(
+                            remoteSegmentStoreDirectoryFactory,
+                            threadPool,
+                            remoteStoreRepository,
+                            prevIndexMetadata.getIndexUUID(),
+                            new ShardId(Index.UNKNOWN_INDEX_NAME, prevIndexMetadata.getIndexUUID(), shardId),
+                            ThreadPool.Names.REMOTE_PURGE,
+                            remoteStorePathStrategy
+                        );
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data

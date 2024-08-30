@@ -91,6 +91,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.IndexId;
@@ -2505,12 +2506,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 });
                 try {
                     latch.await();
+                    RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                        () -> repositoriesService,
+                        threadPool
+                    );
                     if (snapshotsWithLockFiles.size() > 0) {
                         repository.deleteSnapshotsAndReleaseLockFiles(
                             snapshotsWithLockFiles,
                             repositoryData.getGenId(),
                             minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithLockFiles),
                             remoteStoreLockManagerFactory,
+                            remoteSegmentStoreDirectoryFactory,
                             false,
                             ActionListener.wrap(updatedRepoData -> {
                                 logger.info("snapshots {} deleted", snapshotsWithLockFiles);
@@ -2519,18 +2525,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         );
                     }
                     if (snapshotsWithPinnedTimestamp.size() > 0) {
+
                         final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
                         pinnedTimestampListener.whenComplete(
                             updatedRepoData -> { removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData); },
                             ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)
                         );
 
-                        repository.deleteSnapshotsAndReleaseLockFiles(
+                        repository.deleteSnapshotsWithPinnedTimestamp(
                             snapshotsWithPinnedTimestamp.keySet(),
                             repositoryData.getGenId(),
                             minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithPinnedTimestamp.keySet()),
-                            null,
-                            true,
+                            remoteSegmentStoreDirectoryFactory,
                             ActionListener.wrap(updatedRepoData -> {
                                 logger.info("snapshots {} deleted", snapshotsWithPinnedTimestamp);
                                 removeSnapshotsPinnedTimestamp(

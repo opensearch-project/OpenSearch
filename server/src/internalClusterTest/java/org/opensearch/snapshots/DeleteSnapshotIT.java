@@ -441,6 +441,9 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
 
+        assertAcked(client().admin().indices().prepareDelete(indexName1));
+        Thread.sleep(100);
+
         AcknowledgedResponse deleteResponse = client().admin()
             .cluster()
             .prepareDeleteSnapshot(snapshotRepoName, snapshotName2)
