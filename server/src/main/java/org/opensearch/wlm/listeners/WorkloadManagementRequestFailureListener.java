@@ -15,6 +15,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 
+/**
+ * Request listener to listen for failures and update query group failure stats
+ */
 public class WorkloadManagementRequestFailureListener extends SearchRequestOperationsListener {
     private final QueryGroupService queryGroupService;
     private final ThreadPool threadPool;
