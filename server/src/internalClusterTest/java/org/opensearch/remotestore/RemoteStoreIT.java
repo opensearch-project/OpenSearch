@@ -47,6 +47,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -931,5 +932,39 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
             assertEquals(totalFiles, 501L);
         }
+    }
+
+    public void testAsyncTranslogDurabilityRestrictionsThroughIdxTemplates() throws Exception {
+        logger.info("Starting up cluster manager with cluster.remote_store.index.restrict.async-durability set to true");
+        String cm1 = internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build()
+        );
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> internalCluster().client()
+                .admin()
+                .indices()
+                .preparePutTemplate("test")
+                .setPatterns(Arrays.asList("test*"))
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                .get()
+        );
+        logger.info("Starting up another cluster manager with cluster.remote_store.index.restrict.async-durability set to false");
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), false).build()
+        );
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(cm1));
+        ensureStableCluster(2);
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .preparePutTemplate("test")
+                .setPatterns(Arrays.asList("test*"))
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                .get()
+        );
     }
 }
