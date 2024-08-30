@@ -357,7 +357,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
         int outgoingRecoveries = 0;
-        if (!shardRouting.primary()) {
+        if (!shardRouting.primary() && !shardRouting.isSearchOnly()) {
             ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
             outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
         } else {
