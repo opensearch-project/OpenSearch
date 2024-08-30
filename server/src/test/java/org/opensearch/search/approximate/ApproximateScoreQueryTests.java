@@ -66,7 +66,7 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
                     try {
                         IndexSearcher searcher = new IndexSearcher(reader);
                         searcher.search(query, 10);
-                        Weight weight = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F);
+                        Weight weight = query.rewrite(searcher).createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F);
                         Scorer scorer = weight.scorer(reader.leaves().get(0));
                         assertEquals(
                             scorer,

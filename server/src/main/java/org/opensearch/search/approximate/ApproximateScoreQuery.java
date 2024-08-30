@@ -12,7 +12,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.opensearch.search.internal.SearchContext;
 
@@ -43,17 +42,9 @@ public class ApproximateScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        if (resolvedQuery == null) {
-            throw new IllegalStateException("Cannot create weight without setContext being called");
-        }
-        return resolvedQuery.createWeight(searcher, scoreMode, boost);
-    }
-
-    @Override
     public final Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (resolvedQuery == null) {
-            throw new IllegalStateException("Cannot create weight without setContext being called");
+            throw new IllegalStateException("Cannot rewrite resolved query without setContext being called");
         }
         return resolvedQuery.rewrite(indexSearcher);
     }

@@ -419,7 +419,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return true;
+                return false;
             }
         };
     }
