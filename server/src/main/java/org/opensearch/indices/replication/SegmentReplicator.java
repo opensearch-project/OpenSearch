@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
@@ -64,7 +65,7 @@ public class SegmentReplicator {
         final SegmentReplicationTargetService.SegmentReplicationListener listener
     ) {
         final SegmentReplicationTarget target = new SegmentReplicationTarget(indexShard, checkpoint, source, listener);
-        startReplication(target);
+        startReplication(target, indexShard.getRecoverySettings().activityTimeout());
         return target;
     }
 
@@ -123,10 +124,10 @@ public class SegmentReplicator {
     }
 
     // pkg-private for integration tests
-    void startReplication(final SegmentReplicationTarget target) {
+    void startReplication(final SegmentReplicationTarget target, TimeValue timeout) {
         final long replicationId;
         try {
-            replicationId = onGoingReplications.startSafe(target, target.indexShard().getRecoverySettings().internalActionTimeout());
+            replicationId = onGoingReplications.startSafe(target, timeout);
         } catch (ReplicationFailedException e) {
             // replication already running for shard.
             target.fail(e, false);

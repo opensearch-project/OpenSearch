@@ -522,7 +522,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     // pkg-private for integration tests
     void startReplication(final SegmentReplicationTarget target) {
-        replicator.startReplication(target);
+        replicator.startReplication(target, recoverySettings.activityTimeout());
     }
 
     /**
