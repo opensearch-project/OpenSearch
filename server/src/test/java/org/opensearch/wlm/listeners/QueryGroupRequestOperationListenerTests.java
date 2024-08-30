@@ -9,6 +9,7 @@
 package org.opensearch.wlm.listeners;
 
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -24,25 +25,46 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class WorkloadManagementRequestFailureListenerTests extends OpenSearchTestCase {
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+
+public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase {
     public static final int ITERATIONS = 20;
     ThreadPool testThreadPool;
     QueryGroupService queryGroupService;
 
     Map<String, QueryGroupState> queryGroupStateMap;
     String testQueryGroupId;
-    WorkloadManagementRequestFailureListener sut;
+    QueryGroupRequestOperationListener sut;
 
     public void setUp() throws Exception {
         super.setUp();
         queryGroupStateMap = new HashMap<>();
         testQueryGroupId = "safjgagnakg-3r3fads";
         testThreadPool = new TestThreadPool("RejectionTestThreadPool");
+        queryGroupService = mock(QueryGroupService.class);
+        sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
     }
 
     public void tearDown() throws Exception {
         super.tearDown();
         testThreadPool.shutdown();
+    }
+
+    public void testRejectionCase() {
+        final String testQueryGroupId = "asdgasgkajgkw3141_3rt4t";
+        testThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, testQueryGroupId);
+        doThrow(OpenSearchRejectedExecutionException.class).when(queryGroupService).rejectIfNeeded(testQueryGroupId);
+        assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.onRequestStart(null));
+    }
+
+    public void testNonRejectionCase() {
+        final String testQueryGroupId = "asdgasgkajgkw3141_3rt4t";
+        testThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, testQueryGroupId);
+        doNothing().when(queryGroupService).rejectIfNeeded(testQueryGroupId);
+
+        sut.onRequestStart(null);
     }
 
     public void testValidQueryGroupRequestFailure() throws IOException {
@@ -74,7 +96,7 @@ public class WorkloadManagementRequestFailureListenerTests extends OpenSearchTes
 
         queryGroupService = new QueryGroupService(queryGroupStateMap);
 
-        sut = new WorkloadManagementRequestFailureListener(queryGroupService, testThreadPool);
+        sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
 
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < ITERATIONS; i++) {
@@ -154,7 +176,7 @@ public class WorkloadManagementRequestFailureListenerTests extends OpenSearchTes
 
             queryGroupService = new QueryGroupService(queryGroupStateMap);
 
-            sut = new WorkloadManagementRequestFailureListener(queryGroupService, testThreadPool);
+            sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
             sut.onRequestFailure(null, null);
 
             QueryGroupStats actualStats = queryGroupService.nodeStats();

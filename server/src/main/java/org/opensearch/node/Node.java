@@ -269,8 +269,7 @@ import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
-import org.opensearch.wlm.listeners.QueryGroupRequestRejectionOperationListener;
-import org.opensearch.wlm.listeners.WorkloadManagementRequestFailureListener;
+import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
 
 import javax.net.ssl.SNIHostName;
 
@@ -1022,10 +1021,8 @@ public class Node implements Closeable {
 
             final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
                                                                                  // queryGroupService
-            final QueryGroupRequestRejectionOperationListener queryGroupRequestRejectionListener =
-                new QueryGroupRequestRejectionOperationListener(queryGroupService, threadPool);
-            final WorkloadManagementRequestFailureListener workloadManagementRequestFailureListener =
-                new WorkloadManagementRequestFailureListener(queryGroupService, threadPool);
+            final QueryGroupRequestOperationListener queryGroupRequestRejectionListener =
+                new QueryGroupRequestOperationListener(queryGroupService, threadPool);
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
@@ -1035,8 +1032,7 @@ public class Node implements Closeable {
                             searchRequestStats,
                             searchRequestSlowLog,
                             searchTaskRequestOperationsListener,
-                            queryGroupRequestRejectionListener,
-                            workloadManagementRequestFailureListener
+                            queryGroupRequestRejectionListener
                         ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
