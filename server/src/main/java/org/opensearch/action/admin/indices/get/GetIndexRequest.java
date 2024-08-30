@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.get;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.info.ClusterInfoRequest;
 import org.opensearch.common.annotation.PublicApi;
@@ -40,6 +41,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * A request to retrieve information about an index.
@@ -166,7 +168,18 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeArray((o, f) -> o.writeByte(f.id), features);
+        if (out.getVersion().onOrAfter(Version.V_2_17_0) || Arrays.stream(features).noneMatch(f -> f == Feature.CONTEXT)) {
+            out.writeArray((o, f) -> o.writeByte(f.id), features);
+        } else {
+            Feature[] updatedFeatures = new Feature[features.length - 1];
+            int cursor = 0;
+            for (Feature feature : features) {
+                if (feature != Feature.CONTEXT) {
+                    updatedFeatures[cursor++] = feature;
+                }
+            }
+            out.writeArray((o, f) -> o.writeByte(f.id), updatedFeatures);
+        }
         out.writeBoolean(humanReadable);
         out.writeBoolean(includeDefaults);
     }
