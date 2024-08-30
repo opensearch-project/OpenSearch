@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
@@ -391,6 +392,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     ) {
         super.finalizeSnapshot(
@@ -400,6 +402,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             snapshotInfo,
             repositoryMetaVersion,
             stateTransformer,
+            repositoryUpdatePriority,
             listener
         );
     }
