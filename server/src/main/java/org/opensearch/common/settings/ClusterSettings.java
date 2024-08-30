@@ -805,6 +805,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
                 CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
             )
-        )
+        ),
+        List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
+        List.of(FilterAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING)
     );
 }
