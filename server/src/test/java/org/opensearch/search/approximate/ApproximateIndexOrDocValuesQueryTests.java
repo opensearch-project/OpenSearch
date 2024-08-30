@@ -74,10 +74,11 @@ public class ApproximateIndexOrDocValuesQueryTests extends OpenSearchTestCase {
         reader = DirectoryReader.open(w);
         searcher = newSearcher(reader);
 
-        Weight weight = approximateIndexOrDocValuesQuery.createWeight(searcher, ScoreMode.COMPLETE, 1f);
+        approximateIndexOrDocValuesQuery.resolvedQuery = indexQuery;
 
-        // we only get weight since we're expecting to call IODVQ
-        assertFalse(weight instanceof ConstantScoreWeight);
+        Weight weight = approximateIndexOrDocValuesQuery.rewrite(searcher).createWeight(searcher, ScoreMode.COMPLETE, 1f);
+
+        assertTrue(weight instanceof ConstantScoreWeight);
 
         ApproximateQuery approximateIndexQueryCanApproximate = new ApproximatePointRangeQuery(
             "test-index",
@@ -102,11 +103,8 @@ public class ApproximateIndexOrDocValuesQueryTests extends OpenSearchTestCase {
 
         approximateIndexOrDocValuesQueryCanApproximate.resolvedQuery = approximateIndexQueryCanApproximate;
 
-        Weight approximateIndexOrDocValuesQueryCanApproximateWeight = approximateIndexOrDocValuesQueryCanApproximate.createWeight(
-            searcher,
-            ScoreMode.COMPLETE,
-            1f
-        );
+        Weight approximateIndexOrDocValuesQueryCanApproximateWeight = approximateIndexOrDocValuesQueryCanApproximate.rewrite(searcher)
+            .createWeight(searcher, ScoreMode.COMPLETE, 1f);
 
         // we get ConstantScoreWeight since we're expecting to call ApproximatePointRangeQuery
         assertTrue(approximateIndexOrDocValuesQueryCanApproximateWeight instanceof ConstantScoreWeight);

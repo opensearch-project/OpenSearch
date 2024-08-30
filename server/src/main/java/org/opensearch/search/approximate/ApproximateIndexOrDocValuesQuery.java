@@ -9,13 +9,8 @@
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
-
-import java.io.IOException;
 
 /**
  * A wrapper around {@link IndexOrDocValuesQuery} that can be used to run approximate queries.
@@ -63,15 +58,5 @@ public final class ApproximateIndexOrDocValuesQuery extends ApproximateScoreQuer
         h = 31 * h + indexOrDocValuesQuery.getIndexQuery().hashCode();
         h = 31 * h + indexOrDocValuesQuery.getRandomAccessQuery().hashCode();
         return h;
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        // it means we haven't called setContext, some internal test might try to call this without setting context, just return IODVQ's
-        // weight
-        if (this.resolvedQuery == null) {
-            return indexOrDocValuesQuery.createWeight(searcher, scoreMode, boost);
-        }
-        return this.resolvedQuery.createWeight(searcher, scoreMode, boost);
     }
 }
