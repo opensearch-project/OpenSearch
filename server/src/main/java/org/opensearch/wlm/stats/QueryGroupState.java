@@ -31,7 +31,7 @@ public class QueryGroupState {
     /**
      * this will track the cumulative failures in a query group
      */
-    final CounterMetric failures = new CounterMetric();
+    public final CounterMetric failures = new CounterMetric();
 
     /**
      * This will track total number of cancellations in the query group due to all resource type breaches
