@@ -41,6 +41,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
+import org.opensearch.accesscontrol.resources.ResourceService;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
@@ -212,6 +213,7 @@ import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
+import org.opensearch.plugins.ResourceAccessControlPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
@@ -1058,6 +1060,11 @@ public class Node implements Closeable {
             );
             modules.add(actionModule);
 
+            final List<ResourceAccessControlPlugin> resourceAccessControlPlugins = pluginsService.filterPlugins(
+                ResourceAccessControlPlugin.class
+            );
+            ResourceService resourceService = new ResourceService(resourceAccessControlPlugins);
+
             final RestController restController = actionModule.getRestController();
 
             final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
@@ -1454,6 +1461,7 @@ public class Node implements Closeable {
                 b.bind(ResourceUsageCollectorService.class).toInstance(resourceUsageCollectorService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
+                b.bind(ResourceService.class).toInstance(resourceService);
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(SearchRequestStats.class).toInstance(searchRequestStats);
                 b.bind(SearchRequestSlowLog.class).toInstance(searchRequestSlowLog);
