@@ -27,7 +27,6 @@ import java.util.function.Consumer;
 
 public class SearchTaskSettings {
     private final List<CancellationSettingsListener> listeners = new ArrayList<>();
-    private final ClusterSettings clusterSettings;
 
     private static class Defaults {
         private static final double CANCELLATION_RATIO = 0.1;
@@ -166,7 +165,6 @@ public class SearchTaskSettings {
         this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
         this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
-        this.clusterSettings = clusterSettings;
 
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);
