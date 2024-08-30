@@ -150,7 +150,7 @@ public class MultiVersionRepositoryAccessIT extends OpenSearchRestTestCase {
                     break;
                 case STEP3_OLD_CLUSTER:
                     assertSnapshotStatusSuccessful(
-                        client, repoName, new String[] {"snapshot-" + TEST_STEP, "snapshot -" + TestStep.STEP3_OLD_CLUSTER}, Strings.EMPTY_ARRAY);
+                        client, repoName, new String[] {"snapshot-" + TEST_STEP, "snapshot-" + TestStep.STEP3_OLD_CLUSTER}, Strings.EMPTY_ARRAY);
                     break;
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
