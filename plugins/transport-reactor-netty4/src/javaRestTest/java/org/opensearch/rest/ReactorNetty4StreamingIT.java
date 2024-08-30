@@ -44,7 +44,7 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
         super.tearDown();
     }
 
-    public void testStreamingRequest() throws IOException {
+    public void testStreamingRequestNoBatching() throws IOException {
         final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
 
         final Stream<String> stream = IntStream.range(1, 6)
@@ -72,6 +72,167 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
             .then(() -> scheduler.advanceTimeBy(delay))
             .expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"5\""))
             .then(() -> scheduler.advanceTimeBy(delay))
+            .expectComplete()
+            .verify();
+
+        assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(streamingResponse.getWarnings(), empty());
+
+        final Request request = new Request("GET", "/test-streaming/_count");
+        final Response response = client().performRequest(request);
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Integer count = objectPath.evaluate("count");
+        assertThat(count, equalTo(5));
+    }
+
+    public void testStreamingRequestOneBatchBySize() throws IOException, InterruptedException {
+        final Stream<String> stream = IntStream.range(1, 6)
+            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+
+        final Duration delay = Duration.ofMillis(1);
+        final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
+            "POST",
+            "/_bulk/stream",
+            Flux.fromStream(stream).delayElements(delay).map(s -> ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
+        );
+        streamingRequest.addParameter("refresh", "true");
+        streamingRequest.addParameter("batch_size", "5");
+
+        final StreamingResponse<ByteBuffer> streamingResponse = client().streamRequest(streamingRequest);
+
+        StepVerifier.create(Flux.from(streamingResponse.getBody()).map(b -> new String(b.array(), StandardCharsets.UTF_8)))
+            .expectNextMatches(
+                s -> s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"1\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"2\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"3\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"4\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"5\"")
+            )
+            .expectComplete()
+            .verify();
+
+        assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(streamingResponse.getWarnings(), empty());
+
+        final Request request = new Request("GET", "/test-streaming/_count");
+        final Response response = client().performRequest(request);
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Integer count = objectPath.evaluate("count");
+        assertThat(count, equalTo(5));
+    }
+
+    public void testStreamingRequestManyBatchesBySize() throws IOException {
+        final Stream<String> stream = IntStream.range(1, 6)
+            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+
+        final Duration delay = Duration.ofMillis(1);
+        final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
+            "POST",
+            "/_bulk/stream",
+            Flux.fromStream(stream).delayElements(delay).map(s -> ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
+        );
+        streamingRequest.addParameter("refresh", "true");
+        streamingRequest.addParameter("batch_size", "3");
+
+        final StreamingResponse<ByteBuffer> streamingResponse = client().streamRequest(streamingRequest);
+
+        StepVerifier.create(Flux.from(streamingResponse.getBody()).map(b -> new String(b.array(), StandardCharsets.UTF_8)))
+            .expectNextMatches(
+                s -> s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"1\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"2\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"3\"")
+            )
+            .expectNextMatches(
+                s -> s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"4\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"5\"")
+            )
+            .expectComplete()
+            .verify();
+
+        assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(streamingResponse.getWarnings(), empty());
+
+        final Request request = new Request("GET", "/test-streaming/_count");
+        final Response response = client().performRequest(request);
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Integer count = objectPath.evaluate("count");
+        assertThat(count, equalTo(5));
+    }
+
+    public void testStreamingRequestManyBatchesByInterval() throws IOException {
+        final Stream<String> stream = IntStream.range(1, 6)
+            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+
+        final Duration delay = Duration.ofMillis(500);
+        final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
+            "POST",
+            "/_bulk/stream",
+            Flux.fromStream(stream).delayElements(delay).map(s -> ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
+        );
+        streamingRequest.addParameter("refresh", "true");
+        streamingRequest.addParameter("batch_interval", "5s");
+
+        final StreamingResponse<ByteBuffer> streamingResponse = client().streamRequest(streamingRequest);
+
+        // We don't check for a other documents here since those may appear in any of the chunks (it is very
+        // difficult to get the timing right). But at the end, the total number of the documents is being checked.
+        StepVerifier.create(Flux.from(streamingResponse.getBody()).map(b -> new String(b.array(), StandardCharsets.UTF_8)))
+            .expectNextMatches(
+                s -> s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"1\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"2\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"3\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"4\"")
+                    && s.contains("\"result\":\"created\"")
+                    && s.contains("\"_id\":\"5\"")
+            )
+            .expectComplete()
+            .verify();
+
+        assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(streamingResponse.getWarnings(), empty());
+
+        final Request request = new Request("GET", "/test-streaming/_count");
+        final Response response = client().performRequest(request);
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Integer count = objectPath.evaluate("count");
+        assertThat(count, equalTo(5));
+    }
+
+    public void testStreamingRequestManyBatchesByIntervalAndSize() throws IOException {
+        final Stream<String> stream = IntStream.range(1, 6)
+            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+
+        final Duration delay = Duration.ofSeconds(1);
+        final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
+            "POST",
+            "/_bulk/stream",
+            Flux.fromStream(stream).delayElements(delay).map(s -> ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
+        );
+        streamingRequest.addParameter("refresh", "true");
+        streamingRequest.addParameter("batch_interval", "3s");
+        streamingRequest.addParameter("batch_size", "5");
+
+        final StreamingResponse<ByteBuffer> streamingResponse = client().streamRequest(streamingRequest);
+
+        // We don't check for a other documents here since those may appear in any of the chunks (it is very
+        // difficult to get the timing right). But at the end, the total number of the documents is being checked.
+        StepVerifier.create(Flux.from(streamingResponse.getBody()).map(b -> new String(b.array(), StandardCharsets.UTF_8)))
+            .expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"1\""))
+            .expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"5\""))
             .expectComplete()
             .verify();
 
