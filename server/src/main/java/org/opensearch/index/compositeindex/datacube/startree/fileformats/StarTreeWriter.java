@@ -11,7 +11,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.data.StarTreeDataWriter;
-import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetaWriter;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadataWriter;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class StarTreeWriter {
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
-        StarTreeMetaWriter.writeStarTreeMetadata(
+        StarTreeMetadataWriter.writeStarTreeMetadata(
             metaOut,
             starTreeField,
             metricAggregatorInfos,

@@ -75,4 +75,8 @@ public class InMemoryTreeNode {
         return nodeType;
     }
 
+    public boolean hasChild() {
+        return !((this.children == null || this.children.isEmpty()) && this.childStarNode == null);
+    }
+
 }

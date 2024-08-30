@@ -9,7 +9,6 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -49,32 +48,6 @@ public class SequentialDocValuesIterator {
     }
 
     /**
-     * Constructs a new SequentialDocValuesIterator instance with an empty sorted numeric.
-     *
-     */
-    public SequentialDocValuesIterator() {
-        this.docIdSetIterator = DocValues.emptySortedNumeric();
-    }
-
-    /**
-     * Returns the value associated with the latest document.
-     *
-     * @return the value associated with the latest document
-     */
-    public Long getDocValue() {
-        return docValue;
-    }
-
-    /**
-     * Sets the value associated with the latest document.
-     *
-     * @param docValue the value to be associated with the latest document
-     */
-    public void setDocValue(Long docValue) {
-        this.docValue = docValue;
-    }
-
-    /**
      * Returns the id of the latest document.
      *
      * @return the id of the latest document
@@ -88,7 +61,7 @@ public class SequentialDocValuesIterator {
      *
      * @param docId the ID of the latest document
      */
-    public void setDocId(int docId) {
+    private void setDocId(int docId) {
         this.docId = docId;
     }
 

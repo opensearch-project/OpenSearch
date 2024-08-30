@@ -28,6 +28,7 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -69,7 +70,7 @@ public class StarTreeValues implements CompositeIndexValues {
 
     public StarTreeValues(
         CompositeIndexMetadata compositeIndexMetadata,
-        IndexInput compositeIndexIn,
+        IndexInput compositeIndexDataIn,
         DocValuesProducer compositeDocValuesProducer,
         SegmentReadState readState
     ) throws IOException {
@@ -97,7 +98,7 @@ public class StarTreeValues implements CompositeIndexValues {
             )
         );
 
-        this.root = StarTreeFactory.createStarTree(compositeIndexIn, starTreeMetadata);
+        this.root = StarTreeFactory.createStarTree(compositeIndexDataIn, starTreeMetadata);
 
         // get doc id set iterators for metrics and dimensions
         dimensionDocValuesIteratorMap = new LinkedHashMap<>();
@@ -140,9 +141,12 @@ public class StarTreeValues implements CompositeIndexValues {
         }
 
         // create star-tree attributes map
-        attributes = new HashMap<>();
-        attributes.put(SEGMENT_DOCS_COUNT, String.valueOf(starTreeMetadata.getSegmentAggregatedDocCount()));
-        attributes.put(STAR_TREE_DOCS_COUNT, String.valueOf(starTreeMetadata.getStarTreeDocCount()));
+        Map<String, String> segmentAttributes = new HashMap<>();
+        segmentAttributes.put(SEGMENT_DOCS_COUNT, String.valueOf(starTreeMetadata.getSegmentAggregatedDocCount()));
+        segmentAttributes.put(STAR_TREE_DOCS_COUNT, String.valueOf(starTreeMetadata.getStarTreeDocCount()));
+
+        // Create an unmodifiable view of the map
+        attributes = Collections.unmodifiableMap(segmentAttributes);
 
     }
 

@@ -72,12 +72,12 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     /**
      * The total number of documents aggregated in this star-tree segment.
      */
-    private final Integer segmentAggregatedDocCount;
+    private final int segmentAggregatedDocCount;
 
     /**
      * The maximum number of documents allowed in a leaf node.
      */
-    private final Integer maxLeafDocs;
+    private final int maxLeafDocs;
 
     /**
      * Set of dimensions for which star node creation should be skipped.
@@ -102,7 +102,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     /**
      * The number of star tree documents in the star tree.
      */
-    private final Integer starTreeDocCount;
+    private final int starTreeDocCount;
 
     /**
      * A star tree metadata constructor to initialize star tree metadata from the segment file (.cim) using index input.
@@ -309,7 +309,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      *
      * @return the aggregated document count for the star-tree.
      */
-    public Integer getSegmentAggregatedDocCount() {
+    public int getSegmentAggregatedDocCount() {
         return segmentAggregatedDocCount;
     }
 
@@ -318,7 +318,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      *
      * @return the number of star tree documents in the segment
      */
-    public Integer getStarTreeDocCount() {
+    public int getStarTreeDocCount() {
         return starTreeDocCount;
     }
 
@@ -327,7 +327,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      *
      * @return the max leaf docs.
      */
-    public Integer getMaxLeafDocs() {
+    public int getMaxLeafDocs() {
         return maxLeafDocs;
     }
 

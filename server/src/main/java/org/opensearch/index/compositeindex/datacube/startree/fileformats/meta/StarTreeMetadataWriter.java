@@ -29,9 +29,9 @@ import static org.opensearch.index.compositeindex.datacube.startree.fileformats.
  *
  * @opensearch.experimental
  */
-public class StarTreeMetaWriter {
+public class StarTreeMetadataWriter {
 
-    private static final Logger logger = LogManager.getLogger(StarTreeMetaWriter.class);
+    private static final Logger logger = LogManager.getLogger(StarTreeMetadataWriter.class);
 
     /**
      * Writes the star-tree metadata.

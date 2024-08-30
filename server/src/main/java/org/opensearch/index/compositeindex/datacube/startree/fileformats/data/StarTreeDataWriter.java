@@ -24,7 +24,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.fileformats.
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
 /**
- * Utility class for serializing a star-tree data structure.x
+ * Utility class for serializing a star-tree data structure.
  *
  * @opensearch.experimental
  */
@@ -66,7 +66,7 @@ public class StarTreeDataWriter {
         while (!queue.isEmpty()) {
             InMemoryTreeNode node = queue.remove();
 
-            if ((node.children == null || node.children.isEmpty()) && node.childStarNode == null) {
+            if (!node.hasChild()) {
                 writeStarTreeNode(output, node, ALL, ALL);
             } else {
 
@@ -80,6 +80,7 @@ public class StarTreeDataWriter {
 
                 if (node.children != null) {
                     // Sort all children nodes based on dimension value
+                    // TODO: Verify if linked hashmap can help avoid the children sort
                     List<InMemoryTreeNode> sortedChildren = new ArrayList<>(node.children.values());
                     sortedChildren.sort(
                         Comparator.comparingInt(InMemoryTreeNode::getNodeType).thenComparingLong(InMemoryTreeNode::getDimensionValue)

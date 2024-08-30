@@ -98,10 +98,10 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         Map.entry("tvd", "Term Vector Documents"),
         Map.entry("tvf", "Term Vector Fields"),
         Map.entry("liv", "Live Documents"),
-        Map.entry(Composite99DocValuesFormat.DATA_EXTENSION, "Term Vector Index"),
-        Map.entry(Composite99DocValuesFormat.META_EXTENSION, "Term Vector Documents"),
-        Map.entry(Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION, "Term Vector Fields"),
-        Map.entry(Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION, "Live Documents"),
+        Map.entry(Composite99DocValuesFormat.DATA_EXTENSION, "Composite Index"),
+        Map.entry(Composite99DocValuesFormat.META_EXTENSION, "Composite Index"),
+        Map.entry(Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION, "Composite Index DocValues"),
+        Map.entry(Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION, "Composite Index DocValues"),
         Map.entry(FuzzyFilterPostingsFormat.FUZZY_FILTER_FILE_EXTENSION, "Fuzzy Filter")
     );
 

@@ -227,7 +227,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             String dimension = dimensionsSplitOrder.get(i).getField();
             FieldInfo dimensionFieldInfo = writeState.fieldInfos.fieldInfo(dimension);
             if (dimensionFieldInfo == null) {
-                dimensionFieldInfo = getFieldInfo(dimension, 0);
+                dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC, 0);
             }
             dimensionReaders[i] = new SequentialDocValuesIterator(
                 fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
@@ -320,6 +320,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     starTreeField.getName(),
                     starTreeField.getDimensionsOrder().get(i).getField()
                 ),
+                DocValuesType.SORTED_NUMERIC,
                 fieldNumberAcrossStarTrees.getAndIncrement()
             );
             dimensionFieldInfoList[i] = fi;
@@ -333,6 +334,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     metricAggregatorInfos.get(i).getField(),
                     metricAggregatorInfos.get(i).getMetricStat().getTypeName()
                 ),
+                DocValuesType.SORTED_NUMERIC,
                 fieldNumberAcrossStarTrees.getAndIncrement()
             );
 
