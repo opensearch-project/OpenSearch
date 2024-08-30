@@ -531,7 +531,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public void validateProcessorCountForIngestPipeline(Pipeline pipeline) {
-        List<Processor> processors = pipeline.getCompoundProcessor().getProcessors();
+        List<Processor> processors = pipeline.flattenAllProcessors();
 
         if (processors.size() > maxIngestProcessorCount) {
             throw new IllegalStateException(

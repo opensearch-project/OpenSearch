@@ -749,7 +749,102 @@ public class IngestServiceTests extends OpenSearchTestCase {
         Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 1).build();
         ingestService.getClusterService().getClusterSettings().applySettings(newSettings);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
+        expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
+    }
+
+    public void testValidateProcessorCountForWithNestedOnFailureProcessorThrowsException() {
+        IngestService ingestService = createWithProcessors();
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray(
+                "{\n"
+                    + "  \"processors\": [\n"
+                    + "    {\n"
+                    + "      \"set\": {\n"
+                    + "        \"field\": \"timestamp_field_1\",\n"
+                    + "        \"value\": \"value\",\n"
+                    + "        \"on_failure\": [\n"
+                    + "          {\n"
+                    + "            \"set\": {\n"
+                    + "              \"field\": \"ingest_error1\",\n"
+                    + "              \"value\": \"failed\",\n"
+                    + "              \"tag\": \"tagggg\",\n"
+                    + "              \"on_failure\": [\n"
+                    + "                {\n"
+                    + "                  \"set\": {\n"
+                    + "                    \"field\": \"ingest_error1\",\n"
+                    + "                    \"value\": \"failed\",\n"
+                    + "                    \"tag\": \"tagggg\",\n"
+                    + "                    \"on_failure\": [\n"
+                    + "                      {\n"
+                    + "                        \"set\": {\n"
+                    + "                          \"field\": \"ingest_error1\",\n"
+                    + "                          \"value\": \"failed\",\n"
+                    + "                          \"tag\": \"tagggg\",\n"
+                    + "                          \"on_failure\": [\n"
+                    + "                            {\n"
+                    + "                              \"set\": {\n"
+                    + "                                \"field\": \"ingest_error1\",\n"
+                    + "                                \"value\": \"failed\",\n"
+                    + "                                \"tag\": \"tagggg\"\n"
+                    + "                              }\n"
+                    + "                            },\n"
+                    + "                            {\n"
+                    + "                              \"set\": {\n"
+                    + "                                \"field\": \"ingest_error2\",\n"
+                    + "                                \"value\": \"failed\",\n"
+                    + "                                \"tag\": \"tagggg\"\n"
+                    + "                              }\n"
+                    + "                            }\n"
+                    + "                        ]\n"
+                    + "                        }\n"
+                    + "                      },\n"
+                    + "                      {\n"
+                    + "                        \"set\": {\n"
+                    + "                          \"field\": \"ingest_error2\",\n"
+                    + "                          \"value\": \"failed\",\n"
+                    + "                          \"tag\": \"tagggg\"\n"
+                    + "                        }\n"
+                    + "                      }\n"
+                    + "                    ]\n"
+                    + "                  }\n"
+                    + "                },\n"
+                    + "                {\n"
+                    + "                  \"set\": {\n"
+                    + "                    \"field\": \"ingest_error2\",\n"
+                    + "                    \"value\": \"failed\",\n"
+                    + "                    \"tag\": \"tagggg\"\n"
+                    + "                  }\n"
+                    + "                }\n"
+                    + "            ]\n"
+                    + "            }\n"
+                    + "          },\n"
+                    + "          {\n"
+                    + "            \"set\": {\n"
+                    + "              \"field\": \"ingest_error2\",\n"
+                    + "              \"value\": \"failed\",\n"
+                    + "              \"tag\": \"tagggg\"\n"
+                    + "            }\n"
+                    + "          }\n"
+                    + "        ]\n"
+                    + "      }\n"
+                    + "    }\n"
+                    + "  ]\n"
+                    + "}"
+            ),
+            MediaTypeRegistry.JSON
+        );
+
+        DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
+        ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
+
+        Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 7).build();
+        ingestService.getClusterService().getClusterSettings().applySettings(newSettings);
+
+        expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
