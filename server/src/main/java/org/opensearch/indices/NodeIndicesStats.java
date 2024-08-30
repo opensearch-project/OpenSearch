@@ -83,7 +83,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             // contains statsByIndex
             if (in.readBoolean()) {
                 statsByIndex = readStatsByIndex(in);
@@ -284,7 +284,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
 
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(statsByIndex != null);
             if (statsByIndex != null) {
                 writeStatsByIndex(out);
@@ -410,7 +410,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
-    @PublicApi(since = "3.0.0")
+    @PublicApi(since = "2.17.0")
     public enum StatsLevel {
         INDICES("indices"),
         SHARDS("shards"),
