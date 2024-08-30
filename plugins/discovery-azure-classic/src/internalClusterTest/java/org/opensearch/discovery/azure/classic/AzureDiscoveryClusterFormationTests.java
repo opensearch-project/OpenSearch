@@ -41,6 +41,8 @@ import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
@@ -109,7 +111,10 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
     public static final ExternalResource MUTE_IN_FIPS_JVM = new ExternalResource() {
         @Override
         protected void before() {
-            assumeFalse("Can't run in a FIPS JVM because none of the supported Keystore types can be used", inFipsJvm());
+            assumeFalse(
+                "Can't run in a FIPS JVM because none of the supported Keystore types can be used",
+                Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP))
+            );
         }
     };
 
@@ -278,7 +283,7 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
 
     private static SSLContext getSSLContext() throws Exception {
         char[] passphrase = "keypass".toCharArray();
-        KeyStore ks = KeyStore.getInstance("JKS");
+        KeyStore ks = KeyStoreFactory.getInstance(KeyStoreType.JKS);
         try (InputStream stream = AzureDiscoveryClusterFormationTests.class.getResourceAsStream("/test-node.jks")) {
             assertNotNull("can't find keystore file", stream);
             ks.load(stream, passphrase);

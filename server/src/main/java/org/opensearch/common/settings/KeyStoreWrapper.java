@@ -40,10 +40,13 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.core.common.settings.SecureString;
 
@@ -448,8 +451,11 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
+        if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+            throw new SecurityException("Legacy KeyStore formats v1 & v2 are not supported in FIPS JVM");
+        }
         // v1 and v2 keystores never had passwords actually used, so we always use an empty password
-        KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
+        KeyStore keystore = KeyStoreFactory.getInstance(KeyStoreType.PKCS_12, "SUN");
         Map<String, EntryType> settingTypes = new HashMap<>();
         ByteArrayInputStream inputBytes = new ByteArrayInputStream(dataBytes);
         try (DataInputStream input = new DataInputStream(inputBytes)) {

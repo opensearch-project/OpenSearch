@@ -32,18 +32,20 @@
 
 package org.opensearch.common.ssl;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AlgorithmParameters;
 import java.security.Key;
-import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,9 +57,11 @@ public class PemUtilsTests extends OpenSearchTestCase {
 
     private static final Supplier<char[]> EMPTY_PASSWORD = () -> new char[0];
     private static final Supplier<char[]> TESTNODE_PASSWORD = "testnode"::toCharArray;
+    private static final Supplier<char[]> STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="::toCharArray; // has to be at least 112 bit long.
 
     public void testReadPKCS8RsaKey() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("RSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/rsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
@@ -66,7 +70,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadPKCS8RsaKeyWithBagAttrs() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("RSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode_with_bagattrs.pem"), EMPTY_PASSWORD);
@@ -74,7 +79,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadPKCS8DsaKey() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("DSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
@@ -94,7 +100,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadPKCS8EcKey() throws Exception {
-        Key key = getKeyFromKeystore("EC");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("EC", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
@@ -104,7 +111,7 @@ public class PemUtilsTests extends OpenSearchTestCase {
 
     public void testReadEncryptedPKCS8Key() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
-        Key key = getKeyFromKeystore("RSA");
+        Key key = getKeyFromKeystore("RSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
@@ -113,7 +120,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadDESEncryptedPKCS1Key() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        Key key = getKeyFromKeystore("RSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode.pem"), TESTNODE_PASSWORD);
@@ -122,7 +130,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadAESEncryptedPKCS1Key() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        Key key = getKeyFromKeystore("RSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         String bits = randomFrom("128", "192", "256");
@@ -133,7 +142,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadPKCS1RsaKey() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("RSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode-unprotected.pem"), TESTNODE_PASSWORD);
@@ -143,7 +153,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadOpenSslDsaKey() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("DSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain.pem"), EMPTY_PASSWORD);
@@ -153,7 +164,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadOpenSslDsaKeyWithParams() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("DSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(
@@ -166,7 +178,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadEncryptedOpenSslDsaKey() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("DSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
@@ -176,7 +189,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadOpenSslEcKey() throws Exception {
-        Key key = getKeyFromKeystore("EC");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("EC", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain.pem"), EMPTY_PASSWORD);
@@ -186,7 +200,8 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadOpenSslEcKeyWithParams() throws Exception {
-        Key key = getKeyFromKeystore("EC");
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        Key key = getKeyFromKeystore("EC", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(
@@ -199,11 +214,39 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadEncryptedOpenSslEcKey() throws Exception {
-        Key key = getKeyFromKeystore("EC");
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        Key key = getKeyFromKeystore("EC", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
 
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEncryptedPKCS8KeyWithPBKDF2() throws Exception {
+        Key key = getKeyFromKeystore("PKCS8_PBKDF2");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_PKCS8_enc_pbkdf2.pem"), STRONG_PRIVATE_SECRET);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEncryptedDsaKeyWithPBKDF2() throws Exception {
+        Key key = getKeyFromKeystore("DSA_PBKDF2");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_DSA_enc_pbkdf2.pem"), STRONG_PRIVATE_SECRET);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEncryptedEcKeyWithPBKDF2() throws Exception {
+        Key key = getKeyFromKeystore("EC_PBKDF2");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_EC_enc_pbkdf2.pem"), STRONG_PRIVATE_SECRET);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -239,11 +282,17 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     private Key getKeyFromKeystore(String algo) throws Exception {
-        Path keystorePath = getDataPath("/certs/pem-utils/testnode.jks");
-        try (InputStream in = Files.newInputStream(keystorePath)) {
-            KeyStore keyStore = KeyStore.getInstance("jks");
-            keyStore.load(in, "testnode".toCharArray());
-            return keyStore.getKey("testnode_" + algo, "testnode".toCharArray());
+        return getKeyFromKeystore(algo, CryptoServicesRegistrar.isInApprovedOnlyMode() ? KeyStoreType.BCFKS : KeyStoreType.JKS);
+    }
+
+    private Key getKeyFromKeystore(String algo, KeyStoreType keyStoreType) throws Exception {
+        var keystorePath = getDataPath("/certs/pem-utils/testnode" + KeyStoreType.getExtensionsByType(keyStoreType));
+        var alias = "testnode_" + algo.toLowerCase(Locale.ROOT);
+        var password = "testnode".toCharArray();
+        try (var in = Files.newInputStream(keystorePath)) {
+            var keyStore = KeyStoreFactory.getInstance(keyStoreType);
+            keyStore.load(in, password);
+            return keyStore.getKey(alias, password);
         }
     }
 }

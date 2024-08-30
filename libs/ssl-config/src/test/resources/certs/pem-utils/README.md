@@ -98,7 +98,7 @@ Create a `CA` keypair for testing
 
 Generate Certificates signed with our CA for testing
 
-     openssl req -new -newkey rsa:2048 -keyout n2.c2.key -reqexts SAN -extensions SAN \
+    openssl req -new -newkey rsa:2048 -keyout n2.c2.key -reqexts SAN -extensions SAN \
              -config <(cat /etc/ssl/openssl.cnf <(printf "[SAN]\nsubjectAltName=otherName.1:2.5.4.3;UTF8:node2.cluster2"))\
              -out n2.c2.csr
 
@@ -123,3 +123,71 @@ and the respective certificates
     openssl req -x509 -extensions v3_req -key private_secp256r1.pem -out certificate_secp256r1.pem -days 1460 -config openssl_config.cnf
     openssl req -x509 -extensions v3_req -key private_secp384r1.pem -out certificate_secp384r1.pem -days 1460 -config openssl_config.cnf
     openssl req -x509 -extensions v3_req -key private_secp521r1.pem -out certificate_secp521r1.pem -days 1460 -config openssl_config.cnf
+
+# Generate encrypted keys with PBKDF2 standard (OpenSSL v3.3.1)
+In approved-only mode BC-FIPS supports PBKDF2 standard only. 
+PKCS#12 (requires PBE), JKS or JCEKS keystores are supported in general operation mode. 
+
+## RSA PKCS#8
+openssl genrsa -out key-temp.pem 2048
+openssl pkcs8 -in key-temp.pem -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA512 -out key_PKCS8_enc_pbkdf2.pem
+
+## DSA
+openssl genpkey -genparam -algorithm DSA -out param_temp.pem -pkeyopt pbits:2048 -pkeyopt qbits:224 -pkeyopt digest:SHA256 -pkeyopt gindex:1 -text
+openssl genpkey -paramfile param_temp.pem -out key_DSA_enc_pbkdf2.pem -aes256 -pass stdin
+
+## EC
+openssl genpkey -algorithm EC -out key_EC_enc_pbkdf2.pem -pkeyopt ec_paramgen_curve:secp384r1 -pkeyopt ec_param_enc:named_curve -pass stdin
+
+```bash
+export KEY_PW='6!6428DQXwPpi7@$ggeg/='
+export LIB_PATH="/path/to/lib/folder"
+
+for key_file in key*pbkdf2.pem; do
+    # generate self-signed certificate
+    openssl req -x509 -key "$key_file" -sha256 -days 3650 -subj "/CN=OpenSearch Test Node" -passin pass:"$KEY_PW" \
+        -addext "subjectAltName=DNS:localhost,DNS:localhost.localdomain,DNS:localhost4,DNS:localhost4.localdomain4,DNS:localhost6,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1" \
+        -out ca_temp.pem
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while generating cert for $key_file"
+        exit 1
+    fi
+    # create a new P12 keystore with key + cert
+    algo=$(echo "$key_file" | sed -n 's/key_\(.*\)_enc_pbkdf2.pem/\1/p')
+    openssl pkcs12 -export -inkey "$key_file" -in ca_temp.pem -name "testnode_${algo}_pbkdf2" -out testnode.p12 \
+        -passin pass:"$KEY_PW" \
+        -passout pass:"$STORE_PW"
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while adding key + cert to P12 keystore for $key_file"
+        exit 1
+    fi
+    # migrate from P12 to BCFKS keystore (keytool 21.0.2)
+    keytool -importkeystore -noprompt \
+        -srckeystore testnode.p12 \
+        -srcstoretype PKCS12 \
+        -srcstorepass "$STORE_PW" \
+        -destkeystore testnode.bcfks \
+        -deststoretype BCFKS \
+        -deststorepass "$STORE_PW" \
+        -providername BCFIPS \
+        -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+        -providerpath $LIB_PATH/bc-fips-2.0.0.jar
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while migrating to BCFKS for $key_file"
+        exit 1
+    fi
+    # import from P12 to JKS keystore (keytool 21.0.2)
+    keytool -importkeystore -noprompt \
+        -srckeystore testnode.p12 \
+        -srcstoretype PKCS12 \
+        -srcstorepass "$STORE_PW" \
+        -destkeystore testnode.jks \
+        -deststoretype JKS \
+        -deststorepass "$STORE_PW"
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while migrating to JKS for $key_file"
+        exit 1
+    fi
+done
+rm ca_temp.pem testnode.p12
+```

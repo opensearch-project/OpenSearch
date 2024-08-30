@@ -60,7 +60,7 @@ import java.util.function.Supplier;
 
 final class PemUtils {
 
-    protected static final String BCFIPS = "BCFIPS";
+    private static final String BCFIPS = "BCFIPS";
 
     private PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -148,15 +148,20 @@ final class PemUtils {
         while (pemParser.ready()) {
             try {
                 var object = pemParser.readObject();
-                if (object instanceof ASN1ObjectIdentifier) { // handles -----BEGIN EC PARAMETERS-----
+                if (object == null) { // ignore unknown objects;
+                    continue;
+                }
+                if (object instanceof ASN1ObjectIdentifier) { // ignore -----BEGIN EC PARAMETERS-----
                     continue;
                 }
                 return object;
-            } catch (IOException e) { // handles -----BEGIN DSA PARAMETERS-----
+            } catch (IOException e) { // ignore -----BEGIN DSA PARAMETERS-----
                 // ignore
             }
         }
-        throw new SslConfigException("Error parsing Private Key [" + keyPath.toAbsolutePath() + "], file is empty");
+        throw new SslConfigException(
+            "Error parsing Private Key [" + keyPath.toAbsolutePath() + "]. The file is empty, or does not contain expected key format."
+        );
     }
 
 }

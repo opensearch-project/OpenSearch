@@ -61,6 +61,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.client.Client;
@@ -361,6 +362,12 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
+
+    @BeforeClass
+    public static void setFipsJvm() throws Exception {
+        var runInApprovedMode = Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        CryptoServicesRegistrar.setApprovedOnlyMode(runInApprovedMode);
+    }
 
     @BeforeClass
     public static void setFileSystem() throws Exception {
@@ -1758,7 +1765,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return CryptoServicesRegistrar.isInApprovedOnlyMode();
     }
 
     /**

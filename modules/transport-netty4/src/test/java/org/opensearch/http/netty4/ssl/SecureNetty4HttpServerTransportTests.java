@@ -10,6 +10,8 @@ package org.opensearch.http.netty4.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -121,7 +123,7 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                    final KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.PKCS_12);
                     keyStore.load(
                         SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.p12"),
                         "password".toCharArray()
