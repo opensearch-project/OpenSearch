@@ -61,3 +61,94 @@ setup:
   - match: { aggregations.histo.buckets.8.doc_count: 1 }
   - match: { aggregations.histo.buckets.12.key_as_string: "2016-06-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.12.doc_count: 1 }
+
+---
+"Date histogram aggregation w/ filter query test":
+  - do:
+      bulk:
+        refresh: true
+        index: dhisto-agg-w-query
+        body:
+          - '{"index": {}}'
+          - '{"routing": "route1", "date": "2024-08-12", "dow": "monday"}'
+          - '{"index": {}}'
+          - '{"routing": "route1", "date": "2024-08-14", "dow": "wednesday"}'
+          - '{"index": {}}'
+          - '{"routing": "route1", "date": "2024-08-19", "dow": "monday"}'
+          - '{"index": {}}'
+          - '{"routing": "route2", "date": "2024-08-13", "dow": "tuesday"}'
+          - '{"index": {}}'
+          - '{"routing": "route2", "date": "2024-08-15", "dow": "thursday"}'
+
+  - do:
+      search:
+        index: dhisto-agg-w-query
+        body:
+          query:
+            bool:
+              must:
+                match_all: {}
+              filter:
+                - terms:
+                    routing:
+                      - "route1"
+          aggregations:
+            weekHisto:
+              date_histogram:
+                field: date
+                calendar_interval: week
+          _source: false
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.weekHisto.buckets.0.doc_count: 2 }
+  - match: { aggregations.weekHisto.buckets.1.doc_count: 1 }
+
+---
+"Date histogram aggregation w/ shared field range test":
+  - skip:
+      version: " - 2.16.99"
+      reason: "Bugfix not backported to 2.16"
+
+  - do:
+      bulk:
+        refresh: true
+        index: dhisto-agg-w-query
+        body:
+          - '{"index": {}}'
+          - '{"date": "2024-10-31"}'
+          - '{"index": {}}'
+          - '{"date": "2024-11-11"}'
+          - '{"index": {}}'
+          - '{"date": "2024-11-28"}'
+          - '{"index": {}}'
+          - '{"date": "2024-12-25"}'
+          - '{"index": {}}'
+          - '{"date": "2025-01-01"}'
+          - '{"index": {}}'
+          - '{"date": "2025-02-14"}'
+
+  - do:
+      search:
+        index: dhisto-agg-w-query
+        body:
+          profile: true
+          query:
+            range:
+              date:
+                gte: "2024-01-01"
+                lt: "2025-01-01"
+          aggregations:
+            monthHisto:
+              date_histogram:
+                field: date
+                calendar_interval: month
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.monthHisto.buckets.0.doc_count: 1 }
+  - match: { aggregations.monthHisto.buckets.1.doc_count: 2 }
+  - match: { aggregations.monthHisto.buckets.2.doc_count: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }

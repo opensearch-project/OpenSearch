@@ -67,6 +67,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.cache.query.IndexQueryCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -98,6 +99,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -107,8 +109,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static org.apache.logging.log4j.util.Strings.toRootUpperCase;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -320,6 +320,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final FileCache fileCache;
+    private final CompositeIndexSettings compositeIndexSettings;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -339,7 +340,8 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final FileCache fileCache
+        final FileCache fileCache,
+        final CompositeIndexSettings compositeIndexSettings
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -352,6 +354,32 @@ public final class IndexModule {
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
         this.fileCache = fileCache;
+        this.compositeIndexSettings = compositeIndexSettings;
+    }
+
+    public IndexModule(
+        final IndexSettings indexSettings,
+        final AnalysisRegistry analysisRegistry,
+        final EngineFactory engineFactory,
+        final EngineConfigFactory engineConfigFactory,
+        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final BooleanSupplier allowExpensiveQueries,
+        final IndexNameExpressionResolver expressionResolver,
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final FileCache fileCache
+    ) {
+        this(
+            indexSettings,
+            analysisRegistry,
+            engineFactory,
+            engineConfigFactory,
+            directoryFactories,
+            allowExpensiveQueries,
+            expressionResolver,
+            recoveryStateFactories,
+            fileCache,
+            null
+        );
     }
 
     public IndexModule(
@@ -373,6 +401,7 @@ public final class IndexModule {
             allowExpensiveQueries,
             expressionResolver,
             recoveryStateFactories,
+            null,
             null
         );
     }
@@ -650,7 +679,7 @@ public final class IndexModule {
 
         public static DataLocalityType getValueOf(final String localityType) {
             Objects.requireNonNull(localityType, "No locality type given.");
-            final String localityTypeName = toRootUpperCase(localityType.trim());
+            final String localityTypeName = localityType.trim().toUpperCase(Locale.ROOT);
             final DataLocalityType type = LOCALITY_TYPES.get(localityTypeName);
             if (type != null) {
                 return type;
@@ -759,7 +788,8 @@ public final class IndexModule {
                 clusterDefaultRefreshIntervalSupplier,
                 recoverySettings,
                 remoteStoreSettings,
-                fileCache
+                fileCache,
+                compositeIndexSettings
             );
             success = true;
             return indexService;

@@ -9,7 +9,7 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -29,13 +29,12 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 /**
  * Wrapper class for uploading/downloading {@link ClusterMetadataManifest} to/from remote blob store
  */
-public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEntity<ClusterMetadataManifest> {
+public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWriteableBlobEntity<ClusterMetadataManifest> {
 
     public static final String MANIFEST = "manifest";
     public static final int SPLITTED_MANIFEST_FILE_LENGTH = 6;
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
     public static final String COMMITTED = "C";
     public static final String PUBLISHED = "P";
 
@@ -150,7 +149,7 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
 
     private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat() {
         long codecVersion = getManifestCodecVersion();
-        if (codecVersion == MANIFEST_CURRENT_CODEC_VERSION) {
+        if (codecVersion == ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V2) {
             return CLUSTER_METADATA_MANIFEST_FORMAT_V2;

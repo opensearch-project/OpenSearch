@@ -178,7 +178,10 @@ teardown:
   - skip:
       version: " - 2.15.99"
       reason: "fixed in 2.16.0"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "index template [test_for_bulk_upsert_index_template] has index patterns [test_bulk_upsert_*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test_for_bulk_upsert_index_template] will take precedence during new index creation"
       indices.put_index_template:
         name: test_for_bulk_upsert_index_template
         body:

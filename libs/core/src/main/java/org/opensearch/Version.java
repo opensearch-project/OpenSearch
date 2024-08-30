@@ -99,6 +99,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_3_17 = new Version(1031799, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_18 = new Version(1031899, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_19 = new Version(1031999, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_3_20 = new Version(1032099, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_2_0_0 = new Version(2000099, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_0_1 = new Version(2000199, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_0_2 = new Version(2000299, org.apache.lucene.util.Version.LUCENE_9_1_0);
@@ -136,6 +137,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_2_15_0 = new Version(2150099, org.apache.lucene.util.Version.LUCENE_9_10_0);
     public static final Version V_2_15_1 = new Version(2150199, org.apache.lucene.util.Version.LUCENE_9_10_0);
     public static final Version V_2_16_0 = new Version(2160099, org.apache.lucene.util.Version.LUCENE_9_11_1);
+    public static final Version V_2_16_1 = new Version(2160199, org.apache.lucene.util.Version.LUCENE_9_11_1);
     public static final Version V_2_17_0 = new Version(2170099, org.apache.lucene.util.Version.LUCENE_9_11_1);
     public static final Version CURRENT = V_2_17_0;
 

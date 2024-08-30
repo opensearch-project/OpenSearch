@@ -14,8 +14,8 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.ResourceType;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,7 +44,7 @@ public class QueryGroupMetadataTests extends AbstractDiffableSerializationTestCa
         queryGroupMetadata.toXContent(builder, null);
         builder.endObject();
         assertEquals(
-            "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\",\"resiliency_mode\":\"enforced\",\"updatedAt\":1720047207,\"resourceLimits\":{\"memory\":0.5}}}",
+            "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\",\"resiliency_mode\":\"enforced\",\"updated_at\":1720047207,\"resource_limits\":{\"memory\":0.5}}}",
             builder.toString()
         );
     }

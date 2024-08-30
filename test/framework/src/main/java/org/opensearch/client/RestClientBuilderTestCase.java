@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import joptsimple.internal.Strings;
 import org.apache.http.Header;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -55,7 +54,7 @@ public abstract class RestClientBuilderTestCase extends OpenSearchTestCase {
             assertEquals(expectedValue, header.getValue());
         }
         if (expectedHeaders.isEmpty() == false) {
-            fail("Missing expected headers in rest client: " + Strings.join(expectedHeaders.keySet(), ", "));
+            fail("Missing expected headers in rest client: " + String.join(",", expectedHeaders.keySet()));
         }
     }
 }

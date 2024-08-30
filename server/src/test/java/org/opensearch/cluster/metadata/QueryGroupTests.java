@@ -14,8 +14,8 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.ResourceType;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.wlm.ResourceType;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
 
     static QueryGroup createRandomQueryGroup(String _id) {
         String name = randomAlphaOfLength(10);
-        Map<ResourceType, Object> resourceLimit = new HashMap<>();
+        Map<ResourceType, Double> resourceLimit = new HashMap<>();
         resourceLimit.put(ResourceType.MEMORY, randomDoubleBetween(0.0, 0.80, false));
         return new QueryGroup(name, _id, randomMode(), resourceLimit, Instant.now().getMillis());
     }
@@ -99,8 +99,31 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     public void testIllegalQueryGroupMode() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup("analytics", "_id", null, Map.of(ResourceType.MEMORY, (Object) 0.4), Instant.now().getMillis())
+            () -> new QueryGroup("analytics", "_id", null, Map.of(ResourceType.MEMORY, 0.4), Instant.now().getMillis())
         );
+    }
+
+    public void testQueryGroupInitiation() {
+        QueryGroup queryGroup = new QueryGroup("analytics", randomMode(), Map.of(ResourceType.MEMORY, 0.4));
+        assertNotNull(queryGroup.getName());
+        assertNotNull(queryGroup.get_id());
+        assertNotNull(queryGroup.getResourceLimits());
+        assertFalse(queryGroup.getResourceLimits().isEmpty());
+        assertEquals(1, queryGroup.getResourceLimits().size());
+        assertTrue(allowedModes.contains(queryGroup.getResiliencyMode()));
+        assertTrue(queryGroup.getUpdatedAtInMillis() != 0);
+    }
+
+    public void testIllegalQueryGroupName() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new QueryGroup("a".repeat(51), "_id", null, Map.of(ResourceType.MEMORY, 0.4), Instant.now().getMillis())
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new QueryGroup("", "_id", null, Map.of(ResourceType.MEMORY, 0.4), Instant.now().getMillis())
+        );
+
     }
 
     public void testInvalidResourceLimitWhenInvalidSystemResourceValueIsGiven() {
@@ -110,7 +133,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of(ResourceType.MEMORY, (Object) randomDoubleBetween(1.1, 1.8, false)),
+                Map.of(ResourceType.MEMORY, randomDoubleBetween(1.1, 1.8, false)),
                 Instant.now().getMillis()
             )
         );
@@ -149,9 +172,9 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         assertEquals(
             "{\"_id\":\""
                 + queryGroupId
-                + "\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updatedAt\":"
+                + "\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updated_at\":"
                 + currentTimeInMillis
-                + ",\"resourceLimits\":{\"cpu\":0.3,\"memory\":0.4}}",
+                + ",\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4}}",
             builder.toString()
         );
     }
