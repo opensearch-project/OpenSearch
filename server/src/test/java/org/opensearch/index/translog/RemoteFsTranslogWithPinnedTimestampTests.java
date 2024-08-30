@@ -15,6 +15,8 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -22,9 +24,12 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.model.RemotePinnedTimestamps;
 import org.opensearch.gateway.remote.model.RemoteStorePinnedTimestampsBlobStore;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -38,14 +43,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -139,6 +148,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
         RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        // Fetch pinned timestamps so that it won't be stale
         updatePinnedTimstampTask.run();
 
         translog.setMinSeqNoToKeep(4);
@@ -147,7 +157,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("8", 8, primaryTerm.get(), new byte[] { 1 }));
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
-        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        // Fetch pinned timestamps so that it won't be stale
         updatePinnedTimstampTask.run();
         translog.trimUnreferencedReaders();
 
@@ -161,6 +171,185 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
+    }
+
+    @Override
+    public void testMetadataFileDeletion() throws Exception {
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        // Test deletion of metadata files
+        int numDocs = randomIntBetween(6, 10);
+        for (int i = 0; i < numDocs; i++) {
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
+            translog.setMinSeqNoToKeep(i);
+            // Fetch pinned timestamps so that it won't be stale
+            updatePinnedTimstampTask.run();
+            translog.trimUnreferencedReaders();
+            assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+            assertEquals(1, translog.readers.size());
+        }
+        assertBusy(() -> assertEquals(2, translog.allUploaded().size()));
+        addToTranslogAndListAndUpload(
+            translog,
+            ops,
+            new Translog.Index(String.valueOf(numDocs), numDocs, primaryTerm.get(), new byte[] { 1 })
+        );
+        addToTranslogAndListAndUpload(
+            translog,
+            ops,
+            new Translog.Index(String.valueOf(numDocs + 1), numDocs + 1, primaryTerm.get(), new byte[] { 1 })
+        );
+        updatePinnedTimstampTask.run();
+        translog.trimUnreferencedReaders();
+        assertBusy(() -> { assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()); });
+    }
+
+    @Override
+    public void testDrainSync() throws Exception {
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+
+        // This test checks following scenarios -
+        // 1. During ongoing uploads, the available permits are 0.
+        // 2. During an upload, if drainSync is called, it will wait for it to acquire and available permits are 0.
+        // 3. After drainSync, if trimUnreferencedReaders is attempted, we do not delete from remote store.
+        // 4. After drainSync, if an upload is an attempted, we do not upload to remote store.
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        assertEquals(0, translog.allUploaded().size());
+        assertEquals(1, translog.readers.size());
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(0), 0, primaryTerm.get(), new byte[] { 1 }));
+        assertEquals(4, translog.allUploaded().size());
+        assertEquals(2, translog.readers.size());
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+
+        translog.setMinSeqNoToKeep(0);
+        // Fetch pinned timestamps so that it won't be stale
+        updatePinnedTimstampTask.run();
+        translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        assertEquals(1, translog.readers.size());
+
+        // Case 1 - During ongoing uploads, the available permits are 0.
+        slowDown.setSleepSeconds(2);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread thread1 = new Thread(() -> {
+            try {
+                addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(1), 1, primaryTerm.get(), new byte[] { 1 }));
+                assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+                latch.countDown();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread1.start();
+        assertBusy(() -> assertEquals(0, translog.availablePermits()));
+        // Case 2 - During an upload, if drainSync is called, it will wait for it to acquire and available permits are 0.
+        Releasable releasable = translog.drainSync();
+        assertBusy(() -> assertEquals(0, latch.getCount()));
+        assertEquals(0, translog.availablePermits());
+        slowDown.setSleepSeconds(0);
+        assertEquals(4, translog.allUploaded().size());
+        assertEquals(2, translog.readers.size());
+        Set<String> mdFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
+
+        // Case 3 - After drainSync, if trimUnreferencedReaders is attempted, we do not delete from remote store.
+        translog.setMinSeqNoToKeep(1);
+        // Fetch pinned timestamps so that it won't be stale
+        updatePinnedTimstampTask.run();
+        translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        assertEquals(1, translog.readers.size());
+        assertEquals(2, translog.allUploaded().size());
+        assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
+
+        // Case 4 - After drainSync, if an upload is an attempted, we do not upload to remote store.
+        Translog.Location loc = addToTranslogAndListAndUpload(
+            translog,
+            ops,
+            new Translog.Index(String.valueOf(2), 2, primaryTerm.get(), new byte[] { 1 })
+        );
+        assertEquals(1, translog.readers.size());
+        assertEquals(2, translog.allUploaded().size());
+        assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
+
+        // Refill the permits back
+        Releasables.close(releasable);
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(3), 3, primaryTerm.get(), new byte[] { 1 }));
+        assertEquals(2, translog.readers.size());
+        assertEquals(4, translog.allUploaded().size());
+        assertEquals(3, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+
+        translog.setMinSeqNoToKeep(3);
+        // Fetch pinned timestamps so that it won't be stale
+        updatePinnedTimstampTask.run();
+        translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        assertEquals(1, translog.readers.size());
+        assertBusy(() -> assertEquals(2, translog.allUploaded().size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+    }
+
+    @Override
+    public void testExtraGenToKeep() throws Exception {
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+
+        TranslogConfig config = getConfig(1);
+        ChannelFactory channelFactory = getChannelFactory();
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            channelFactory,
+            primaryTerm.get()
+        );
+        TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(config.getIndexSettings());
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        try (
+            RemoteFsTranslog translog = new RemoteFsTranslog(
+                config,
+                translogUUID,
+                deletionPolicy,
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                persistedSeqNos::add,
+                repository,
+                threadPool,
+                () -> Boolean.TRUE,
+                new RemoteTranslogTransferTracker(shardId, 10),
+                DefaultRemoteStoreSettings.INSTANCE
+            ) {
+                @Override
+                ChannelFactory getChannelFactory() {
+                    return channelFactory;
+                }
+            }
+        ) {
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 1 }));
+
+            // expose the new checkpoint (simulating a commit), before we trim the translog
+            translog.setMinSeqNoToKeep(2);
+
+            // Trims from local
+            // Fetch pinned timestamps so that it won't be stale
+            updatePinnedTimstampTask.run();
+            translog.trimUnreferencedReaders();
+            assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 3, primaryTerm.get(), new byte[] { 1 }));
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("5", 4, primaryTerm.get(), new byte[] { 1 }));
+            // Trims from remote now
+            // Fetch pinned timestamps so that it won't be stale
+            updatePinnedTimstampTask.run();
+            translog.trimUnreferencedReaders();
+            assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+            assertEquals(
+                8,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        }
     }
 
     // getGenerationsToBeDeleted
