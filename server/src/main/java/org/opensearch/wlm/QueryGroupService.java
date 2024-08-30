@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
@@ -40,11 +41,27 @@ public class QueryGroupService {
 
     public QueryGroupStats nodeStats() {
         Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
-        for (Map.Entry<String, QueryGroupState> queryGroupsState: queryGroupStateMap.entrySet()) {
+        for (Map.Entry<String, QueryGroupState> queryGroupsState : queryGroupStateMap.entrySet()) {
             final String queryGroupId = queryGroupsState.getKey();
 //            final
         }
         QueryGroupStats queryGroupStats = new QueryGroupStats();
         return queryGroupStats;
+
+    }
+    /**
+     *
+     * @param queryGroupId query group identifier
+     */
+    public void rejectIfNeeded(String queryGroupId) {
+        if (queryGroupId == null) return;
+        boolean reject = false;
+        final StringBuilder reason = new StringBuilder();
+        // TODO: At this point this is dummy and we need to decide whether to cancel the request based on last
+        // reported resource usage for the queryGroup. We also need to increment the rejection count here for the
+        // query group
+        if (reject) {
+            throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended." + reason.toString());
+        }
     }
 }
