@@ -207,6 +207,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.SegmentReplicator;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
@@ -2110,7 +2111,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         transportService,
                         new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                         indicesService,
-                        clusterService
+                        clusterService,
+                        new SegmentReplicator(threadPool)
                     ),
                     mock(SegmentReplicationSourceService.class),
                     shardStateAction,

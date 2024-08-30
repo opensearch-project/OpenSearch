@@ -35,6 +35,7 @@ import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.SegmentReplicator;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -399,7 +400,8 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 mock(TransportService.class),
                 sourceFactory,
                 indicesService,
-                clusterService
+                clusterService,
+                new SegmentReplicator(threadPool)
             );
             final Consumer<IndexShard> runnablePostGetFiles = (indexShard) -> {
                 try {

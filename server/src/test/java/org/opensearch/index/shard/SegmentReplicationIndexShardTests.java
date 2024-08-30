@@ -60,6 +60,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.SegmentReplicator;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
@@ -761,7 +762,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             mock(TransportService.class),
             sourceFactory,
             null,
-            null
+            null,
+            new SegmentReplicator(threadPool)
         );
     }
 

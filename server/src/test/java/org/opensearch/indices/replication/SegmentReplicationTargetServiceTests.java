@@ -565,7 +565,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             sourceFactory,
             indicesService,
             clusterService,
-            ongoingReplications
+            mock(SegmentReplicator.class)
         );
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
         IndexShard shard = newStartedShard(false, settings);
@@ -586,7 +586,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             sourceFactory,
             indicesService,
             clusterService,
-            ongoingReplications
+            mock(SegmentReplicator.class)
         );
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
         IndexShard shard = newStartedShard(false, settings);

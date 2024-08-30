@@ -36,7 +36,6 @@ import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -85,47 +84,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     public static class Actions {
         public static final String FILE_CHUNK = "internal:index/shard/replication/file_chunk";
         public static final String FORCE_SYNC = "internal:index/shard/replication/segments_sync";
-    }
-
-    @Deprecated
-    public SegmentReplicationTargetService(
-        final ThreadPool threadPool,
-        final RecoverySettings recoverySettings,
-        final TransportService transportService,
-        final SegmentReplicationSourceFactory sourceFactory,
-        final IndicesService indicesService,
-        final ClusterService clusterService
-    ) {
-        this(
-            threadPool,
-            recoverySettings,
-            transportService,
-            sourceFactory,
-            indicesService,
-            clusterService,
-            new ReplicationCollection<>(logger, threadPool)
-        );
-    }
-
-    @Deprecated
-    public SegmentReplicationTargetService(
-        final ThreadPool threadPool,
-        final RecoverySettings recoverySettings,
-        final TransportService transportService,
-        final SegmentReplicationSourceFactory sourceFactory,
-        final IndicesService indicesService,
-        final ClusterService clusterService,
-        final ReplicationCollection<SegmentReplicationTarget> ongoingSegmentReplications
-    ) {
-        this(
-            threadPool,
-            recoverySettings,
-            transportService,
-            sourceFactory,
-            indicesService,
-            clusterService,
-            new SegmentReplicator(threadPool)
-        );
     }
 
     public SegmentReplicationTargetService(
