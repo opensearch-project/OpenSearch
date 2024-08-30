@@ -121,6 +121,51 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         remoteStorePinnedTimestampServiceSpy.start();
     }
 
+    public void testIndexDeletionWithNoPinnedTimestampNoRecentMdFiles() throws Exception {
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
+
+        updatePinnedTimstampTask.run();
+        translog.trimUnreferencedReaders(true, false);
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        assertBusy(() -> {
+            assertEquals(0, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                0,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+    }
+
+    public void testIndexDeletionWithNoPinnedTimestampButRecentFiles() throws Exception {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
+
+        updatePinnedTimstampTask.run();
+        translog.trimUnreferencedReaders(true, false);
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        assertBusy(() -> {
+            assertEquals(5, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                12,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+    }
+
     @Override
     public void testSimpleOperationsUpload() throws Exception {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
