@@ -638,6 +638,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         builder.endObject();
     }
 
+    @Override
+    public final String fieldName() {
+        return getDefaultFieldName();
+    }
+
     public static MultiMatchQueryBuilder fromXContent(XContentParser parser) throws IOException {
         Object value = null;
         Map<String, Float> fieldsBoosts = new HashMap<>();

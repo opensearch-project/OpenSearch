@@ -76,6 +76,11 @@ public class CustomSortBuilder extends SortBuilder<CustomSortBuilder> {
     }
 
     @Override
+    public String fieldName() {
+        return field;
+    }
+
+    @Override
     public boolean equals(Object object) {
         if (this == object) {
             return true;

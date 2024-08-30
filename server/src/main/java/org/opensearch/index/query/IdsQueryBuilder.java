@@ -132,6 +132,11 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
+    @Override
+    public final String fieldName() {
+        return getDefaultFieldName();
+    }
+
     private static final ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, IdsQueryBuilder::new);
 
     static {
