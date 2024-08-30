@@ -170,12 +170,9 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             builder.field(FAILURES, failures);
             builder.field(TOTAL_CANCELLATIONS, totalCancellations);
 
-            List<Map.Entry<ResourceType, ResourceStats>> entryList = new ArrayList<>(resourceStats.entrySet());
-            entryList.sort((k1, k2) -> k1.getKey().compareTo(k2.getKey()));
-
-            for (Map.Entry<ResourceType, ResourceStats> resourceStat : entryList) {
-                ResourceType resourceType = resourceStat.getKey();
-                ResourceStats resourceStats1 = resourceStat.getValue();
+            for (ResourceType resourceType : ResourceType.getSortedValues()) {
+                ResourceStats resourceStats1 = resourceStats.get(resourceType);
+                if (resourceStats1 == null) continue;
                 builder.startObject(resourceType.getName());
                 resourceStats1.toXContent(builder, params);
                 builder.endObject();

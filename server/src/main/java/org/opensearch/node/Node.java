@@ -1021,8 +1021,10 @@ public class Node implements Closeable {
 
             final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
                                                                                  // queryGroupService
-            final QueryGroupRequestOperationListener queryGroupRequestRejectionListener =
-                new QueryGroupRequestOperationListener(queryGroupService, threadPool);
+            final QueryGroupRequestOperationListener queryGroupRequestRejectionListener = new QueryGroupRequestOperationListener(
+                queryGroupService,
+                threadPool
+            );
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
