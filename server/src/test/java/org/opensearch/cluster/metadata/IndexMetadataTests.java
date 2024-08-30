@@ -118,6 +118,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
                     randomNonNegativeLong()
                 )
             )
+            .context(new Context(randomAlphaOfLength(5)))
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -145,6 +146,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
+        assertEquals(metadata.context(), fromXContentMeta.context());
         final Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
@@ -167,6 +169,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
+            assertEquals(metadata.context(), deserialized.context());
         }
     }
 
