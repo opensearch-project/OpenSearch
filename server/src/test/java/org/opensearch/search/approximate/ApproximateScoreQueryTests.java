@@ -54,6 +54,7 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
         };
 
         ApproximateScoreQuery query = new ApproximateScoreQuery(originalQuery, approximateQuery);
+        query.resolvedQuery = approximateQuery;
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {

@@ -100,6 +100,8 @@ public class ApproximateIndexOrDocValuesQueryTests extends OpenSearchTestCase {
             dvQuery
         );
 
+        approximateIndexOrDocValuesQueryCanApproximate.resolvedQuery = approximateIndexQueryCanApproximate;
+
         Weight approximateIndexOrDocValuesQueryCanApproximateWeight = approximateIndexOrDocValuesQueryCanApproximate.createWeight(
             searcher,
             ScoreMode.COMPLETE,

@@ -221,7 +221,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new ProfileWeight(query, weight, profile);
         } else if (query instanceof ApproximateScoreQuery) {
             ((ApproximateScoreQuery) query).setContext(searchContext);
-            return query.createWeight(this, scoreMode, boost);
+            return super.createWeight(query, scoreMode, boost);
         } else {
             return super.createWeight(query, scoreMode, boost);
         }

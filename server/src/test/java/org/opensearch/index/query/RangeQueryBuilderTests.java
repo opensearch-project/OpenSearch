@@ -48,6 +48,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -69,10 +70,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.apache.lucene.document.LongPoint.pack;
+import static org.junit.Assume.assumeThat;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
     @Override
@@ -188,6 +191,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
                 assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
             } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
+                assumeThat(
+                    "Using Approximate Range Query as default",
+                    FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+                    is(true)
+                );
                 assertThat(query, instanceOf(ApproximateIndexOrDocValuesQuery.class));
                 Query approximationQuery = ((ApproximateIndexOrDocValuesQuery) query).getApproximationQuery();
                 assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
@@ -323,6 +331,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
+        );
         assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
         Query approximationQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getApproximationQuery();
         assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
@@ -376,6 +389,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
+        );
         assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
 
         long lower = DateTime.parse("2014-11-01T00:00:00.000+00").getMillis();
@@ -453,6 +471,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Query parsedQuery = parseQuery(query).toQuery(context);
         assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
         parsedQuery = ((DateRangeIncludingNowQuery) parsedQuery).getQuery();
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
+        );
         assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
         parsedQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getApproximationQuery();
         assertThat(parsedQuery, instanceOf(ApproximateQuery.class));

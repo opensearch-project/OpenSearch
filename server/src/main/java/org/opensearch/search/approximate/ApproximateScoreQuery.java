@@ -50,6 +50,14 @@ public class ApproximateScoreQuery extends Query {
         return resolvedQuery.createWeight(searcher, scoreMode, boost);
     }
 
+    @Override
+    public final Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (resolvedQuery == null) {
+            throw new IllegalStateException("Cannot create weight without setContext being called");
+        }
+        return resolvedQuery.rewrite(indexSearcher);
+    }
+
     public void setContext(SearchContext context) {
         if (resolvedQuery != null) {
             throw new IllegalStateException("Query already resolved, duplicate call to setContext");

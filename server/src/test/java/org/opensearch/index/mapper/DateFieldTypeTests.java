@@ -52,6 +52,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -72,7 +73,9 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.apache.lucene.document.LongPoint.pack;
+import static org.junit.Assume.assumeThat;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -224,6 +227,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             },
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999)
         );
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
+        );
         assertEquals(expected, ft.termQuery(date, context));
 
         MappedFieldType unsearchable = new DateFieldType(
@@ -285,6 +293,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             },
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         );
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
+        );
         assertEquals(
             expected,
             ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
@@ -308,6 +321,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 },
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
             )
+        );
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
@@ -385,6 +403,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 },
                 dvQuery
             )
+        );
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
         );
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
     }
