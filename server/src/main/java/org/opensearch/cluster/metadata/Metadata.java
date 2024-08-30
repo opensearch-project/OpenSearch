@@ -1508,6 +1508,24 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        /**
+         * Update the number of search replicas for the specified indices.
+         *
+         * @param numberOfSearchReplicas the number of search replicas
+         * @param indices          the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfSearchReplicas(final int numberOfSearchReplicas, final String[] indices) {
+            for (String index : indices) {
+                IndexMetadata indexMetadata = this.indices.get(index);
+                if (indexMetadata == null) {
+                    throw new IndexNotFoundException(index);
+                }
+                put(IndexMetadata.builder(indexMetadata).numberOfSearchReplicas(numberOfSearchReplicas));
+            }
+            return this;
+        }
+
         public Builder coordinationMetadata(CoordinationMetadata coordinationMetadata) {
             this.coordinationMetadata = coordinationMetadata;
             return this;
