@@ -454,7 +454,7 @@ public class MetadataIndexTemplateService {
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream().filter(e -> {
             Set<String> referredComponentTemplates = new HashSet<>(e.getValue().composedOf());
-            String systemTemplateUsed = findContextTemplate(metadata, e.getValue().context());
+            String systemTemplateUsed = findContextTemplateName(metadata, e.getValue().context());
             if (systemTemplateUsed != null) {
                 referredComponentTemplates.add(systemTemplateUsed);
             }
@@ -570,7 +570,7 @@ public class MetadataIndexTemplateService {
             );
         }
 
-        if (template.context() != null && findContextTemplate(metadata, template.context()) == null) {
+        if (template.context() != null && findContextTemplateName(metadata, template.context()) == null) {
             throw new InvalidIndexTemplateException(
                 name,
                 "index template [" + name + "] specifies a context which is not loaded on the cluster."
@@ -587,7 +587,12 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    private static String findContextTemplate(Metadata metadata, Context context) {
+    static ComponentTemplate findComponentTemplate(Metadata metadata, Context context) {
+        String contextTemplateName = findContextTemplateName(metadata, context);
+        return metadata.componentTemplates().getOrDefault(contextTemplateName, null);
+    }
+
+    static String findContextTemplateName(Metadata metadata, Context context) {
         if (context == null) {
             return null;
         }
@@ -1248,7 +1253,7 @@ public class MetadataIndexTemplateService {
 
         // Now use context mappings which take the highest precedence
         Optional.ofNullable(template.context())
-            .map(ctx -> findContextTemplate(state.metadata(), ctx))
+            .map(ctx -> findContextTemplateName(state.metadata(), ctx))
             .map(name -> state.metadata().componentTemplates().get(name))
             .map(ComponentTemplate::template)
             .map(Template::mappings)
@@ -1319,8 +1324,7 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template()).map(Template::settings).ifPresent(templateSettings::put);
 
         // Add the template referred by context since it will take the highest precedence.
-        final String systemTemplate = findContextTemplate(metadata, template.context());
-        final ComponentTemplate componentTemplate = metadata.componentTemplates().get(systemTemplate);
+        final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
         Optional.ofNullable(componentTemplate).map(ComponentTemplate::template).map(Template::settings).ifPresent(templateSettings::put);
 
         return templateSettings.build();
@@ -1369,8 +1373,7 @@ public class MetadataIndexTemplateService {
 
         // Now use context referenced template's aliases which take the highest precedence
         if (template.context() != null) {
-            final String systemTemplate = findContextTemplate(metadata, template.context());
-            final ComponentTemplate componentTemplate = metadata.componentTemplates().get(systemTemplate);
+            final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
             Optional.ofNullable(componentTemplate.template()).map(Template::aliases).ifPresent(aliases::add);
         }
 
