@@ -1,0 +1,401 @@
+---
+# The test setup includes:
+# - Create flat_object mapping for flat_object_null_value index
+# - Index 19 example documents related to null value
+# - Refresh the index so it is ready for search tests
+
+setup:
+  - skip:
+      version: " - 2.99.99"
+      reason: "null value in flat_object is processed in 3.0.0 "
+  - do:
+      indices.create:
+        index: flat_object_null_value
+        body:
+          mappings:
+            properties:
+              record:
+                type: "flat_object"
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 1
+        body: {
+          "record": null
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 2
+        body: {
+          "record": {
+            "name": null
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 3
+        body: {
+          "record": {
+            "name": null,
+            "age":"5",
+            "name1": null
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 4
+        body: {
+          "record": {
+            "name": [
+              null,
+              {
+                "d": {
+                  "name": "dsds"
+                }
+              }
+            ]
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 5
+        body: {
+          "record": {
+            "name": [
+              {
+                "d": {
+                  "name": "dsds"
+                }
+              },
+              null
+            ]
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 6
+        body: {
+          "record": {
+            "name": [
+              {
+                "name": "age1"
+              },
+              null,
+              {
+                "d": {
+                  "name": "dsds"
+                }
+              }
+            ]
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 7
+        body: {
+          "record": {
+            "name": null,
+            "age":"3"
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 8
+        body: {
+          "record": {
+            "age":"3",
+            "name": null
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 9
+        body: {
+          "record": {
+            "name": [
+              null,
+              3
+            ],
+            "age": 4
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 10
+        body: {
+          "record": {
+            "age": 4,
+            "name": [
+              null,
+              3
+            ]
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 11
+        body: {
+          "record": {
+            "name": null
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 12
+        body: {
+          "record": {
+            "r1": {
+              "labels": [
+                null
+              ]
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 13
+        body: {
+          "record": {
+            "labels": [
+              null
+            ]
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 14
+        body: {
+          "record": {
+            "r1": {
+              "name": null,
+              "labels": [
+                null
+              ]
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 15
+        body: {
+          "record": {
+            "age": "4",
+            "labels": [
+              null
+            ]
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 16
+        body: {
+          "record": {
+            "labels": [
+              null
+            ],
+            "age": "4"
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 17
+        body: {
+          "record": {
+            "name": {
+              "name1": [
+                null,
+                "dsdsdsd"
+              ]
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 18
+        body: {
+          "record": {
+            "name": {
+              "name1": {
+                "name2": null
+              }
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_null_value
+        id: 19
+        body: {
+          "record": {
+            "name": {
+              "name1": [
+                [],
+                [
+                  "dsdsdsd",
+                  null
+                ]
+              ]
+            }
+          }
+        }
+
+  - do:
+      indices.refresh:
+        index: flat_object_null_value
+---
+# Delete Index when connection is teardown
+teardown:
+  - do:
+      indices.delete:
+        index: flat_object_null_value
+
+
+---
+# Verify that mappings under the catalog field did not expand
+# and no dynamic fields were created.
+"Mappings":
+  - skip:
+      version: " - 2.99.99"
+      reason: "null value in flat_object is processed in 3.0.0"
+
+  - do:
+      indices.get_mapping:
+        index: flat_object_null_value
+  - is_true: flat_object_null_value.mappings
+  - match: { flat_object_null_value.mappings.properties.record.type: flat_object }
+  # https://github.com/opensearch-project/OpenSearch/tree/main/rest-api-spec/src/main/resources/rest-api-spec/test#length
+  - length: { flat_object_null_value.mappings.properties: 1 }
+
+
+---
+"Supported queries":
+  - skip:
+      version: " - 2.99.99"
+      reason: "null value in flat_object is processed in 3.0.0"
+
+  # Verify Document Count
+  - do:
+      search:
+        body: {
+          size: 30,
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 19 }
+
+  # Exists Query with no dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          size: 30,
+          query: {
+            exists: { "field": "record" }
+          }
+        }
+
+  - length: { hits.hits: 12 }
+  - match: { hits.hits.0._source.record: { "name": null, "age": "5", "name1": null } }
+  - match: { hits.hits.1._source.record.name: [ null, { "d": { "name": "dsds" } } ] }
+  - match: { hits.hits.2._source.record.name: [ { "d": { "name": "dsds" } }, null ] }
+  - match: { hits.hits.3._source.record.name: [ { "name": "age1" }, null, { "d": { "name": "dsds" } } ] }
+  - match: { hits.hits.4._source.record: { "name": null, "age": "3" } }
+  - match: { hits.hits.5._source.record: { "age": "3", "name": null } }
+  - match: { hits.hits.6._source.record: { "name": [ null, 3 ], "age": 4 } }
+  - match: { hits.hits.7._source.record: { "age": 4, "name": [ null, 3 ] } }
+  - match: { hits.hits.8._source.record: { "age": "4", "labels": [ null ] } }
+  - match: { hits.hits.9._source.record: { "labels": [ null ], "age": "4" } }
+  - match: { hits.hits.10._source.record.name: { "name1": [ null, "dsdsdsd" ] } }
+  - match: { hits.hits.11._source.record.name: { "name1": [ [], [ "dsdsdsd", null ] ] } }
+
+  # Exists Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            exists: { "field": "record.d" }
+          }
+        }
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.record.name: [ null, { "d": { "name": "dsds" } } ] }
+  - match: { hits.hits.1._source.record.name: [ { "d": { "name": "dsds" } }, null ] }
+  - match: { hits.hits.2._source.record.name: [ { "name": "age1" }, null, { "d": { "name": "dsds" } } ] }
+
+  # Term Query without exact dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { record: "dsdsdsd" }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.record.name: { "name1": [ null, "dsdsdsd" ] } }
+  - match: { hits.hits.1._source.record.name: { "name1": [ [], [ "dsdsdsd", null ] ] } }
+
+  # Term Query with exact dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { record.name.name1: "dsdsdsd" }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.record.name: { "name1": [ null, "dsdsdsd" ] } }
+  - match: { hits.hits.1._source.record.name: { "name1": [ [], [ "dsdsdsd", null ] ] } }
+
+  # Test "null" string search.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { record: "null" }
+          }
+        }
+
+  - length: { hits.hits: 0 }
