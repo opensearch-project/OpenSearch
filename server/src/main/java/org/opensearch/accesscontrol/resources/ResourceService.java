@@ -27,10 +27,10 @@ public class ResourceService {
 
     public ResourceService(final List<ResourceAccessControlPlugin> resourcePlugins) {
         if (resourcePlugins.size() == 0) {
-            log.debug("Security plugin disabled: Using NoopResourcePlugin");
+            log.info("Security plugin disabled: Using NoOpResourcePlugin");
             resourcePlugin = new NoOpResourcePlugin();
         } else if (resourcePlugins.size() == 1) {
-            log.debug("Security plugin enabled: Using OpenSearchSecurityPlugin");
+            log.info("Security plugin enabled: Using OpenSearchSecurityPlugin");
             resourcePlugin = resourcePlugins.get(0);
         } else {
             throw new OpenSearchException(

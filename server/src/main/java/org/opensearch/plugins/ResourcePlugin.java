@@ -18,7 +18,7 @@ import java.util.Map;
  * This plugin class defines usage mechanisms for plugins to interact with resources.
  * User information is fetched from thread context by security plugin.
  * In clusters, where security plugin is disabled these requests will be pass-through via a No-op implementation.
- * There are 3 scope of sharing for a resource: Private, Restricted, Public. To learn more visit {@linkplain <a href="https://github.com/opensearch-project/security/issues/4500">this design proposal.</a>}
+ * There are 3 scope of sharing for a resource: Private, Restricted, Public. To learn more visit <a href="https://github.com/opensearch-project/security/issues/4500">...</a>
  * If security plugin is disabled, all resources will be considered public by default.
  * TODO: add documentation around "how to use"
  *
