@@ -71,9 +71,11 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
@@ -1635,8 +1637,9 @@ public class MetadataIndexTemplateService {
             );
             validationErrors.addAll(indexSettingsValidation);
 
-            // validate index refresh interval settings
+            // validate index refresh interval and translog durability settings
             validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
+            validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
@@ -1660,6 +1663,29 @@ public class MetadataIndexTemplateService {
                 );
             }
         }
+    }
+
+    /**
+     * Validates {@code index.translog.durability} is not async with the incoming index template
+     * if the {@code cluster.remote_store.index.restrict.async-durability} is set to true.
+     *
+     * @param requestSettings settings passed during template creation
+     * @param clusterSettings current cluster settings
+     */
+    private void validateTranslogDurabilitySettingsInTemplate(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
+            || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
+            return;
+        }
+        Translog.Durability durability = IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.get(requestSettings);
+        if (durability.equals(Translog.Durability.ASYNC)) {
+            throw new IllegalArgumentException(
+                "index setting [index.translog.durability=async] is not allowed as cluster setting ["
+                    + IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
     }
 
     /**
