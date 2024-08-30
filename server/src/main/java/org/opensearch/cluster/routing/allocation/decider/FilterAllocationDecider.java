@@ -44,7 +44,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.util.Map;
@@ -89,8 +88,6 @@ public class FilterAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
     private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
-    private static final String SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.search.replica.dedicated.include";
-
     public static final Setting.AffixSetting<String> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".",
         key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope)
@@ -103,12 +100,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".",
         key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope)
     );
-    public static final Setting.AffixSetting<String> SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
-        SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX + ".",
-        key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope)
-    );
 
-    private volatile DiscoveryNodeFilters searchReplicaIncludeFilters;
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
@@ -121,6 +113,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
         this.migrationDirection = RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.get(settings);
         this.compatibilityMode = RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(settings);
+
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a, b) -> {});
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a, b) -> {});
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a, b) -> {});
@@ -129,15 +122,6 @@ public class FilterAllocationDecider extends AllocationDecider {
             RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
             this::setCompatibilityMode
         );
-
-        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL)) {
-            setSearchReplicaIncludeFilters(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
-            clusterSettings.addAffixMapUpdateConsumer(
-                SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING,
-                this::setSearchReplicaIncludeFilters,
-                (a, b) -> {}
-            );
-        }
     }
 
     private void setMigrationDirection(RemoteStoreNodeService.Direction migrationDirection) {
@@ -217,9 +201,6 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (decision != null) return decision;
 
         decision = shouldIndexFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node, allocation);
-        if (decision != null) return decision;
-
-        decision = shouldSearchReplicaShardTypeFilter(shardRouting, node, allocation);
         if (decision != null) return decision;
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
@@ -313,32 +294,6 @@ public class FilterAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private Decision shouldSearchReplicaShardTypeFilter(ShardRouting routing, DiscoveryNode node, RoutingAllocation allocation) {
-        if (searchReplicaIncludeFilters != null) {
-            final boolean match = searchReplicaIncludeFilters.match(node);
-            if (match == false && routing.isSearchOnly()) {
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "node does not match shard setting [%s] filters [%s]",
-                    SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX,
-                    searchReplicaIncludeFilters
-                );
-            }
-            // filter will only apply to search replicas
-            if (routing.isSearchOnly() == false && match) {
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "only search replicas can be allocated to node with setting [%s] filters [%s]",
-                    SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX,
-                    searchReplicaIncludeFilters
-                );
-            }
-        }
-        return null;
-    }
-
     private void setClusterRequireFilters(Map<String, String> filters) {
         clusterRequireFilters = DiscoveryNodeFilters.trimTier(
             DiscoveryNodeFilters.buildOrUpdateFromKeyValue(clusterRequireFilters, AND, filters)
@@ -354,12 +309,6 @@ public class FilterAllocationDecider extends AllocationDecider {
     private void setClusterExcludeFilters(Map<String, String> filters) {
         clusterExcludeFilters = DiscoveryNodeFilters.trimTier(
             DiscoveryNodeFilters.buildOrUpdateFromKeyValue(clusterExcludeFilters, OR, filters)
-        );
-    }
-
-    private void setSearchReplicaIncludeFilters(Map<String, String> filters) {
-        searchReplicaIncludeFilters = DiscoveryNodeFilters.trimTier(
-            DiscoveryNodeFilters.buildOrUpdateFromKeyValue(searchReplicaIncludeFilters, OR, filters)
         );
     }
 }
