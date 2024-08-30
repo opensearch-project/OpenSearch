@@ -31,7 +31,7 @@ public class QueryGroupState {
     /**
      * this will track the cumulative failures in a query group
      */
-    final CounterMetric failures = new CounterMetric();
+    public final CounterMetric failures = new CounterMetric();
 
     /**
      * This will track total number of cancellations in the query group due to all resource type breaches
@@ -95,9 +95,18 @@ public class QueryGroupState {
         final ResourceType resourceType;
         final CounterMetric cancellations = new CounterMetric();
         final CounterMetric rejections = new CounterMetric();
+        private double lastRecordedUsage = 0;
 
         public ResourceTypeState(ResourceType resourceType) {
             this.resourceType = resourceType;
+        }
+
+        public void setLastRecordedUsage(double recordedUsage) {
+            lastRecordedUsage = recordedUsage;
+        }
+
+        public double getLastRecordedUsage() {
+            return lastRecordedUsage;
         }
     }
 }

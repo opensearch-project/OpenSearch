@@ -269,7 +269,7 @@ import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
-import org.opensearch.wlm.listeners.QueryGroupRequestRejectionOperationListener;
+import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
 
 import javax.net.ssl.SNIHostName;
 
@@ -1019,11 +1019,12 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
-            final QueryGroupRequestRejectionOperationListener queryGroupRequestRejectionListener =
-                new QueryGroupRequestRejectionOperationListener(
-                    new QueryGroupService(), // We will need to replace this with actual instance of the queryGroupService
-                    threadPool
-                );
+            final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
+                                                                                 // queryGroupService
+            final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
+                queryGroupService,
+                threadPool
+            );
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
@@ -1033,7 +1034,7 @@ public class Node implements Closeable {
                             searchRequestStats,
                             searchRequestSlowLog,
                             searchTaskRequestOperationsListener,
-                            queryGroupRequestRejectionListener
+                            queryGroupRequestOperationListener
                         ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
