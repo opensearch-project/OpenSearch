@@ -358,7 +358,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
         currentNodeId = in.readOptionalString();
         relocatingNodeId = in.readOptionalString();
         primary = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             searchOnly = in.readBoolean();
         } else {
             searchOnly = false;
@@ -396,7 +396,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
         out.writeOptionalString(currentNodeId);
         out.writeOptionalString(relocatingNodeId);
         out.writeBoolean(primary);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(searchOnly);
         }
         out.writeByte(state.value());
