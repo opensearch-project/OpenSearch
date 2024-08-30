@@ -107,19 +107,19 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         // start a cluster-manager node
         final String cm = internalCluster().startNode(nodeSettings);
 
-        System.out.println("--> spawning node t1");
+        logger.info("--> spawning node t1");
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
         );
-        System.out.println("--> spawning node t2");
+        logger.info("--> spawning node t2");
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        System.out.println("--> initial health check");
+        logger.info("--> initial health check");
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
-        System.out.println("--> done initial health check");
+        logger.info("--> done initial health check");
 
-        System.out.println("--> creating index");
+        logger.info("--> creating index");
         client().admin()
             .indices()
             .prepareCreate(indexName)
@@ -130,7 +130,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .get();
-        System.out.println("--> done creating index");
+        logger.info("--> done creating index");
         MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, cm);
         MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
@@ -199,70 +199,42 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         });
         redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, handlingBehavior);
 
-        // for (int i=0 ;i < 1; i++) {
-        // //cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
-        // System.out.println("--> follower check, iteration: " + i);
-        // bb.set(true); // pass followerchecker
-        // System.out.println("--> setting bb to true, sleeping for 1500ms, iteration: " + i);
-        // Thread.sleep(1500);
-        // bb.set(false); // fail followerchecker
-        // System.out.println("--> setting bb to false, iteration: " + i);
-        // System.out.println("--> checking cluster health 2 nodes, iteration: " + i);
-        // ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
-        // assertThat(response1.isTimedOut(), is(false));
-        // System.out.println("--> completed checking cluster health 2 nodes, iteration: " + i);
-        // //internalCluster().stopRandomNode(InternalTestCluster.nameFilter(blueNodeName));
-        // System.out.println("--> checking cluster health 3 nodes, iteration: " + i);
-        // ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
-        // assertThat(response2.isTimedOut(), is(false));
-        // System.out.println("--> completed checking cluster health 3 nodes, iteration: " + i);
-        // }
-        // for (int i=0 ;i < 1; i++) {
-        //
-        // bb.set(true); // pass followerchecker
-        //
-        // Thread.sleep(1500);
-        // System.out.println("--> manually disconnecting node, iteration: " + i);
-        // cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
-        // }
-
-        // FAILS WITHOUT CODE CHANGES
         for (int i = 0; i < 10; i++) {
             bb.set(false); // fail followerchecker by force to trigger node disconnect
-            System.out.println("--> disconnecting from red node, iteration: " + i);
+            logger.info("--> disconnecting from red node, iteration: " + i);
             // cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
             // now followerchecker should fail and trigger node left
-            System.out.println("--> checking cluster health 2 nodes, iteration: " + i);
+            logger.info("--> checking cluster health 2 nodes, iteration: " + i);
             ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
             assertThat(response1.isTimedOut(), is(false));
-            System.out.println("--> completed checking cluster health 2 nodes, iteration: " + i);
+            logger.info("--> completed checking cluster health 2 nodes, iteration: " + i);
 
             // once we know a node has left, we can re-enable followerchecker to work normally
             bb.set(true);
             Thread.sleep(1500);
-            System.out.println("--> checking cluster health 3 nodes, iteration: " + i);
+            logger.info("--> checking cluster health 3 nodes, iteration: " + i);
             ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
             assertThat(response2.isTimedOut(), is(false));
-            System.out.println("--> completed checking cluster health 3 nodes, iteration: " + i);
+            logger.info("--> completed checking cluster health 3 nodes, iteration: " + i);
 
             Thread.sleep(1500);
 
             // Checking again
-            System.out.println("--> checking cluster health 3 nodes again, iteration: " + i);
+            logger.info("--> checking cluster health 3 nodes again, iteration: " + i);
             ClusterHealthResponse response3 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
             assertThat(response3.isTimedOut(), is(false));
-            System.out.println("--> completed checking cluster health 3 nodes again, iteration: " + i);
+            logger.info("--> completed checking cluster health 3 nodes again, iteration: " + i);
         }
 
         bb.set(true);
-        System.out.println("-->first validation outside loop");
+        logger.info("-->first validation outside loop");
         response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        System.out.println("-->sleeping for 20s");
+        logger.info("-->sleeping for 20s");
         Thread.sleep(20000);
 
-        System.out.println("-->second validation outside loop after sleep");
+        logger.info("-->second validation outside loop after sleep");
         response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }
