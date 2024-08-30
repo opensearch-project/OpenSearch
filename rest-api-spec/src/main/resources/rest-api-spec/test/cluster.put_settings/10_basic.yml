@@ -103,8 +103,8 @@
 ---
 "Test setting search backpressure cancellation settings":
   - skip:
-      version: "- 2.3.99"
-      reason: "Introduced in 2.4.0"
+      version: "- 2.99.99"
+      reason: "Fixed in 3.0.0"
 
   - do:
       cluster.put_settings:
