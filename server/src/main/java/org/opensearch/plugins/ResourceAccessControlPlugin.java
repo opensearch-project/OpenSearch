@@ -75,5 +75,12 @@ public interface ResourceAccessControlPlugin {
      */
     boolean deleteResourceSharingRecord(String resourceId, String systemIndexName);
 
+    /**
+     * Deletes all entries from .resource_sharing index where requested entity is the creator of the resource
+     * @param entity whose resource sharing records are to be deleted
+     * @return true if resource record was deleted, false otherwise
+     */
+    boolean deleteAllResourceSharingRecordsFor(String entity);
+
     // TODO: Check whether methods for bulk updates are required
 }

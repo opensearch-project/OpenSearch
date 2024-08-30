@@ -43,8 +43,6 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     }
 
     /**
-     * Returns true since no authorization is required.
-     *
      * @param resourceId the resource on which access is to be checked
      * @param systemIndexName where the resource exists
      * @return true
@@ -55,8 +53,6 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     }
 
     /**
-     * Adds an entity to the share-with. Resource needs to be in restricted mode.
-     *
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
      * @param revokeAccess a map that contains entries of entities with whom this resource should be shared with
@@ -68,8 +64,6 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     }
 
     /**
-     * Revokes access to the resource
-     *
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
      * @param revokeAccess a map that contains entries of entities whose access should be revoked
@@ -81,13 +75,21 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     }
 
     /**
-     * Delete a resource sharing record
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
      * @return false since security plugin is disabled
      */
     @Override
     public boolean deleteResourceSharingRecord(String resourceId, String systemIndexName) {
+        return false;
+    }
+
+    /**
+     * @param entity whose resource sharing entries are to be deleted
+     * @return false since security plugin is disabled
+     */
+    @Override
+    public boolean deleteAllResourceSharingRecordsFor(String entity) {
         return false;
     }
 
