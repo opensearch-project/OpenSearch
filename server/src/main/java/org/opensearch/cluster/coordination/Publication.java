@@ -86,8 +86,10 @@ public abstract class Publication {
 
     public void start(Set<DiscoveryNode> faultyNodes) {
         logger.trace("publishing {} to {}", publishRequest, publicationTargets);
+        logger.info("publishing {} to {}", publishRequest.getAcceptedState().getVersion(), publicationTargets);
 
         for (final DiscoveryNode faultyNode : faultyNodes) {
+            logger.info("in publish.start, found faulty node: [{}]", faultyNode);
             onFaultyNode(faultyNode);
         }
         onPossibleCommitFailure();
@@ -332,7 +334,7 @@ public abstract class Publication {
 
         void onFaultyNode(DiscoveryNode faultyNode) {
             if (isActive() && discoveryNode.equals(faultyNode)) {
-                logger.debug("onFaultyNode: [{}] is faulty, failing target in publication {}", faultyNode, Publication.this);
+                logger.info("onFaultyNode: [{}] is faulty, failing target in publication {}", faultyNode, Publication.this);
                 setFailed(new OpenSearchException("faulty node"));
                 onPossibleCommitFailure();
             }

@@ -52,12 +52,7 @@ import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.BytesTransportRequest;
-import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.TransportService;
+import org.opensearch.transport.*;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -592,8 +587,9 @@ public class PublicationTransportHandler {
                     if (retryWithFullClusterStateOnFailure && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug("resending full cluster state to node {} reason {}", destination, exp.getDetailedMessage());
                         sendFullClusterState(destination, listener);
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("failed to send cluster state to {}", destination), exp);
+                    }
+                    else {
+                        logger.info(() -> new ParameterizedMessage("failed to send cluster state to {}", destination), exp);
                         listener.onFailure(exp);
                     }
                 };

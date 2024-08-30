@@ -161,6 +161,7 @@ public class FollowersChecker {
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
             public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+                logger.info("in transport listener onNodeDisconnected");
                 handleDisconnectedNode(node);
             }
         });
@@ -175,6 +176,7 @@ public class FollowersChecker {
      * Update the set of known nodes, starting to check any new ones and stopping checking any previously-known-but-now-unknown ones.
      */
     public void setCurrentNodes(DiscoveryNodes discoveryNodes) {
+        logger.info("[{}]Setting followerschecker currentnodes to {}", Thread.currentThread().getName(), discoveryNodes);
         synchronized (mutex) {
             final Predicate<DiscoveryNode> isUnknownNode = n -> discoveryNodes.nodeExists(n) == false;
             followerCheckers.keySet().removeIf(isUnknownNode);
@@ -356,6 +358,9 @@ public class FollowersChecker {
 
             final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
+            if (discoveryNode.getName().equals("node_t2")) {
+                logger.info("handleWakeUp: checking {} with {}", discoveryNode, request);
+            }
 
             transportService.sendRequest(
                 discoveryNode,
@@ -390,6 +395,18 @@ public class FollowersChecker {
                         failureCountSinceLastSuccess++;
 
                         final String reason;
+
+//                        if (exp instanceof NodeNotConnectedException || exp.getCause() instanceof NodeNotConnectedException){
+//                            // NodeNotConnectedException will only happen if getConnection fails in TransportService.sendRequest
+//                            // This only happens if clusterConnectionManager.getConnection() does not find the entry in connectedNodes list
+//                            // This happens on node disconnection
+//                            // Need to validate that this only gets triggered from node-left side. we want to ensure actual disconnections work
+//                            failureCountSinceLastSuccess--;
+//                            logger.info(() -> new ParameterizedMessage("{} cache entry not found, but node is still in cluster state. ignoring this failure", FollowerChecker.this), exp);
+//                            scheduleNextWakeUp();
+//                            return;
+//                        }
+
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.info(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";

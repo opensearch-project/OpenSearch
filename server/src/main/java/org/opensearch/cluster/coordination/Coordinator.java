@@ -371,6 +371,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             } else if (joinHelper.isJoinPending()) {
                 logger.trace("onFollowerCheckRequest: rejoining cluster-manager, responding successfully to {}", followerCheckRequest);
             } else {
+                logger.info("Mode: {}, ", mode);
                 logger.trace("onFollowerCheckRequest: received check from faulty cluster-manager, rejecting {}", followerCheckRequest);
                 throw new CoordinationStateRejectedException(
                     "onFollowerCheckRequest: received check from faulty cluster-manager, rejecting " + followerCheckRequest
@@ -419,6 +420,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getClusterManagerNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
+            logger.info("handlePublishRequest: handling version [{}] from [{}]", publishRequest.getAcceptedState().getVersion(), sourceNode);
 
             if (sourceNode.equals(getLocalNode()) && mode != Mode.LEADER) {
                 // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
@@ -628,9 +630,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
+        // cluster manager connects to the node
+        transportService.connectToNodeAndBlockDisconnects(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
             final ClusterState stateForJoinValidation = getStateForClusterManagerService();
-
             if (stateForJoinValidation.nodes().isLocalNodeElectedClusterManager()) {
                 onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
                 if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
@@ -767,7 +769,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
             logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}", method, leaderNode, getCurrentTerm());
         } else {
-            logger.debug(
+            logger.info(
                 "{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
                 method,
                 leaderNode,
@@ -914,6 +916,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     public void startInitialJoin() {
         synchronized (mutex) {
+            logger.info("Starting initial join, becoming candidate");
             becomeCandidate("startInitialJoin");
         }
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
@@ -1356,10 +1359,27 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 currentPublication = Optional.of(publication);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
+
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
                 coordinationState.get().handlePrePublish(clusterState);
+                // join publish is failing
+                // before we publish, we might need
+                // can we recreate connections as part of publish if we don't find it?
+                // reconnect to any nodes that are trying to join, redundancy to avoid node connection wiping by concurrent node-join and left
+                // find diff of nodes from old state and new publishNodes
+                // this fails because we can't add blocking code to cluster manager thread
+//                for (DiscoveryNode addedNode : clusterChangedEvent.nodesDelta().addedNodes()) {
+//                    // maybe add a listener here to handle failures
+//                    try {
+//                        transportService.connectToNode(addedNode);
+//                    }
+//                    catch (Exception e) {
+//                        logger.info(() -> new ParameterizedMessage("[{}] failed reconnecting to [{}]", clusterChangedEvent.source(), addedNode), e);
+//                    }
+//                }
+
                 publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
@@ -1460,6 +1480,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         protected void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term) {
             synchronized (mutex) {
                 ensureTermAtLeast(clusterManagerNode, term);
+                logger.info("sending join request to {}", clusterManagerNode);
                 joinHelper.sendJoinRequest(clusterManagerNode, getCurrentTerm(), joinWithDestination(lastJoin, clusterManagerNode, term));
             }
         }

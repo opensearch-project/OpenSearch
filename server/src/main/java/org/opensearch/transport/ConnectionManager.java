@@ -59,9 +59,20 @@ public interface ConnectionManager extends Closeable {
         ActionListener<Void> listener
     ) throws ConnectTransportException;
 
+    void connectToNodeAndBlockDisconnects(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Void> listener
+    ) throws ConnectTransportException;
+
     Transport.Connection getConnection(DiscoveryNode node);
 
     boolean nodeConnected(DiscoveryNode node);
+
+    Set<DiscoveryNode> getNodesJoinInProgress();
+
+    boolean markPendingJoinCompleted(DiscoveryNode node);
 
     void disconnectFromNode(DiscoveryNode node);
 

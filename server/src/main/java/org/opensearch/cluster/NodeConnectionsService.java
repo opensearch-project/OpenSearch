@@ -172,6 +172,33 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
 
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
+                logger.info("NodeConnectionsService - disconnecting from node [{}] in loop", discoveryNode);
+                runnables.add(targetsByNode.get(discoveryNode).disconnect());
+            }
+        }
+        runnables.forEach(Runnable::run);
+    }
+
+    public void markPendingJoinsAsComplete(List<DiscoveryNode> nodesConnected) {
+        for (final DiscoveryNode discoveryNode: nodesConnected) {
+            transportService.markPendingJoinAsCompleted(discoveryNode);
+        }
+    }
+    public void disconnectFromNonBlockedNodesExcept(DiscoveryNodes discoveryNodes, DiscoveryNodes.Delta nodesDelta) {
+        final List<Runnable> runnables = new ArrayList<>();
+        synchronized (mutex) {
+            final Set<DiscoveryNode> nodesToDisconnect = new HashSet<>(targetsByNode.keySet());
+            for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                nodesToDisconnect.remove(discoveryNode);
+            }
+
+            for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
+                // if node is trying to be disconnected (node-left) and pendingjoin , skip disconnect and then remove the blocking
+                if (transportService.getNodesJoinInProgress().contains(discoveryNode)) {
+                    logger.info("Skipping disconnection for node [{}] as it has a join in progress", discoveryNode);
+                    continue;
+                }
+                logger.info("NodeConnectionsService - disconnecting from node [{}] in loop", discoveryNode);
                 runnables.add(targetsByNode.get(discoveryNode).disconnect());
             }
         }
@@ -388,9 +415,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             @Override
             protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                logger.info("disconnecting from {}", discoveryNode);
                 transportService.disconnectFromNode(discoveryNode);
                 consecutiveFailureCount.set(0);
-                logger.debug("disconnected from {}", discoveryNode);
+                logger.info("disconnected from {}", discoveryNode);
                 onCompletion(ActivityType.DISCONNECTING, null, connectActivity);
             }
 
@@ -419,6 +447,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         Runnable disconnect() {
+            logger.info("running runnable disconnect");
             return addListenerAndStartActivity(
                 null,
                 ActivityType.DISCONNECTING,

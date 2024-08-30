@@ -119,6 +119,24 @@ public class RemoteConnectionManager implements ConnectionManager {
         return delegate.getConnectionProfile();
     }
 
+    @Override
+    public void connectToNodeAndBlockDisconnects(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Void> listener
+    ) throws ConnectTransportException {
+        throw new UnsupportedOperationException("not implemented");
+    }
+    @Override
+    public Set<DiscoveryNode> getNodesJoinInProgress() {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public boolean markPendingJoinCompleted(DiscoveryNode node) {
+        throw new UnsupportedOperationException("not implemented");
+    }
     public Transport.Connection getAnyRemoteConnection() {
         List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;
