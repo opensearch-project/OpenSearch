@@ -13,7 +13,10 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
@@ -23,6 +26,7 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,7 +55,17 @@ public class StarTreeMapperTests extends MapperTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
+    @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .put(SETTINGS)
+            .build();
+    }
+
     public void testValidStarTree() throws IOException {
+
         MapperService mapperService = createMapperService(getExpandedMappingWithJustAvg("status", "size"));
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {

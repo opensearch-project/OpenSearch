@@ -8,19 +8,27 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -39,6 +47,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  */
 public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     private static final String TEST_INDEX = "test";
+    Settings settings = Settings.builder()
+        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+        .build();
 
     private static XContentBuilder createMinimalTestMapping(boolean invalidDim, boolean invalidMetric, boolean keywordDim) {
         try {
@@ -116,6 +128,12 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject()
                 .field("name", "dim2")
                 .endObject()
+                .startObject()
+                .field("name", "dim3")
+                .endObject()
+                .startObject()
+                .field("name", "dim4")
+                .endObject()
                 .endArray()
                 .endObject()
                 .endObject()
@@ -129,6 +147,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("doc_values", true)
                 .endObject()
                 .startObject("dim3")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("dim4")
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
@@ -223,6 +245,56 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         }
     }
 
+    private XContentBuilder getMappingWithDuplicateFields(boolean isDuplicateDim, boolean isDuplicateMetric) {
+        XContentBuilder mapping = null;
+        try {
+            mapping = jsonBuilder().startObject()
+                .startObject("composite")
+                .startObject("startree-1")
+                .field("type", "star_tree")
+                .startObject("config")
+                .startArray("ordered_dimensions")
+                .startObject()
+                .field("name", "timestamp")
+                .endObject()
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateDim ? "numeric_dv" : "numeric_dv1")  // Duplicate dimension
+                .endObject()
+                .endArray()
+                .startArray("metrics")
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateMetric ? "numeric_dv" : "numeric_dv1")  // Duplicate metric
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("properties")
+                .startObject("timestamp")
+                .field("type", "date")
+                .endObject()
+                .startObject("numeric_dv")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("numeric_dv1")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            fail("Failed to create mapping: " + e.getMessage());
+        }
+        return mapping;
+    }
+
     private static String getDim(boolean hasDocValues, boolean isKeyword) {
         if (hasDocValues) {
             return "numeric";
@@ -244,7 +316,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     }
 
     public void testValidCompositeIndex() {
-        prepareCreate(TEST_INDEX).setMapping(createMinimalTestMapping(false, false, false)).get();
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
         Iterable<IndicesService> dataNodeInstances = internalCluster().getDataNodeInstances(IndicesService.class);
         for (IndicesService service : dataNodeInstances) {
             final Index index = resolveIndex("test");
@@ -285,8 +357,91 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testCompositeIndexWithIndexNotSpecified() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .build();
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: Set 'index.composite_index' as true as part of index settings to use star tree index",
+            ex.getMessage()
+        );
+    }
+
+    public void testCompositeIndexWithHigherTranslogFlushSize() {
+        Settings settings = Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(513, ByteSizeUnit.MB))
+            .build();
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get()
+        );
+        assertEquals("You can configure 'index.translog.flush_threshold_size' with upto '512mb' for composite index", ex.getMessage());
+    }
+
+    public void testCompositeIndexWithArraysInCompositeField() throws IOException {
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
+        // Attempt to index a document with an array field
+        XContentBuilder doc = jsonBuilder().startObject()
+            .field("timestamp", "2023-06-01T12:00:00Z")
+            .startArray("numeric_dv")
+            .value(10)
+            .value(20)
+            .value(30)
+            .endArray()
+            .endObject();
+
+        // Index the document and refresh
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> client().prepareIndex(TEST_INDEX).setSource(doc).get()
+        );
+        assertEquals(
+            "object mapping for [_doc] with array for [numeric_dv] cannot be accepted as field is also part of composite index mapping which does not accept arrays",
+            ex.getMessage()
+        );
+    }
+
+    public void testCompositeIndexWithArraysInNonCompositeField() throws IOException {
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
+        // Attempt to index a document with an array field
+        XContentBuilder doc = jsonBuilder().startObject()
+            .field("timestamp", "2023-06-01T12:00:00Z")
+            .startArray("numeric")
+            .value(10)
+            .value(20)
+            .value(30)
+            .endArray()
+            .endObject();
+
+        // Index the document and refresh
+        IndexResponse indexResponse = client().prepareIndex(TEST_INDEX).setSource(doc).get();
+
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        client().admin().indices().prepareRefresh(TEST_INDEX).get();
+        // Verify the document was indexed
+        SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).setQuery(QueryBuilders.matchAllQuery()).get();
+
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+
+        // Verify the values in the indexed document
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals("2023-06-01T12:00:00Z", hit.getSourceAsMap().get("timestamp"));
+
+        List<Integer> values = (List<Integer>) hit.getSourceAsMap().get("numeric");
+        assertEquals(3, values.size());
+        assertTrue(values.contains(10));
+        assertTrue(values.contains(20));
+        assertTrue(values.contains(30));
+    }
+
     public void testUpdateIndexWithAdditionOfStarTree() {
-        prepareCreate(TEST_INDEX).setMapping(createMinimalTestMapping(false, false, false)).get();
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -296,7 +451,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateIndexWithNewerStarTree() {
-        prepareCreate(TEST_INDEX).setMapping(createTestMappingWithoutStarTree(false, false, false)).get();
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createTestMappingWithoutStarTree(false, false, false)).get();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -309,7 +464,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateIndexWhenMappingIsDifferent() {
-        prepareCreate(TEST_INDEX).setMapping(createMinimalTestMapping(false, false, false)).get();
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
 
         // update some field in the mapping
         IllegalArgumentException ex = expectThrows(
@@ -320,7 +475,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateIndexWhenMappingIsSame() {
-        prepareCreate(TEST_INDEX).setMapping(createMinimalTestMapping(false, false, false)).get();
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
 
         // update some field in the mapping
         AcknowledgedResponse putMappingResponse = client().admin()
@@ -368,7 +523,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     public void testInvalidDimCompositeIndex() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareCreate(TEST_INDEX).setMapping(createMinimalTestMapping(true, false, false)).get()
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(true, false, false)).get()
         );
         assertEquals(
             "Aggregations not supported for the dimension field [numeric] with field type [integer] as part of star tree field",
@@ -379,8 +534,14 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     public void testMaxDimsCompositeIndex() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate(TEST_INDEX).setMapping(createMaxDimTestMapping())
-                .setSettings(Settings.builder().put(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 2))
+            () -> prepareCreate(TEST_INDEX).setSettings(settings)
+                .setMapping(createMaxDimTestMapping())
+                .setSettings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 2)
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                )
                 .get()
         );
         assertEquals(
@@ -389,11 +550,35 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         );
     }
 
+    public void testMaxMetricsCompositeIndex() {
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(settings)
+                .setMapping(createMaxDimTestMapping())
+                .setSettings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_SETTING.getKey(), 4)
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                )
+                .get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: There cannot be more than [4] base metrics for star tree field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
     public void testMaxCalendarIntervalsCompositeIndex() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
             () -> prepareCreate(TEST_INDEX).setMapping(createMaxDimTestMapping())
-                .setSettings(Settings.builder().put(StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING.getKey(), 1))
+                .setSettings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING.getKey(), 1)
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                )
                 .get()
         );
         assertEquals(
@@ -405,7 +590,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     public void testUnsupportedDim() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate(TEST_INDEX).setMapping(createMinimalTestMapping(false, false, true)).get()
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, true)).get()
         );
         assertEquals(
             "Failed to parse mapping [_doc]: unsupported field type associated with dimension [keyword] as part of star tree field [startree-1]",
@@ -416,12 +601,118 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     public void testInvalidMetric() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareCreate(TEST_INDEX).setMapping(createMinimalTestMapping(false, true, false)).get()
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, true, false)).get()
         );
         assertEquals(
             "Aggregations not supported for the metrics field [numeric] with field type [integer] as part of star tree field",
             ex.getMessage()
         );
+    }
+
+    public void testDuplicateDimensions() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(true, false);
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(finalMapping).setSettings(settings).get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate dimension [numeric_dv] present as part star tree index field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testDuplicateMetrics() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(false, true);
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(finalMapping).setSettings(settings).get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate metrics [numeric_dv] present as part star tree index field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testValidTranslogFlushThresholdSize() {
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(256, ByteSizeUnit.MB))
+            .build();
+
+        AcknowledgedResponse response = prepareCreate(TEST_INDEX).setSettings(indexSettings)
+            .setMapping(createMinimalTestMapping(false, false, false))
+            .get();
+
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testInvalidTranslogFlushThresholdSize() {
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1024, ByteSizeUnit.MB))
+            .build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(indexSettings).setMapping(createMinimalTestMapping(false, false, false)).get()
+        );
+
+        assertTrue(
+            ex.getMessage().contains("You can configure 'index.translog.flush_threshold_size' with upto '512mb' for composite index")
+        );
+    }
+
+    public void testUpdateTranslogFlushThresholdSize() {
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
+
+        // Update to a valid value
+        AcknowledgedResponse validUpdateResponse = client().admin()
+            .indices()
+            .prepareUpdateSettings(TEST_INDEX)
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb"))
+            .get();
+        assertTrue(validUpdateResponse.isAcknowledged());
+
+        // Try to update to an invalid value
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1024mb"))
+                .get()
+        );
+
+        assertTrue(
+            ex.getMessage().contains("You can configure 'index.translog.flush_threshold_size' with upto '512mb' for composite index")
+        );
+    }
+
+    public void testMinimumTranslogFlushThresholdSize() {
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(56, ByteSizeUnit.BYTES))
+            .build();
+
+        AcknowledgedResponse response = prepareCreate(TEST_INDEX).setSettings(indexSettings)
+            .setMapping(createMinimalTestMapping(false, false, false))
+            .get();
+
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testBelowMinimumTranslogFlushThresholdSize() {
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(55, ByteSizeUnit.BYTES))
+            .build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(indexSettings).setMapping(createMinimalTestMapping(false, false, false)).get()
+        );
+
+        assertEquals("failed to parse value [55b] for setting [index.translog.flush_threshold_size], must be >= [56b]", ex.getMessage());
     }
 
     @After

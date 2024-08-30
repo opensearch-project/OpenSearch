@@ -48,6 +48,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.Translog;
@@ -59,8 +60,10 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -70,6 +73,7 @@ import java.util.function.UnaryOperator;
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
+import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -378,6 +382,37 @@ public final class IndexSettings {
          */
         new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        new Setting.Validator<ByteSizeValue>() {
+            @Override
+            public void validate(final ByteSizeValue value) {}
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings) {
+                boolean isCompositeIndex = (boolean) settings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
+                ByteSizeValue compositeIndexMaxFlushThreshold = (ByteSizeValue) settings.get(
+                    COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING
+                );
+                if (isCompositeIndex && value.compareTo(compositeIndexMaxFlushThreshold) > 0) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "You can configure '%s' with upto '%s' for composite index",
+                            INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                            compositeIndexMaxFlushThreshold
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Arrays.asList(
+                    StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING,
+                    COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING
+                );
+                return settings.iterator();
+            }
+        },
         Property.Dynamic,
         Property.IndexScope
     );
@@ -864,6 +899,8 @@ public final class IndexSettings {
      */
     private volatile double docIdFuzzySetFalsePositiveProbability;
 
+    private final boolean isCompositeIndex;
+
     /**
      * Returns the default search fields for this index.
      */
@@ -1027,7 +1064,7 @@ public final class IndexSettings {
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
-
+        isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1270,6 +1307,10 @@ public final class IndexSettings {
      */
     public int getNumberOfReplicas() {
         return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null);
+    }
+
+    public boolean isCompositeIndex() {
+        return isCompositeIndex;
     }
 
     /**

@@ -13,6 +13,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 /**
  * Cluster level settings for composite indices
@@ -37,12 +39,22 @@ public class CompositeIndexSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * This sets the max flush threshold size for composite index
+     */
+    public static final Setting<ByteSizeValue> COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.composite_index.translog.max_flush_threshold_size",
+        new ByteSizeValue(512, ByteSizeUnit.MB),
+        new ByteSizeValue(128, ByteSizeUnit.MB),
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        Setting.Property.NodeScope
+    );
+
     private volatile boolean starTreeIndexCreationEnabled;
 
     public CompositeIndexSettings(Settings settings, ClusterSettings clusterSettings) {
         this.starTreeIndexCreationEnabled = STAR_TREE_INDEX_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(STAR_TREE_INDEX_ENABLED_SETTING, this::starTreeIndexCreationEnabled);
-
     }
 
     private void starTreeIndexCreationEnabled(boolean value) {
