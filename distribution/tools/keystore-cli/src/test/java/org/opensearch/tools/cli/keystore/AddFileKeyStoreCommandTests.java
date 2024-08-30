@@ -78,6 +78,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingCreateWithEmptyPasswordWhenPrompted() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         String password = "";
         Path file1 = createRandomFile();
         terminal.addTextInput("y");
@@ -86,6 +87,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingCreateWithEmptyPasswordWithoutPromptIfForced() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         String password = "";
         Path file1 = createRandomFile();
         execute("-f", "foo", file1.toString());
@@ -93,7 +95,9 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingNoCreate() throws Exception {
-        terminal.addSecretInput(randomFrom("", "keystorepassword"));
+        var password = randomFrom("", "keystorepassword");
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm() && password.isEmpty());
+        terminal.addSecretInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo");
         assertNull(KeyStoreWrapper.load(env.configDir()));
@@ -221,6 +225,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         String password = "";
         Path file = createRandomFile();
         KeyStoreWrapper keystore = createKeystore(password);

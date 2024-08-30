@@ -77,7 +77,7 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
                 assertBusy(() -> assertThat(threads, hasSize(2)));
                 int i = 0;
                 for (Thread thread : threads) {
-                    assertEquals("es-client-" + taskId + "-" + i, thread.getName());
+                    assertEquals("os-client-" + taskId + "-" + i, thread.getName());
                     i++;
                 }
             } finally {

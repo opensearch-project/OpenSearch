@@ -40,6 +40,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.KeyStoreWrapper;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
@@ -76,6 +78,7 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -85,6 +88,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
+    Supplier<char[]> passphraseSupplier = () -> inFipsJvm() ? "6!6428DQXwPpi7@$ggeg/=".toCharArray() : new char[0];
     Environment env;
     List<FileSystem> fileSystems = new ArrayList<>();
 
@@ -105,9 +109,9 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             bytes[i] = (byte) i;
         }
         keystore.setFile("foo", bytes);
-        keystore.save(env.configDir(), new char[0]);
+        keystore.save(env.configDir(), passphraseSupplier.get());
         keystore = KeyStoreWrapper.load(env.configDir());
-        keystore.decrypt(new char[0]);
+        keystore.decrypt(passphraseSupplier.get());
         try (InputStream stream = keystore.getFile("foo")) {
             for (int i = 0; i < 256; ++i) {
                 int got = stream.read();
@@ -127,11 +131,11 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testDecryptKeyStoreWithWrongPassword() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.configDir(), new char[0]);
+        keystore.save(env.configDir(), passphraseSupplier.get());
         final KeyStoreWrapper loadedKeystore = KeyStoreWrapper.load(env.configDir());
         final SecurityException exception = expectThrows(
             SecurityException.class,
-            () -> loadedKeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
+            () -> loadedKeystore.decrypt("wrong_password_<1234567890%&!\"/>_but_a_strong_one".toCharArray())
         );
         assertThat(
             exception.getMessage(),
@@ -181,12 +185,12 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     public void testUpgradeNoop() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
-        keystore.save(env.configDir(), new char[0]);
+        keystore.save(env.configDir(), passphraseSupplier.get());
         // upgrade does not overwrite seed
         KeyStoreWrapper.upgrade(keystore, env.configDir(), new char[0]);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
         keystore = KeyStoreWrapper.load(env.configDir());
-        keystore.decrypt(new char[0]);
+        keystore.decrypt(passphraseSupplier.get());
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
 
@@ -213,7 +217,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         }
 
         KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
-        SecurityException e = expectThrows(SecurityException.class, () -> keystore.decrypt(new char[0]));
+        SecurityException e = expectThrows(SecurityException.class, () -> keystore.decrypt(passphraseSupplier.get()));
         assertThat(e.getMessage(), containsString("Keystore has been corrupted or tampered with"));
         assertThat(e.getCause(), instanceOf(EOFException.class));
     }
@@ -270,7 +274,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         }
 
         KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
-        SecurityException e = expectThrows(SecurityException.class, () -> keystore.decrypt(new char[0]));
+        SecurityException e = expectThrows(SecurityException.class, () -> keystore.decrypt(passphraseSupplier.get()));
         assertThat(e.getMessage(), containsString("Keystore has been corrupted or tampered with"));
     }
 
@@ -301,7 +305,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     }
 
     private CipherOutputStream getCipherStream(ByteArrayOutputStream bytes, byte[] salt, byte[] iv) throws Exception {
-        PBEKeySpec keySpec = new PBEKeySpec(new char[0], salt, 10000, 128);
+        PBEKeySpec keySpec = new PBEKeySpec(passphraseSupplier.get(), salt, 10000, 128);
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
         SecretKey secretKey = keyFactory.generateSecret(keySpec);
         SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
@@ -341,12 +345,12 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     public void testUpgradeAddsSeed() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.remove(KeyStoreWrapper.SEED_SETTING.getKey());
-        keystore.save(env.configDir(), new char[0]);
-        KeyStoreWrapper.upgrade(keystore, env.configDir(), new char[0]);
+        keystore.save(env.configDir(), passphraseSupplier.get());
+        KeyStoreWrapper.upgrade(keystore, env.configDir(), passphraseSupplier.get());
         SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
         assertNotNull(seed);
         keystore = KeyStoreWrapper.load(env.configDir());
-        keystore.decrypt(new char[0]);
+        keystore.decrypt(passphraseSupplier.get());
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
 
@@ -371,7 +375,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             output.writeString("PBE");
 
             SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
+            KeyStore keystore = KeyStoreFactory.getInstance(KeyStoreType.PKCS_12, "SUN");
             keystore.load(null, null);
             SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
             KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
@@ -412,7 +416,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             output.writeString("FILE");
 
             SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
+            KeyStore keystore = KeyStoreFactory.getInstance(KeyStoreType.PKCS_12, "SUN");
             keystore.load(null, null);
             SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
             KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
@@ -455,12 +459,12 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         final Path temp = createTempDir();
         Files.write(temp.resolve("file_setting"), "file_value".getBytes(StandardCharsets.UTF_8));
         wrapper.setFile("file_setting", Files.readAllBytes(temp.resolve("file_setting")));
-        wrapper.save(env.configDir(), new char[0]);
+        wrapper.save(env.configDir(), passphraseSupplier.get());
         wrapper.close();
 
         final KeyStoreWrapper afterSave = KeyStoreWrapper.load(env.configDir());
         assertNotNull(afterSave);
-        afterSave.decrypt(new char[0]);
+        afterSave.decrypt(passphraseSupplier.get());
         assertThat(afterSave.getSettingNames(), equalTo(new HashSet<>(Arrays.asList("keystore.seed", "string_setting", "file_setting"))));
         assertThat(afterSave.getString("string_setting"), equalTo("string_value"));
         assertThat(toByteArray(afterSave.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));

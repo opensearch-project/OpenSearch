@@ -85,7 +85,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
                     + " the certificate is signed by"
@@ -110,7 +110,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
                     + " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])"
@@ -134,7 +134,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
                     + " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])"
@@ -160,7 +160,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the server did not provide a copy of the issuing certificate in the certificate chain;"
@@ -185,7 +185,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the server did not provide a copy of the issuing certificate in the certificate chain;"
@@ -209,7 +209,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the server did not provide a copy of the issuing certificate in the certificate chain;"
@@ -235,7 +235,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.9];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the server did not provide a copy of the issuing certificate in the certificate chain;"
@@ -538,7 +538,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             Matchers.equalTo(
                 "failed to establish trust with client at [192.168.1.7];"
                     + " the client provided a certificate with subject name [CN=cert1]"
-                    + " and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the client did not provide a copy of the issuing certificate in the certificate chain;"
                     + " the issuing certificate with fingerprint [2b7b0416391bdf86502505c23149022d2213dadc]"
@@ -571,7 +571,7 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
             message,
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.4];"
-                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];"
+                    + " the server provided a certificate with subject name [CN=cert1] and fingerprint [7e0919348e566651a136f2a1d5974585d5b3712e];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
                     + " the certificate is signed by (subject [CN=Test CA 1]"
