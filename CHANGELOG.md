@@ -70,7 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Deprecated
 
 ### Removed
-- Remove some unused code in the search backpressure package
+- Remove some unused code in the search backpressure package ([#15518](https://github.com/opensearch-project/OpenSearch/pull/15518))
 
 ### Fixed
 - Fix constraint bug which allows more primary shards than average primary shards per index ([#14908](https://github.com/opensearch-project/OpenSearch/pull/14908))
