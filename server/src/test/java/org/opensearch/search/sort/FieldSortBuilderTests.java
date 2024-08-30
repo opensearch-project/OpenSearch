@@ -46,6 +46,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -64,8 +65,11 @@ import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nest
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.mapper.ValueFetcher;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -77,11 +81,13 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchSortValuesAndFormats;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -91,6 +97,8 @@ import static org.opensearch.search.sort.FieldSortBuilder.getMinMaxOrNull;
 import static org.opensearch.search.sort.FieldSortBuilder.getPrimaryFieldSortOrNull;
 import static org.opensearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
 
@@ -708,9 +716,29 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
      * Test that the sort builder fieldType is set properly
      */
     public void testSortFieldFieldType() throws IOException {
-        QueryShardContext shardContextMock = createMockShardContext();
-        FieldSortBuilder fieldSortBuilder = new FieldSortBuilder("value");
-        fieldSortBuilder.build(shardContextMock);
+        MapperService mapperService = mock(MapperService.class);
+        QueryShardContext shardContextMock = createMockShardContext(mapperService);
+
+        MappedFieldType mappedFieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            @Override
+            public String typeName() {
+                return "double";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                return null;
+            }
+        };
+
+        when(mapperService.fieldType("field")).thenReturn(mappedFieldType);
+        FieldSortBuilder fieldSortBuilder = new FieldSortBuilder("field");
+        fieldSortBuilder.buildHelper(shardContextMock);
         assertEquals(fieldSortBuilder.getFieldType(), "double");
     }
 

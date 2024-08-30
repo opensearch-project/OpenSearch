@@ -162,7 +162,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         }
     }
 
-    private SortFieldAndFormat buildHelper(QueryShardContext context) throws IOException {
+    SortFieldAndFormat buildHelper(QueryShardContext context) throws IOException {
         SortFieldAndFormat sortFieldAndFormat = build(context);
         fieldType = context.getFieldTypeString(fieldName());
         return sortFieldAndFormat;
