@@ -906,10 +906,14 @@ public class RemoteFsTranslog extends Translog {
     protected void onDelete() {
         ClusterService.assertClusterOrClusterManagerStateThread();
         // clean up all remote translog files
-        try {
-            trimUnreferencedReaders(true, false);
-        } catch (IOException e) {
-            logger.error("Exception while deleting translog files from remote store", e);
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+            try {
+                trimUnreferencedReaders(true, false);
+            } catch (IOException e) {
+                logger.error("Exception while deleting translog files from remote store", e);
+            }
+        } else {
+            translogTransferManager.delete();
         }
     }
 
