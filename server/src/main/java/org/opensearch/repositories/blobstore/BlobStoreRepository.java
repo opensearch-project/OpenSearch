@@ -153,7 +153,6 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.rmi.Remote;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -970,7 +969,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             repositoryStateId,
             repositoryMetaVersion,
             null, // Passing null since no remote store lock files need to be cleaned up.
-            null, //Passing null since no remote store segment files need to be cleaned up
+            null, // Passing null since no remote store segment files need to be cleaned up
             false, // true only for shallow snapshot v2
             listener
         );
@@ -1759,7 +1758,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 }
                             }
                         }
-                    } else {
+                    } else if (remoteSegmentStoreDirectoryFactory != null) {
                         cleanRemoteStoreDirectoryIfNeeded(indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
                     }
 
