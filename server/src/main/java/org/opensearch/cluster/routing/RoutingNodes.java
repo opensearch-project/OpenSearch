@@ -385,7 +385,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // be accessible. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .max(
                 Comparator.comparing(
@@ -409,7 +409,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .min(
                 Comparator.comparing(
@@ -428,7 +428,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * are preferred for primary promotion
      */
     public ShardRouting activeReplicaOnRemoteNode(ShardId shardId) {
-        return assignedShards(shardId).stream().filter(shr -> !shr.primary() && shr.active()).filter((shr) -> {
+        return assignedShards(shardId).stream().filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly()).filter((shr) -> {
             RoutingNode nd = node(shr.currentNodeId());
             return (nd != null && nd.node().isRemoteStoreNode());
         }).findFirst().orElse(null);
@@ -820,6 +820,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private ShardRouting promoteActiveReplicaShardToPrimary(ShardRouting replicaShard) {
         assert replicaShard.active() : "non-active shard cannot be promoted to primary: " + replicaShard;
         assert replicaShard.primary() == false : "primary shard cannot be promoted to primary: " + replicaShard;
+        assert replicaShard.isSearchOnly() == false : "search only replica cannot be promoted to primary: " + replicaShard;
         ShardRouting primaryShard = replicaShard.moveActiveReplicaToPrimary();
         updateAssigned(replicaShard, primaryShard);
         return primaryShard;

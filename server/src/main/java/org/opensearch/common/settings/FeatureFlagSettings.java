@@ -39,6 +39,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         FeatureFlags.PLUGGABLE_CACHE_SETTING,
         FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
         FeatureFlags.STAR_TREE_INDEX_SETTING,
-        FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING
+        FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
+        FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING
     );
 }
