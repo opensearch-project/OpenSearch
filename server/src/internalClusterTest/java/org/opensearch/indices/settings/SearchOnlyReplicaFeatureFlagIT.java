@@ -10,7 +10,6 @@ package org.opensearch.indices.settings;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -33,8 +32,8 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
 
     public void testCreateFeatureFlagDisabled() {
         Settings settings = Settings.builder().put(indexSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, false).build();
-        SettingsException settingsException = expectThrows(SettingsException.class, () -> createIndex(TEST_INDEX, settings));
-        assertTrue(settingsException.getMessage().contains("unknown setting"));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createIndex(TEST_INDEX, settings));
+        assertTrue(exception.getMessage().contains("unknown setting"));
     }
 
     public void testUpdateFeatureFlagDisabled() {
@@ -44,13 +43,13 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
             .build();
 
         createIndex(TEST_INDEX, settings);
-        SettingsException settingsException = expectThrows(SettingsException.class, () -> {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             client().admin()
                 .indices()
                 .prepareUpdateSettings(TEST_INDEX)
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1))
                 .get();
         });
-        assertTrue(settingsException.getMessage().contains("unknown setting"));
+        assertTrue(exception.getMessage().contains("unknown setting"));
     }
 }
