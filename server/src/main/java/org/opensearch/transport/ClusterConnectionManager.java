@@ -201,6 +201,7 @@ public class ClusterConnectionManager implements ConnectionManager {
         }));
     }
 
+    // THIS IS ALMOST A COMPLETE COPY OF connectToNode, with a few lines added for pendingJoins list tracking
     @Override
     public void connectToNodeAndBlockDisconnects(
         DiscoveryNode node,

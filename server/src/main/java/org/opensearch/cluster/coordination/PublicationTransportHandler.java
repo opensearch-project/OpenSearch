@@ -608,10 +608,6 @@ public class PublicationTransportHandler {
                         logger.debug("resending full cluster state to node {} reason {}", destination, exp.getDetailedMessage());
                         sendFullClusterState(destination, listener);
                     }
-//                    else if (exp instanceof NodeNotConnectedException){
-//                        // in case node is not connected, try to recreate the connection and retry?
-//                        transportService.connectToNode();
-//                    }
                     else {
                         logger.info(() -> new ParameterizedMessage("failed to send cluster state to {}", destination), exp);
                         listener.onFailure(exp);

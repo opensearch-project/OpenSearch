@@ -50,8 +50,16 @@ import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.opensearch.transport.*;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportConnectionListener;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportRequestOptions.Type;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -349,7 +357,7 @@ public class FollowersChecker {
             }
 
             final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
-            // logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
+            logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
             if (discoveryNode.getName().equals("node_t2")) {
                 logger.info("handleWakeUp: checking {} with {}", discoveryNode, request);
             }
@@ -414,7 +422,6 @@ public class FollowersChecker {
                             return;
                         }
 
-                        // maybe this shouldn't be called in disconnected case/when cache doesnt have the entry
                         failNode(reason);
                     }
 
