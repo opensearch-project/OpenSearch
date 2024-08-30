@@ -69,6 +69,8 @@ import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.mapper.ValueFetcher;
 import org.opensearch.search.lookup.LeafDocLookup;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
@@ -148,6 +150,11 @@ public class QueryShardContextTests extends OpenSearchTestCase {
             @Override
             protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
+            }
+
+            @Override
+            public String fieldName() {
+                return getDefaultFieldName();
             }
 
             @Override
@@ -477,6 +484,74 @@ public class QueryShardContextTests extends OpenSearchTestCase {
             }
             return result;
         }
+    }
+
+    public void testGetFieldTypeString() {
+        MapperService mapperService = mock(MapperService.class);
+
+        Settings settings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        QueryShardContext queryShardContext = new QueryShardContext(
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mapperService,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        MappedFieldType mappedFieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            @Override
+            public String typeName() {
+                return "long";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                return null;
+            }
+        };
+
+        when(mapperService.fieldType(any())).thenReturn(null);
+
+        // Null fieldName
+        String fieldType = queryShardContext.getFieldTypeString(null);
+        assertEquals(null, fieldType);
+
+        // MapperService return null
+        fieldType = queryShardContext.getFieldTypeString("field1");
+        assertEquals(null, fieldType);
+
+        when(mapperService.fieldType("field")).thenReturn(mappedFieldType);
+
+        // Unmapped fieldName
+        fieldType = queryShardContext.getFieldTypeString("unknown_field");
+        assertEquals(null, fieldType);
+        // Date fieldType
+        fieldType = queryShardContext.getFieldTypeString("field");
+        assertEquals("long", fieldType);
     }
 
 }
