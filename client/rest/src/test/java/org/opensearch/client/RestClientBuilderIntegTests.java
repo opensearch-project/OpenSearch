@@ -38,6 +38,9 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.ssl.SSLContextBuilder;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -50,19 +53,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.AccessController;
-import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.SecureRandom;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /**
@@ -75,8 +77,11 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext()));
+        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true)));
         httpsServer.createContext("/", new ResponseHandler());
+        var threadFactory = new FipsEnabledThreadFactory("test-httpserver-dispatch", inFipsJvm());
+        Executor executor = Executors.newFixedThreadPool(1, threadFactory);
+        httpsServer.setExecutor(executor);
         httpsServer.start();
     }
 
@@ -90,8 +95,22 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     @AfterClass
     public static void stopHttpServers() throws IOException {
-        httpsServer.stop(0);
-        httpsServer = null;
+        if (httpsServer != null) {
+            httpsServer.stop(0); // Stop the server
+            Executor executor = httpsServer.getExecutor();
+            if (executor instanceof ExecutorService) {
+                ((ExecutorService) executor).shutdown(); // Shutdown the executor
+                try {
+                    if (!((ExecutorService) executor).awaitTermination(15, TimeUnit.SECONDS)) {
+                        ((ExecutorService) executor).shutdownNow(); // Force shutdown if not terminated
+                    }
+                } catch (InterruptedException ex) {
+                    ((ExecutorService) executor).shutdownNow(); // Force shutdown on interruption
+                    Thread.currentThread().interrupt();
+                }
+            }
+            httpsServer = null;
+        }
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
@@ -106,7 +125,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                 }
             }
 
-            SSLContext.setDefault(getSslContext());
+            SSLContext.setDefault(getSslContext(false));
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
@@ -121,34 +140,37 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
     }
 
-    private static SSLContext getSslContext() throws Exception {
-        SSLContext sslContext = SSLContext.getInstance(getProtocol());
+    private static SSLContext getSslContext(boolean server) throws Exception {
+        SSLContext sslContext;
+        char[] password = "password".toCharArray();
+        SecureRandom secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
+
         try (
-            InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt");
-            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.jks")
+            InputStream trustStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.bcfks");
+            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/testks.bcfks")
         ) {
-            // Build a keystore of default type programmatically since we can't use JKS keystores to
-            // init a KeyManagerFactory in FIPS 140 JVMs.
-            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(null, "password".toCharArray());
-            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(
-                Files.readAllBytes(Paths.get(RestClientBuilderIntegTests.class.getResource("/test.der").toURI()))
-            );
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            keyStore.setKeyEntry(
-                "mykey",
-                keyFactory.generatePrivate(privateKeySpec),
-                "password".toCharArray(),
-                new Certificate[] { certFactory.generateCertificate(certFile) }
-            );
+            KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+            keyStore.load(keyStoreFile, password);
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, "password".toCharArray());
-            KeyStore trustStore = KeyStore.getInstance("JKS");
-            trustStore.load(keyStoreFile, "password".toCharArray());
+            kmf.init(keyStore, password);
+
+            KeyStore trustStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+            trustStore.load(trustStoreFile, password);
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(trustStore);
-            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+
+            var sslContextBuilder = SSLContextBuilder.create()
+                .setProvider("BCJSSE")
+                .setProtocol(getProtocol())
+                .setSecureRandom(secureRandom);
+
+            if (server) {
+                sslContextBuilder.loadKeyMaterial(keyStore, password).build();
+            } else {
+                sslContextBuilder.loadTrustMaterial(trustStore, null);
+            }
+            sslContext = sslContextBuilder.build();
+
         }
         return sslContext;
     }

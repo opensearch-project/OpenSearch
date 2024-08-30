@@ -164,7 +164,6 @@ public class DateProcessorTests extends OpenSearchTestCase {
     }
 
     public void testJavaPatternLocale() {
-        assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
         DateProcessor dateProcessor = new DateProcessor(
             randomAlphaOfLength(10),
             null,
