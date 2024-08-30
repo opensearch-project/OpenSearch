@@ -1021,7 +1021,7 @@ public class Node implements Closeable {
 
             final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
                                                                                  // queryGroupService
-            final QueryGroupRequestOperationListener queryGroupRequestRejectionListener = new QueryGroupRequestOperationListener(
+            final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
                 queryGroupService,
                 threadPool
             );
@@ -1034,7 +1034,7 @@ public class Node implements Closeable {
                             searchRequestStats,
                             searchRequestSlowLog,
                             searchTaskRequestOperationsListener,
-                            queryGroupRequestRejectionListener
+                            queryGroupRequestOperationListener
                         ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
