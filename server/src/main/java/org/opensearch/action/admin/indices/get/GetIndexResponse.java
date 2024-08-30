@@ -35,6 +35,7 @@ package org.opensearch.action.admin.indices.get;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
@@ -69,6 +70,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private Map<String, Settings> settings = Map.of();
     private Map<String, Settings> defaultSettings = Map.of();
     private Map<String, String> dataStreams = Map.of();
+    private Map<String, Context> contexts = Map.of();
     private final String[] indices;
 
     public GetIndexResponse(
@@ -78,6 +80,18 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         final Map<String, Settings> settings,
         final Map<String, Settings> defaultSettings,
         final Map<String, String> dataStreams
+    ) {
+        this(indices, mappings, aliases, settings, defaultSettings, dataStreams, null);
+    }
+
+    public GetIndexResponse(
+        String[] indices,
+        Map<String, MappingMetadata> mappings,
+        final Map<String, List<AliasMetadata>> aliases,
+        final Map<String, Settings> settings,
+        final Map<String, Settings> defaultSettings,
+        final Map<String, String> dataStreams,
+        final Map<String, Context> contexts
     ) {
         this.indices = indices;
         // to have deterministic order
@@ -96,6 +110,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         if (dataStreams != null) {
             this.dataStreams = Collections.unmodifiableMap(dataStreams);
+        }
+        if (contexts != null) {
+            this.contexts = Collections.unmodifiableMap(contexts);
         }
     }
 
@@ -163,6 +180,15 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
             dataStreams = Collections.unmodifiableMap(dataStreamsMapBuilder);
         }
+
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            final Map<String, Context> contextMapBuilder = new HashMap<>();
+            int contextSize = in.readVInt();
+            for (int i = 0; i < contextSize; i++) {
+                contextMapBuilder.put(in.readString(), in.readOptionalWriteable(Context::new));
+            }
+            contexts = Collections.unmodifiableMap(contextMapBuilder);
+        }
     }
 
     public String[] indices() {
@@ -215,6 +241,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     public Map<String, Settings> getSettings() {
         return settings();
+    }
+
+    public Map<String, Context> contexts() {
+        return contexts;
     }
 
     /**
@@ -282,6 +312,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 out.writeOptionalString(indexEntry.getValue());
             }
         }
+
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeVInt(contexts.size());
+            for (final Map.Entry<String, Context> indexEntry : contexts.entrySet()) {
+                out.writeString(indexEntry.getKey());
+                out.writeOptionalWriteable(indexEntry.getValue());
+            }
+        }
     }
 
     @Override
@@ -325,6 +363,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     if (dataStream != null) {
                         builder.field("data_stream", dataStream);
                     }
+
+                    Context context = contexts.get(index);
+                    if (context != null) {
+                        builder.field("context", context);
+                    }
                 }
                 builder.endObject();
             }
@@ -348,11 +391,12 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             && Objects.equals(mappings, that.mappings)
             && Objects.equals(settings, that.settings)
             && Objects.equals(defaultSettings, that.defaultSettings)
-            && Objects.equals(dataStreams, that.dataStreams);
+            && Objects.equals(dataStreams, that.dataStreams)
+            && Objects.equals(contexts, that.contexts);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices), aliases, mappings, settings, defaultSettings, dataStreams);
+        return Objects.hash(Arrays.hashCode(indices), aliases, mappings, settings, defaultSettings, dataStreams, contexts);
     }
 }

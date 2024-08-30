@@ -656,6 +656,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
+    public static final String CONTEXT_KEY = "context";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -709,6 +710,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final int indexTotalShardsPerNodeLimit;
 
+    private final Context context;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -736,7 +739,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final ActiveShardCount waitForActiveShards,
         final Map<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
-        final int indexTotalShardsPerNodeLimit
+        final int indexTotalShardsPerNodeLimit,
+        final Context context
     ) {
 
         this.index = index;
@@ -773,6 +777,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
+        this.context = context;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -1005,6 +1010,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (isSystem != that.isSystem) {
             return false;
         }
+        if (!Objects.equals(context, that.context)) {
+            return false;
+        }
         return true;
     }
 
@@ -1023,6 +1031,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + rolloverInfos.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
+        result = 31 * result + Objects.hashCode(context);
         return result;
     }
 
@@ -1067,6 +1076,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
         private final Diff<Map<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
+        private final Context context;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1089,6 +1099,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
+            context = after.context;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1128,6 +1139,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 isSystem = false;
             }
+            if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+                context = in.readOptionalWriteable(Context::new);
+            } else {
+                context = null;
+            }
         }
 
         @Override
@@ -1148,8 +1164,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
+
             if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
+            }
+            if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+                out.writeOptionalWriteable(context);
             }
         }
 
@@ -1170,6 +1190,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(part.isSystem);
+            builder.context(context);
             return builder.build();
         }
     }
@@ -1217,6 +1238,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
         }
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            builder.context(in.readOptionalWriteable(Context::new));
+        }
         return builder.build();
     }
 
@@ -1258,10 +1282,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeOptionalWriteable(context);
+        }
     }
 
     public boolean isSystem() {
         return isSystem;
+    }
+
+    public Context context() {
+        return context;
     }
 
     public boolean isRemoteSnapshot() {
@@ -1299,6 +1330,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Map<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
+        private Context context;
 
         public Builder(String index) {
             this.index = index;
@@ -1326,6 +1358,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
+            this.context = indexMetadata.context;
         }
 
         public Builder index(String index) {
@@ -1547,6 +1580,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return isSystem;
         }
 
+        public Builder context(Context context) {
+            this.context = context;
+            return this;
+        }
+
+        public Context context() {
+            return context;
+        }
+
         public IndexMetadata build() {
             final Map<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1677,7 +1719,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 waitForActiveShards,
                 rolloverInfos,
                 isSystem,
-                indexTotalShardsPerNodeLimit
+                indexTotalShardsPerNodeLimit,
+                context
             );
         }
 
@@ -1780,6 +1823,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 
+            if (indexMetadata.context != null) {
+                builder.field(CONTEXT_KEY);
+                indexMetadata.context.toXContent(builder, params);
+            }
+
             builder.endObject();
         }
 
@@ -1861,6 +1909,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         // simply ignored when upgrading from 2.x
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
+                    } else if (CONTEXT_KEY.equals(currentFieldName)) {
+                        builder.context(Context.fromXContent(parser));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());
