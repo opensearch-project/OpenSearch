@@ -364,6 +364,22 @@ public class QueryShardContext extends QueryRewriteContext {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 
+    /**
+     * Returns field type as String for the given field name.
+     * If field is not mapped or mapperService is null, returns null.
+     */
+    public String getFieldTypeString(String fieldName) {
+        if (fieldName != null) {
+            if (mapperService != null) {
+                MappedFieldType mappedFieldType = mapperService.fieldType(fieldName);
+                if (mappedFieldType != null) {
+                    return mappedFieldType.typeName();
+                }
+            }
+        }
+        return null;
+    }
+
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
     }

@@ -136,7 +136,8 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         return fieldType.distanceFeatureQuery(origin.origin(), pivot, 1.0f, context);
     }
 
-    String fieldName() {
+    @Override
+    public String fieldName() {
         return field;
     }
 
