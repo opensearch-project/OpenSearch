@@ -16,8 +16,15 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.fetch.subphase.highlight.HighlightFieldTests;
-import org.opensearch.serde.proto.SearchHitsTransportProto;
 import org.opensearch.test.OpenSearchTestCase;
+
+import org.opensearch.proto.search.SearchHitsProtoDef.DocumentFieldProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.ExplanationProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.HighlightFieldProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.IndexProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SearchShardTargetProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SearchSortValuesProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.ShardIdProto;
 
 import static org.opensearch.index.get.DocumentFieldTests.randomDocumentField;
 import static org.opensearch.search.SearchHitTests.createExplanation;
@@ -40,28 +47,28 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
 
     public void testProtoExplanationSerDe() {
         Explanation orig = createExplanation(randomIntBetween(0, 5));
-        SearchHitsTransportProto.ExplanationProto proto = explanationToProto(orig);
+        ExplanationProto proto = explanationToProto(orig);
         Explanation cpy = explanationFromProto(proto);
         assertEquals(orig, cpy);
     }
 
     public void testProtoDocumentFieldSerDe() {
         DocumentField orig = randomDocumentField(randomFrom(XContentType.values()), randomBoolean(), fieldName -> false).v1();
-        SearchHitsTransportProto.DocumentFieldProto proto = documentFieldToProto(orig);
+        DocumentFieldProto proto = documentFieldToProto(orig);
         DocumentField cpy = documentFieldFromProto(proto);
         assertEquals(orig, cpy);
     }
 
     public void testProtoHighlightFieldSerDe() {
         HighlightField orig = HighlightFieldTests.createTestItem();
-        SearchHitsTransportProto.HighlightFieldProto proto = highlightFieldToProto(orig);
+        HighlightFieldProto proto = highlightFieldToProto(orig);
         HighlightField cpy = highlightFieldFromProto(proto);
         assertEquals(orig, cpy);
     }
 
     public void testProtoSearchSortValuesSerDe() {
         SearchSortValues orig = SearchSortValuesTests.createTestItem(randomFrom(XContentType.values()), true);
-        SearchHitsTransportProto.SearchSortValuesProto proto = searchSortValuesToProto(orig);
+        SearchSortValuesProto proto = searchSortValuesToProto(orig);
         SearchSortValues cpy = searchSortValuesFromProto(proto);
         assertEquals(orig, cpy);
     }
@@ -76,21 +83,21 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
             OriginalIndices.NONE
         );
 
-        SearchHitsTransportProto.SearchShardTargetProto proto = searchShardTargetToProto(orig);
+        SearchShardTargetProto proto = searchShardTargetToProto(orig);
         SearchShardTarget cpy = searchShardTargetFromProto(proto);
         assertEquals(orig, cpy);
     }
 
     public void testProtoShardIdSerDe() {
         ShardId orig = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt());
-        SearchHitsTransportProto.ShardIdProto proto = shardIdToProto(orig);
+        ShardIdProto proto = shardIdToProto(orig);
         ShardId cpy = shardIdFromProto(proto);
         assertEquals(orig, cpy);
     }
 
     public void testProtoIndexSerDe() {
         Index orig = new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-        SearchHitsTransportProto.IndexProto proto = indexToProto(orig);
+        IndexProto proto = indexToProto(orig);
         Index cpy = indexFromProto(proto);
         assertEquals(orig, cpy);
     }

@@ -14,10 +14,11 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.search.SearchHit;
-import org.opensearch.serde.proto.SearchHitsTransportProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.NestedIdentityProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitsProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitsProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.NestedIdentityProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.DocumentFieldProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.HighlightFieldProto;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -153,19 +154,19 @@ public class SearchHitProtobuf extends SearchHit {
         }
 
         documentFields = new HashMap<>();
-        Map<String, SearchHitsTransportProto.DocumentFieldProto> documentFieldProtoMap = proto.getDocumentFieldsMap();
+        Map<String, DocumentFieldProto> documentFieldProtoMap = proto.getDocumentFieldsMap();
         if (!documentFieldProtoMap.isEmpty()) {
             documentFieldProtoMap.forEach((key, value) -> documentFields.put(key, documentFieldFromProto(value)));
         }
 
         metaFields = new HashMap<>();
-        Map<String, SearchHitsTransportProto.DocumentFieldProto> metaFieldProtoMap = proto.getMetaFieldsMap();
+        Map<String, DocumentFieldProto> metaFieldProtoMap = proto.getMetaFieldsMap();
         if (!metaFieldProtoMap.isEmpty()) {
             metaFieldProtoMap.forEach((key, value) -> metaFields.put(key, documentFieldFromProto(value)));
         }
 
         highlightFields = new HashMap<>();
-        Map<String, SearchHitsTransportProto.HighlightFieldProto> highlightFieldProtoMap = proto.getHighlightFieldsMap();
+        Map<String, HighlightFieldProto> highlightFieldProtoMap = proto.getHighlightFieldsMap();
         if (!highlightFieldProtoMap.isEmpty()) {
             highlightFieldProtoMap.forEach((key, value) -> highlightFields.put(key, highlightFieldFromProto(value)));
         }

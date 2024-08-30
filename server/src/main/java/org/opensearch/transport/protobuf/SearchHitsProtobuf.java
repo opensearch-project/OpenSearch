@@ -18,8 +18,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.serde.proto.SearchHitsTransportProto.SearchHitsProto;
-import org.opensearch.serde.proto.SearchHitsTransportProto.TotalHitsProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitsProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.TotalHitsProto;
 
 import java.io.IOException;
 
