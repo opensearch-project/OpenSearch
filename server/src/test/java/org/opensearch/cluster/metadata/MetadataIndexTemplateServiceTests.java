@@ -2429,9 +2429,13 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         return putTemplate(xContentRegistry, request, Settings.EMPTY);
     }
 
-    private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request, Settings incomingSettings) {
+    private static List<Throwable> putTemplate(
+        NamedXContentRegistry xContentRegistry,
+        PutRequest request,
+        Settings incomingNodeScopedSettings
+    ) {
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder().put(incomingSettings).put(PATH_HOME_SETTING.getKey(), "dummy").build();
+        Settings settings = Settings.builder().put(incomingNodeScopedSettings).put(PATH_HOME_SETTING.getKey(), "dummy").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Metadata metadata = Metadata.builder().build();
         ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
