@@ -35,6 +35,11 @@ package org.opensearch.indices.settings;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplate;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
+import org.opensearch.cluster.applicationtemplates.TemplateRepositoryMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -42,6 +47,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.VersionType;
@@ -51,10 +57,14 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
@@ -97,6 +107,58 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertEquals(exception.getCause().getMessage(), "this setting goes boom");
         IndexMetadata indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
         assertNotEquals(indexMetadata.getSettings().get("index.dummy"), "invalid dynamic value");
+    }
+
+    public void testDynamicUpdateWithContextSettingOverlap() throws IOException {
+        String templateContent = "{\n"
+            + "  \"template\": {\n"
+            + "    \"settings\": {\n"
+            + "      \"index.merge.policy\": \"log_byte_size\"\n"
+            + "    }\n"
+            + "  },\n"
+            + "  \"_meta\": {\n"
+            + "    \"_type\": \"@abc_template\",\n"
+            + "    \"_version\": 1\n"
+            + "  },\n"
+            + "  \"version\": 1\n"
+            + "}\n";
+
+        ClusterStateSystemTemplateLoader loader = new ClusterStateSystemTemplateLoader(
+            internalCluster().clusterManagerClient(),
+            () -> internalCluster().getInstance(ClusterService.class).state()
+        );
+        loader.loadTemplate(
+            new SystemTemplate(
+                BytesReference.fromByteBuffer(ByteBuffer.wrap(templateContent.getBytes(StandardCharsets.UTF_8))),
+                SystemTemplateMetadata.fromComponentTemplateInfo("testcontext", 1L),
+                new TemplateRepositoryMetadata(UUID.randomUUID().toString(), 1L)
+            )
+        );
+
+        createIndex("test", new Context("testcontext"));
+
+        IllegalArgumentException validationException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.merge.policy", "tiered"))
+                .execute()
+                .actionGet()
+        );
+        assertTrue(
+            validationException.getMessage()
+                .contains("Cannot apply context template as user provide settings have overlap with the included context template")
+        );
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.refresh_interval", "60s"))
+                .execute()
+                .actionGet()
+        );
     }
 
     @Override

@@ -121,6 +121,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
             .settings(request.settings())
             .mappings(request.mappings())
             .aliases(request.aliases())
+            .context(request.context())
             .waitForActiveShards(request.waitForActiveShards());
 
         createIndexService.createIndex(
