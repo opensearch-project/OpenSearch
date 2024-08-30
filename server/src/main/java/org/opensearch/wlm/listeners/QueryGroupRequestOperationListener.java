@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm.listeners;
 
+import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -15,14 +16,14 @@ import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 
 /**
- * This listener is used to perform the rejections for incoming requests into a queryGroup
+ * This listener is used to listen for request lifecycle events for a queryGroup
  */
-public class QueryGroupRequestRejectionOperationListener extends SearchRequestOperationsListener {
+public class QueryGroupRequestOperationListener extends SearchRequestOperationsListener {
 
     private final QueryGroupService queryGroupService;
     private final ThreadPool threadPool;
 
-    public QueryGroupRequestRejectionOperationListener(QueryGroupService queryGroupService, ThreadPool threadPool) {
+    public QueryGroupRequestOperationListener(QueryGroupService queryGroupService, ThreadPool threadPool) {
         this.queryGroupService = queryGroupService;
         this.threadPool = threadPool;
     }
@@ -35,5 +36,11 @@ public class QueryGroupRequestRejectionOperationListener extends SearchRequestOp
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
         final String queryGroupId = threadPool.getThreadContext().getHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER);
         queryGroupService.rejectIfNeeded(queryGroupId);
+    }
+
+    @Override
+    protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        final String queryGroupId = threadPool.getThreadContext().getHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER);
+        queryGroupService.incrementFailuresFor(queryGroupId);
     }
 }
