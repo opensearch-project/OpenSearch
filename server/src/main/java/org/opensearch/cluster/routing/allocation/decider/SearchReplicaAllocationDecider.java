@@ -66,16 +66,9 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
-        Decision decision = shouldSearchReplicaShardTypeFilter(shardRouting, node, allocation);
-        if (decision != null) return decision;
-
-        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
-    }
-
-    private Decision shouldSearchReplicaShardTypeFilter(ShardRouting routing, DiscoveryNode node, RoutingAllocation allocation) {
         if (searchReplicaIncludeFilters != null) {
             final boolean match = searchReplicaIncludeFilters.match(node);
-            if (match == false && routing.isSearchOnly()) {
+            if (match == false && shardRouting.isSearchOnly()) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
@@ -85,7 +78,7 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
                 );
             }
             // filter will only apply to search replicas
-            if (routing.isSearchOnly() == false && match) {
+            if (shardRouting.isSearchOnly() == false && match) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
@@ -95,7 +88,7 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
                 );
             }
         }
-        return null;
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }
 
     private void setSearchReplicaIncludeFilters(Map<String, String> filters) {
