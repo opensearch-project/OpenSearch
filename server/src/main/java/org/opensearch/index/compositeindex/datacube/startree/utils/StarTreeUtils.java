@@ -12,18 +12,10 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
-import org.opensearch.search.aggregations.metrics.AvgAggregatorFactory;
-import org.opensearch.search.aggregations.metrics.MaxAggregatorFactory;
-import org.opensearch.search.aggregations.metrics.MinAggregatorFactory;
-import org.opensearch.search.aggregations.metrics.SumAggregatorFactory;
-import org.opensearch.search.aggregations.metrics.ValueCountAggregatorFactory;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Util class for building star tree
@@ -45,22 +37,6 @@ public class StarTreeUtils {
      * The suffix appended to metric field names in the Star Tree index.
      */
     public static final String METRIC_SUFFIX = "metric";
-
-    /**
-     * Map to associate star-tree supported AggregatorFactory classes with their corresponding MetricStat
-     */
-    public static final Map<Class<? extends ValuesSourceAggregatorFactory>, MetricStat> aggregatorStatMap = Map.of(
-        SumAggregatorFactory.class,
-        MetricStat.SUM,
-        MaxAggregatorFactory.class,
-        MetricStat.MAX,
-        MinAggregatorFactory.class,
-        MetricStat.MIN,
-        ValueCountAggregatorFactory.class,
-        MetricStat.VALUE_COUNT,
-        AvgAggregatorFactory.class,
-        MetricStat.AVG
-    );
 
     /**
      * Returns the full field name for a dimension in the star-tree index.

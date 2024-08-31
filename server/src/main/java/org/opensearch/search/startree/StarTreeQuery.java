@@ -46,9 +46,9 @@ public class StarTreeQuery extends Query {
      * Map of field name to a value to be queried for that field
      * This is used to filter the data based on the query
      */
-    Map<String, List<StarTreeFilter.Range>> queryMap;
+    Map<String, Long> queryMap;
 
-    public StarTreeQuery(CompositeIndexFieldInfo starTree, Map<String, List<StarTreeFilter.Range>> queryMap) {
+    public StarTreeQuery(CompositeIndexFieldInfo starTree, Map<String, Long> queryMap) {
         this.starTree = starTree;
         this.queryMap = queryMap;
     }
@@ -82,10 +82,6 @@ public class StarTreeQuery extends Query {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 SegmentReader reader = Lucene.segmentReader(context.reader());
-
-                // We get the 'CompositeIndexReader' instance so that we can get StarTreeValues
-                if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) return null;
-
                 CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
                 List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
                 StarTreeValues starTreeValues = null;
