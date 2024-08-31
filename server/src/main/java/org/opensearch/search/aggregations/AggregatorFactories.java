@@ -255,7 +255,7 @@ public class AggregatorFactories {
         return new Builder();
     }
 
-    public AggregatorFactories(AggregatorFactory[] factories) {
+    AggregatorFactories(AggregatorFactory[] factories) {
         this.factories = factories;
     }
 

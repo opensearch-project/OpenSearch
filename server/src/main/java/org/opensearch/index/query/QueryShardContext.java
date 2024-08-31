@@ -60,7 +60,6 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.ContentPath;
@@ -80,17 +79,15 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptFactory;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.startree.OriginalOrStarTreeQuery;
-import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQuery;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -601,8 +598,7 @@ public class QueryShardContext extends QueryRewriteContext {
         QueryBuilder queryBuilder,
         Query query
     ) {
-        Map<String, List<StarTreeFilter.Range>> queryMap;
-
+        Map<String, Long> queryMap;
         if (queryBuilder == null) {
             queryMap = null;
         } else if (queryBuilder instanceof TermQueryBuilder) {
@@ -625,23 +621,17 @@ public class QueryShardContext extends QueryRewriteContext {
      * @param queryBuilder
      * @return predicates to match
      */
-    private Map<String, List<StarTreeFilter.Range>> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
+    private Map<String, Long> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
         TermQueryBuilder tq = (TermQueryBuilder) queryBuilder;
         String field = tq.fieldName();
-
         if (!supportedDimensions.contains(field)) {
             throw new IllegalArgumentException("unsupported field in star-tree");
         }
-
         long inputQueryVal = Long.parseLong(tq.value().toString());
 
-        // Create a Range with the same min and max value for the exact match for TermQuery
-        StarTreeFilter.Range range = new StarTreeFilter.Range(inputQueryVal, inputQueryVal);
-
-        // Create a map with the field and the range
-        Map<String, List<StarTreeFilter.Range>> predicateMap = new HashMap<>();
-        predicateMap.computeIfAbsent(field, k -> new ArrayList<>()).add(range);
-
+        // Create a map with the field and the value
+        Map<String, Long> predicateMap = new HashMap<>();
+        predicateMap.put(field, inputQueryVal);
         return predicateMap;
     }
 
@@ -651,9 +641,9 @@ public class QueryShardContext extends QueryRewriteContext {
             .stream()
             .collect(Collectors.toMap(Metric::getField, Metric::getMetrics));
 
-        MetricStat metricStat = StarTreeUtils.aggregatorStatMap.get(aggregatorFactory.getClass());
-        if (metricStat != null) {
-            field = ((ValuesSourceAggregatorFactory) aggregatorFactory).getField();
+        if (aggregatorFactory instanceof MetricAggregatorFactory) {
+            MetricStat metricStat = ((MetricAggregatorFactory) aggregatorFactory).getMetricStat();
+            field = ((MetricAggregatorFactory) aggregatorFactory).getField();
             return supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat);
         }
         return false;

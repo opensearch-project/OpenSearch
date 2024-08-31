@@ -1411,7 +1411,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.trackTotalHitsUpTo() != null) {
             context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
-            canUseStarTree = canUseStarTree && (source.trackTotalHitsUpTo() == TRACK_TOTAL_HITS_DISABLED);
+            if (source.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
+                canUseStarTree = false;
+            }
         }
         if (source.minScore() != null) {
             canUseStarTree = false;
@@ -1559,9 +1561,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try {
                 if (setStarTreeQuery(context, queryShardContext, source)) {
                     logger.debug("can use star tree");
+                } else {
+                    logger.debug("cannot use star tree");
                 }
             } catch (IOException ignored) {}
-            logger.debug("cannot use star tree");
         }
     }
 
