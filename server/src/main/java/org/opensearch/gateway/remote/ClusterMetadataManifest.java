@@ -20,10 +20,10 @@ import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.gateway.remote.ClusterMetadataManifest.Builder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +45,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     // also we introduce index routing-metadata, diff and other attributes as part of manifest
     // required for state publication
     public static final int CODEC_V3 = 3; // In Codec V3, we have introduced new diff field in diff-manifest's routing_table_diff
+
+    public static final int[] CODEC_VERSIONS = { CODEC_V0, CODEC_V1, CODEC_V2, CODEC_V3 };
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
@@ -237,12 +239,34 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     );
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V3;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = CODEC_V3;
+
+    private static final Map<Version, Integer> VERSION_TO_CODEC_MAPPING;
 
     static {
         declareParser(PARSER_V0, CODEC_V0);
         declareParser(PARSER_V1, CODEC_V1);
         declareParser(PARSER_V2, CODEC_V2);
         declareParser(PARSER_V3, CODEC_V3);
+
+        assert Arrays.stream(CODEC_VERSIONS).max().getAsInt() == MANIFEST_CURRENT_CODEC_VERSION;
+        Map<Version, Integer> versionToCodecMapping = new HashMap<>();
+        for (Version version : Version.getDeclaredVersions(Version.class)) {
+            if (version.onOrAfter(Version.V_2_10_0) && version.before(Version.V_2_12_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V0);
+            } else if (version.onOrAfter(Version.V_2_12_0) && version.before(Version.V_2_15_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V1);
+            } else if (version.onOrAfter(Version.V_2_15_0) && version.before(Version.V_2_16_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V2);
+            } else if (version.onOrAfter(Version.V_2_16_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V3);
+            }
+        }
+        VERSION_TO_CODEC_MAPPING = Collections.unmodifiableMap(versionToCodecMapping);
+    }
+
+    public static int getCodecForVersion(Version version) {
+        return VERSION_TO_CODEC_MAPPING.getOrDefault(version, -1);
     }
 
     private static void declareParser(ConstructingObjectParser<ClusterMetadataManifest, Void> parser, long codec_version) {

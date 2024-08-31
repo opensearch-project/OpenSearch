@@ -165,6 +165,27 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         assertThat(request.toString(), containsString("mappings='{\"_doc\":{}}'"));
     }
 
+    public void testContext() throws IOException {
+        String contextName = "Test";
+        String contextVersion = "1";
+        Map<String, Object> paramsMap = Map.of("foo", "bar");
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
+            builder.startObject()
+                .startObject("context")
+                .field("name", contextName)
+                .field("version", contextVersion)
+                .field("params", paramsMap)
+                .endObject()
+                .endObject();
+
+            CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
+            parsedCreateIndexRequest.source(builder);
+            assertEquals(contextName, parsedCreateIndexRequest.context().name());
+            assertEquals(contextVersion, parsedCreateIndexRequest.context().version());
+            assertEquals(paramsMap, parsedCreateIndexRequest.context().params());
+        }
+    }
+
     public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
         assertEquals(expected.keySet(), actual.keySet());
 

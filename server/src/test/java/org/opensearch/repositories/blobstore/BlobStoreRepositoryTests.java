@@ -39,6 +39,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -246,7 +247,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
         final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(), future1);
+        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(), Priority.NORMAL, future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
@@ -303,7 +304,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
         PlainActionFuture.<RepositoryData, Exception>get(
-            f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f)
+            f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), Priority.NORMAL, f)
         );
     }
 

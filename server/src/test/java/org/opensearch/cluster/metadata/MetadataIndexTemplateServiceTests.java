@@ -57,6 +57,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -2410,9 +2411,31 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         assertThat(MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id")), equalTo(state));
     }
 
+    public void testAsyncTranslogDurabilityBlocked() {
+        Settings clusterSettings = Settings.builder()
+            .put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true)
+            .build();
+        PutRequest request = new PutRequest("test", "test_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async");
+        request.settings(settingsBuilder.build());
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request, clusterSettings);
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
+        return putTemplate(xContentRegistry, request, Settings.EMPTY);
+    }
+
+    private static List<Throwable> putTemplate(
+        NamedXContentRegistry xContentRegistry,
+        PutRequest request,
+        Settings incomingNodeScopedSettings
+    ) {
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
+        Settings settings = Settings.builder().put(incomingNodeScopedSettings).put(PATH_HOME_SETTING.getKey(), "dummy").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Metadata metadata = Metadata.builder().build();
         ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))

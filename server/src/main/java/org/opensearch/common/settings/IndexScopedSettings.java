@@ -249,6 +249,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 StarTreeIndexSettings.DEFAULT_DATE_INTERVALS,
                 StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING,
 
+                IndexSettings.INDEX_CONTEXT_CREATED_VERSION,
+                IndexSettings.INDEX_CONTEXT_CURRENT_VERSION,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
@@ -273,7 +276,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.TIERED_REMOTE_INDEX,
-        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE)
+        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE),
+        FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL,
+        List.of(IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

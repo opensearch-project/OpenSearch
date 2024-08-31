@@ -38,7 +38,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,7 +55,7 @@ public class InboundHandler {
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
-    private final Map<String, ProtocolMessageHandler> protocolMessageHandlers;
+    private final Map<TransportProtocol, ProtocolMessageHandler> protocolMessageHandlers;
 
     InboundHandler(
         String nodeName,
@@ -75,7 +74,7 @@ public class InboundHandler {
     ) {
         this.threadPool = threadPool;
         this.protocolMessageHandlers = Map.of(
-            NativeInboundMessage.NATIVE_PROTOCOL,
+            TransportProtocol.NATIVE,
             new NativeMessageHandler(
                 nodeName,
                 version,
@@ -107,16 +106,16 @@ public class InboundHandler {
         this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
 
-    void inboundMessage(TcpChannel channel, ProtocolInboundMessage message) throws Exception {
+    void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
         final long startTime = threadPool.relativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         messageReceivedFromPipeline(channel, message, startTime);
     }
 
-    private void messageReceivedFromPipeline(TcpChannel channel, ProtocolInboundMessage message, long startTime) throws IOException {
-        ProtocolMessageHandler protocolMessageHandler = protocolMessageHandlers.get(message.getProtocol());
+    private void messageReceivedFromPipeline(TcpChannel channel, InboundMessage message, long startTime) throws IOException {
+        ProtocolMessageHandler protocolMessageHandler = protocolMessageHandlers.get(message.getTransportProtocol());
         if (protocolMessageHandler == null) {
-            throw new IllegalStateException("No protocol message handler found for protocol: " + message.getProtocol());
+            throw new IllegalStateException("No protocol message handler found for protocol: " + message.getTransportProtocol());
         }
         protocolMessageHandler.messageReceived(channel, message, startTime, slowLogThresholdMs, messageListener);
     }
