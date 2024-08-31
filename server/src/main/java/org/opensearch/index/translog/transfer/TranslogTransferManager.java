@@ -339,15 +339,15 @@ public class TranslogTransferManager {
         }
     }
 
-    public TranslogTransferMetadata readMetadata(long timestamp) throws IOException {
-        if (timestamp <= 0) {
+    public TranslogTransferMetadata readMetadata(long pinnedTimestamp) throws IOException {
+        if (pinnedTimestamp <= 0) {
             return readMetadata();
         }
         return readMetadata((blobMetadataList) -> {
             List<String> metadataFiles = blobMetadataList.stream().map(BlobMetadata::name).collect(Collectors.toList());
             Set<String> metadataFilesMatchingTimestamp = RemoteStoreUtils.getPinnedTimestampLockedFiles(
                 metadataFiles,
-                Set.of(timestamp),
+                Set.of(pinnedTimestamp),
                 file -> RemoteStoreUtils.invertLong(file.split(METADATA_SEPARATOR)[3]),
                 TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen,
                 true
