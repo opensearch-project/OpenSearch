@@ -108,13 +108,61 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 "Timestamp to be pinned is less than current timestamp - value of cluster.remote_store.pinned_timestamps.lookback_interval"
             );
         }
+        long startTime = System.nanoTime();
         try {
             logger.debug("Pinning timestamp = {} against entity = {}", timestamp, pinningEntity);
             blobContainer.writeBlob(getBlobName(timestamp, pinningEntity), new ByteArrayInputStream(new byte[0]), 0, true);
+            long elapsedTime = System.nanoTime() - startTime;
+            if (elapsedTime > RemoteStoreSettings.getPinnedTimestampsLookbackInterval().nanos()) {
+                String errorMessage = String.format(
+                    "Timestamp pinning took %s nanoseconds which is more than limit of %s nanoseconds, failing the operation",
+                    elapsedTime,
+                    RemoteStoreSettings.getPinnedTimestampsLookbackInterval().nanos()
+                );
+                unpinTimestamp(timestamp, pinningEntity, ActionListener.wrap(() -> listener.onFailure(new RuntimeException(errorMessage))));
+            } else {
+                listener.onResponse(null);
+            }
         } catch (IOException e) {
             listener.onFailure(e);
         }
-        listener.onResponse(null);
+    }
+
+    /**
+     * Clones a timestamp by creating a new pinning entity for an existing timestamp.
+     *
+     * This method attempts to create a new pinning entity for a given timestamp that is already
+     * associated with an existing pinning entity. If the timestamp exists for the existing entity,
+     * a new blob is created for the new pinning entity. If the timestamp doesn't exist for the
+     * existing entity, the operation fails with an IllegalArgumentException.
+     *
+     * @param timestamp The timestamp to be cloned.
+     * @param existingPinningEntity The name of the existing entity that has pinned the timestamp.
+     * @param newPinningEntity The name of the new entity to pin the timestamp to.
+     * @param listener An ActionListener that will be notified of the operation's success or failure.
+     *                 On success, onResponse will be called with null. On failure, onFailure will
+     *                 be called with the appropriate exception.
+     */
+    public void cloneTimestamp(long timestamp, String existingPinningEntity, String newPinningEntity, ActionListener<Void> listener) {
+        try {
+            logger.debug(
+                "cloning timestamp = {} with existing pinningEntity = {} with new pinningEntity = {}",
+                timestamp,
+                existingPinningEntity,
+                newPinningEntity
+            );
+            String blobName = getBlobName(timestamp, existingPinningEntity);
+            if (blobContainer.blobExists(blobName)) {
+                logger.debug("Pinning timestamp = {} against entity = {}", timestamp, newPinningEntity);
+                blobContainer.writeBlob(getBlobName(timestamp, newPinningEntity), new ByteArrayInputStream(new byte[0]), 0, true);
+                listener.onResponse(null);
+            } else {
+                String errorMessage = String.format("Timestamp: %s is not pinned by existing entity: %s", timestamp, existingPinningEntity);
+                listener.onFailure(new IllegalArgumentException(errorMessage));
+            }
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     private String getBlobName(long timestamp, String pinningEntity) {
@@ -147,13 +195,14 @@ public class RemoteStorePinnedTimestampService implements Closeable {
             String blobName = getBlobName(timestamp, pinningEntity);
             if (blobContainer.blobExists(blobName)) {
                 blobContainer.deleteBlobsIgnoringIfNotExists(List.of(blobName));
+                listener.onResponse(null);
             } else {
-                logger.warn("Timestamp: {} is not pinned by entity: {}", timestamp, pinningEntity);
+                String errorMessage = String.format("Timestamp: %s is not pinned by entity: %s", timestamp, pinningEntity);
+                listener.onFailure(new IllegalArgumentException(errorMessage));
             }
         } catch (IOException e) {
             listener.onFailure(e);
         }
-        listener.onResponse(null);
     }
 
     @Override
