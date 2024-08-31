@@ -8,10 +8,10 @@
 
 package org.opensearch.wlm.cancellation;
 
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.ArrayList;
 import java.util.Collections;

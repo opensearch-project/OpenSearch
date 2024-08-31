@@ -14,9 +14,9 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.ArrayList;
 import java.util.Collections;
