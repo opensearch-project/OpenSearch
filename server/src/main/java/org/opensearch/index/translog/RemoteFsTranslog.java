@@ -81,6 +81,8 @@ public class RemoteFsTranslog extends Translog {
 
     private final Logger logger;
     private final TranslogTransferManager translogTransferManager;
+    // This tracker keeps track of local tranlog files that are uploaded to remote store.
+    // Once tlog files are deleted from local, we remove them from tracker even if the files still exist in remote translog.
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier startedPrimarySupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
