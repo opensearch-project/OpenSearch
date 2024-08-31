@@ -93,6 +93,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -202,6 +203,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
 
     private final TransportService transportService;
+    private final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService;
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
@@ -230,7 +232,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         IndexNameExpressionResolver indexNameExpressionResolver,
         RepositoriesService repositoriesService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        @Nullable RemoteStorePinnedTimestampService remoteStorePinnedTimestampService
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -238,6 +241,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService);
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
+        this.remoteStorePinnedTimestampService = remoteStorePinnedTimestampService;
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(
