@@ -31,10 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.test.OpenSearchIntegTestCase;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -44,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -52,7 +51,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {

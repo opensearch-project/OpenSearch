@@ -34,7 +34,6 @@ package org.opensearch.repositories.hdfs;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;

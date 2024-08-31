@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.gcs;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -45,7 +44,6 @@ import java.util.Base64;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
