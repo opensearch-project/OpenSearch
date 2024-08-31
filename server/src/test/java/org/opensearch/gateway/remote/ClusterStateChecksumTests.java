@@ -11,6 +11,8 @@ package org.opensearch.gateway.remote;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlock;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -27,12 +29,14 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +62,25 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
         assertTrue(checksum.hashesOfConsistentSettingsChecksum != 0);
         assertTrue(checksum.indicesChecksum != 0);
         assertTrue(checksum.clusterStateChecksum != 0);
+    }
+
+    public void testClusterStateMatchChecksum() {
+        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState());
+        ClusterStateChecksum newChecksum = new ClusterStateChecksum(generateClusterState());
+        assertNotNull(checksum);
+        assertNotNull(newChecksum);
+        assertEquals(checksum.routingTableChecksum, newChecksum.routingTableChecksum);
+        assertEquals(checksum.nodesChecksum, newChecksum.nodesChecksum);
+        assertEquals(checksum.blocksChecksum, newChecksum.blocksChecksum);
+        assertEquals(checksum.clusterStateCustomsChecksum, newChecksum.clusterStateCustomsChecksum);
+        assertEquals(checksum.coordinationMetadataChecksum, newChecksum.coordinationMetadataChecksum);
+        assertEquals(checksum.settingMetadataChecksum, newChecksum.settingMetadataChecksum);
+        assertEquals(checksum.transientSettingsMetadataChecksum, newChecksum.transientSettingsMetadataChecksum);
+        assertEquals(checksum.templatesMetadataChecksum, newChecksum.templatesMetadataChecksum);
+        assertEquals(checksum.customMetadataMapChecksum, newChecksum.customMetadataMapChecksum);
+        assertEquals(checksum.hashesOfConsistentSettingsChecksum, newChecksum.hashesOfConsistentSettingsChecksum);
+        assertEquals(checksum.indicesChecksum, newChecksum.indicesChecksum);
+        assertEquals(checksum.clusterStateChecksum, newChecksum.clusterStateChecksum);
     }
 
     public void testXContentConversion() throws IOException {
@@ -183,7 +206,11 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
                     .build()
             )
             .nodes(DiscoveryNodes.builder().clusterManagerNodeId("test-node").build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder()
+                .addBlocks(indexMetadata)
+                .addGlobalBlock(new ClusterBlock(1, "block", true, true, true, RestStatus.ACCEPTED,  EnumSet.of(ClusterBlockLevel.READ)))
+                .addGlobalBlock(new ClusterBlock(2, "block-name", false, true, true, RestStatus.OK,  EnumSet.of(ClusterBlockLevel.WRITE)))
+                .build())
             .customs(Map.of(clusterStateCustom1.getWriteableName(), clusterStateCustom1))
             .routingTable(RoutingTable.builder().addAsNew(indexMetadata).addAsNew(indexMetadata2).version(1L).build())
             .build();
