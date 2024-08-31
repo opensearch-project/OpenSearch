@@ -39,14 +39,16 @@ public class StarTreeFilter {
     private static final Logger logger = LogManager.getLogger(StarTreeFilter.class);
 
     private final StarTreeNode starTreeRoot;
-    Map<String, List<Range>> _predicateEvaluators;
+    Map<String, Long> queryMap;
     DocIdSetBuilder docsWithField;
+    DocIdSetBuilder.BulkAdder adder;
     Map<String, DocIdSetIterator> dimValueMap;
 
-    public StarTreeFilter(StarTreeValues starTreeAggrStructure, Map<String, List<Range>> predicateEvaluators) {
+    public StarTreeFilter(StarTreeValues starTreeAggrStructure, Map<String, Long> predicateEvaluators) {
+        // This filter operator does not support AND/OR/NOT operations as of now.
         starTreeRoot = starTreeAggrStructure.getRoot();
         dimValueMap = starTreeAggrStructure.getDimensionDocValuesIteratorMap();
-        _predicateEvaluators = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
+        queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
 
         // TODO : this should be the maximum number of doc values
         docsWithField = new DocIdSetBuilder(Integer.MAX_VALUE);
@@ -68,36 +70,27 @@ public class StarTreeFilter {
         if (starTreeResult.maxMatchedDoc == -1) {
             return docIdSetIterator;
         }
-
         for (String remainingPredicateColumn : starTreeResult._remainingPredicateColumns) {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
             DocIdSetBuilder builder = new DocIdSetBuilder(starTreeResult.maxMatchedDoc + 1);
             SortedNumericDocValues ndv = (SortedNumericDocValues) this.dimValueMap.get(remainingPredicateColumn);
             List<Integer> docIds = new ArrayList<>();
-            List<Range> queryRanges = _predicateEvaluators.get(remainingPredicateColumn); // Get the list of min-max ranges for this field
+            long queryValue = queryMap.get(remainingPredicateColumn); // Get the query value directly
 
             while (docIdSetIterator.nextDoc() != NO_MORE_DOCS) {
                 int docID = docIdSetIterator.docID();
                 if (ndv.advanceExact(docID)) {
                     final int valuesCount = ndv.docValueCount();
                     for (int i = 0; i < valuesCount; i++) {
-                        double value = ndv.nextValue();
-                        // Check if the value falls within any of the ranges in the query
-                        boolean matchFound = false;
-                        for (Range range : queryRanges) {
-                            if (value >= range.getMin() && value <= range.getMax()) {
-                                docIds.add(docID);
-                                matchFound = true;
-                                break;
-                            }
-                        }
-                        if (matchFound) {
+                        long value = ndv.nextValue();
+                        // Directly compare value with queryValue
+                        if (value == queryValue) {
+                            docIds.add(docID);
                             break;
                         }
                     }
                 }
             }
-
             DocIdSetBuilder.BulkAdder adder = builder.grow(docIds.size());
             for (int docID : docIds) {
                 adder.add(docID);
@@ -112,24 +105,30 @@ public class StarTreeFilter {
      * predicate dimensions that are not matched.
      */
     private StarTreeResult traverseStarTree() throws IOException {
-        Queue<StarTreeNode> queue = new ArrayDeque<>();
-        queue.add(starTreeRoot);
         Set<String> globalRemainingPredicateColumns = null;
-
+        StarTreeNode starTree = starTreeRoot;
+        List<String> dimensionNames = new ArrayList<>(dimValueMap.keySet());
+        boolean foundLeafNode = starTree.isLeaf();
+        Queue<StarTreeNode> queue = new ArrayDeque<>();
+        queue.add(starTree);
+        int currentDimensionId = -1;
+        Set<String> remainingPredicateColumns = new HashSet<>(queryMap.keySet());
+        if (foundLeafNode) {
+            globalRemainingPredicateColumns = new HashSet<>(remainingPredicateColumns);
+        }
         int matchedDocsCountInStarTree = 0;
         int maxDocNum = -1;
+        StarTreeNode starTreeNode;
         List<Integer> docIds = new ArrayList<>();
-        boolean foundLeafNode = false;
-        int currentDimensionId = -1;
-        Set<String> remainingPredicateColumns = new HashSet<>(_predicateEvaluators.keySet());
-        List<String> dimensionNames = new ArrayList<>(dimValueMap.keySet());
 
-        while (!queue.isEmpty()) {
-            StarTreeNode starTreeNode = queue.poll();
+        while ((starTreeNode = queue.poll()) != null) {
             int dimensionId = starTreeNode.getDimensionId();
             if (dimensionId > currentDimensionId) {
                 String dimension = dimensionNames.get(dimensionId);
                 remainingPredicateColumns.remove(dimension);
+                if (foundLeafNode && globalRemainingPredicateColumns == null) {
+                    globalRemainingPredicateColumns = new HashSet<>(remainingPredicateColumns);
+                }
                 currentDimensionId = dimensionId;
             }
 
@@ -151,28 +150,39 @@ public class StarTreeFilter {
             }
 
             String childDimension = dimensionNames.get(dimensionId + 1);
+            StarTreeNode starNode = null;
+            if (globalRemainingPredicateColumns == null || !globalRemainingPredicateColumns.contains(childDimension)) {
+                starNode = starTreeNode.getChildForDimensionValue(StarTreeUtils.ALL, true);
+            }
+
             if (remainingPredicateColumns.contains(childDimension)) {
-                List<Range> queryRanges = _predicateEvaluators.get(childDimension);
-
-                for (Range range : queryRanges) {
-                    Iterator rangeIterator = starTreeNode.getChildrenIteratorForRange((int) range.getMin(), (int) range.getMax());
-
-                    while (rangeIterator.hasNext()) {
-                        StarTreeNode matchingChildNode = (StarTreeNode) rangeIterator.next();
-                        queue.add(matchingChildNode);
-                        foundLeafNode |= matchingChildNode.isLeaf();
-                    }
+                long queryValue = queryMap.get(childDimension); // Get the query value directly from the map
+                StarTreeNode matchingChild = starTreeNode.getChildForDimensionValue(queryValue, false);
+                if (matchingChild != null) {
+                    queue.add(matchingChild);
+                    foundLeafNode |= matchingChild.isLeaf();
                 }
             } else {
-                queue.add(starTreeNode.getChildForDimensionValue(StarTreeUtils.ALL, true));
+                if (starNode != null) {
+                    queue.add(starNode);
+                    foundLeafNode |= starNode.isLeaf();
+                } else {
+                    Iterator<? extends StarTreeNode> childrenIterator = starTreeNode.getChildrenIterator();
+                    while (childrenIterator.hasNext()) {
+                        StarTreeNode childNode = childrenIterator.next();
+                        if (childNode.getDimensionValue() != StarTreeUtils.ALL) {
+                            queue.add(childNode);
+                            foundLeafNode |= childNode.isLeaf();
+                        }
+                    }
+                }
             }
         }
 
-        DocIdSetBuilder.BulkAdder adder = docsWithField.grow(docIds.size());
+        adder = docsWithField.grow(docIds.size());
         for (int id : docIds) {
             adder.add(id);
         }
-
         return new StarTreeResult(
             docsWithField,
             globalRemainingPredicateColumns != null ? globalRemainingPredicateColumns : Collections.emptySet(),
@@ -184,7 +194,7 @@ public class StarTreeFilter {
     /**
      * Helper class to wrap the result from traversing the star tree.
      * */
-    private static class StarTreeResult {
+    static class StarTreeResult {
         final DocIdSetBuilder _matchedDocIds;
         final Set<String> _remainingPredicateColumns;
         final int numOfMatchedDocs;
@@ -195,24 +205,6 @@ public class StarTreeFilter {
             _remainingPredicateColumns = remainingPredicateColumns;
             this.numOfMatchedDocs = numOfMatchedDocs;
             this.maxMatchedDoc = maxMatchedDoc;
-        }
-    }
-
-    public static class Range {
-        long min;
-        long max;
-
-        public Range(long min, long max) {
-            this.min = min;
-            this.max = max;
-        }
-
-        public long getMin() {
-            return min;
-        }
-
-        public long getMax() {
-            return max;
         }
     }
 }
