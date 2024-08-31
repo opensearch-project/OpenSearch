@@ -30,7 +30,7 @@ import java.util.Set;
 
 import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 
-public class SearchReplicaAllocationDeciderTest extends OpenSearchAllocationTestCase {
+public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTestCase {
 
     public void testSearchReplicaRoutingDedicatedIncludes() {
         // we aren't using a settingsModule here so we need to set feature flag gated setting
