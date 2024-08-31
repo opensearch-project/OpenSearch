@@ -2581,7 +2581,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     public static void putRepository(ClusterAdminClient adminClient, String repoName, String type, Settings.Builder settings) {
-        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null));
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null, false));
     }
 
     public static void putRepository(
@@ -2591,7 +2591,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         String timeout,
         Settings.Builder settings
     ) {
-        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, timeout));
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, timeout, false));
     }
 
     public static void putRepository(
@@ -2601,7 +2601,17 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         boolean verify,
         Settings.Builder settings
     ) {
-        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, verify, settings, null));
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, verify, settings, null, false));
+    }
+
+    public static void putRepositoryWithNoSettingOverrides(
+        ClusterAdminClient adminClient,
+        String repoName,
+        String type,
+        boolean verify,
+        Settings.Builder settings
+    ) {
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, verify, settings, null, true));
     }
 
     public static void putRepository(
@@ -2611,7 +2621,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         Settings.Builder settings,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null).execute(listener);
+        putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null, false).execute(listener);
     }
 
     public static PutRepositoryRequestBuilder putRepositoryRequestBuilder(
@@ -2620,15 +2630,17 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         String type,
         boolean verify,
         Settings.Builder settings,
-        String timeout
+        String timeout,
+        boolean finalSettings
     ) {
-        PutRepositoryRequestBuilder builder = adminClient.preparePutRepository(repoName)
-            .setType(type)
-            .setVerify(verify)
-            .setSettings(settings);
+        PutRepositoryRequestBuilder builder = adminClient.preparePutRepository(repoName).setType(type).setVerify(verify);
         if (timeout != null) {
             builder.setTimeout(timeout);
         }
+        if (finalSettings == false) {
+            settings.put(BlobStoreRepository.SHARD_PATH_TYPE.getKey(), randomFrom(PathType.values()));
+        }
+        builder.setSettings(settings);
         return builder;
     }
 

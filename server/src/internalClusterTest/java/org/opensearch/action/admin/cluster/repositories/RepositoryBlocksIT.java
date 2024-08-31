@@ -63,7 +63,8 @@ public class RepositoryBlocksIT extends OpenSearchIntegTestCase {
                     "fs",
                     false,
                     settings,
-                    null
+                    null,
+                    false
                 ),
                 Metadata.CLUSTER_READ_ONLY_BLOCK
             );

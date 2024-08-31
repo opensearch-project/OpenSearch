@@ -121,7 +121,8 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             "fs",
             true,
             Settings.builder().put("location", repoPath),
-            null
+            null,
+            false
         ).get();
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));

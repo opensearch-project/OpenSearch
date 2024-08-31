@@ -137,7 +137,8 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
             repositoryMetadata.type(),
             true,
             updatedSettings,
-            null
+            null,
+            false
         ).get();
 
         ensureStableCluster(3, nodesInOneSide.stream().findAny().get());

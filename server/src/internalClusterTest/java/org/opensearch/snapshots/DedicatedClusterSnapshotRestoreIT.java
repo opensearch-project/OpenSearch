@@ -766,7 +766,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 "mock",
                 false,
                 Settings.builder().put("location", randomRepoPath()),
-                null
+                null,
+                false
             ).get();
         }
         logger.info("--> make sure that properly setup repository can be registered on all nodes");
@@ -776,7 +777,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             "fs",
             true,
             Settings.builder().put("location", randomRepoPath()),
-            null
+            null,
+            false
         ).get();
     }
 

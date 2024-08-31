@@ -40,9 +40,13 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -58,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -358,9 +363,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(indexIds.size(), equalTo(1));
 
         final IndexId corruptedIndex = indexIds.get(indexName);
-        final Path shardIndexFile = repo.resolve("indices")
-            .resolve(corruptedIndex.getId())
-            .resolve("0")
+        final Path shardIndexFile = repo.resolve(resolvePath(corruptedIndex, "0"))
             .resolve("index-" + repositoryData.shardGenerations().getShardGen(corruptedIndex, 0));
 
         logger.info("-->  truncating shard index file [{}]", shardIndexFile);
@@ -435,7 +438,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete index metadata and shard metadata");
         for (String index : indices) {
-            Path shardZero = indicesPath.resolve(indexIds.get(index).getId()).resolve("0");
+            Path shardZero = repo.resolve(resolvePath(indexIds.get(index), "0"));
             if (randomBoolean()) {
                 Files.delete(
                     shardZero.resolve("index-" + getRepositoryData("test-repo").shardGenerations().getShardGen(indexIds.get(index), 0))
@@ -628,10 +631,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
 
         logger.info("--> deleting shard level index file");
-        final Path indicesPath = repo.resolve("indices");
         for (IndexId indexId : getRepositoryData("test-repo").getIndices().values()) {
             final Path shardGen;
-            try (Stream<Path> shardFiles = Files.list(indicesPath.resolve(indexId.getId()).resolve("0"))) {
+            try (Stream<Path> shardFiles = Files.list(repo.resolve(resolvePath(indexId, "0")))) {
                 shardGen = shardFiles.filter(file -> file.getFileName().toString().startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Failed to find shard index blob"));
@@ -680,5 +682,17 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             repositoryException4.getMessage(),
             containsString("Could not read repository data because the contents of the repository do not match its expected state.")
         );
+    }
+
+    private static String resolvePath(IndexId indexId, String shardId) {
+        PathType pathType = PathType.fromCode(indexId.getShardPathType());
+        RemoteStorePathStrategy.SnapshotShardPathInput shardPathInput = new RemoteStorePathStrategy.SnapshotShardPathInput.Builder()
+            .basePath(BlobPath.cleanPath())
+            .indexUUID(indexId.getId())
+            .shardId(shardId)
+            .build();
+        PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
+        BlobPath blobPath = pathType.path(shardPathInput, pathHashAlgorithm);
+        return blobPath.buildAsString();
     }
 }

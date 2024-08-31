@@ -435,7 +435,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             assertNotNull("IndexId should not be null", indexId);
             assertEquals("Index ID should match", shardInfo.getIndexId().getId(), indexId.getId());
             assertEquals("Shard path type should match", shardInfo.getIndexId().getShardPathType(), indexId.getShardPathType());
-            String[] parts = shardPathBlobName.split(SnapshotShardPaths.DELIMITER);
+            String[] parts = shardPathBlobName.split("\\" + SnapshotShardPaths.DELIMITER);
             assertEquals(
                 "Path hash algorithm should be FNV_1A_COMPOSITE_1",
                 RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1,

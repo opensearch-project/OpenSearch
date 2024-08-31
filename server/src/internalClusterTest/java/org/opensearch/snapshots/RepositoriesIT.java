@@ -269,7 +269,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 "mock",
                 true,
                 Settings.builder().put(settings),
-                null
+                null,
+                false
             ),
             RepositoryVerificationException.class
         );
@@ -282,7 +283,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 "mock",
                 true,
                 Settings.builder().put(readonlySettings),
-                null
+                null,
+                false
             ),
             RepositoryVerificationException.class
         );

@@ -27,7 +27,7 @@ public class SnapshotShardPaths implements ToXContent {
 
     public static final String DIR = "snapshot_shard_paths";
 
-    public static final String DELIMITER = "#";
+    public static final String DELIMITER = ".";
 
     public static final String FILE_NAME_FORMAT = "%s";
 
@@ -96,7 +96,7 @@ public class SnapshotShardPaths implements ToXContent {
      * @throws IllegalArgumentException if the shard path format is invalid or cannot be parsed.
      */
     public static ShardInfo parseShardPath(String shardPath) {
-        String[] parts = shardPath.split(SnapshotShardPaths.DELIMITER);
+        String[] parts = shardPath.split("\\" + SnapshotShardPaths.DELIMITER);
         if (parts.length != 5) {
             throw new IllegalArgumentException("Invalid shard path format: " + shardPath);
         }

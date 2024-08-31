@@ -279,7 +279,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<PathType> SHARD_PATH_TYPE = new Setting<>(
         "shard_path_type",
-        PathType.HASHED_PREFIX.toString(),
+        PathType.FIXED.toString(),
         PathType::parseString
     );
 
@@ -1896,7 +1896,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private Optional<String> findHighestGenerationShardPaths(List<String> matchingShardPaths) {
         return matchingShardPaths.stream()
-            .map(s -> s.split(SnapshotShardPaths.DELIMITER))
+            .map(s -> s.split("\\" + SnapshotShardPaths.DELIMITER))
             .sorted((a, b) -> Integer.parseInt(b[2]) - Integer.parseInt(a[2]))
             .map(parts -> String.join(SnapshotShardPaths.DELIMITER, parts))
             .findFirst();
@@ -2117,11 +2117,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private void cleanupRedundantSnapshotShardPaths(Set<String> updatedShardPathsIndexIds) {
         Set<String> updatedIndexIds = updatedShardPathsIndexIds.stream()
-            .map(s -> s.split(SnapshotShardPaths.DELIMITER)[0])
+            .map(s -> s.split("\\" + SnapshotShardPaths.DELIMITER)[0])
             .collect(Collectors.toSet());
         Set<String> indexIdShardPaths = getSnapshotShardPaths().keySet();
         List<String> staleShardPaths = indexIdShardPaths.stream().filter(s -> updatedShardPathsIndexIds.contains(s) == false).filter(s -> {
-            String indexId = s.split(SnapshotShardPaths.DELIMITER)[0];
+            String indexId = s.split("\\" + SnapshotShardPaths.DELIMITER)[0];
             return updatedIndexIds.contains(indexId);
         }).collect(Collectors.toList());
         try {
