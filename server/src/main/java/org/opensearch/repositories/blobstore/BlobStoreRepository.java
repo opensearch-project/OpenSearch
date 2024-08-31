@@ -1888,42 +1888,60 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData oldRepoData,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory
     ) {
+        assert (indexSnId != null);
+
         IndexId indexId = null;
         List<SnapshotId> snapshotIds = Collections.emptyList();
-        for (Map.Entry<IndexId, List<SnapshotId>> entry : oldRepoData.getIndexSnapshots().entrySet()) {
-            indexId = entry.getKey();
-            if (indexId.getId().equals(indexSnId)) {
-                snapshotIds = entry.getValue();
-                break;
-            }
-        }
-
-        for (SnapshotId snapshotId : snapshotIds) {
-            try {
-                IndexMetadata prevIndexMetadata = this.getSnapshotIndexMetaData(oldRepoData, snapshotId, indexId);
-                if (prevIndexMetadata != null && !isIndexPresent(clusterService, prevIndexMetadata.getIndexUUID())) {
-                    String remoteStoreRepository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
-                        prevIndexMetadata.getSettings()
-                    );
-                    if (remoteStoreRepository == null) {
-                        break;
-                    }
-                    RemoteStorePathStrategy remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(prevIndexMetadata);
-                    for (int shardId = 0; shardId < prevIndexMetadata.getNumberOfShards(); shardId++) {
-                        remoteDirectoryCleanupAsync(
-                            remoteSegmentStoreDirectoryFactory,
-                            threadPool,
-                            remoteStoreRepository,
-                            prevIndexMetadata.getIndexUUID(),
-                            new ShardId(Index.UNKNOWN_INDEX_NAME, prevIndexMetadata.getIndexUUID(), shardId),
-                            ThreadPool.Names.REMOTE_PURGE,
-                            remoteStorePathStrategy
-                        );
-                    }
+        try {
+            for (Map.Entry<IndexId, List<SnapshotId>> entry : oldRepoData.getIndexSnapshots().entrySet()) {
+                indexId = entry.getKey();
+                if (indexId != null && indexId.getId().equals(indexSnId)) {
+                    snapshotIds = entry.getValue();
+                    break;
                 }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
+            if (snapshotIds.isEmpty()) {
+                logger.info("No snapshots found for indexSnId: {}", indexSnId);
+                return;
+            }
+            for (SnapshotId snapshotId : snapshotIds) {
+                try {
+                    IndexMetadata prevIndexMetadata = this.getSnapshotIndexMetaData(oldRepoData, snapshotId, indexId);
+                    if (prevIndexMetadata != null && !isIndexPresent(clusterService, prevIndexMetadata.getIndexUUID())) {
+                        String remoteStoreRepository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
+                            prevIndexMetadata.getSettings()
+                        );
+                        assert (remoteStoreRepository != null);
+
+                        RemoteStorePathStrategy remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(
+                            prevIndexMetadata
+                        );
+
+                        for (int shardId = 0; shardId < prevIndexMetadata.getNumberOfShards(); shardId++) {
+                            remoteDirectoryCleanupAsync(
+                                remoteSegmentStoreDirectoryFactory,
+                                threadPool,
+                                remoteStoreRepository,
+                                prevIndexMetadata.getIndexUUID(),
+                                new ShardId(Index.UNKNOWN_INDEX_NAME, prevIndexMetadata.getIndexUUID(), shardId),
+                                ThreadPool.Names.REMOTE_PURGE,
+                                remoteStorePathStrategy
+                            );
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "Exception during cleanup of remote directory for snapshot [{}] deleted index [{}]",
+                            snapshotId,
+                            indexSnId
+                        ),
+                        e
+                    );
+                }
+            }
+        } catch (Exception e) {
+            logger.error(new ParameterizedMessage("Exception during the remote directory cleanup for indecSnId [{}]", indexSnId), e);
         }
 
     }
