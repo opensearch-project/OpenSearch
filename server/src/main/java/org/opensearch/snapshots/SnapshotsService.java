@@ -648,12 +648,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 snapshotInfoListener.whenComplete(sourceSnapshotInfo -> {
                     if (sourceSnapshotInfo.getPinnedTimestamp() > 0) {
+                        if (!hasWildCardPatterForCloneSnapshotV2(request.indices())) {
+                            throw new SnapshotException(
+                                repositoryName,
+                                snapshotName,
+                                "Aborting clone for Snapshot-v2, only supported wildcard pattern '*' is supported for indices"
+                            );
+                        }
                         cloneSnapshotV2(request, snapshot, repositoryName, repository, listener);
                     } else {
                         cloneSnapshot(request, snapshot, repositoryName, repository, listener);
                     }
-                }, listener::onFailure);
-            }, listener::onFailure);
+                }, e -> listener.onFailure(e));
+            }, e -> listener.onFailure(e));
 
         } catch (Exception e) {
             assert false : new AssertionError(e);
@@ -730,7 +737,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
                 executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
-                // TODO : fail if pinned timestamp file is absent for source snapshot
 
                 final ShardGenerations shardGenerations = repositoryData.shardGenerations();
                 snapshotInfoListener.whenComplete(snapshotInfo -> {
@@ -1556,8 +1562,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final ClusterState res = readyDeletions(
                         changed
                             ? ClusterState.builder(currentState)
-                            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(updatedSnapshotEntries)))
-                            .build()
+                                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(updatedSnapshotEntries)))
+                                .build()
                             : currentState
                     ).v1();
                     for (SnapshotDeletionsInProgress.Entry delete : res.custom(
@@ -2025,9 +2031,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (repositoriesSeen.add(entry.repository())
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
                 && snapshotsInProgress.entries()
-                .stream()
-                .filter(se -> se.repository().equals(repo))
-                .noneMatch(SnapshotsService::isWritingToRepository)) {
+                    .stream()
+                    .filter(se -> se.repository().equals(repo))
+                    .noneMatch(SnapshotsService::isWritingToRepository)) {
                 changed = true;
                 final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
                 readyDeletions.add(newEntry);
@@ -2039,8 +2045,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return Tuple.tuple(
             changed
                 ? ClusterState.builder(currentState)
-                .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(newDeletes))
-                .build()
+                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(newDeletes))
+                    .build()
                 : currentState,
             readyDeletions
         );
@@ -2475,11 +2481,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             .filter(entry -> repoName.equals(entry.repository()))
                             .noneMatch(SnapshotsService::isWritingToRepository)
                             && deletionsInProgress.getEntries()
-                            .stream()
-                            .noneMatch(
-                                entry -> repoName.equals(entry.repository())
-                                    && entry.state() == SnapshotDeletionsInProgress.State.STARTED
-                            ) ? SnapshotDeletionsInProgress.State.STARTED : SnapshotDeletionsInProgress.State.WAITING
+                                .stream()
+                                .noneMatch(
+                                    entry -> repoName.equals(entry.repository())
+                                        && entry.state() == SnapshotDeletionsInProgress.State.STARTED
+                                ) ? SnapshotDeletionsInProgress.State.STARTED : SnapshotDeletionsInProgress.State.WAITING
                     );
                 } else {
                     newDelete = replacedEntry.withAddedSnapshots(snapshotIdsRequiringCleanup);
@@ -2588,10 +2594,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onResponse(RepositoryData repositoryData) {
                 assert repositoryData.getGenId() == expectedRepoGen
                     : "Repository generation should not change as long as a ready delete is found in the cluster state but found ["
-                    + expectedRepoGen
-                    + "] in cluster state and ["
-                    + repositoryData.getGenId()
-                    + "] in the repository";
+                        + expectedRepoGen
+                        + "] in cluster state and ["
+                        + repositoryData.getGenId()
+                        + "] in the repository";
                 deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
             }
 
@@ -2687,10 +2693,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
                     assert repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)
                         : "Repository data contained snapshot ids "
-                        + repositoryData.getSnapshotIds()
-                        + " that should should been deleted by ["
-                        + deleteEntry
-                        + "]";
+                            + repositoryData.getSnapshotIds()
+                            + " that should should been deleted by ["
+                            + deleteEntry
+                            + "]";
                     completeListenersIgnoringException(deleteListeners, null);
                 }
             };
@@ -2989,8 +2995,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
         final boolean readyToExecute = deletionsInProgress == null
             || deletionsInProgress.getEntries()
-            .stream()
-            .noneMatch(entry -> entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.STARTED);
+                .stream()
+                .noneMatch(entry -> entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.STARTED);
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
@@ -3598,6 +3604,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }
+    }
+
+    private boolean hasWildCardPatterForCloneSnapshotV2(String[] indices) {
+        for (String index : indices) {
+            if ("*".equals(index)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private class UpdateSnapshotStatusAction extends TransportClusterManagerNodeAction<
