@@ -11,7 +11,7 @@ package org.opensearch.wlm.cancellation;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;

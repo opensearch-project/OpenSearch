@@ -8,7 +8,7 @@
 
 package org.opensearch.wlm.cancellation;
 
-import org.opensearch.search.ResourceType;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
