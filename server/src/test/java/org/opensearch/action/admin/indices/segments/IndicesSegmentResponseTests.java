@@ -42,7 +42,10 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -66,6 +69,51 @@ public class IndicesSegmentResponseTests extends OpenSearchTestCase {
         );
         try (XContentBuilder builder = jsonBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+    }
+
+    public void testGetIndices() {
+        final int totalIndices = 5;
+        final int shardsPerIndex = 3;
+        final int segmentsPerShard = 2;
+        // Preparing a ShardSegments list, which will have (totalIndices * shardsPerIndex) shardSegments.
+        // Indices will be named -> foo1, foo2, ..., foo{totalIndices}
+        List<ShardSegments> shardSegmentsList = new ArrayList<>();
+        for (int indexName = 0; indexName < totalIndices; indexName++) {
+            for (int shardId = 0; shardId < shardsPerIndex; shardId++) {
+                ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                    "foo" + indexName,
+                    shardId,
+                    "node_id",
+                    true,
+                    ShardRoutingState.STARTED
+                );
+                List<Segment> segmentList = new ArrayList<>();
+                for (int segmentNum = 0; segmentNum < segmentsPerShard; segmentNum++) {
+                    segmentList.add(new Segment("foo" + indexName + shardId + segmentNum));
+                }
+                shardSegmentsList.add(new ShardSegments(shardRouting, segmentList));
+            }
+        }
+
+        // Prepare the IndicesSegmentResponse object and get the indicesSegments map
+        IndicesSegmentResponse response = new IndicesSegmentResponse(
+            shardSegmentsList.toArray(new ShardSegments[0]),
+            totalIndices * shardsPerIndex,
+            totalIndices * shardsPerIndex,
+            0,
+            Collections.emptyList()
+        );
+        Map<String, IndexSegments> indicesSegments = response.getIndices();
+
+        assertEquals(totalIndices, indicesSegments.size());
+        for (Map.Entry<String, IndexSegments> indexSegmentEntry : indicesSegments.entrySet()) {
+            assertEquals(shardsPerIndex, indexSegmentEntry.getValue().getShards().size());
+            for (IndexShardSegments indexShardSegment : indexSegmentEntry.getValue().getShards().values()) {
+                for (ShardSegments shardSegment : indexShardSegment.getShards()) {
+                    assertEquals(segmentsPerShard, shardSegment.getSegments().size());
+                }
+            }
         }
     }
 }

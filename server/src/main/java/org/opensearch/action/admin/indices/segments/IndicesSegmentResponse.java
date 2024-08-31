@@ -101,13 +101,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
             }
         }
         // Add the last shardSegment from shards list which would have got missed in the loop above
-        indicesSegments.put(
-            shards[shards.length - 1].getShardRouting().getIndexName(),
-            new IndexSegments(
-                shards[shards.length - 1].getShardRouting().getIndexName(),
-                Arrays.copyOfRange(shards, startIndexPos, shards.length)
-            )
-        );
+        indicesSegments.put(startIndexName, new IndexSegments(startIndexName, Arrays.copyOfRange(shards, startIndexPos, shards.length)));
 
         this.indicesSegments = indicesSegments;
         return indicesSegments;
