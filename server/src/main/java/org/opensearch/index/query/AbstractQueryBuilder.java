@@ -74,7 +74,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static final ParseField BOOST_FIELD = new ParseField("boost");
 
     protected String queryName;
-    protected String fieldType;
     protected float boost = DEFAULT_BOOST;
 
     protected AbstractQueryBuilder() {
@@ -113,27 +112,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
     }
 
-    /**
-     * Returns field name as String.
-     * Abstract method to be implemented by all child classes.
-     */
-    public abstract String fieldName();
-
-    /**
-     * Default method for child classes which do not have a custom {@link #fieldName()} implementation.
-     */
-    protected static String getDefaultFieldName() {
-        return null;
-    };
-
-    /**
-     * Returns field type as String for QueryBuilder classes which have a defined fieldName.
-     * Else returns null.
-     */
-    public final String getFieldType() {
-        return fieldType;
-    };
-
     @Override
     public final Query toQuery(QueryShardContext context) throws IOException {
         Query query = doToQuery(context);
@@ -147,7 +125,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 context.addNamedQuery(queryName, query);
             }
         }
-        fieldType = context.getFieldTypeString(fieldName());
         return query;
     }
 

@@ -901,11 +901,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         protected void doXContent(XContentBuilder builder, Params params) {}
 
         @Override
-        public String fieldName() {
-            return getDefaultFieldName();
-        }
-
-        @Override
         protected Query doToQuery(QueryShardContext context) {
             return null;
         }
