@@ -14,12 +14,9 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.wlm.ChangeableQueryGroup;
-import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
-import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.MutableQueryGroupFragment;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A request for update QueryGroup
@@ -28,24 +25,24 @@ import java.util.Map;
  */
 public class UpdateQueryGroupRequest extends ActionRequest {
     private final String name;
-    private final ChangeableQueryGroup changeableQueryGroup;
+    private final MutableQueryGroupFragment mutableQueryGroupFragment;
 
     /**
      * Constructor for UpdateQueryGroupRequest
      * @param name - QueryGroup name for UpdateQueryGroupRequest
-     * @param changeableQueryGroup - ChangeableQueryGroup for UpdateQueryGroupRequest
+     * @param mutableQueryGroupFragment - MutableQueryGroupFragment for UpdateQueryGroupRequest
      */
-    public UpdateQueryGroupRequest(String name, ChangeableQueryGroup changeableQueryGroup) {
+    UpdateQueryGroupRequest(String name, MutableQueryGroupFragment mutableQueryGroupFragment) {
         this.name = name;
-        this.changeableQueryGroup = changeableQueryGroup;
+        this.mutableQueryGroupFragment = mutableQueryGroupFragment;
     }
 
     /**
      * Constructor for UpdateQueryGroupRequest
      * @param in - A {@link StreamInput} object
      */
-    public UpdateQueryGroupRequest(StreamInput in) throws IOException {
-        this(in.readString(), new ChangeableQueryGroup(in));
+    UpdateQueryGroupRequest(StreamInput in) throws IOException {
+        this(in.readString(), new MutableQueryGroupFragment(in));
     }
 
     /**
@@ -55,7 +52,7 @@ public class UpdateQueryGroupRequest extends ActionRequest {
      */
     public static UpdateQueryGroupRequest fromXContent(XContentParser parser, String name) throws IOException {
         QueryGroup.Builder builder = QueryGroup.Builder.fromXContent(parser);
-        return new UpdateQueryGroupRequest(name, builder.getChangeableQueryGroup());
+        return new UpdateQueryGroupRequest(name, builder.getMutableQueryGroupFragment());
     }
 
     @Override
@@ -72,29 +69,15 @@ public class UpdateQueryGroupRequest extends ActionRequest {
     }
 
     /**
-     * resourceLimits getter
+     * mutableQueryGroupFragment getter
      */
-    public Map<ResourceType, Double> getResourceLimits() {
-        return getChangeableQueryGroup().getResourceLimits();
-    }
-
-    /**
-     * resiliencyMode getter
-     */
-    public ResiliencyMode getResiliencyMode() {
-        return getChangeableQueryGroup().getResiliencyMode();
-    }
-
-    /**
-     * changeableQueryGroup getter
-     */
-    public ChangeableQueryGroup getChangeableQueryGroup() {
-        return changeableQueryGroup;
+    public MutableQueryGroupFragment getmMutableQueryGroupFragment() {
+        return mutableQueryGroupFragment;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        changeableQueryGroup.writeTo(out);
+        mutableQueryGroupFragment.writeTo(out);
     }
 }

@@ -17,14 +17,16 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.wlm.ChangeableQueryGroup;
-import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.MutableQueryGroupFragment;
+import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
 import org.joda.time.Instant;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Class to define the QueryGroup schema
@@ -50,20 +52,20 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     private final String _id;
     // It is an epoch in millis
     private final long updatedAtInMillis;
-    private final ChangeableQueryGroup changeableQueryGroup;
+    private final MutableQueryGroupFragment mutableQueryGroupFragment;
 
-    public QueryGroup(String name, ChangeableQueryGroup changeableQueryGroup) {
-        this(name, UUIDs.randomBase64UUID(), changeableQueryGroup, Instant.now().getMillis());
+    public QueryGroup(String name, MutableQueryGroupFragment mutableQueryGroupFragment) {
+        this(name, UUIDs.randomBase64UUID(), mutableQueryGroupFragment, Instant.now().getMillis());
     }
 
-    public QueryGroup(String name, String _id, ChangeableQueryGroup changeableQueryGroup, long updatedAt) {
+    public QueryGroup(String name, String _id, MutableQueryGroupFragment mutableQueryGroupFragment, long updatedAt) {
         Objects.requireNonNull(name, "QueryGroup.name can't be null");
-        Objects.requireNonNull(changeableQueryGroup.getResourceLimits(), "QueryGroup.resourceLimits can't be null");
-        Objects.requireNonNull(changeableQueryGroup.getResiliencyMode(), "QueryGroup.resiliencyMode can't be null");
+        Objects.requireNonNull(mutableQueryGroupFragment.getResourceLimits(), "QueryGroup.resourceLimits can't be null");
+        Objects.requireNonNull(mutableQueryGroupFragment.getResiliencyMode(), "QueryGroup.resiliencyMode can't be null");
         Objects.requireNonNull(_id, "QueryGroup._id can't be null");
         validateName(name);
 
-        if (changeableQueryGroup.getResourceLimits().isEmpty()) {
+        if (mutableQueryGroupFragment.getResourceLimits().isEmpty()) {
             throw new IllegalArgumentException("QueryGroup.resourceLimits should at least have 1 resource limit");
         }
         if (!isValid(updatedAt)) {
@@ -72,7 +74,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
         this.name = name;
         this._id = _id;
-        this.changeableQueryGroup = changeableQueryGroup;
+        this.mutableQueryGroupFragment = mutableQueryGroupFragment;
         this.updatedAtInMillis = updatedAt;
     }
 
@@ -87,14 +89,30 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     }
 
     public QueryGroup(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), new ChangeableQueryGroup(in), in.readLong());
+        this(in.readString(), in.readString(), new MutableQueryGroupFragment(in), in.readLong());
+    }
+
+    public static QueryGroup updateExistingQueryGroup(QueryGroup existingGroup, MutableQueryGroupFragment mutableQueryGroupFragment) {
+        final Map<ResourceType, Double> updatedResourceLimits = new HashMap<>(existingGroup.getResourceLimits());
+        final Map<ResourceType, Double> mutableFragmentResourceLimits = mutableQueryGroupFragment.getResourceLimits();
+        if (mutableFragmentResourceLimits != null && !mutableFragmentResourceLimits.isEmpty()) {
+            updatedResourceLimits.putAll(mutableFragmentResourceLimits);
+        }
+        final ResiliencyMode mode = Optional.ofNullable(mutableQueryGroupFragment.getResiliencyMode())
+            .orElse(existingGroup.getResiliencyMode());
+        return new QueryGroup(
+            existingGroup.getName(),
+            existingGroup.get_id(),
+            new MutableQueryGroupFragment(mode, updatedResourceLimits),
+            Instant.now().getMillis()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(_id);
-        changeableQueryGroup.writeTo(out);
+        mutableQueryGroupFragment.writeTo(out);
         out.writeLong(updatedAtInMillis);
     }
 
@@ -109,8 +127,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         builder.startObject();
         builder.field(_ID_STRING, _id);
         builder.field(NAME_STRING, name);
-        for (String fieldName : ChangeableQueryGroup.acceptedFieldNames) {
-            changeableQueryGroup.writeField(builder, fieldName);
+        for (String fieldName : MutableQueryGroupFragment.acceptedFieldNames) {
+            mutableQueryGroupFragment.writeField(builder, fieldName);
         }
         builder.field(UPDATED_AT_STRING, updatedAtInMillis);
         builder.endObject();
@@ -131,30 +149,30 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         if (o == null || getClass() != o.getClass()) return false;
         QueryGroup that = (QueryGroup) o;
         return Objects.equals(name, that.name)
-            && Objects.equals(changeableQueryGroup, that.changeableQueryGroup)
+            && Objects.equals(mutableQueryGroupFragment, that.mutableQueryGroupFragment)
             && Objects.equals(_id, that._id)
             && updatedAtInMillis == that.updatedAtInMillis;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, changeableQueryGroup, updatedAtInMillis, _id);
+        return Objects.hash(name, mutableQueryGroupFragment, updatedAtInMillis, _id);
     }
 
     public String getName() {
         return name;
     }
 
-    public ChangeableQueryGroup getChangeableQueryGroup() {
-        return changeableQueryGroup;
+    public MutableQueryGroupFragment getMutableQueryGroupFragment() {
+        return mutableQueryGroupFragment;
     }
 
     public ResiliencyMode getResiliencyMode() {
-        return getChangeableQueryGroup().getResiliencyMode();
+        return getMutableQueryGroupFragment().getResiliencyMode();
     }
 
     public Map<ResourceType, Double> getResourceLimits() {
-        return getChangeableQueryGroup().getResourceLimits();
+        return getMutableQueryGroupFragment().getResourceLimits();
     }
 
     public String get_id() {
@@ -180,7 +198,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     public static class Builder {
         private String name;
         private String _id;
-        private ChangeableQueryGroup changeableQueryGroup;
+        private MutableQueryGroupFragment mutableQueryGroupFragment;
         private long updatedAt;
 
         private Builder() {}
@@ -199,7 +217,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             }
 
             String fieldName = "";
-            ChangeableQueryGroup changeableQueryGroup1 = new ChangeableQueryGroup();
+            MutableQueryGroupFragment mutableQueryGroupFragment1 = new MutableQueryGroupFragment();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
@@ -208,21 +226,21 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
                         builder._id(parser.text());
                     } else if (fieldName.equals(NAME_STRING)) {
                         builder.name(parser.text());
-                    } else if (ChangeableQueryGroup.shouldParse(fieldName)) {
-                        changeableQueryGroup1.parseField(parser, fieldName);
+                    } else if (MutableQueryGroupFragment.shouldParse(fieldName)) {
+                        mutableQueryGroupFragment1.parseField(parser, fieldName);
                     } else if (fieldName.equals(UPDATED_AT_STRING)) {
                         builder.updatedAt(parser.longValue());
                     } else {
                         throw new IllegalArgumentException(fieldName + " is not a valid field in QueryGroup");
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (!ChangeableQueryGroup.shouldParse(fieldName)) {
+                    if (!MutableQueryGroupFragment.shouldParse(fieldName)) {
                         throw new IllegalArgumentException(fieldName + " is not a valid object in QueryGroup");
                     }
-                    changeableQueryGroup1.parseField(parser, fieldName);
+                    mutableQueryGroupFragment1.parseField(parser, fieldName);
                 }
             }
-            return builder.changeableQueryGroup(changeableQueryGroup1);
+            return builder.mutableQueryGroupFragment(mutableQueryGroupFragment1);
         }
 
         public Builder name(String name) {
@@ -235,8 +253,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             return this;
         }
 
-        public Builder changeableQueryGroup(ChangeableQueryGroup changeableQueryGroup) {
-            this.changeableQueryGroup = changeableQueryGroup;
+        public Builder mutableQueryGroupFragment(MutableQueryGroupFragment mutableQueryGroupFragment) {
+            this.mutableQueryGroupFragment = mutableQueryGroupFragment;
             return this;
         }
 
@@ -246,11 +264,11 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         }
 
         public QueryGroup build() {
-            return new QueryGroup(name, _id, changeableQueryGroup, updatedAt);
+            return new QueryGroup(name, _id, mutableQueryGroupFragment, updatedAt);
         }
 
-        public ChangeableQueryGroup getChangeableQueryGroup() {
-            return changeableQueryGroup;
+        public MutableQueryGroupFragment getMutableQueryGroupFragment() {
+            return mutableQueryGroupFragment;
         }
     }
 }

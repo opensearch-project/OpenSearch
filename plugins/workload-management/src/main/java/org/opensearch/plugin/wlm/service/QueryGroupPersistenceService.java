@@ -31,17 +31,16 @@ import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateQueryGroupResponse;
-import org.opensearch.wlm.ChangeableQueryGroup;
-import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.MutableQueryGroupFragment;
 import org.opensearch.wlm.ResourceType;
-import org.joda.time.Instant;
 
 import java.util.Collection;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.metadata.QueryGroup.updateExistingQueryGroup;
 
 /**
  * This class defines the functions for QueryGroup persistence
@@ -296,6 +295,7 @@ public class QueryGroupPersistenceService {
         final Metadata metadata = currentState.metadata();
         final Map<String, QueryGroup> existingGroups = currentState.metadata().queryGroups();
         String name = updateQueryGroupRequest.getName();
+        MutableQueryGroupFragment mutableQueryGroupFragment = updateQueryGroupRequest.getmMutableQueryGroupFragment();
 
         final QueryGroup existingGroup = existingGroups.values()
             .stream()
@@ -303,24 +303,14 @@ public class QueryGroupPersistenceService {
             .findFirst()
             .orElseThrow(() -> new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name));
 
-        // build the QueryGroup with updated fields
-        final Map<ResourceType, Double> updatedResourceLimits = new HashMap<>(existingGroup.getResourceLimits());
-        if (updateQueryGroupRequest.getResourceLimits() != null && !updateQueryGroupRequest.getResourceLimits().isEmpty()) {
-            validateTotalUsage(existingGroups, name, updateQueryGroupRequest.getResourceLimits());
-            updatedResourceLimits.putAll(updateQueryGroupRequest.getResourceLimits());
-        }
-
-        final ResiliencyMode mode = Optional.ofNullable(updateQueryGroupRequest.getResiliencyMode())
-            .orElse(existingGroup.getResiliencyMode());
-
-        final QueryGroup updatedGroup = new QueryGroup(
-            name,
-            existingGroup.get_id(),
-            new ChangeableQueryGroup(mode, updatedResourceLimits),
-            Instant.now().getMillis()
-        );
+        validateTotalUsage(existingGroups, name, mutableQueryGroupFragment.getResourceLimits());
         return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(metadata).remove(existingGroup).put(updatedGroup).build())
+            .metadata(
+                Metadata.builder(metadata)
+                    .remove(existingGroup)
+                    .put(updateExistingQueryGroup(existingGroup, mutableQueryGroupFragment))
+                    .build()
+            )
             .build();
     }
 
@@ -330,6 +320,9 @@ public class QueryGroupPersistenceService {
      * @param resourceLimits - the QueryGroup we're creating or updating
      */
     private void validateTotalUsage(Map<String, QueryGroup> existingQueryGroups, String name, Map<ResourceType, Double> resourceLimits) {
+        if (resourceLimits == null || resourceLimits.isEmpty()) {
+            return;
+        }
         final Map<ResourceType, Double> totalUsage = new EnumMap<>(ResourceType.class);
         totalUsage.putAll(resourceLimits);
         for (QueryGroup currGroup : existingQueryGroups.values()) {

@@ -27,7 +27,7 @@ import java.util.function.Function;
  * Class to hold the fields that can be updated in a QueryGroup.
  */
 @ExperimentalApi
-public class ChangeableQueryGroup extends AbstractDiffable<ChangeableQueryGroup> {
+public class MutableQueryGroupFragment extends AbstractDiffable<MutableQueryGroupFragment> {
 
     public static final String RESILIENCY_MODE_STRING = "resiliency_mode";
     public static final String RESOURCE_LIMITS_STRING = "resource_limits";
@@ -36,15 +36,15 @@ public class ChangeableQueryGroup extends AbstractDiffable<ChangeableQueryGroup>
 
     public static final List<String> acceptedFieldNames = List.of(RESILIENCY_MODE_STRING, RESOURCE_LIMITS_STRING);
 
-    public ChangeableQueryGroup() {}
+    public MutableQueryGroupFragment() {}
 
-    public ChangeableQueryGroup(ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits) {
+    public MutableQueryGroupFragment(ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits) {
         validateResourceLimits(resourceLimits);
         this.resiliencyMode = resiliencyMode;
         this.resourceLimits = resourceLimits;
     }
 
-    public ChangeableQueryGroup(StreamInput in) throws IOException {
+    public MutableQueryGroupFragment(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             resourceLimits = in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readDouble);
         } else {
@@ -166,7 +166,7 @@ public class ChangeableQueryGroup extends AbstractDiffable<ChangeableQueryGroup>
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ChangeableQueryGroup that = (ChangeableQueryGroup) o;
+        MutableQueryGroupFragment that = (MutableQueryGroupFragment) o;
         return Objects.equals(resiliencyMode, that.resiliencyMode) && Objects.equals(resourceLimits, that.resourceLimits);
     }
 

@@ -15,8 +15,8 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.wlm.ChangeableQueryGroup;
-import org.opensearch.wlm.ChangeableQueryGroup.ResiliencyMode;
+import org.opensearch.wlm.MutableQueryGroupFragment;
+import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
 import org.joda.time.Instant;
 
@@ -34,7 +34,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         String name = randomAlphaOfLength(10);
         Map<ResourceType, Double> resourceLimit = new HashMap<>();
         resourceLimit.put(ResourceType.MEMORY, randomDoubleBetween(0.0, 0.80, false));
-        return new QueryGroup(name, _id, new ChangeableQueryGroup(randomMode(), resourceLimit), Instant.now().getMillis());
+        return new QueryGroup(name, _id, new MutableQueryGroupFragment(randomMode(), resourceLimit), Instant.now().getMillis());
     }
 
     private static ResiliencyMode randomMode() {
@@ -72,21 +72,31 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     public void testNullName() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup(null, "_id", new ChangeableQueryGroup(randomMode(), Collections.emptyMap()), Instant.now().getMillis())
+            () -> new QueryGroup(
+                null,
+                "_id",
+                new MutableQueryGroupFragment(randomMode(), Collections.emptyMap()),
+                Instant.now().getMillis()
+            )
         );
     }
 
     public void testNullId() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup("Dummy", null, new ChangeableQueryGroup(randomMode(), Collections.emptyMap()), Instant.now().getMillis())
+            () -> new QueryGroup(
+                "Dummy",
+                null,
+                new MutableQueryGroupFragment(randomMode(), Collections.emptyMap()),
+                Instant.now().getMillis()
+            )
         );
     }
 
     public void testNullResourceLimits() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup("analytics", "_id", new ChangeableQueryGroup(randomMode(), null), Instant.now().getMillis())
+            () -> new QueryGroup("analytics", "_id", new MutableQueryGroupFragment(randomMode(), null), Instant.now().getMillis())
         );
     }
 
@@ -96,7 +106,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
             () -> new QueryGroup(
                 "analytics",
                 "_id",
-                new ChangeableQueryGroup(randomMode(), Collections.emptyMap()),
+                new MutableQueryGroupFragment(randomMode(), Collections.emptyMap()),
                 Instant.now().getMillis()
             )
         );
@@ -108,14 +118,14 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
             () -> new QueryGroup(
                 "analytics",
                 "_id",
-                new ChangeableQueryGroup(null, Map.of(ResourceType.MEMORY, 0.4)),
+                new MutableQueryGroupFragment(null, Map.of(ResourceType.MEMORY, 0.4)),
                 Instant.now().getMillis()
             )
         );
     }
 
     public void testQueryGroupInitiation() {
-        QueryGroup queryGroup = new QueryGroup("analytics", new ChangeableQueryGroup(randomMode(), Map.of(ResourceType.MEMORY, 0.4)));
+        QueryGroup queryGroup = new QueryGroup("analytics", new MutableQueryGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, 0.4)));
         assertNotNull(queryGroup.getName());
         assertNotNull(queryGroup.get_id());
         assertNotNull(queryGroup.getResourceLimits());
@@ -128,9 +138,12 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     public void testIllegalQueryGroupName() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup("a".repeat(51), "_id", new ChangeableQueryGroup(), Instant.now().getMillis())
+            () -> new QueryGroup("a".repeat(51), "_id", new MutableQueryGroupFragment(), Instant.now().getMillis())
         );
-        assertThrows(NullPointerException.class, () -> new QueryGroup("", "_id", new ChangeableQueryGroup(), Instant.now().getMillis()));
+        assertThrows(
+            NullPointerException.class,
+            () -> new QueryGroup("", "_id", new MutableQueryGroupFragment(), Instant.now().getMillis())
+        );
 
     }
 
@@ -140,7 +153,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
             () -> new QueryGroup(
                 "analytics",
                 "_id",
-                new ChangeableQueryGroup(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(1.1, 1.8, false))),
+                new MutableQueryGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(1.1, 1.8, false))),
                 Instant.now().getMillis()
             )
         );
@@ -150,7 +163,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         QueryGroup queryGroup = new QueryGroup(
             "analytics",
             "_id",
-            new ChangeableQueryGroup(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+            new MutableQueryGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
             Instant.ofEpochMilli(1717187289).getMillis()
         );
 
@@ -169,7 +182,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         QueryGroup queryGroup = new QueryGroup(
             "TestQueryGroup",
             queryGroupId,
-            new ChangeableQueryGroup(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.30, ResourceType.MEMORY, 0.40)),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.30, ResourceType.MEMORY, 0.40)),
             currentTimeInMillis
         );
         XContentBuilder builder = JsonXContent.contentBuilder();

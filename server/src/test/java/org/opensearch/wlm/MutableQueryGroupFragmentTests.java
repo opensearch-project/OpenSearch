@@ -16,44 +16,46 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ChangeableQueryGroupTests extends OpenSearchTestCase {
+public class MutableQueryGroupFragmentTests extends OpenSearchTestCase {
 
     public void testSerializationDeserialization() throws IOException {
         Map<ResourceType, Double> resourceLimits = new HashMap<>();
         resourceLimits.put(ResourceType.CPU, 0.5);
         resourceLimits.put(ResourceType.MEMORY, 0.75);
-        ChangeableQueryGroup changeableQueryGroup = new ChangeableQueryGroup(ChangeableQueryGroup.ResiliencyMode.SOFT, resourceLimits);
+        MutableQueryGroupFragment mutableQueryGroupFragment = new MutableQueryGroupFragment(
+            MutableQueryGroupFragment.ResiliencyMode.SOFT,
+            resourceLimits
+        );
         BytesStreamOutput out = new BytesStreamOutput();
-        changeableQueryGroup.writeTo(out);
+        mutableQueryGroupFragment.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        ChangeableQueryGroup deserializedGroup = new ChangeableQueryGroup(in);
-        assertEquals(changeableQueryGroup, deserializedGroup);
+        MutableQueryGroupFragment deserializedGroup = new MutableQueryGroupFragment(in);
+        assertEquals(mutableQueryGroupFragment, deserializedGroup);
     }
 
     public void testSerializationDeserializationWithNull() throws IOException {
-        ChangeableQueryGroup changeableQueryGroup = new ChangeableQueryGroup();
+        MutableQueryGroupFragment mutableQueryGroupFragment = new MutableQueryGroupFragment();
         BytesStreamOutput out = new BytesStreamOutput();
-        changeableQueryGroup.writeTo(out);
+        mutableQueryGroupFragment.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        ChangeableQueryGroup deserializedGroup = new ChangeableQueryGroup(in);
+        MutableQueryGroupFragment deserializedGroup = new MutableQueryGroupFragment(in);
         assertEquals(0, deserializedGroup.getResourceLimits().size());
-        assertEquals(changeableQueryGroup.getResiliencyMode(), deserializedGroup.getResiliencyMode());
+        assertEquals(mutableQueryGroupFragment.getResiliencyMode(), deserializedGroup.getResiliencyMode());
     }
 
     public void testValidateResourceLimits() {
         Map<ResourceType, Double> invalidLimits = new HashMap<>();
         invalidLimits.put(ResourceType.CPU, 1.5);
-        Exception exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> { ChangeableQueryGroup.validateResourceLimits(invalidLimits); }
-        );
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            MutableQueryGroupFragment.validateResourceLimits(invalidLimits);
+        });
         String expectedMessage = "resource value should be greater than 0 and less or equal to 1.0";
         String actualMessage = exception.getMessage();
         assertTrue(actualMessage.contains(expectedMessage));
     }
 
     public void testSetMethodsWithNullAndEmptyValues() {
-        ChangeableQueryGroup queryGroup = new ChangeableQueryGroup();
+        MutableQueryGroupFragment queryGroup = new MutableQueryGroupFragment();
         queryGroup.setResiliencyMode(null);
         assertNull(queryGroup.getResiliencyMode());
         queryGroup.setResourceLimits(null);

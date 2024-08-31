@@ -21,7 +21,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.ChangeableQueryGroup;
+import org.opensearch.wlm.MutableQueryGroupFragment;
 import org.opensearch.wlm.ResourceType;
 
 import java.util.ArrayList;
@@ -48,13 +48,17 @@ public class QueryGroupTestUtils {
     public static final long TIMESTAMP_TWO = 4513232415L;
     public static final QueryGroup queryGroupOne = builder().name(NAME_ONE)
         ._id(_ID_ONE)
-        .changeableQueryGroup(new ChangeableQueryGroup(ChangeableQueryGroup.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.3)))
+        .mutableQueryGroupFragment(
+            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.3))
+        )
         .updatedAt(TIMESTAMP_ONE)
         .build();
 
     public static final QueryGroup queryGroupTwo = builder().name(NAME_TWO)
         ._id(_ID_TWO)
-        .changeableQueryGroup(new ChangeableQueryGroup(ChangeableQueryGroup.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.6)))
+        .mutableQueryGroupFragment(
+            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.6))
+        )
         .updatedAt(TIMESTAMP_TWO)
         .build();
 
