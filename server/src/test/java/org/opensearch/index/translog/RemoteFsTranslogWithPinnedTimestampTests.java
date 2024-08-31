@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -56,6 +57,7 @@ import org.mockito.Mockito;
 
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
@@ -119,6 +121,59 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         }).when(pinnedTimestampBlobStoreTransferService).listAllInSortedOrder(any(), any(), eq(1), any());
 
         remoteStorePinnedTimestampServiceSpy.start();
+    }
+
+    public void testGetMinMaxTranslogGenerationFromFilename() throws Exception {
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        blobStoreTransferService.listAllInSortedOrder(
+            getTranslogDirectory().add(METADATA_DIR),
+            "metadata",
+            Integer.MAX_VALUE,
+            new LatchedActionListener<>(new ActionListener<List<BlobMetadata>>() {
+                @Override
+                public void onResponse(List<BlobMetadata> blobMetadataList) {
+                    Long minGen = 1L;
+                    Long maxGen = 6L;
+                    for (BlobMetadata blobMetadata : blobMetadataList) {
+                        Tuple<Long, Long> minMaxGen = TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(blobMetadata.name());
+                        assertEquals(minGen, minMaxGen.v1());
+                        assertEquals(maxGen, minMaxGen.v2());
+                        maxGen -= 1;
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // This means test failure
+                    fail();
+                }
+            }, latch)
+        );
+        latch.await();
+
+        // Old format metadata file
+        String oldFormatMdFilename = "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__1";
+        assertNull(TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(oldFormatMdFilename));
+
+        // Node id containing separator
+        String nodeIdWithSeparator =
+            "metadata__9223372036438563903__9223372036854774799__9223370311919910393__node__1__9223372036438563958__1";
+        Tuple<Long, Long> minMaxGen = TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(nodeIdWithSeparator);
+        Long minGen = Long.MAX_VALUE - 9223372036438563958L;
+        assertEquals(minGen, minMaxGen.v1());
+
+        // Malformed md filename
+        String malformedMdFileName = "metadata__9223372036438563903__9223372036854774799__9223370311919910393__node1__xyz__1";
+        assertNull(TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(malformedMdFileName));
     }
 
     public void testIndexDeletionWithNoPinnedTimestampNoRecentMdFiles() throws Exception {
