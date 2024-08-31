@@ -77,8 +77,7 @@ public class ConfigBlobStoreFormat<T extends ToXContent> extends BaseBlobStoreFo
         }
     }
 
-    public void write(T obj, BlobContainer blobContainer, String name, ActionListener<Void> listener) throws IOException {
+    public void write(T obj, BlobContainer blobContainer, String name) throws IOException {
         write(obj, blobContainer, name, new NoneCompressor(), ToXContent.EMPTY_PARAMS, XContentType.JSON, null, null);
-        listener.onResponse(null);
     }
 }

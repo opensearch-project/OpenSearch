@@ -2182,12 +2182,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 PathType.fromCode(pathType),
                 PathHashAlgorithm.fromCode(pathHashAlgorithm)
             );
-            SNAPSHOT_SHARD_PATHS_FORMAT.write(
-                shardPaths,
-                snapshotShardPathBlobContainer(),
-                blobName,
-                getSnapshotShardListener(indexId, snapshotId)
-            );
+            SNAPSHOT_SHARD_PATHS_FORMAT.write(shardPaths, snapshotShardPathBlobContainer(), blobName);
+            logShardPathsOperationSuccess(indexId, snapshotId);
             return blobName;
         } catch (IOException e) {
             logShardPathsOperationWarning(indexId, snapshotId, e);
@@ -2202,13 +2198,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             paths.add(shardPath.buildAsString());
         }
         return paths;
-    }
-
-    private ActionListener<Void> getSnapshotShardListener(IndexId indexId, SnapshotId snapshotId) {
-        return ActionListener.wrap(
-            resp -> logShardPathsOperationSuccess(indexId, snapshotId),
-            ex -> logShardPathsOperationWarning(indexId, snapshotId, ex)
-        );
     }
 
     private void logShardPathsOperationSuccess(IndexId indexId, SnapshotId snapshotId) {
