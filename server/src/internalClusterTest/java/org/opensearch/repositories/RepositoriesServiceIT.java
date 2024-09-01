@@ -69,7 +69,13 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
             .next();
 
         final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
-        createRepository(repositoryName, FsRepository.TYPE, repoSettings);
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
+        );
 
         final GetRepositoriesResponse originalGetRepositoriesResponse = client.admin()
             .cluster()
@@ -87,7 +93,13 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         final boolean updated = randomBoolean();
         final String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
 
-        createRepository(repositoryName, updatedRepositoryType, repoSettings);
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            updatedRepositoryType,
+            true,
+            repoSettings
+        );
 
         final GetRepositoriesResponse updatedGetRepositoriesResponse = client.admin()
             .cluster()
