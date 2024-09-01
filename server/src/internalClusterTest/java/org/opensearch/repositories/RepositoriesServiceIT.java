@@ -45,7 +45,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,10 +69,7 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
             .next();
 
         final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
-
-        assertAcked(
-            client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
-        );
+        createRepository(repositoryName, FsRepository.TYPE, repoSettings);
 
         final GetRepositoriesResponse originalGetRepositoriesResponse = client.admin()
             .cluster()
@@ -91,9 +87,7 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         final boolean updated = randomBoolean();
         final String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
 
-        assertAcked(
-            client.admin().cluster().preparePutRepository(repositoryName).setType(updatedRepositoryType).setSettings(repoSettings).get()
-        );
+        createRepository(repositoryName, updatedRepositoryType, repoSettings);
 
         final GetRepositoriesResponse updatedGetRepositoriesResponse = client.admin()
             .cluster()
@@ -112,12 +106,8 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
     public void testSystemRepositoryCantBeCreated() {
         internalCluster();
         final String repositoryName = "test-repo";
-        final Client client = client();
         final Settings.Builder repoSettings = Settings.builder().put("system_repository", true).put("location", randomRepoPath());
 
-        assertThrows(
-            RepositoryException.class,
-            () -> client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
-        );
+        assertThrows(RepositoryException.class, () -> createRepository(repositoryName, FsRepository.TYPE, repoSettings));
     }
 }

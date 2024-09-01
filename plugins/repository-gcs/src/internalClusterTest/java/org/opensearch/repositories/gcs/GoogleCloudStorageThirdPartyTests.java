@@ -32,19 +32,18 @@
 
 package org.opensearch.repositories.gcs;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Base64;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
@@ -84,16 +83,9 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
     @Override
     protected void createRepository(final String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("test-repo")
-            .setType("gcs")
-            .setSettings(
-                Settings.builder()
-                    .put("bucket", System.getProperty("test.google.bucket"))
-                    .put("base_path", System.getProperty("test.google.base", "/"))
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder()
+            .put("bucket", System.getProperty("test.google.bucket"))
+            .put("base_path", System.getProperty("test.google.base", "/"));
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "gcs", settings);
     }
 }
