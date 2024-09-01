@@ -1833,14 +1833,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
                 List<String> matchingShardPaths = findMatchingShardPaths(indexSnId, snapshotShardPaths);
                 Optional<String> highestGenShardPaths = findHighestGenerationShardPaths(matchingShardPaths);
+
+                // The shardInfo can be null for 1) snapshots that pre-dates the hashed prefix snapshots.
+                // 2) Snapshot shard paths file upload failed
+                // In such cases, we fallback to fixed_path for cleanup of the data.
                 ShardInfo shardInfo = getShardInfo(highestGenShardPaths, idToShardInfoMap, indexSnId);
 
                 if (remoteStoreLockManagerFactory != null) {
                     cleanupRemoteStoreLocks(indexEntry, shardInfo, remoteStoreLockManagerFactory);
                 }
 
-                // The below deleteShardData would be no-op for FIXED path type snapshots. Otherwise, this deletes the
-                // shard level data for the underlying index based on the pathType present in IndexId
+                // Deletes the shard level data for the underlying index based on the shardInfo that was obtained above.
                 DeleteResult deleteResult = deleteShardData(shardInfo);
 
                 // If there are matchingShardPaths, then we delete them after we have deleted the shard data.

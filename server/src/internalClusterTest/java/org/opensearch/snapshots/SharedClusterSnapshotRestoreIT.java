@@ -394,7 +394,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .put("location", randomRepoPath())
             .put("random", randomAlphaOfLength(10))
             .put("random_control_io_exception_rate", 0.2);
-        OpenSearchIntegTestCase.putRepository(clusterAdmin(), "test-repo", "mock", settings);
+        OpenSearchIntegTestCase.putRepository(clusterAdmin(), "test-repo", "mock", false, settings);
 
         createIndexWithRandomDocs("test-idx", 100);
 

@@ -33,6 +33,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
 import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.bulk.BulkRequest;
@@ -232,7 +233,16 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             .put("location", randomRepoPath())
             .put("compress", randomBoolean())
             .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES);
-        createRepository("test-repo-1", "fs", settings, "0s");
+        PutRepositoryRequestBuilder requestBuilder = OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+            client().admin().cluster(),
+            "test-repo-1",
+            "fs",
+            true,
+            settings,
+            "0s",
+            false
+        );
+        assertFalse(requestBuilder.get().isAcknowledged());
 
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
         settings = Settings.builder()
