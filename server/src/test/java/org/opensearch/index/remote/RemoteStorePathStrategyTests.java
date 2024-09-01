@@ -82,6 +82,46 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
             .dataType(DATA)
             .build();
         assertEquals(BlobPath.cleanPath().add(INDEX_UUID).add(SHARD_ID).add(TRANSLOG.getName()).add(DATA.getName()), input2.fixedSubPath());
-
     }
+
+    public void testSnapshotShardPathInput() {
+        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.SnapshotShardPathInput.builder().build());
+        assertThrows(
+            NullPointerException.class,
+            () -> RemoteStorePathStrategy.SnapshotShardPathInput.builder().basePath(BASE_PATH).build()
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> RemoteStorePathStrategy.SnapshotShardPathInput.builder().indexUUID(INDEX_UUID).build()
+        );
+        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.SnapshotShardPathInput.builder().shardId(SHARD_ID).build());
+
+        RemoteStorePathStrategy.SnapshotShardPathInput input = RemoteStorePathStrategy.SnapshotShardPathInput.builder()
+            .basePath(BASE_PATH)
+            .indexUUID(INDEX_UUID)
+            .shardId(SHARD_ID)
+            .build();
+        assertEquals(BASE_PATH, input.basePath());
+        assertEquals(INDEX_UUID, input.indexUUID());
+        assertEquals(SHARD_ID, input.shardId());
+    }
+
+    public void testSnapshotShardPathInputFixedSubPath() {
+        RemoteStorePathStrategy.SnapshotShardPathInput input = RemoteStorePathStrategy.SnapshotShardPathInput.builder()
+            .basePath(BASE_PATH)
+            .indexUUID(INDEX_UUID)
+            .shardId(SHARD_ID)
+            .build();
+        assertEquals(BlobPath.cleanPath().add("indices").add(INDEX_UUID).add(SHARD_ID), input.fixedSubPath());
+    }
+
+    public void testSnapshotShardPathInputHashPath() {
+        RemoteStorePathStrategy.SnapshotShardPathInput input = RemoteStorePathStrategy.SnapshotShardPathInput.builder()
+            .basePath(BASE_PATH)
+            .indexUUID(INDEX_UUID)
+            .shardId(SHARD_ID)
+            .build();
+        assertEquals(BlobPath.cleanPath().add(SHARD_ID).add(INDEX_UUID), input.hashPath());
+    }
+
 }
