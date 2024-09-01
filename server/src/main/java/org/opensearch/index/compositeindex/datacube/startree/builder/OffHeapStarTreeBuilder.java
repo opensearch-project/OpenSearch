@@ -17,6 +17,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -31,11 +33,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 
 /**
  * Off-heap implementation of the star tree builder.
@@ -151,11 +153,19 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                     .size()];
                 for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
                     String dimension = dimensionsSplitOrder.get(i).getField();
-                    dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocValuesIteratorMap().get(dimension));
+                    dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(dimension));
                 }
                 List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
-                for (Map.Entry<String, DocIdSetIterator> metricDocValuesEntry : starTreeValues.getMetricDocValuesIteratorMap().entrySet()) {
-                    metricReaders.add(new SequentialDocValuesIterator(metricDocValuesEntry.getValue()));
+                // get doc id set iterators for metrics
+                for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
+                    for (MetricStat metricStat : metric.getMetrics()) {
+                        String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                            starTreeValues.getStarTreeField().getName(),
+                            metric.getField(),
+                            metricStat.getTypeName()
+                        );
+                        metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricDocIdSetIterator(metricFullName)));
+                    }
                 }
                 int currentDocId = 0;
                 int numSegmentDocs = Integer.parseInt(
@@ -258,11 +268,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     @Override
     public StarTreeDocument getStarTreeDocument(int docId) throws IOException {
         return starTreeDocumentFileManager.readStarTreeDocument(docId, true);
-    }
-
-    @Override
-    public StarTreeDocument getStarTreeDocumentForCreatingDocValues(int docId) throws IOException {
-        return getStarTreeDocument(docId);
     }
 
     // This should be only used for testing

@@ -8,10 +8,10 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -28,11 +28,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
 import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 import static org.opensearch.index.mapper.CompositeMappedFieldType.CompositeFieldType.STAR_TREE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -55,14 +55,22 @@ public class StarTreeTestUtils {
 
             for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
                 String dimension = dimensionsSplitOrder.get(i).getField();
-                dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocValuesIteratorMap().get(dimension));
+                dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(dimension));
             }
 
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
-            for (Map.Entry<String, DocIdSetIterator> metricDocValuesEntry : starTreeValues.getMetricDocValuesIteratorMap().entrySet()) {
-                metricReaders.add(new SequentialDocValuesIterator(metricDocValuesEntry.getValue()));
-            }
+            // get doc id set iterators for metrics
+            for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
+                for (MetricStat metricStat : metric.getMetrics()) {
+                    String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                        starTreeValues.getStarTreeField().getName(),
+                        metric.getField(),
+                        metricStat.getTypeName()
+                    );
+                    metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricDocIdSetIterator(metricFullName)));
 
+                }
+            }
             int currentDocId = 0;
             while (currentDocId < numDocs) {
                 starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, starTreeNumericTypes));

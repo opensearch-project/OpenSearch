@@ -44,7 +44,7 @@ public class StarTreesBuilder implements Closeable {
     private final MapperService mapperService;
     private AtomicInteger fieldNumberAcrossStarTrees;
 
-    public StarTreesBuilder(SegmentWriteState segmentWriteState, MapperService mapperService) {
+    public StarTreesBuilder(SegmentWriteState segmentWriteState, MapperService mapperService, AtomicInteger fieldNumberAcrossStarTrees) {
         List<StarTreeField> starTreeFields = new ArrayList<>();
         for (CompositeMappedFieldType compositeMappedFieldType : mapperService.getCompositeFieldTypes()) {
             if (compositeMappedFieldType instanceof StarTreeMapper.StarTreeFieldType) {
@@ -62,7 +62,7 @@ public class StarTreesBuilder implements Closeable {
         this.starTreeFields = starTreeFields;
         this.state = segmentWriteState;
         this.mapperService = mapperService;
-        this.fieldNumberAcrossStarTrees = new AtomicInteger();
+        this.fieldNumberAcrossStarTrees = fieldNumberAcrossStarTrees;
     }
 
     /**
@@ -128,7 +128,6 @@ public class StarTreesBuilder implements Closeable {
             StarTreeField starTreeField = starTreeValuesList.get(0).getStarTreeField();
             try (StarTreeBuilder builder = getStarTreeBuilder(metaOut, dataOut, starTreeField, state, mapperService)) {
                 builder.build(starTreeValuesList, fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
-                builder.close();
             }
         }
         logger.debug(

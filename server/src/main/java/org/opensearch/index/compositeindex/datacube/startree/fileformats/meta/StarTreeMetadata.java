@@ -193,7 +193,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     }
 
     private int readNumberOfNodes() throws IOException {
-        return meta.readInt();
+        return meta.readVInt();
     }
 
     private int readDimensionsCount() throws IOException {

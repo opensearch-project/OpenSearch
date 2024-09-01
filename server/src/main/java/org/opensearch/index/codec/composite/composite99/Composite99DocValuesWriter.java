@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -67,6 +68,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     public IndexOutput metaOut;
     private final Set<String> segmentFieldSet;
     private final boolean segmentHasCompositeFields;
+    private AtomicInteger fieldNumberAcrossStarTrees;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
 
@@ -76,6 +78,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         this.delegate = delegate;
         this.state = segmentWriteState;
         this.mapperService = mapperService;
+        this.fieldNumberAcrossStarTrees = new AtomicInteger();
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
@@ -94,29 +97,9 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         boolean success = false;
         try {
 
-            SegmentInfo segmentInfo = new SegmentInfo(
-                segmentWriteState.segmentInfo.dir,
-                segmentWriteState.segmentInfo.getVersion(),
-                segmentWriteState.segmentInfo.getMinVersion(),
-                segmentWriteState.segmentInfo.name,
-                DocIdSetIterator.NO_MORE_DOCS,
-                segmentWriteState.segmentInfo.getUseCompoundFile(),
-                segmentWriteState.segmentInfo.getHasBlocks(),
-                segmentWriteState.segmentInfo.getCodec(),
-                segmentWriteState.segmentInfo.getDiagnostics(),
-                segmentWriteState.segmentInfo.getId(),
-                segmentWriteState.segmentInfo.getAttributes(),
-                segmentWriteState.segmentInfo.getIndexSort()
-            );
-
-            SegmentWriteState consumerWriteState = new SegmentWriteState(
-                segmentWriteState.infoStream,
-                segmentWriteState.directory,
-                segmentInfo,
-                segmentWriteState.fieldInfos,
-                segmentWriteState.segUpdates,
-                segmentWriteState.context
-            );
+            // Get consumer write state with DocIdSetIterator.NO_MORE_DOCS as segment doc count,
+            // so that all the fields are sparse numeric doc values and not dense numeric doc values
+            SegmentWriteState consumerWriteState = getSegmentWriteState(segmentWriteState);
 
             this.composite99DocValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
                 consumerWriteState,
@@ -240,7 +223,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         if (compositeFieldSet.isEmpty()) {
             for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
                 if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
-                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService)) {
+                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossStarTrees)) {
                         starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, composite99DocValuesConsumer);
                     }
                 }
@@ -329,8 +312,36 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                 }
             }
         }
-        try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService)) {
+        try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossStarTrees)) {
             starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, composite99DocValuesConsumer);
         }
     }
+
+    private static SegmentWriteState getSegmentWriteState(SegmentWriteState segmentWriteState) {
+
+        SegmentInfo segmentInfo = new SegmentInfo(
+            segmentWriteState.segmentInfo.dir,
+            segmentWriteState.segmentInfo.getVersion(),
+            segmentWriteState.segmentInfo.getMinVersion(),
+            segmentWriteState.segmentInfo.name,
+            DocIdSetIterator.NO_MORE_DOCS,
+            segmentWriteState.segmentInfo.getUseCompoundFile(),
+            segmentWriteState.segmentInfo.getHasBlocks(),
+            segmentWriteState.segmentInfo.getCodec(),
+            segmentWriteState.segmentInfo.getDiagnostics(),
+            segmentWriteState.segmentInfo.getId(),
+            segmentWriteState.segmentInfo.getAttributes(),
+            segmentWriteState.segmentInfo.getIndexSort()
+        );
+
+        return new SegmentWriteState(
+            segmentWriteState.infoStream,
+            segmentWriteState.directory,
+            segmentInfo,
+            segmentWriteState.fieldInfos,
+            segmentWriteState.segUpdates,
+            segmentWriteState.context
+        );
+    }
+
 }

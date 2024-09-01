@@ -122,7 +122,7 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
 
         for (int i = 0; i < maxLevels - 1; i++) {
             InMemoryTreeNode randomChildNode = randomFrom(inMemoryTreeNode.children.values());
-            StarTreeNode randomStarTreeChildNode = starTreeNode.getChildForDimensionValue(randomChildNode.dimensionValue);
+            StarTreeNode randomStarTreeChildNode = starTreeNode.getChildForDimensionValue(randomChildNode.getDimensionValue());
 
             assertNotNull(randomStarTreeChildNode);
             assertStarTreeNode(randomStarTreeChildNode, randomChildNode);

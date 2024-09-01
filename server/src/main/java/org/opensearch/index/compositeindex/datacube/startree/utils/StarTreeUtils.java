@@ -109,4 +109,37 @@ public class StarTreeUtils {
         );
     }
 
+    /**
+     * Get new field info instance for a given field name and field number.
+     * It's a dummy field info to fetch doc id set iterators based on field name.
+     * <p>
+     * Actual field infos uses fieldNumberAcrossStarTrees parameter to achieve consistent
+     * and unique field numbers across fields and across multiple star trees
+     *
+     * @param fieldName name of the field
+     * @param docValuesType doc value type of the field
+     * @return new field info instance
+     */
+    public static FieldInfo getFieldInfo(String fieldName, DocValuesType docValuesType) {
+        return new FieldInfo(
+            fieldName,
+            0,
+            false,
+            false,
+            true,
+            IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
+            docValuesType,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+    }
+
 }

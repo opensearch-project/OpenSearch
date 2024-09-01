@@ -125,7 +125,7 @@ public class StarTreeMetadataWriter {
         metaOut.writeString(CompositeMappedFieldType.CompositeFieldType.STAR_TREE.getName());
 
         // number of nodes
-        metaOut.writeInt(numNodes);
+        metaOut.writeVInt(numNodes);
 
         // number of dimensions
         // TODO: Revisit the number of dimensions for timestamps (as we will split timestamp into min, hour, etc.)

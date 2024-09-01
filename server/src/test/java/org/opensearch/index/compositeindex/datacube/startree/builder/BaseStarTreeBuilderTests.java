@@ -196,11 +196,6 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public StarTreeDocument getStarTreeDocumentForCreatingDocValues(int docId) throws IOException {
-                return null;
-            }
-
-            @Override
             public List<StarTreeDocument> getStarTreeDocuments() {
                 return List.of();
             }

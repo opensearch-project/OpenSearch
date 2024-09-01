@@ -192,7 +192,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     metricReader = getIteratorForNumericField(fieldProducerMap, metricFieldInfo, DocCountFieldMapper.NAME);
                 } else {
                     if (metricFieldInfo == null) {
-                        metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC, 1);
+                        metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
                     }
                     metricReader = new SequentialDocValuesIterator(
                         fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
@@ -227,7 +227,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             String dimension = dimensionsSplitOrder.get(i).getField();
             FieldInfo dimensionFieldInfo = writeState.fieldInfos.fieldInfo(dimension);
             if (dimensionFieldInfo == null) {
-                dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC, 0);
+                dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC);
             }
             dimensionReaders[i] = new SequentialDocValuesIterator(
                 fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
@@ -343,11 +343,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
 
         for (int docId = 0; docId < numStarTreeDocs; docId++) {
-            StarTreeDocument starTreeDocument = getStarTreeDocumentForCreatingDocValues(docId);
+            StarTreeDocument starTreeDocument = getStarTreeDocument(docId);
             for (int i = 0; i < starTreeDocument.dimensions.length; i++) {
-                Long val = starTreeDocument.dimensions[i];
-                if (val != null) {
-                    dimensionWriters.get(i).addValue(docId, val);
+                if (starTreeDocument.dimensions[i] != null) {
+                    dimensionWriters.get(i).addValue(docId, starTreeDocument.dimensions[i]);
                 }
             }
 
@@ -356,7 +355,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     switch (metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType()) {
                         case LONG:
                             if (starTreeDocument.metrics[i] != null) {
-                                metricWriters.get(i).addValue(docId, (Long) starTreeDocument.metrics[i]);
+                                metricWriters.get(i).addValue(docId, (long) starTreeDocument.metrics[i]);
                             }
                             break;
                         case DOUBLE:
@@ -385,11 +384,11 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         int fieldCount
     ) throws IOException {
         for (int i = 0; i < fieldCount; i++) {
-            final int increment = i;
+            final int writerIndex = i;
             DocValuesProducer docValuesProducer = new EmptyDocValuesProducer() {
                 @Override
                 public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
-                    return docValuesWriters.get(increment).getDocValues();
+                    return docValuesWriters.get(writerIndex).getDocValues();
                 }
             };
             docValuesConsumer.addSortedNumericField(fieldInfoList[i], docValuesProducer);
@@ -443,15 +442,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @throws IOException if an I/O error occurs while fetching the star-tree document
      */
     public abstract StarTreeDocument getStarTreeDocument(int docId) throws IOException;
-
-    /**
-     * Returns the star-tree document for the given doc id while creating doc values
-     *
-     * @param docId document id
-     * @return star tree document
-     * @throws IOException if an I/O error occurs while fetching the star-tree document
-     */
-    public abstract StarTreeDocument getStarTreeDocumentForCreatingDocValues(int docId) throws IOException;
 
     /**
      * Retrieves the list of star-tree documents in the star-tree.
