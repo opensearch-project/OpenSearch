@@ -15,6 +15,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -40,7 +41,8 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
             new BlobPath().add("djsd878ndjh").add("hcs87cj8"),
             PathType.HASHED_PREFIX,
             PathHashAlgorithm.FNV_1A_BASE64,
-            RemoteIndexPath.SEGMENT_PATH
+            RemoteIndexPath.SEGMENT_PATH,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         xContentBuilder.startObject();
@@ -61,7 +63,8 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
             new BlobPath().add("djsd878ndjh").add("hcs87cj8"),
             PathType.HASHED_PREFIX,
             PathHashAlgorithm.FNV_1A_BASE64,
-            RemoteIndexPath.TRANSLOG_PATH
+            RemoteIndexPath.TRANSLOG_PATH,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         xContentBuilder.startObject();
@@ -85,7 +88,8 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
             new BlobPath().add("nxf9yv0").add("c3ejoi"),
             PathType.HASHED_PREFIX,
             PathHashAlgorithm.FNV_1A_BASE64,
-            pathCreationMap
+            pathCreationMap,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         xContentBuilder.startObject();
@@ -105,7 +109,8 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
                 new BlobPath().add("djsd878ndjh").add("hcs87cj8"),
                 PathType.HASHED_PREFIX,
                 PathHashAlgorithm.FNV_1A_BASE64,
-                new HashMap<>()
+                new HashMap<>(),
+                DefaultRemoteStoreSettings.INSTANCE
             )
         );
         assertEquals(
@@ -132,7 +137,8 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
                 new BlobPath().add("djsd878ndjh").add("hcs87cj8"),
                 PathType.HASHED_PREFIX,
                 PathHashAlgorithm.FNV_1A_BASE64,
-                Map.of(TRANSLOG, List.of(LOCK_FILES))
+                Map.of(TRANSLOG, List.of(LOCK_FILES)),
+                DefaultRemoteStoreSettings.INSTANCE
             )
         );
         assertEquals("pathCreationMap={TRANSLOG=[LOCK_FILES]} is having illegal combination of category and type", ex.getMessage());

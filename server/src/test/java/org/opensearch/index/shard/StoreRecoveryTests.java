@@ -62,6 +62,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -108,7 +109,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
             writer.commit();
             writer.close();
         }
-        StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger);
+        StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger, DefaultRemoteStoreSettings.INSTANCE);
         ReplicationLuceneIndex indexStats = new ReplicationLuceneIndex();
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();
@@ -174,7 +175,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
 
         writer.commit();
         writer.close();
-        StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger);
+        StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger, DefaultRemoteStoreSettings.INSTANCE);
         ReplicationLuceneIndex indexStats = new ReplicationLuceneIndex();
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();

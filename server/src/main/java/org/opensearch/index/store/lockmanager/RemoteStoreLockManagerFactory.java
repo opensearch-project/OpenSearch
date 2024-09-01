@@ -13,6 +13,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -31,9 +32,11 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 @PublicApi(since = "2.8.0")
 public class RemoteStoreLockManagerFactory {
     private final Supplier<RepositoriesService> repositoriesService;
+    private final RemoteStoreSettings remoteStoreSettings;
 
-    public RemoteStoreLockManagerFactory(Supplier<RepositoriesService> repositoriesService) {
+    public RemoteStoreLockManagerFactory(Supplier<RepositoriesService> repositoriesService, RemoteStoreSettings remoteStoreSettings) {
         this.repositoriesService = repositoriesService;
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     public RemoteStoreLockManager newLockManager(
@@ -42,7 +45,7 @@ public class RemoteStoreLockManagerFactory {
         String shardId,
         RemoteStorePathStrategy pathStrategy
     ) {
-        return newLockManager(repositoriesService.get(), repositoryName, indexUUID, shardId, pathStrategy);
+        return newLockManager(repositoriesService.get(), repositoryName, indexUUID, shardId, pathStrategy, remoteStoreSettings);
     }
 
     public static RemoteStoreMetadataLockManager newLockManager(
@@ -50,7 +53,8 @@ public class RemoteStoreLockManagerFactory {
         String repositoryName,
         String indexUUID,
         String shardId,
-        RemoteStorePathStrategy pathStrategy
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         try (Repository repository = repositoriesService.repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -62,6 +66,7 @@ public class RemoteStoreLockManagerFactory {
                 .shardId(shardId)
                 .dataCategory(SEGMENTS)
                 .dataType(LOCK_FILES)
+                .fixedPrefix(remoteStoreSettings.getSegmentsPathFixedPrefix())
                 .build();
             BlobPath lockDirectoryPath = pathStrategy.generatePath(lockFilesPathInput);
             BlobContainer lockDirectoryBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(lockDirectoryPath);

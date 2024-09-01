@@ -53,6 +53,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryCleanupResult;
@@ -109,7 +110,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         SnapshotsService snapshotsService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(
             CleanupRepositoryAction.NAME,
@@ -122,7 +124,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         );
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
-        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService);
+        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService, remoteStoreSettings);
         // We add a state applier that will remove any dangling repository cleanup actions on cluster-manager failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.

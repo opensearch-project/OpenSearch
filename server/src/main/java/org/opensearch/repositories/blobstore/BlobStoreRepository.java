@@ -130,6 +130,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
@@ -420,6 +421,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final RecoverySettings recoverySettings;
 
+    private final RemoteStoreSettings remoteStoreSettings;
+
     private final NamedXContentRegistry namedXContentRegistry;
 
     /**
@@ -472,6 +475,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
     }
 
     @Override
@@ -1296,7 +1300,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
             RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 remoteStoreLockManagerFactory.getRepositoriesService(),
-                threadPool
+                threadPool,
+                remoteStoreSettings
             );
             remoteDirectoryCleanupAsync(
                 remoteDirectoryFactory,

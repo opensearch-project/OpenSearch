@@ -67,6 +67,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Checkpoint;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogHeader;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
@@ -99,10 +100,12 @@ final class StoreRecovery {
 
     private final Logger logger;
     private final ShardId shardId;
+    private final RemoteStoreSettings remoteStoreSettings;
 
-    StoreRecovery(ShardId shardId, Logger logger) {
+    StoreRecovery(ShardId shardId, Logger logger, RemoteStoreSettings remoteStoreSettings) {
         this.logger = logger;
         this.shardId = shardId;
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     /**
@@ -397,7 +400,8 @@ final class StoreRecovery {
 
                 RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
                     () -> repositoriesService,
-                    threadPool
+                    threadPool,
+                    remoteStoreSettings
                 );
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,

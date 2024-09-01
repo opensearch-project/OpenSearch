@@ -107,7 +107,11 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return BlobPath.cleanPath().add(hashAlgorithm.hash(pathInput)).add(pathInput.basePath()).add(pathInput.fixedSubPath());
+                return BlobPath.cleanPath()
+                    .add(pathInput.fixedPrefix())
+                    .add(hashAlgorithm.hash(pathInput))
+                    .add(pathInput.basePath())
+                    .add(pathInput.fixedSubPath());
             }
 
             @Override
@@ -119,7 +123,7 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return pathInput.basePath().add(hashAlgorithm.hash(pathInput)).add(pathInput.fixedSubPath());
+                return pathInput.basePath().add(pathInput.fixedPrefix()).add(hashAlgorithm.hash(pathInput)).add(pathInput.fixedSubPath());
             }
 
             @Override
