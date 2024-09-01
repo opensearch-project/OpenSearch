@@ -948,5 +948,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         builder.visit(createTestVisitor(visitedQueries));
 
         assertEquals(2, visitedQueries.size());
+        assertTrue(visitedQueries.contains(termQueryBuilder));
     }
 }
