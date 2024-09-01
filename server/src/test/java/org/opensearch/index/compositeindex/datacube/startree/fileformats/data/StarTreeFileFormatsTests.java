@@ -23,7 +23,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -121,7 +120,7 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         assertNotNull(inMemoryTreeNode);
 
         for (int i = 0; i < maxLevels - 1; i++) {
-            InMemoryTreeNode randomChildNode = randomFrom(inMemoryTreeNode.children.values());
+            InMemoryTreeNode randomChildNode = randomFrom(inMemoryTreeNode.getChildren().values());
             StarTreeNode randomStarTreeChildNode = starTreeNode.getChildForDimensionValue(randomChildNode.getDimensionValue());
 
             assertNotNull(randomStarTreeChildNode);
@@ -135,18 +134,18 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
     }
 
     private void assertStarTreeNode(StarTreeNode starTreeNode, InMemoryTreeNode treeNode) throws IOException {
-        assertEquals(starTreeNode.getDimensionId(), treeNode.dimensionId);
-        assertEquals(starTreeNode.getDimensionValue(), treeNode.dimensionValue);
-        assertEquals(starTreeNode.getStartDocId(), treeNode.startDocId);
-        assertEquals(starTreeNode.getEndDocId(), treeNode.endDocId);
-        assertEquals(starTreeNode.getChildDimensionId(), treeNode.childDimensionId);
-        assertEquals(starTreeNode.getAggregatedDocId(), treeNode.aggregatedDocId);
-        assertEquals(starTreeNode.getStarTreeNodeType(), treeNode.nodeType);
+        assertEquals(starTreeNode.getDimensionId(), treeNode.getDimensionId());
+        assertEquals(starTreeNode.getDimensionValue(), treeNode.getDimensionValue());
+        assertEquals(starTreeNode.getStartDocId(), treeNode.getStartDocId());
+        assertEquals(starTreeNode.getEndDocId(), treeNode.getEndDocId());
+        assertEquals(starTreeNode.getChildDimensionId(), treeNode.getChildDimensionId());
+        assertEquals(starTreeNode.getAggregatedDocId(), treeNode.getAggregatedDocId());
+        assertEquals(starTreeNode.getStarTreeNodeType(), treeNode.getNodeType());
 
         if (starTreeNode.getChildDimensionId() != -1) {
             assertFalse(starTreeNode.isLeaf());
-            if (treeNode.children != null) {
-                assertEquals(starTreeNode.getNumChildren(), treeNode.children.values().size());
+            if (treeNode.getChildren() != null) {
+                assertEquals(starTreeNode.getNumChildren(), treeNode.getChildren().values().size());
             }
         } else {
             assertTrue(starTreeNode.isLeaf());
@@ -156,16 +155,11 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
 
     public InMemoryTreeNode generateSampleTree(Map<Long, InMemoryTreeNode> inMemoryTreeNodeMap) {
         // Create the root node
-        InMemoryTreeNode root = new InMemoryTreeNode();
-        root.dimensionId = 0;
-        root.startDocId = randomInt();
-        root.endDocId = randomInt();
-        root.childDimensionId = 1;
-        root.aggregatedDocId = randomInt();
-        root.nodeType = (byte) 0;
-        root.children = new HashMap<>();
+        InMemoryTreeNode root = new InMemoryTreeNode(0, randomInt(), randomInt(), (byte) 0, -1);
+        root.setChildDimensionId(1);
+        root.setAggregatedDocId(randomInt());
 
-        inMemoryTreeNodeMap.put(root.dimensionValue, root);
+        inMemoryTreeNodeMap.put(root.getDimensionValue(), root);
 
         // Generate the tree recursively
         generateTreeRecursively(root, 1, inMemoryTreeNodeMap);
@@ -181,19 +175,14 @@ public class StarTreeFileFormatsTests extends OpenSearchTestCase {
         int numChildren = randomIntBetween(1, 10);
 
         for (int i = 0; i < numChildren; i++) {
-            InMemoryTreeNode child = new InMemoryTreeNode();
             dimensionValue++;
-            child.dimensionId = currentLevel;
-            child.dimensionValue = dimensionValue; // Assign a unique dimension value for each child
-            child.startDocId = randomInt();
-            child.endDocId = randomInt();
-            child.childDimensionId = (currentLevel == this.maxLevels - 1) ? -1 : (currentLevel + 1);
-            child.aggregatedDocId = randomInt();
-            child.nodeType = (byte) 0;
-            child.children = new HashMap<>();
+            InMemoryTreeNode child = new InMemoryTreeNode(currentLevel, randomInt(), randomInt(), (byte) 0, dimensionValue);
 
-            parent.children.put(child.dimensionValue, child);
-            inMemoryTreeNodeMap.put(child.dimensionValue, child);
+            child.setChildDimensionId((currentLevel == this.maxLevels - 1) ? -1 : (currentLevel + 1));
+            child.setAggregatedDocId(randomInt());
+
+            parent.addChildNode(child, child.getDimensionValue());
+            inMemoryTreeNodeMap.put(child.getDimensionValue(), child);
 
             generateTreeRecursively(child, currentLevel + 1, inMemoryTreeNodeMap);
         }

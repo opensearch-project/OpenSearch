@@ -25,7 +25,6 @@ import org.opensearch.index.mapper.CompositeMappedFieldType;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
@@ -38,7 +37,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class StarTreeTestUtils {
@@ -184,12 +182,9 @@ public class StarTreeTestUtils {
             Iterator<? extends StarTreeNode> expectedChildrenIterator = starTreeNode.getChildrenIterator();
 
             List<InMemoryTreeNode> sortedChildren = new ArrayList<>();
-            if (rootNode.children != null) {
-                sortedChildren = new ArrayList<>(rootNode.children.values());
+            if (rootNode.getChildren() != null) {
+                sortedChildren = new ArrayList<>(rootNode.getChildren().values());
             }
-            sortedChildren.sort(
-                Comparator.comparingInt(InMemoryTreeNode::getNodeType).thenComparingLong(InMemoryTreeNode::getDimensionValue)
-            );
 
             if (starTreeNode.getChildDimensionId() != -1) {
                 assertFalse(sortedChildren.isEmpty());
@@ -198,9 +193,9 @@ public class StarTreeTestUtils {
                 while (expectedChildrenIterator.hasNext()) {
                     StarTreeNode child = expectedChildrenIterator.next();
                     InMemoryTreeNode resultChildNode = null;
-                    if (!childStarNodeAsserted && rootNode.childStarNode != null) {
+                    if (!childStarNodeAsserted && rootNode.getChildStarNode() != null) {
                         // check if star tree node exists
-                        resultChildNode = rootNode.childStarNode;
+                        resultChildNode = rootNode.getChildStarNode();
                         assertNotNull(child);
                         assertStarTreeNode(child, resultChildNode);
                         childStarNodeAsserted = true;
@@ -217,9 +212,9 @@ public class StarTreeTestUtils {
                     resultTreeNodeQueue.add(resultChildNode);
                 }
 
-                assertEquals(childCount, rootNode.children.size());
+                assertEquals(childCount, rootNode.getChildren().size());
             } else {
-                assertNull(rootNode.children);
+                assertTrue(rootNode.getChildren().isEmpty());
             }
         }
 
@@ -229,17 +224,20 @@ public class StarTreeTestUtils {
     }
 
     public static void assertStarTreeNode(StarTreeNode starTreeNode, InMemoryTreeNode treeNode) throws IOException {
-        assertEquals(starTreeNode.getDimensionId(), treeNode.dimensionId);
-        assertEquals(starTreeNode.getDimensionValue(), treeNode.dimensionValue);
-        assertEquals(starTreeNode.getStartDocId(), treeNode.startDocId);
-        assertEquals(starTreeNode.getEndDocId(), treeNode.endDocId);
-        assertEquals(starTreeNode.getChildDimensionId(), treeNode.childDimensionId);
-        assertEquals(starTreeNode.getAggregatedDocId(), treeNode.aggregatedDocId);
+        assertEquals(starTreeNode.getDimensionId(), treeNode.getDimensionId());
+        assertEquals(starTreeNode.getDimensionValue(), treeNode.getDimensionValue());
+        assertEquals(starTreeNode.getStartDocId(), treeNode.getStartDocId());
+        assertEquals(starTreeNode.getEndDocId(), treeNode.getEndDocId());
+        assertEquals(starTreeNode.getChildDimensionId(), treeNode.getChildDimensionId());
+        assertEquals(starTreeNode.getAggregatedDocId(), treeNode.getAggregatedDocId());
 
         if (starTreeNode.getChildDimensionId() != -1) {
             assertFalse(starTreeNode.isLeaf());
-            if (treeNode.children != null) {
-                assertEquals(starTreeNode.getNumChildren(), treeNode.children.values().size() + (treeNode.childStarNode != null ? 1 : 0));
+            if (treeNode.getChildren() != null) {
+                assertEquals(
+                    starTreeNode.getNumChildren(),
+                    treeNode.getChildren().values().size() + (treeNode.getChildStarNode() != null ? 1 : 0)
+                );
             }
         } else {
             assertTrue(starTreeNode.isLeaf());

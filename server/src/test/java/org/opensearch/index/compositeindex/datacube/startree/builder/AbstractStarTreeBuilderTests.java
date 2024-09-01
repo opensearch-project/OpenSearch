@@ -1804,7 +1804,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         Iterator<StarTreeDocument> expectedStarTreeDocumentIterator = expectedStarTreeDocuments().iterator();
         Iterator<StarTreeDocument> resultStarTreeDocumentIterator = resultStarTreeDocuments.iterator();
         Map<Integer, Map<Long, Integer>> dimValueToDocIdMap = new HashMap<>();
-        builder.rootNode.nodeType = StarTreeNodeType.STAR.getValue();
+        builder.rootNode.setNodeType(StarTreeNodeType.STAR.getValue());
         traverseStarTree(builder.rootNode, dimValueToDocIdMap, true);
 
         Map<Integer, Map<Long, Double>> expectedDimToValueMap = getExpectedDimToValueMap();
@@ -1873,8 +1873,8 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<StarTreeDocument> expectedStarTreeDocuments
     ) throws IOException {
 
-        assertNotNull(rootNode.children);
-        assertFalse(rootNode.children.isEmpty());
+        assertNotNull(rootNode.getChildren());
+        assertFalse(rootNode.getChildren().isEmpty());
         SegmentReadState readState = getReadState(
             numDocs,
             expectedStarTreeMetadata.getDimensionFields(),
@@ -3991,23 +3991,24 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         InMemoryTreeNode starTreeNode;
         List<Integer> docIds = new ArrayList<>();
         while ((starTreeNode = queue.poll()) != null) {
-            int dimensionId = starTreeNode.dimensionId;
+            int dimensionId = starTreeNode.getDimensionId();
             if (dimensionId > currentDimensionId) {
                 currentDimensionId = dimensionId;
             }
 
             // store aggregated document of the node
-            int docId = starTreeNode.aggregatedDocId;
+            int docId = starTreeNode.getAggregatedDocId();
             Map<Long, Integer> map = dimValueToDocIdMap.getOrDefault(dimensionId, new HashMap<>());
-            if (starTreeNode.nodeType == StarTreeNodeType.STAR.getValue()) {
+            if (starTreeNode.getNodeType() == StarTreeNodeType.STAR.getValue()) {
                 map.put(Long.MAX_VALUE, docId);
             } else {
-                map.put(starTreeNode.dimensionValue, docId);
+                map.put(starTreeNode.getDimensionValue(), docId);
             }
             dimValueToDocIdMap.put(dimensionId, map);
 
-            if (starTreeNode.children != null && (!traverStarNodes || starTreeNode.nodeType == StarTreeNodeType.STAR.getValue())) {
-                Iterator<InMemoryTreeNode> childrenIterator = starTreeNode.children.values().iterator();
+            if (starTreeNode.getChildren() != null
+                && (!traverStarNodes || starTreeNode.getNodeType() == StarTreeNodeType.STAR.getValue())) {
+                Iterator<InMemoryTreeNode> childrenIterator = starTreeNode.getChildren().values().iterator();
                 while (childrenIterator.hasNext()) {
                     InMemoryTreeNode childNode = childrenIterator.next();
                     queue.add(childNode);
@@ -4196,37 +4197,37 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             assertNotNull(node);
 
             // assert dimensions
-            if (node.dimensionId != StarTreeUtils.ALL) {
-                assertTrue(node.dimensionId >= 0 && node.dimensionId < totalDimensions);
+            if (node.getDimensionId() != StarTreeUtils.ALL) {
+                assertTrue(node.getDimensionId() >= 0 && node.getDimensionId() < totalDimensions);
             }
 
-            if (node.children != null && !node.children.isEmpty()) {
-                assertEquals(node.dimensionId + 1, node.childDimensionId);
-                assertTrue(node.childDimensionId < totalDimensions);
+            if (node.getChildren() != null && !node.getChildren().isEmpty()) {
+                assertEquals(node.getDimensionId() + 1, node.getChildDimensionId());
+                assertTrue(node.getChildDimensionId() < totalDimensions);
                 InMemoryTreeNode starNode = null;
                 Object[] nonStarNodeCumulativeMetrics = getMetrics(starTreeDocuments);
-                for (Map.Entry<Long, InMemoryTreeNode> entry : node.children.entrySet()) {
+                for (Map.Entry<Long, InMemoryTreeNode> entry : node.getChildren().entrySet()) {
                     Long childDimensionValue = entry.getKey();
                     InMemoryTreeNode child = entry.getValue();
                     Object[] currMetrics = getMetrics(starTreeDocuments);
-                    if (child.nodeType != StarTreeNodeType.STAR.getValue()) {
+                    if (child.getNodeType() != StarTreeNodeType.STAR.getValue()) {
                         // Validate dimension values in documents
-                        for (int i = child.startDocId; i < child.endDocId; i++) {
+                        for (int i = child.getStartDocId(); i < child.getEndDocId(); i++) {
                             StarTreeDocument doc = starTreeDocuments.get(i);
                             int j = 0;
                             addMetrics(doc, currMetrics, j);
-                            if (child.nodeType != StarTreeNodeType.STAR.getValue()) {
-                                Long dimension = doc.dimensions[child.dimensionId];
+                            if (child.getNodeType() != StarTreeNodeType.STAR.getValue()) {
+                                Long dimension = doc.dimensions[child.getDimensionId()];
                                 assertEquals(childDimensionValue, dimension);
                                 if (dimension != null) {
-                                    assertEquals(child.dimensionValue, (long) dimension);
+                                    assertEquals(child.getDimensionValue(), (long) dimension);
                                 } else {
                                     // TODO : fix this ?
-                                    assertEquals(child.dimensionValue, StarTreeUtils.ALL);
+                                    assertEquals(child.getDimensionValue(), StarTreeUtils.ALL);
                                 }
                             }
                         }
-                        Object[] aggregatedMetrics = starTreeDocuments.get(child.aggregatedDocId).metrics;
+                        Object[] aggregatedMetrics = starTreeDocuments.get(child.getAggregatedDocId()).metrics;
                         int j = 0;
                         for (Object metric : currMetrics) {
                             /*
@@ -4252,13 +4253,13 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                 // Add star node to queue
                 if (starNode != null) {
                     Object[] starNodeMetrics = getMetrics(starTreeDocuments);
-                    for (int i = starNode.startDocId; i < starNode.endDocId; i++) {
+                    for (int i = starNode.getStartDocId(); i < starNode.getEndDocId(); i++) {
                         StarTreeDocument doc = starTreeDocuments.get(i);
                         int j = 0;
                         addMetrics(doc, starNodeMetrics, j);
                     }
                     int j = 0;
-                    Object[] aggregatedMetrics = starTreeDocuments.get(starNode.aggregatedDocId).metrics;
+                    Object[] aggregatedMetrics = starTreeDocuments.get(starNode.getAggregatedDocId()).metrics;
                     for (Object nonStarNodeCumulativeMetric : nonStarNodeCumulativeMetrics) {
                         assertEquals(nonStarNodeCumulativeMetric, starNodeMetrics[j]);
                         assertEquals(starNodeMetrics[j], aggregatedMetrics[j]);
@@ -4278,20 +4279,20 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
 
                         j++;
                     }
-                    assertEquals(-1L, starNode.dimensionValue);
+                    assertEquals(-1L, starNode.getDimensionValue());
                     queue.offer(new Object[] { starNode, true });
                 }
             } else {
-                assertTrue(node.endDocId - node.startDocId <= maxLeafDocuments);
+                assertTrue(node.getEndDocId() - node.getStartDocId() <= maxLeafDocuments);
             }
 
             if (currentIsStarNode) {
                 StarTreeDocument prevDoc = null;
                 int docCount = 0;
-                int docId = node.startDocId;
-                int dimensionId = node.dimensionId;
+                int docId = node.getStartDocId();
+                int dimensionId = node.getDimensionId();
 
-                while (docId < node.endDocId) {
+                while (docId < node.getEndDocId()) {
                     StarTreeDocument currentDoc = starTreeDocuments.get(docId);
                     docCount++;
 
@@ -4307,7 +4308,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                 }
 
                 // Verify that the number of generated star documents matches the range in the star node
-                assertEquals(node.endDocId - node.startDocId, docCount);
+                assertEquals(node.getEndDocId() - node.getStartDocId(), docCount);
             }
         }
     }
