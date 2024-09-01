@@ -97,8 +97,13 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
 
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.schedule(any(), any(), any())).then(invocationOnMock -> {
-            updatePinnedTimstampTask = invocationOnMock.getArgument(0);
-            updatePinnedTimstampTask.run();
+            Runnable updateTask = invocationOnMock.getArgument(0);
+            updatePinnedTimstampTask = () -> {
+                long currentTime = System.currentTimeMillis();
+                while (RemoteStorePinnedTimestampService.getPinnedTimestamps().v1() < currentTime) {
+                    updateTask.run();
+                }
+            };
             return null;
         }).then(subsequentInvocationsOnMock -> null);
 
@@ -190,11 +195,20 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
 
+        assertBusy(() -> {
+            assertEquals(5, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                12,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         updatePinnedTimstampTask.run();
         translog.trimUnreferencedReaders(true, false);
 
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+
         assertBusy(() -> {
             assertEquals(0, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
             assertEquals(
@@ -249,6 +263,13 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("5", 5, primaryTerm.get(), new byte[] { 1 }));
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("6", 6, primaryTerm.get(), new byte[] { 1 }));
+
+        assertBusy(() -> {
+            assertEquals(
+                16,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
 
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
@@ -356,6 +377,11 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
                         );
                         when(remoteStorePinnedTimestampsBlobStore.getBlobPathForUpload(any())).thenReturn(new BlobPath());
 
+                        Set<String> dataFilesBeforeTrim = blobStoreTransferService.listAll(
+                            getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))
+                        );
+
+                        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
                         updatePinnedTimstampTask.run();
                         RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
                         translog.trimUnreferencedReaders();
@@ -366,11 +392,15 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
                             getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))
                         );
 
-                        // We check for number of pinned timestamp or +1 due to latest metadata.
-                        assertTrue(
-                            metadataFilesAfterTrim.size() == pinnedTimestamps.size()
-                                || metadataFilesAfterTrim.size() == pinnedTimestamps.size() + 1
-                        );
+                        // If non pinned generations are within, minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep()
+                        // we will not delete them
+                        if (dataFilesAfterTrim.equals(dataFilesBeforeTrim) == false) {
+                            // We check for number of pinned timestamp or +1 due to latest metadata.
+                            assertTrue(
+                                metadataFilesAfterTrim.size() == pinnedTimestamps.size()
+                                    || metadataFilesAfterTrim.size() == pinnedTimestamps.size() + 1
+                            );
+                        }
 
                         for (String md : pinnedTimestampMatchingMetadataFiles) {
                             assertTrue(metadataFilesAfterTrim.contains(md));

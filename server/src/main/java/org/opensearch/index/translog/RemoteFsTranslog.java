@@ -694,15 +694,19 @@ public class RemoteFsTranslog extends Translog {
                         return;
                     }
 
+                    logger.debug("metadataFilesToBeDeleted = {}", metadataFilesToBeDeleted);
                     // For all the files that we are keeping, fetch min and max generations
                     List<String> metadataFilesNotToBeDeleted = new ArrayList<>(metadataFiles);
                     metadataFilesNotToBeDeleted.removeAll(metadataFilesToBeDeleted);
 
+                    logger.debug("metadataFilesNotToBeDeleted = {}", metadataFilesNotToBeDeleted);
                     Set<Long> generationsToBeDeleted = getGenerationsToBeDeleted(
                         metadataFilesNotToBeDeleted,
                         metadataFilesToBeDeleted,
                         indexDeleted
                     );
+
+                    logger.debug("generationsToBeDeleted = {}", generationsToBeDeleted);
                     if (generationsToBeDeleted.isEmpty() == false) {
                         // Delete stale generations
                         translogTransferManager.deleteGenerationAsync(
@@ -782,6 +786,12 @@ public class RemoteFsTranslog extends Translog {
             pinnedTimestampsState.v1()
         );
 
+        logger.trace(
+            "metadataFiles.size = {}, metadataFilesToBeDeleted based on age based filtering = {}",
+            metadataFiles.size(),
+            metadataFilesToBeDeleted.size()
+        );
+
         // Get md files matching pinned timestamps
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             metadataFilesToBeDeleted,
@@ -793,6 +803,12 @@ public class RemoteFsTranslog extends Translog {
 
         // Filter out metadata files matching pinned timestamps
         metadataFilesToBeDeleted.removeAll(implicitLockedFiles);
+
+        logger.trace(
+            "implicitLockedFiles.size = {}, metadataFilesToBeDeleted based on pinned timestamp filtering = {}",
+            implicitLockedFiles.size(),
+            metadataFilesToBeDeleted.size()
+        );
 
         return metadataFilesToBeDeleted;
     }
