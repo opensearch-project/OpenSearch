@@ -16,7 +16,6 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
@@ -39,6 +38,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
+import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -60,7 +61,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     protected Settings getIndexSettings() {
         return Settings.builder()
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
             .put(SETTINGS)
             .build();
     }
@@ -94,6 +95,57 @@ public class StarTreeMapperTests extends MapperTestCase {
                 starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
             );
         }
+    }
+
+    public void testCompositeIndexWithArraysInCompositeField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(getExpandedMappingWithJustAvg("status", "status"));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("status").value(0).value(1).endArray()))
+        );
+        assertEquals(
+            "object mapping for [_doc] with array for [status] cannot be accepted as field is also part of composite index mapping which does not accept arrays",
+            ex.getMessage()
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("size").value(0).value(1).endArray()));
+        // 1 intPoint , 1 SNDV field for each value , so 4 in total
+        assertEquals(4, doc.rootDoc().getFields("size").length);
+    }
+
+    public void testValidValueForFlushTresholdSizeWithoutCompositeIndex() {
+        Settings settings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), false)
+            .build();
+
+        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings));
+    }
+
+    public void testInvalidValueForCompositeIndex() {
+        Settings settings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1gb")
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "512mb")
+            .build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings)
+        );
+
+        assertTrue(
+            exception.getMessage().contains("You can configure 'index.translog.flush_threshold_size' with upto '512mb' for composite index")
+        );
+    }
+
+    public void testValidValueForCompositeIndex() {
+        Settings settings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "512mb")
+            .build();
+
+        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings));
     }
 
     public void testMetricsWithJustSum() throws IOException {
