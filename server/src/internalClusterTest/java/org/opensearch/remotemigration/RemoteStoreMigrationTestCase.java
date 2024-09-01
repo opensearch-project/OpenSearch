@@ -116,15 +116,10 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
         logger.info("Create shallow snapshot setting enabled repo");
         String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
         Path shallowSnapshotRepoPath = randomRepoPath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(shallowSnapshotRepoName)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", shallowSnapshotRepoPath)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", shallowSnapshotRepoPath)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
+        createRepository(shallowSnapshotRepoName, "fs", settings);
 
         logger.info("Verify shallow snapshot creation");
         final String snapshot1 = "snapshot1";
