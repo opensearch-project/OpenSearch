@@ -11,8 +11,6 @@ package org.opensearch.action.admin.indices.get;
 import org.opensearch.Version;
 import org.opensearch.action.support.master.info.ClusterInfoRequest;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -30,8 +28,7 @@ public class GetIndexRequestTests extends OpenSearchTestCase {
     public void testGetIndexRequestWriteableWithLatestNode() throws IOException {
         // Write to 2.17 stream
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            GetIndexRequest getIndexRequest = new GetIndexRequest().indices("test")
-                .addFeatures(GetIndexRequest.Feature.values());
+            GetIndexRequest getIndexRequest = new GetIndexRequest().indices("test").addFeatures(GetIndexRequest.Feature.values());
             output.setVersion(Version.V_2_17_0);
             getIndexRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
@@ -44,8 +41,7 @@ public class GetIndexRequestTests extends OpenSearchTestCase {
     public void testGetIndexRequestWriteableWithOldNode() throws IOException {
         // Write to 2.1 stream
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            GetIndexRequest getIndexRequest = new GetIndexRequest().indices("test")
-                .addFeatures(GetIndexRequest.Feature.values());
+            GetIndexRequest getIndexRequest = new GetIndexRequest().indices("test").addFeatures(GetIndexRequest.Feature.values());
             output.setVersion(Version.V_2_16_0);
             getIndexRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
