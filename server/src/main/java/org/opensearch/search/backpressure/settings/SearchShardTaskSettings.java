@@ -26,12 +26,8 @@ import java.util.function.Consumer;
  */
 public class SearchShardTaskSettings {
     private final List<CancellationSettingsListener> listeners = new ArrayList<>();
-    private final ClusterSettings clusterSettings;
 
     private static class Defaults {
-        private static final double CANCELLATION_RATIO = 0.1;
-        private static final double CANCELLATION_RATE = 0.003;
-        private static final double CANCELLATION_BURST = 10.0;
         private static final double TOTAL_HEAP_PERCENT_THRESHOLD = 0.05;
         private static final long CPU_TIME_MILLIS_THRESHOLD = 15000;
         private static final long ELAPSED_TIME_MILLIS_THRESHOLD = 30000;
@@ -165,7 +161,6 @@ public class SearchShardTaskSettings {
         this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
         this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
-        this.clusterSettings = clusterSettings;
 
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);

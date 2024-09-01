@@ -58,6 +58,7 @@ import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.UserSubject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.usage.UsageService;
@@ -325,8 +326,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.content().length();
+        final MediaType mediaType = request.getMediaType();
         if (contentLength > 0) {
-            final MediaType mediaType = request.getMediaType();
             if (mediaType == null) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
@@ -342,6 +343,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
+
         RestChannel responseChannel = channel;
         try {
             if (handler.canTripCircuitBreaker()) {
@@ -362,6 +364,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                             + request.getHttpRequest().method()
                             + "]"
                     );
+                }
+
+                if (mediaType == null) {
+                    sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), responseChannel);
+                    return;
                 }
             } else {
                 // if we could reserve bytes for the request we need to send the response also over this channel
@@ -593,9 +600,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // Authentication did not fail so return true. Authorization is handled at the action level.
                 return true;
             }
-            final Subject currentSubject = identityService.getSubject();
-            currentSubject.authenticate(token);
-            logger.debug("Logged in as user " + currentSubject);
+            final Subject currentSubject = identityService.getCurrentSubject();
+            if (currentSubject instanceof UserSubject) {
+                ((UserSubject) currentSubject).authenticate(token);
+                logger.debug("Logged in as user " + currentSubject);
+            }
         } catch (final Exception e) {
             try {
                 final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
