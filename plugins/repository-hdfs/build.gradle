@@ -66,17 +66,17 @@ dependencies {
   }
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  api 'org.apache.avro:avro:1.11.3'
+  api 'org.apache.avro:avro:1.12.0'
   api 'com.google.code.gson:gson:2.11.0'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api 'commons-cli:commons-cli:1.8.0'
+  api 'commons-cli:commons-cli:1.9.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api 'org.apache.commons:commons-configuration2:2.11.0'
   api "commons-io:commons-io:${versions.commonsio}"
-  api 'org.apache.commons:commons-lang3:3.14.0'
+  api 'org.apache.commons:commons-lang3:3.16.0'
   implementation 'com.google.re2j:re2j:1.7'
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -425,19 +425,6 @@ thirdPartyAudit {
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
-
-    'org.apache.avro.reflect.FieldAccessUnsafe',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
-    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
   )
 }
 

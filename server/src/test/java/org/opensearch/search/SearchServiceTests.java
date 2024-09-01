@@ -54,6 +54,7 @@ import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -900,6 +901,11 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         protected void doXContent(XContentBuilder builder, Params params) {}
 
         @Override
+        public String fieldName() {
+            return getDefaultFieldName();
+        }
+
+        @Override
         protected Query doToQuery(QueryShardContext context) {
             return null;
         }
@@ -1410,6 +1416,106 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()))
+            .get();
+    }
+
+    /**
+     * Tests that the slice count is calculated correctly when concurrent search is enabled
+     *  If concurrent search enabled -
+     *       pick index level slice count setting if index level setting is set
+     *       else pick default cluster level slice count setting
+     * @throws IOException
+     */
+    public void testConcurrentSegmentSearchSliceCount() throws IOException {
+
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
+        // enable concurrent search
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true))
+            .get();
+
+        Integer[][] scenarios = {
+            // cluster setting, index setting, expected slice count
+            // expected value null will pick up default value from settings
+            { null, null, clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING) },
+            { 4, null, 4 },
+            { null, 3, 3 },
+            { 4, 3, 3 }, };
+
+        for (Integer[] sliceCounts : scenarios) {
+            Integer clusterSliceCount = sliceCounts[0];
+            Integer indexSliceCount = sliceCounts[1];
+            Integer targetSliceCount = sliceCounts[2];
+
+            if (clusterSliceCount != null) {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder()
+                            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), clusterSliceCount)
+                    )
+                    .get();
+            } else {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().putNull(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey())
+                    )
+                    .get();
+            }
+            if (indexSliceCount != null) {
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(index)
+                    .setSettings(
+                        Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT.getKey(), indexSliceCount)
+                    )
+                    .get();
+            } else {
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(index)
+                    .setSettings(Settings.builder().putNull(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT.getKey()))
+                    .get();
+            }
+
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(targetSliceCount.intValue(), searchContext.getTargetMaxSliceCount());
+            }
+        }
+        // cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
+                    .putNull(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey())
+            )
             .get();
     }
 

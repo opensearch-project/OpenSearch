@@ -34,6 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -202,6 +203,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
         builder.endObject();
+    }
+
+    @Override
+    public final String fieldName() {
+        return getDefaultFieldName();
     }
 
     public static NestedQueryBuilder fromXContent(XContentParser parser) throws IOException {
@@ -503,6 +509,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
                 return new TopDocsAndMaxScore(td, maxScore);
             }
+        }
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (query != null) {
+            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(query);
         }
     }
 }

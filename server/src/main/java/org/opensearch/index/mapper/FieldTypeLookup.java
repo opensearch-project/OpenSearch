@@ -101,7 +101,8 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     /**
-     * Returns the mapped field type for the given field name.
+     * Returns the {@link MappedFieldType} for the given field name
+     * or null if the field name is not found.
      */
     public MappedFieldType get(String field) {
         String concreteField = aliasToConcreteName.getOrDefault(field, field);

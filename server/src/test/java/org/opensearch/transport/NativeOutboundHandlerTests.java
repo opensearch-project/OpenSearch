@@ -52,7 +52,6 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 import org.junit.After;
 import org.junit.Before;
@@ -106,9 +105,8 @@ public class NativeOutboundHandlerTests extends OpenSearchTestCase {
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-                NativeInboundMessage m1 = (NativeInboundMessage) m;
-                Streams.copy(m1.openOrGetStreamInput(), streamOutput);
-                message.set(new Tuple<>(m1.getHeader(), streamOutput.bytes()));
+                Streams.copy(m.openOrGetStreamInput(), streamOutput);
+                message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

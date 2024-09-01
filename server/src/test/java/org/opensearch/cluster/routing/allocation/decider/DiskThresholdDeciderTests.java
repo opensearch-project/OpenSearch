@@ -530,6 +530,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         // Primary should initialize, even though both nodes are over the limit initialize
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
+        // below checks are unnecessary as the primary shard is always assigned to node2 as BSA always picks up that node
+        // first as both node1 and node2 have equal weight as both of them contain zero shards.
         String nodeWithPrimary, nodeWithoutPrimary;
         if (clusterState.getRoutingNodes().node("node1").size() == 1) {
             nodeWithPrimary = "node1";
@@ -679,10 +681,12 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logShardStates(clusterState);
-        // primary shard already has been relocated away
-        assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
-        // node with increased space still has its shard
-        assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
+        // primary shard already has been relocated away - this is a wrong expectation as we don't really move
+        // primary first unless explicitly set by setting. This is caught with PR
+        // https://github.com/opensearch-project/OpenSearch/pull/15239/
+        // as it randomises nodes to check for potential moves
+        // assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
+        // assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
 
@@ -861,19 +865,6 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         // is still below the high watermark (unlike node3)
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
-    }
-
-    public void testAverageUsage() {
-        RoutingNode rn = new RoutingNode("node1", newNode("node1"));
-        DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
-
-        final Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
-
-        DiskUsage node1Usage = decider.averageUsage(rn, usages);
-        assertThat(node1Usage.getTotalBytes(), equalTo(100L));
-        assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
 
     public void testFreeDiskPercentageAfterShardAssigned() {

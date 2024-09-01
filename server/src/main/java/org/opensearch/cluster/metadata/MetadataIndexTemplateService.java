@@ -42,6 +42,9 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
@@ -53,9 +56,11 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
@@ -66,12 +71,15 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -94,6 +102,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
+import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -116,6 +125,7 @@ public class MetadataIndexTemplateService {
     private final ClusterManagerTaskThrottler.ThrottlingKey removeIndexTemplateV2TaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey createComponentTemplateTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey removeComponentTemplateTaskKey;
+    private final ThreadPool threadPool;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -124,7 +134,8 @@ public class MetadataIndexTemplateService {
         AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
@@ -132,6 +143,7 @@ public class MetadataIndexTemplateService {
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
+        this.threadPool = threadPool;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_KEY, true);
@@ -209,6 +221,7 @@ public class MetadataIndexTemplateService {
         final ComponentTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
+        validateComponentTemplateRequest(template);
         clusterService.submitStateUpdateTask(
             "create-component-template [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
@@ -378,6 +391,7 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateNotInUse(clusterService.state().metadata(), name);
+        validateComponentTemplateRequest(clusterService.state().metadata().componentTemplates().get(name));
         clusterService.submitStateUpdateTask("remove-component-template [" + name + "]", new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
@@ -439,7 +453,12 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream().filter(e -> {
-            Set<String> intersecting = Sets.intersection(new HashSet<>(e.getValue().composedOf()), matchingComponentTemplates);
+            Set<String> referredComponentTemplates = new HashSet<>(e.getValue().composedOf());
+            String systemTemplateUsed = findContextTemplateName(metadata, e.getValue().context());
+            if (systemTemplateUsed != null) {
+                referredComponentTemplates.add(systemTemplateUsed);
+            }
+            Set<String> intersecting = Sets.intersection(referredComponentTemplates, matchingComponentTemplates);
             if (intersecting.size() > 0) {
                 componentsBeingUsed.addAll(intersecting);
                 return true;
@@ -469,7 +488,7 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        validateV2TemplateRequest(clusterService.state().metadata(), name, template);
+        validateV2TemplateRequest(clusterService.state().metadata(), name, template, clusterService.getClusterSettings());
         clusterService.submitStateUpdateTask(
             "create-index-template-v2 [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
@@ -502,7 +521,12 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    public static void validateV2TemplateRequest(Metadata metadata, String name, ComposableIndexTemplate template) {
+    public static void validateV2TemplateRequest(
+        Metadata metadata,
+        String name,
+        ComposableIndexTemplate template,
+        ClusterSettings settings
+    ) {
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
             Settings mergedSettings = resolveSettings(metadata, template);
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
@@ -514,6 +538,8 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final boolean isContextAllowed = FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES);
+
         final List<String> missingComponentTemplates = template.composedOf()
             .stream()
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
@@ -525,6 +551,64 @@ public class MetadataIndexTemplateService {
                 "index template [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
             );
         }
+
+        if (template.context() != null && !isContextAllowed) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template ["
+                    + name
+                    + "] specifies a context which cannot be used without enabling: "
+                    + SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey()
+            );
+        }
+
+        if (isContextAllowed
+            && template.composedOf().stream().anyMatch(componentTemplate -> isSystemTemplate(componentTemplates.get(componentTemplate)))) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template [" + name + "] specifies a component templates which can only be used in context."
+            );
+        }
+
+        if (template.context() != null && findContextTemplateName(metadata, template.context()) == null) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template [" + name + "] specifies a context which is not loaded on the cluster."
+            );
+        }
+    }
+
+    private void validateComponentTemplateRequest(ComponentTemplate componentTemplate) {
+        if (isSystemTemplate(componentTemplate)
+            && !ClusterStateSystemTemplateLoader.TEMPLATE_LOADER_IDENTIFIER.equals(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME)
+            )) {
+            throw new IllegalArgumentException("A system template can only be created/updated/deleted with a repository");
+        }
+    }
+
+    static ComponentTemplate findComponentTemplate(Metadata metadata, Context context) {
+        String contextTemplateName = findContextTemplateName(metadata, context);
+        return metadata.componentTemplates().getOrDefault(contextTemplateName, null);
+    }
+
+    static String findContextTemplateName(Metadata metadata, Context context) {
+        if (context == null) {
+            return null;
+        }
+        final boolean searchSpecificVersion = !Context.LATEST_VERSION.equals(context.version());
+        return Optional.ofNullable(metadata.systemTemplatesLookup())
+            .map(coll -> coll.get(context.name()))
+            .map(coll -> coll.get(searchSpecificVersion ? Long.parseLong(context.version()) : coll.lastKey()))
+            .orElse(null);
+    }
+
+    public static boolean isSystemTemplate(ComponentTemplate componentTemplate) {
+        return Optional.ofNullable(componentTemplate)
+            .map(ComponentTemplate::metadata)
+            .map(md -> md.get(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY))
+            .filter(ob -> SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE.equals(ob.toString()))
+            .isPresent();
     }
 
     public ClusterState addIndexTemplateV2(
@@ -613,7 +697,8 @@ public class MetadataIndexTemplateService {
                 template.priority(),
                 template.version(),
                 template.metadata(),
-                template.getDataStreamTemplate()
+                template.getDataStreamTemplate(),
+                template.context()
             );
         }
 
@@ -866,7 +951,7 @@ public class MetadataIndexTemplateService {
 
     static Set<String> dataStreamsUsingTemplate(final ClusterState state, final String templateName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
-        if (template == null) {
+        if (template == null || template.getDataStreamTemplate() == null) {
             return Collections.emptySet();
         }
         final Set<String> dataStreams = state.metadata().dataStreams().keySet();
@@ -1140,7 +1225,7 @@ public class MetadataIndexTemplateService {
             .map(Template::mappings)
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedList::new));
-        // Add the actual index template's mappings, since it takes the highest precedence
+        // Add the actual index template's mappings, since it takes the next precedence
         Optional.ofNullable(template.template()).map(Template::mappings).ifPresent(mappings::add);
         if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // add a default mapping for the timestamp field, at the lowest precedence, to make bootstrapping data streams more
@@ -1165,6 +1250,15 @@ public class MetadataIndexTemplateService {
                 })
                 .ifPresent(mappings::add);
         }
+
+        // Now use context mappings which take the highest precedence
+        Optional.ofNullable(template.context())
+            .map(ctx -> findContextTemplateName(state.metadata(), ctx))
+            .map(name -> state.metadata().componentTemplates().get(name))
+            .map(ComponentTemplate::template)
+            .map(Template::mappings)
+            .ifPresent(mappings::add);
+
         return Collections.unmodifiableList(mappings);
     }
 
@@ -1226,8 +1320,13 @@ public class MetadataIndexTemplateService {
 
         Settings.Builder templateSettings = Settings.builder();
         componentSettings.forEach(templateSettings::put);
-        // Add the actual index template's settings to the end, since it takes the highest precedence.
+        // Add the actual index template's settings now, since it takes the next precedence.
         Optional.ofNullable(template.template()).map(Template::settings).ifPresent(templateSettings::put);
+
+        // Add the template referred by context since it will take the highest precedence.
+        final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
+        Optional.ofNullable(componentTemplate).map(ComponentTemplate::template).map(Template::settings).ifPresent(templateSettings::put);
+
         return templateSettings.build();
     }
 
@@ -1269,8 +1368,15 @@ public class MetadataIndexTemplateService {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
-        // Add the actual index template's aliases to the end if they exist
+        // Add the actual index template's aliases now if they exist
         Optional.ofNullable(template.template()).map(Template::aliases).ifPresent(aliases::add);
+
+        // Now use context referenced template's aliases which take the highest precedence
+        if (template.context() != null) {
+            final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
+            Optional.ofNullable(componentTemplate.template()).map(Template::aliases).ifPresent(aliases::add);
+        }
+
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order
         // of precedence (with the index template first)
@@ -1531,8 +1637,9 @@ public class MetadataIndexTemplateService {
             );
             validationErrors.addAll(indexSettingsValidation);
 
-            // validate index refresh interval settings
+            // validate index refresh interval and translog durability settings
             validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
+            validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
@@ -1556,6 +1663,29 @@ public class MetadataIndexTemplateService {
                 );
             }
         }
+    }
+
+    /**
+     * Validates {@code index.translog.durability} is not async with the incoming index template
+     * if the {@code cluster.remote_store.index.restrict.async-durability} is set to true.
+     *
+     * @param requestSettings settings passed during template creation
+     * @param clusterSettings current cluster settings
+     */
+    private void validateTranslogDurabilitySettingsInTemplate(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
+            || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
+            return;
+        }
+        Translog.Durability durability = IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.get(requestSettings);
+        if (durability.equals(Translog.Durability.ASYNC)) {
+            throw new IllegalArgumentException(
+                "index setting [index.translog.durability=async] is not allowed as cluster setting ["
+                    + IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
     }
 
     /**
