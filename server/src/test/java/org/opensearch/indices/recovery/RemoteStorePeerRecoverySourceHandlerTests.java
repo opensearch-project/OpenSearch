@@ -118,27 +118,6 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         }
     }
 
-    public StartRecoveryRequest getStartRecoveryRequest() throws IOException {
-        Store.MetadataSnapshot metadataSnapshot = randomBoolean()
-            ? Store.MetadataSnapshot.EMPTY
-            : new Store.MetadataSnapshot(
-            Collections.emptyMap(),
-            Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()),
-            randomIntBetween(0, 100)
-        );
-        return new StartRecoveryRequest(
-            shardId,
-            null,
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            metadataSnapshot,
-            randomBoolean(),
-            randomNonNegativeLong(),
-            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong()
-        );
-    }
-
-
     public void testThrowExceptionOnNoTargetInRouting() throws IOException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
@@ -231,9 +210,29 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             handler.recoverToTarget(future);
             future.actionGet();
         });
-        verify(routingTable, times(3)).getByAllocationId(null);
+        verify(routingTable, times(5)).getByAllocationId(null);
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
+    }
+
+    public StartRecoveryRequest getStartRecoveryRequest() throws IOException {
+        Store.MetadataSnapshot metadataSnapshot = randomBoolean()
+            ? Store.MetadataSnapshot.EMPTY
+            : new Store.MetadataSnapshot(
+                Collections.emptyMap(),
+                Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()),
+                randomIntBetween(0, 100)
+            );
+        return new StartRecoveryRequest(
+            shardId,
+            null,
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            metadataSnapshot,
+            randomBoolean(),
+            randomNonNegativeLong(),
+            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong()
+        );
     }
 }

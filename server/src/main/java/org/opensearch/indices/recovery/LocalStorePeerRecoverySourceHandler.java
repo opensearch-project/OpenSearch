@@ -55,7 +55,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
     @Override
     protected void innerRecoveryToTarget(ActionListener<RecoveryResponse> listener, Consumer<Exception> onFailure) throws IOException {
         final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
-        waitForAssignment(retentionLeaseRef);
+        waitForAssignmentPropagate(retentionLeaseRef);
         final Closeable retentionLock = shard.acquireHistoryRetentionLock();
         resources.add(retentionLock);
         final long startingSeqNo;

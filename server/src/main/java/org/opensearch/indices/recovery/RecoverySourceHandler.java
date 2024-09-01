@@ -41,6 +41,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -83,12 +84,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
@@ -195,24 +198,49 @@ public abstract class RecoverySourceHandler {
     protected abstract void innerRecoveryToTarget(ActionListener<RecoveryResponse> listener, Consumer<Exception> onFailure)
         throws IOException;
 
-    protected void waitForAssignment(SetOnce<RetentionLease> retentionLeaseRef)  {
-        RunUnderPrimaryPermit.run(() -> {
-            final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
-            ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
-            if (targetShardRouting == null) {
-                logger.debug(
-                    "delaying recovery of {} as it is not listed as assigned to target node {}",
-                    request.shardId(),
-                    request.targetNode()
-                );
-                throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+    /*
+    Waits for cluster state propagation of assignment of replica on the target node
+     */
+    void waitForAssignmentPropagate(SetOnce<RetentionLease> retentionLeaseRef) {
+        BackoffPolicy EXPONENTIAL_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 5);
+        AtomicReference<ShardRouting> targetShardRouting = new AtomicReference<>();
+        Iterator<TimeValue> backoffDelayIterator = EXPONENTIAL_BACKOFF_POLICY.iterator();
+        while (backoffDelayIterator.hasNext()) {
+            RunUnderPrimaryPermit.run(() -> {
+                final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+                targetShardRouting.set(routingTable.getByAllocationId(request.targetAllocationId()));
+                if (targetShardRouting.get() == null) {
+                    logger.info(
+                        "delaying recovery of {} as it is not listed as assigned to target node {}",
+                        request.shardId(),
+                        request.targetNode()
+                    );
+                    Thread.sleep(backoffDelayIterator.next().millis());
+                }
+                if (targetShardRouting.get() != null) {
+                    assert targetShardRouting.get().initializing() : "expected recovery target to be initializing but was "
+                        + targetShardRouting;
+                    retentionLeaseRef.set(
+                        shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting.get()))
+                    );
+                }
+
+            },
+                shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ",
+                shard,
+                cancellableThreads,
+                logger
+            );
+
+            if (targetShardRouting.get() != null) {
+                return;
             }
-            assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
-            retentionLeaseRef.set(shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting)));
-        }, shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ", shard, cancellableThreads, logger);
+        }
+        if (targetShardRouting.get() != null) {
+            return;
+        }
+        throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
     }
-
-
 
     protected void finalizeStepAndCompleteFuture(
         long startingSeqNo,
