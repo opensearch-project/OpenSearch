@@ -36,6 +36,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
@@ -476,14 +478,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
     private Path registerCustomRepository() {
         Path path = randomRepoPath();
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("custom-repo")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", path).put("compress", false))
-                .get()
-        );
+        createRepository("custom-repo", "fs", Settings.builder().put("location", path).put("compress", false));
         return path;
     }
 
@@ -493,9 +488,15 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         assertTrue(SYSTEM_REPOSITORY_SETTING.get(repositoriesMetadata.repository(REPOSITORY_NAME).settings()));
         assertTrue(SYSTEM_REPOSITORY_SETTING.get(repositoriesMetadata.repository(REPOSITORY_2_NAME).settings()));
         assertEquals("fs", repositoriesMetadata.repository("custom-repo").type());
+        Settings settings = repositoriesMetadata.repository("custom-repo").settings();
+        PathType pathType = BlobStoreRepository.SHARD_PATH_TYPE.get(settings);
         assertEquals(
-            Settings.builder().put("location", repoPath).put("compress", false).build(),
-            repositoriesMetadata.repository("custom-repo").settings()
+            Settings.builder()
+                .put("location", repoPath)
+                .put("compress", false)
+                .put(BlobStoreRepository.SHARD_PATH_TYPE.getKey(), pathType)
+                .build(),
+            settings
         );
 
         // repo cleanup post verification

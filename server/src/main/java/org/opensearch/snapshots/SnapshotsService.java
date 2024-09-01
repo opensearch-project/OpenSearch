@@ -138,6 +138,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.Compatibili
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHARD_PATH_TYPE;
 import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
 /**
@@ -527,9 +528,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
+                int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)
+                    ? SHARD_PATH_TYPE.get(repository.getMetadata().settings()).getCode()
+                    : IndexId.DEFAULT_SHARD_PATH_TYPE;
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
                     indices,
-                    getInFlightIndexIds(runningSnapshots, repositoryName)
+                    getInFlightIndexIds(runningSnapshots, repositoryName),
+                    pathType
                 );
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
                 final Map<ShardId, ShardSnapshotStatus> shards = shards(
@@ -668,7 +673,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
                     indices,
-                    getInFlightIndexIds(runningSnapshots, repositoryName)
+                    getInFlightIndexIds(runningSnapshots, repositoryName),
+                    IndexId.DEFAULT_SHARD_PATH_TYPE
                 );
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
                 final ShardGenerations shardGenerations = buildShardsGenerationFromRepositoryData(
@@ -1348,7 +1354,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     assert entry.shards().isEmpty();
                                     hadAbortedInitializations = true;
                                 } else {
-                                    final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices, Collections.emptyMap());
+                                    int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)
+                                        ? SHARD_PATH_TYPE.get(repository.getMetadata().settings()).getCode()
+                                        : IndexId.DEFAULT_SHARD_PATH_TYPE;
+                                    final List<IndexId> indexIds = repositoryData.resolveNewIndices(
+                                        indices,
+                                        Collections.emptyMap(),
+                                        pathType
+                                    );
                                     // Replace the snapshot that was just initialized
                                     final Map<ShardId, ShardSnapshotStatus> shards = shards(
                                         snapshots,
