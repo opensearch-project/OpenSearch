@@ -46,6 +46,7 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
     private IndexMetadata indexMetadata;
     private RemoteStoreEnums.PathType pathType;
     private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
+    private String fixedPrefix;
 
     public RemoteIndexMetadata(
         final IndexMetadata indexMetadata,
@@ -53,11 +54,13 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
         final Compressor compressor,
         final NamedXContentRegistry namedXContentRegistry,
         final RemoteStoreEnums.PathType pathType,
-        final RemoteStoreEnums.PathHashAlgorithm pathHashAlgo
+        final RemoteStoreEnums.PathHashAlgorithm pathHashAlgo,
+        final String fixedPrefix
     ) {
         this(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
         this.pathType = pathType;
         this.pathHashAlgo = pathHashAlgo;
+        this.fixedPrefix = fixedPrefix;
     }
 
     public RemoteIndexMetadata(
@@ -111,7 +114,11 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
         }
         assert pathHashAlgo != null;
         return pathType.path(
-            RemoteStorePathStrategy.PathInput.builder().basePath(blobPath).indexUUID(indexMetadata.getIndexUUID()).build(),
+            RemoteStorePathStrategy.PathInput.builder()
+                .fixedPrefix(fixedPrefix)
+                .basePath(blobPath)
+                .indexUUID(indexMetadata.getIndexUUID())
+                .build(),
             pathHashAlgo
         );
     }

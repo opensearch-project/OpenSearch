@@ -151,6 +151,16 @@ public class RemoteClusterStateService implements Closeable {
     );
 
     /**
+    * Controls the fixed prefix for the cluster state path on remote store.
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX_CHAR = Setting.simpleString(
+        "cluster.remote_store.state.path.prefix",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
      * Validation mode for cluster state checksum.
      *  None: Validation will be disabled.
      *  Debug: Validation enabled but only matches checksum and logs failing entities.
@@ -211,6 +221,7 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
     private final boolean isPublicationEnabled;
+    private final String remotePathPrefix;
 
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
@@ -252,6 +263,7 @@ public class RemoteClusterStateService implements Closeable {
         this.isPublicationEnabled = FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
+        this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX_CHAR.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
             settings,
@@ -730,7 +742,8 @@ public class RemoteClusterStateService implements Closeable {
                     blobStoreRepository.getCompressor(),
                     blobStoreRepository.getNamedXContentRegistry(),
                     remoteIndexMetadataManager.getPathTypeSetting(),
-                    remoteIndexMetadataManager.getPathHashAlgoSetting()
+                    remoteIndexMetadataManager.getPathHashAlgoSetting(),
+                    remotePathPrefix
                 ),
                 listener
             );

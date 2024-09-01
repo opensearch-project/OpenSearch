@@ -186,7 +186,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         assertTrue(listener.getFailure() instanceof RemoteStateTransferException);
     }
 
-    public void testRemoteRoutingTablePathTypeSetting() {
+    public void testRemoteIndexMetadataPathTypeSetting() {
         // Assert the default is HASHED_PREFIX
         assertEquals(HASHED_PREFIX.toString(), remoteIndexMetadataManager.getPathTypeSetting().toString());
 
@@ -197,7 +197,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         assertEquals(RemoteStoreEnums.PathType.FIXED.toString(), remoteIndexMetadataManager.getPathTypeSetting().toString());
     }
 
-    public void testRemoteRoutingTableHashAlgoSetting() {
+    public void testRemoteIndexMetadataHashAlgoSetting() {
         // Assert the default is FNV_1A_BASE64
         assertEquals(FNV_1A_BASE64.toString(), remoteIndexMetadataManager.getPathHashAlgoSetting().toString());
 

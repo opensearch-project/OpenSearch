@@ -175,16 +175,18 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testPrefixedPath() {
         IndexMetadata indexMetadata = getIndexMetadata();
+        String fixedPrefix = "*";
         RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
             indexMetadata,
             clusterUUID,
             compressor,
             namedXContentRegistry,
             PathType.HASHED_PREFIX,
-            PathHashAlgorithm.FNV_1A_COMPOSITE_1
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1,
+            fixedPrefix
         );
         String testPath = "test-path";
-        String expectedPath = "410100110100101/test-path/index-uuid/";
+        String expectedPath = fixedPrefix + "410100110100101/test-path/index-uuid/";
         BlobPath prefixedPath = remoteObjectForUpload.getPrefixedPath(BlobPath.cleanPath().add(testPath));
         assertThat(prefixedPath.buildAsString(), is(expectedPath));
 
