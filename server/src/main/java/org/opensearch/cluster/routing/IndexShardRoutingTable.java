@@ -213,6 +213,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
+     * Returns a {@link List} of the search only shards in the RoutingTable
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> searchOnlyReplicas() {
+        return replicas.stream().filter(ShardRouting::isSearchOnly).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a {@link List} of the writer replicas (primary eligible) shards in the RoutingTable
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> writerReplicas() {
+        return replicas.stream().filter(r -> r.isSearchOnly() == false).collect(Collectors.toList());
+    }
+
+    /**
      * Returns a {@link List} of active shards
      *
      * @return a {@link List} of shards

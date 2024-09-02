@@ -18,6 +18,7 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -232,7 +233,8 @@ public class RemoteClusterStateService implements Closeable {
      * @return A manifest object which contains the details of uploaded entity metadata.
      */
     @Nullable
-    public RemoteClusterStateManifestInfo writeFullMetadata(ClusterState clusterState, String previousClusterUUID) throws IOException {
+    public RemoteClusterStateManifestInfo writeFullMetadata(ClusterState clusterState, String previousClusterUUID, int codecVersion)
+        throws IOException {
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
@@ -268,12 +270,13 @@ public class RemoteClusterStateService implements Closeable {
             previousClusterUUID,
             clusterStateDiffManifest,
             checksumValidationEnabled ? new ClusterStateChecksum(clusterState) : null,
-            false
+            false,
+            codecVersion
         );
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateSucceeded();
-        remoteStateStats.stateTook(durationMillis);
+        remoteStateStats.stateUploadSucceeded();
+        remoteStateStats.stateUploadTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
@@ -460,12 +463,13 @@ public class RemoteClusterStateService implements Closeable {
             previousManifest.getPreviousClusterUUID(),
             clusterStateDiffManifest,
             checksumValidationEnabled ? new ClusterStateChecksum(clusterState) : null,
-            false
+            false,
+            previousManifest.getCodecVersion()
         );
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateSucceeded();
-        remoteStateStats.stateTook(durationMillis);
+        remoteStateStats.stateUploadSucceeded();
+        remoteStateStats.stateUploadTook(durationMillis);
         ParameterizedMessage clusterStateUploadTimeMessage = new ParameterizedMessage(
             CLUSTER_STATE_UPLOAD_TIME_LOG_STRING,
             manifestDetails.getClusterMetadataManifest().getStateVersion(),
@@ -896,7 +900,8 @@ public class RemoteClusterStateService implements Closeable {
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
             checksumValidationEnabled ? previousManifest.getClusterStateChecksum() : null,
-            true
+            true,
+            previousManifest.getCodecVersion()
         );
         if (!previousManifest.isClusterUUIDCommitted() && committedManifestDetails.getClusterMetadataManifest().isClusterUUIDCommitted()) {
             remoteClusterStateCleanupManager.deleteStaleClusterUUIDs(clusterState, committedManifestDetails.getClusterMetadataManifest());
@@ -1333,8 +1338,10 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean includeEphemeral
     ) throws IOException {
+        final ClusterState clusterState;
+        final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
-            ClusterState clusterState = readClusterStateInParallel(
+            clusterState = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
                 manifest,
                 manifest.getClusterUUID(),
@@ -1359,7 +1366,7 @@ public class RemoteClusterStateService implements Closeable {
             }
             return clusterState;
         } else {
-            ClusterState clusterState = readClusterStateInParallel(
+            ClusterState state = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
                 manifest,
                 manifest.getClusterUUID(),
@@ -1380,15 +1387,20 @@ public class RemoteClusterStateService implements Closeable {
                 false
             );
             Metadata.Builder mb = Metadata.builder(remoteGlobalMetadataManager.getGlobalMetadata(manifest.getClusterUUID(), manifest));
-            mb.indices(clusterState.metadata().indices());
-            return ClusterState.builder(clusterState).metadata(mb).build();
+            mb.indices(state.metadata().indices());
+            clusterState = ClusterState.builder(state).metadata(mb).build();
         }
+        final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateFullDownloadSucceeded();
+        remoteStateStats.stateFullDownloadTook(durationMillis);
 
+        return clusterState;
     }
 
     public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
         throws IOException {
         assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
+        final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         ClusterStateDiffManifest diff = manifest.getDiffManifest();
         List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
             Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
@@ -1473,6 +1485,11 @@ public class RemoteClusterStateService implements Closeable {
         if (checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
             validateClusterStateFromChecksum(manifest, clusterState, previousState.getClusterName().value(), localNodeId, false);
         }
+        final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateDiffDownloadSucceeded();
+        remoteStateStats.stateDiffDownloadTook(durationMillis);
+
+        return clusterState;
         return clusterState;
     }
 
@@ -1830,10 +1847,30 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public void writeMetadataFailed() {
-        getStats().stateFailed();
+        remoteStateStats.stateUploadFailed();
     }
 
-    public RemotePersistenceStats getStats() {
+    public RemotePersistenceStats getRemoteStateStats() {
         return remoteStateStats;
+    }
+
+    public PersistedStateStats getUploadStats() {
+        return remoteStateStats.getUploadStats();
+    }
+
+    public PersistedStateStats getFullDownloadStats() {
+        return remoteStateStats.getRemoteFullDownloadStats();
+    }
+
+    public PersistedStateStats getDiffDownloadStats() {
+        return remoteStateStats.getRemoteDiffDownloadStats();
+    }
+
+    public void fullDownloadFailed() {
+        remoteStateStats.stateFullDownloadFailed();
+    }
+
+    public void diffDownloadFailed() {
+        remoteStateStats.stateDiffDownloadFailed();
     }
 }

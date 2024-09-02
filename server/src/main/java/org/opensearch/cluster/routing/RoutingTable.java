@@ -533,7 +533,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     // ignore index missing failure, its closed...
                     continue;
                 }
-                int currentNumberOfReplicas = indexRoutingTable.shards().get(0).size() - 1; // remove the required primary
+                int currentNumberOfReplicas = indexRoutingTable.shards().get(0).writerReplicas().size();
                 IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
                 // re-add all the shards
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
@@ -547,6 +547,45 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 } else if (currentNumberOfReplicas > numberOfReplicas) {
                     for (int i = 0; i < (currentNumberOfReplicas - numberOfReplicas); i++) {
                         builder.removeReplica();
+                    }
+                }
+                indicesRouting.put(index, builder.build());
+            }
+            return this;
+        }
+
+        /**
+         * Update the number of search replicas for the specified indices.
+         *
+         * @param numberOfSearchReplicas the number of replicas
+         * @param indices          the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfSearchReplicas(final int numberOfSearchReplicas, final String[] indices) {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
+            for (String index : indices) {
+                IndexRoutingTable indexRoutingTable = indicesRouting.get(index);
+                if (indexRoutingTable == null) {
+                    // ignore index missing failure, its closed...
+                    continue;
+                }
+                IndexShardRoutingTable shardRoutings = indexRoutingTable.shards().get(0);
+                int currentNumberOfSearchReplicas = shardRoutings.searchOnlyReplicas().size();
+                IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
+                // re-add all the shards
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    builder.addIndexShard(indexShardRoutingTable);
+                }
+                if (currentNumberOfSearchReplicas < numberOfSearchReplicas) {
+                    // now, add "empty" ones
+                    for (int i = 0; i < (numberOfSearchReplicas - currentNumberOfSearchReplicas); i++) {
+                        builder.addSearchReplica();
+                    }
+                } else if (currentNumberOfSearchReplicas > numberOfSearchReplicas) {
+                    for (int i = 0; i < (currentNumberOfSearchReplicas - numberOfSearchReplicas); i++) {
+                        builder.removeSearchReplica();
                     }
                 }
                 indicesRouting.put(index, builder.build());
