@@ -23,11 +23,11 @@ package org.opensearch.index.compositeindex.datacube.startree.node;
  * <p>
  * The node type can be one of the following:
  * <ul>
- *     <li>Star Node: Represented by the value -2. A star node is a special node that represents
+ *     <li>Star Node: Represented by the value -1. A star node is a special node that represents
  *     all possible values for a dimension.</li>
- *     <li>Null Node: Represented by the value -1. A null node indicates the absence of any value
+ *     <li>Null Node: Represented by the value 0. A null node indicates the absence of any value
  *     for a dimension.</li>
- *     <li>Default Node: Represented by the value 0. A default node represents a node with an
+ *     <li>Default Node: Represented by the value -1. A default node represents a node with an
  *     actual dimension value.</li>
  * </ul>
  *
@@ -42,17 +42,17 @@ public enum StarTreeNodeType {
      * Represents a star node type.
      *
      */
-    STAR("star", (byte) -2),
-
-    /**
-     * Represents a null node type.
-     */
-    NULL("null", (byte) -1),
+    STAR("star", (byte) -1),
 
     /**
      * Represents a default node type.
      */
-    DEFAULT("default", (byte) 0);
+    DEFAULT("default", (byte) 0),
+
+    /**
+     * Represents a null node type.
+     */
+    NULL("null", (byte) 1);
 
     private final String name;
     private final byte value;

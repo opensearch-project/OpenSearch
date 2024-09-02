@@ -37,6 +37,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class StarTreeTestUtils {
@@ -197,12 +198,22 @@ public class StarTreeTestUtils {
                         // check if star tree node exists
                         resultChildNode = rootNode.getChildStarNode();
                         assertNotNull(child);
+                        assertNotNull(starTreeNode.getChildStarNode());
                         assertStarTreeNode(child, resultChildNode);
                         childStarNodeAsserted = true;
                     } else {
                         resultChildNode = sortedChildren.get(childCount);
                         assertNotNull(child);
                         assertNotNull(resultChildNode);
+                        if (child.getStarTreeNodeType() != StarTreeNodeType.NULL.getValue()) {
+                            assertNotNull(starTreeNode.getChildForDimensionValue(child.getDimensionValue()));
+                        } else {
+                            StarTreeNode finalStarTreeNode = starTreeNode;
+                            assertThrows(
+                                AssertionError.class,
+                                () -> finalStarTreeNode.getChildForDimensionValue(child.getDimensionValue())
+                            );
+                        }
                         assertStarTreeNode(child, resultChildNode);
                         assertNotEquals(child.getStarTreeNodeType(), StarTreeNodeType.STAR.getValue());
                         childCount++;

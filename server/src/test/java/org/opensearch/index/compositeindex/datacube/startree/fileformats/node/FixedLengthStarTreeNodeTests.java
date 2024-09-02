@@ -44,19 +44,14 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         dataOut = directory.createOutput("star-tree-data", IOContext.DEFAULT);
         StarTreeWriter starTreeWriter = new StarTreeWriter();
 
-        node = new InMemoryTreeNode(0, randomInt(), randomInt(), randomFrom((byte) 0, (byte) -1, (byte) 2), -1);
+        node = new InMemoryTreeNode(0, randomInt(), randomInt(), randomFrom((byte) 0, (byte) -1, (byte) 1), -1);
         node.setChildDimensionId(1);
         node.setAggregatedDocId(randomInt());
 
-        starChild = new InMemoryTreeNode(node.getDimensionId() + 1, randomInt(), randomInt(), (byte) -2, -1);
+        starChild = new InMemoryTreeNode(node.getDimensionId() + 1, randomInt(), randomInt(), (byte) -1, -1);
         starChild.setChildDimensionId(-1);
         starChild.setAggregatedDocId(randomInt());
         node.addChildNode(starChild, (long) ALL);
-
-        nullChild = new InMemoryTreeNode(node.getDimensionId() + 1, randomInt(), randomInt(), (byte) -1, -1);
-        nullChild.setChildDimensionId(-1);
-        nullChild.setAggregatedDocId(randomInt());
-        node.addChildNode(nullChild, null);
 
         childWithMinus1 = new InMemoryTreeNode(node.getDimensionId() + 1, randomInt(), randomInt(), (byte) 0, -1);
         childWithMinus1.setChildDimensionId(-1);
@@ -75,6 +70,11 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
             child.setAggregatedDocId(randomInt());
             node.addChildNode(child, child.getDimensionValue());
         }
+
+        nullChild = new InMemoryTreeNode(node.getDimensionId() + 1, randomInt(), randomInt(), (byte) 1, -1);
+        nullChild.setChildDimensionId(-1);
+        nullChild.setAggregatedDocId(randomInt());
+        node.addChildNode(nullChild, null);
 
         long starTreeDataLength = starTreeWriter.writeStarTree(dataOut, node, 2 + node.getChildren().size(), "star-tree");
 
