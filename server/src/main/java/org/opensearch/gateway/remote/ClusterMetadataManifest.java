@@ -45,7 +45,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     // also we introduce index routing-metadata, diff and other attributes as part of manifest
     // required for state publication
     public static final int CODEC_V3 = 3; // In Codec V3, we have introduced new diff field in diff-manifest's routing_table_diff
-    public static final int CODEC_V4 = 4; // In Codec V4, we have removed upserts and delete field for routing table in diff manifest and added checksum of cluster state.
+    public static final int CODEC_V4 = 4; // In Codec V4, we have removed upserts and delete field for routing table in diff manifest and
+                                          // added checksum of cluster state.
 
     public static final int[] CODEC_VERSIONS = { CODEC_V0, CODEC_V1, CODEC_V2, CODEC_V3, CODEC_V4 };
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
