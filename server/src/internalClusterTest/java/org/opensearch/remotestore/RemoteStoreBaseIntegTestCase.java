@@ -21,6 +21,11 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplate;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
+import org.opensearch.cluster.applicationtemplates.TemplateRepositoryMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -28,6 +33,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -46,6 +52,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,6 +64,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -76,6 +85,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
     protected static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
     protected static final String MAX_SEQ_NO_REFRESHED_OR_FLUSHED = "max-seq-no-refreshed-or-flushed";
+    protected static final String CONTEXT_NAME = "testcontext";
 
     protected Path segmentRepoPath;
     protected Path translogRepoPath;
@@ -352,9 +362,17 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
+
+        // Adding context template to the cluster
+
+        addTemplateForContext(CONTEXT_NAME);
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
         for (String index : indices.split(",")) {
-            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
+            // Ensure index is created with additional metadata field.
+            assertAcked(prepareCreate(index)
+                .setSettings(remoteStoreIndexSettings(replicaCount, shardCount))
+                .setContext(new Context("testcontext")));
+
             ensureYellowAndNoInitializingShards(index);
             ensureGreen(index);
         }
@@ -373,6 +391,37 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         for (String index : indices.split(",")) {
             createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
             ensureGreen(index);
+        }
+    }
+
+    private void addTemplateForContext(String contextName) {
+        try {
+            String templateContent = "{\n"
+                + "  \"template\": {\n"
+                + "    \"settings\": {\n"
+                + "      \"index.merge.policy\": \"log_byte_size\"\n"
+                + "    }\n"
+                + "  },\n"
+                + "  \"_meta\": {\n"
+                + "    \"_type\": \"@abc_template\",\n"
+                + "    \"_version\": 1\n"
+                + "  },\n"
+                + "  \"version\": 1\n"
+                + "}\n";
+
+            ClusterStateSystemTemplateLoader loader = new ClusterStateSystemTemplateLoader(
+                internalCluster().clusterManagerClient(),
+                () -> internalCluster().getInstance(ClusterService.class).state()
+            );
+            loader.loadTemplate(
+                new SystemTemplate(
+                    BytesReference.fromByteBuffer(ByteBuffer.wrap(templateContent.getBytes(StandardCharsets.UTF_8))),
+                    SystemTemplateMetadata.fromComponentTemplateInfo(contextName, 1L),
+                    new TemplateRepositoryMetadata(UUID.randomUUID().toString(), 1L)
+                )
+            );
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }
