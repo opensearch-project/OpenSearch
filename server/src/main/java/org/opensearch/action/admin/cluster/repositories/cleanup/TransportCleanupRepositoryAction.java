@@ -124,7 +124,10 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         );
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
-        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService, remoteStoreSettings);
+        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(
+            () -> repositoriesService,
+            remoteStoreSettings.getSegmentsPathFixedPrefix()
+        );
         // We add a state applier that will remove any dangling repository cleanup actions on cluster-manager failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.

@@ -17,7 +17,6 @@ import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
-import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -41,17 +40,17 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 @PublicApi(since = "2.3.0")
 public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     private final Supplier<RepositoriesService> repositoriesService;
-    private final RemoteStoreSettings remoteStoreSettings;
+    private final String segmentsPathFixedPrefix;
 
     private final ThreadPool threadPool;
 
     public RemoteSegmentStoreDirectoryFactory(
         Supplier<RepositoriesService> repositoriesService,
         ThreadPool threadPool,
-        RemoteStoreSettings remoteStoreSettings
+        String segmentsPathFixedPrefix
     ) {
         this.repositoriesService = repositoriesService;
-        this.remoteStoreSettings = remoteStoreSettings;
+        this.segmentsPathFixedPrefix = segmentsPathFixedPrefix;
         this.threadPool = threadPool;
     }
 
@@ -78,7 +77,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .shardId(shardIdStr)
                 .dataCategory(SEGMENTS)
                 .dataType(DATA)
-                .fixedPrefix(remoteStoreSettings.getSegmentsPathFixedPrefix())
+                .fixedPrefix(segmentsPathFixedPrefix)
                 .build();
             // Derive the path for data directory of SEGMENTS
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
@@ -95,7 +94,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .shardId(shardIdStr)
                 .dataCategory(SEGMENTS)
                 .dataType(METADATA)
-                .fixedPrefix(remoteStoreSettings.getSegmentsPathFixedPrefix())
+                .fixedPrefix(segmentsPathFixedPrefix)
                 .build();
             // Derive the path for metadata directory of SEGMENTS
             BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
@@ -108,7 +107,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 indexUUID,
                 shardIdStr,
                 pathStrategy,
-                remoteStoreSettings
+                segmentsPathFixedPrefix
             );
 
             return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);

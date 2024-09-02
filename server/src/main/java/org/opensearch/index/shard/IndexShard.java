@@ -2857,7 +2857,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we are the first primary, recover from the gateway
             // if its post api allocation, the index should exists
             assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
-            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger, remoteStoreSettings);
+            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
             storeRecovery.recoverFromLocalShards(mappingUpdateConsumer, this, snapshots, recoveryListener);
             success = true;
         } finally {
@@ -2872,13 +2872,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // if its post api allocation, the index should exists
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
         assert shardRouting.initializing() : "can only start recovery on initializing shard";
-        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger, remoteStoreSettings);
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         storeRecovery.recoverFromStore(this, listener);
     }
 
     public void restoreFromRemoteStore(ActionListener<Boolean> listener) {
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
-        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger, remoteStoreSettings);
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         storeRecovery.recoverFromRemoteStore(this, listener);
     }
 
@@ -2891,8 +2891,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: "
                 + recoveryState.getRecoverySource();
-            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger, remoteStoreSettings);
-            storeRecovery.recoverFromSnapshotAndRemoteStore(this, repository, repositoriesService, listener, threadPool);
+            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+            storeRecovery.recoverFromSnapshotAndRemoteStore(
+                this,
+                repository,
+                repositoriesService,
+                listener,
+                remoteStoreSettings.getSegmentsPathFixedPrefix(),
+                threadPool
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -2903,7 +2910,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: "
                 + recoveryState.getRecoverySource();
-            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger, remoteStoreSettings);
+            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
             storeRecovery.recoverFromRepository(this, repository, listener);
         } catch (Exception e) {
             listener.onFailure(e);

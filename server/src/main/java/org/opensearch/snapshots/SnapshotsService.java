@@ -221,7 +221,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
-        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService, remoteStoreSettings);
+        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(
+            () -> repositoriesService,
+            remoteStoreSettings.getSegmentsPathFixedPrefix()
+        );
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
         this.remoteStorePinnedTimestampService = remoteStorePinnedTimestampService;
