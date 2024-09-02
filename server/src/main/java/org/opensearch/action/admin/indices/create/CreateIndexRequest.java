@@ -132,7 +132,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             context = in.readOptionalWriteable(Context::new);
         }
     }
@@ -632,7 +632,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         waitForActiveShards.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalWriteable(context);
         }
     }
