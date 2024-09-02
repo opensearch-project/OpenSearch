@@ -523,6 +523,14 @@ final class StoreRecovery {
                         indexShard.waitForRemoteStoreSync();
                     }
                     indexShard.postRecovery("post recovery from remote_store");
+                    SegmentInfos committedSegmentInfos = indexShard.store().readLastCommittedSegmentsInfo();
+                    try {
+                        indexShard.getEngine()
+                            .translogManager()
+                            .setMinSeqNoToKeep(Long.parseLong(committedSegmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO)) + 1);
+                    } catch (IllegalArgumentException e) {
+                        logger.warn("MinSeqNoToKeep is already past the maxSeqNo from commited segment infos");
+                    }
                     listener.onResponse(true);
                 }, listener::onFailure);
             }
