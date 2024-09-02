@@ -8,12 +8,15 @@
 
 package org.opensearch.common.remote;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.List;
 
 /**
  * Parameters which can be used to construct a blob path
  *
  */
+@ExperimentalApi
 public class BlobPathParameters {
 
     private final List<String> pathTokens;

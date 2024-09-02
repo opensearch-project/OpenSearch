@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.remote.RemoteWriteableBlobEntity;
 import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
@@ -18,6 +19,7 @@ import org.opensearch.threadpool.ThreadPool;
 /**
  * Extends the RemoteClusterStateBlobStore to support {@link RemotePinnedTimestamps}
  */
+@ExperimentalApi
 public class RemoteStorePinnedTimestampsBlobStore extends RemoteWriteableEntityBlobStore<
     RemotePinnedTimestamps.PinnedTimestamps,
     RemotePinnedTimestamps> {

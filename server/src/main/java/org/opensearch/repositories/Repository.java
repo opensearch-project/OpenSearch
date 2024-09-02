@@ -54,6 +54,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -196,6 +197,8 @@ public interface Repository extends LifecycleComponent {
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        Map<SnapshotId, Long> snapshotIdsPinnedTimestampMap,
         boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
@@ -203,10 +206,11 @@ public interface Repository extends LifecycleComponent {
     }
 
     default void deleteSnapshotsWithPinnedTimestamp(
-        Collection<SnapshotId> snapshotIds,
+        Map<SnapshotId, Long> snapshotsWithPinnedTimestamp,
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
         ActionListener<RepositoryData> listener
     ) {
         throw new UnsupportedOperationException();

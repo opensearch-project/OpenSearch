@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.common.remote.RemoteWriteableBlobEntity;
@@ -42,6 +43,7 @@ public class RemotePinnedTimestamps extends RemoteWriteableBlobEntity<RemotePinn
      * Represents a collection of pinned timestamps and their associated pinning entities.
      * This class is thread-safe and implements the Writeable interface for serialization.
      */
+    @ExperimentalApi
     public static class PinnedTimestamps implements Writeable {
         private final Map<Long, List<String>> pinnedTimestampPinningEntityMap;
 

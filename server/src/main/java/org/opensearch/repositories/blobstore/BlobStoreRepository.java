@@ -133,6 +133,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.Repository;
@@ -188,6 +189,7 @@ import java.util.stream.Stream;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
+import static org.opensearch.snapshots.SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -971,6 +973,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        Map<SnapshotId, Long> snapshotIdsPinnedTimestampMap,
         boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
@@ -994,6 +998,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         repositoryMetaVersion,
                         remoteStoreLockManagerFactory,
                         remoteSegmentStoreDirectoryFactory,
+                        remoteStorePinnedTimestampService,
+                        snapshotIdsPinnedTimestampMap,
                         isShallowSnapshotV2,
                         listener
                     );
@@ -1009,18 +1015,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void deleteSnapshotsWithPinnedTimestamp(
-        Collection<SnapshotId> snapshotIds,
+        Map<SnapshotId, Long> snapshotIdPinnedTimestampMap,
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
         ActionListener<RepositoryData> listener
     ) {
         deleteSnapshotsAndReleaseLockFiles(
-            snapshotIds,
+            snapshotIdPinnedTimestampMap.keySet(),
             repositoryStateId,
             repositoryMetaVersion,
             null, // Passing null since no remote store lock files need to be cleaned up.
             remoteSegmentStoreDirectoryFactory,
+            remoteStorePinnedTimestampService,
+            Collections.emptyMap(),
             true, // true only for shallow snapshot v2
             listener
         );
@@ -1039,6 +1048,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             repositoryMetaVersion,
             null, // Passing null since no remote store lock files need to be cleaned up.
             null, // Passing null since no remote store segment files need to be cleaned up
+            null,
+            Collections.emptyMap(),
             false,
             listener
         );
@@ -1104,6 +1115,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *                                      delete operation
      * @param repositoryData                RepositoryData found the in the repository before executing this delete
      * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
+     * @param remoteSegmentStoreDirectoryFactory RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
+     * @param remoteStorePinnedTimestampService  RemoteStorePinnedTimestampService to be used for unpinning the snapshot timestamp
+     * @param snapshotIdPinnedTimestampMap       Map of snapshotId and pinned timestamp
+     * @prama isShallowSnapshotV2                true for shallow snapshot v2
      * @param listener                      Listener to invoke once finished
      */
     private void doDeleteShardSnapshots(
@@ -1115,6 +1130,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Version repoMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        Map<SnapshotId, Long> snapshotIdPinnedTimestampMap,
         boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
@@ -1151,12 +1168,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
         }, listener::onFailure);
         // Once we have updated the repository, run the clean-ups
+        final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
         writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
+            if (snapshotIdPinnedTimestampMap == null || snapshotIdPinnedTimestampMap.size() == 0) {
+                pinnedTimestampListener.onResponse(updatedRepoData);
+            } else {
+                removeSnapshotsPinnedTimestamp(
+                    snapshotIdPinnedTimestampMap,
+                    this,
+                    updatedRepoData,
+                    remoteStorePinnedTimestampService,
+                    pinnedTimestampListener
+                );
+            }
+        }, listener::onFailure);
+
+        pinnedTimestampListener.whenComplete(updatedRepoData -> {
             int groupSize = 2;
             if (isShallowSnapshotV2) {
                 groupSize = 1;
             }
-
             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
             final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(
                 ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
@@ -1196,6 +1227,66 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
         }, listener::onFailure);
+    }
+
+    private void removeSnapshotsPinnedTimestamp(
+        Map<SnapshotId, Long> snapshotsWithPinnedTimestamp,
+        Repository repository,
+        RepositoryData repositoryData,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        ActionListener<RepositoryData> pinnedTimestampListener
+    ) {
+        // Create a GroupedActionListener to aggregate the results of all unpin operations
+        GroupedActionListener<RepositoryData> groupedListener = new GroupedActionListener<>(
+            ActionListener.wrap(
+                // This is called once all operations have succeeded
+                ignored -> pinnedTimestampListener.onResponse(repositoryData),
+                // This is called if any operation fails
+                pinnedTimestampListener::onFailure
+            ),
+            snapshotsWithPinnedTimestamp.size()
+        );
+
+        snapshotsWithPinnedTimestamp.forEach((snapshotId, pinnedTimestamp) -> {
+            removeSnapshotPinnedTimestamp(
+                remoteStorePinnedTimestampService,
+                snapshotId,
+                repository.getMetadata().name(),
+                pinnedTimestamp,
+                groupedListener
+            );
+        });
+    }
+
+    private void removeSnapshotPinnedTimestamp(
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        SnapshotId snapshotId,
+        String repository,
+        long timestampToUnpin,
+        ActionListener<RepositoryData> listener
+    ) {
+        remoteStorePinnedTimestampService.unpinTimestamp(
+            timestampToUnpin,
+            repository + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotId.getUUID(),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.debug("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        "Failed to unpin timestamp {} for snapshot {} with exception {}",
+                        timestampToUnpin,
+                        snapshotId.getName(),
+                        e
+                    );
+                    listener.onFailure(e);
+                }
+            }
+        );
     }
 
     /**

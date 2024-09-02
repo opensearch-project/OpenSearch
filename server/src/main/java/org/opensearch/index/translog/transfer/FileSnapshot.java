@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.util.io.IOUtils;
@@ -104,6 +105,7 @@ public class FileSnapshot implements Closeable {
      *
      * @opensearch.internal
      */
+    @ExperimentalApi
     public static class TransferFileSnapshot extends FileSnapshot {
 
         private final long primaryTerm;

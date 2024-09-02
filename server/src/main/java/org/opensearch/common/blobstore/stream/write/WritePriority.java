@@ -8,11 +8,14 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * WritePriority for upload
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public enum WritePriority {
     // Used for segment transfers during refresh, flush or merges
     NORMAL,

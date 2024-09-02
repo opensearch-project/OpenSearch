@@ -206,7 +206,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = ":";
+    public static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = ":";
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -603,36 +603,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
                     listener.onFailure(e);
 
-                }
-            }
-        );
-    }
-
-    private void removeSnapshotPinnedTimestamp(
-        SnapshotId snapshotId,
-        String repository,
-        long timestampToUnpin,
-        ActionListener<RepositoryData> listener
-    ) {
-        remoteStorePinnedTimestampService.unpinTimestamp(
-            timestampToUnpin,
-            repository + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotId.getUUID(),
-            new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    logger.debug("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        "Failed to unpin timestamp {} for snapshot {} with exception {}",
-                        timestampToUnpin,
-                        snapshotId.getName(),
-                        e
-                    );
-                    listener.onFailure(e);
                 }
             }
         );
@@ -2523,6 +2493,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithLockFiles),
                             remoteStoreLockManagerFactory,
                             remoteSegmentStoreDirectoryFactory,
+                            null,
+                            Collections.emptyMap(),
                             false,
                             ActionListener.wrap(updatedRepoData -> {
                                 logger.info("snapshots {} deleted", snapshotsWithLockFiles);
@@ -2532,25 +2504,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (snapshotsWithPinnedTimestamp.size() > 0) {
 
-                        final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                        pinnedTimestampListener.whenComplete(
-                            updatedRepoData -> { removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData); },
-                            ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)
-                        );
+                        // final StepListener<Void> pinnedTimestampListener = new StepListener<>();
+                        // pinnedTimestampListener.whenComplete(
+                        // updatedRepoData -> { removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData); },
+                        // ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)
+                        // );
 
                         repository.deleteSnapshotsWithPinnedTimestamp(
-                            snapshotsWithPinnedTimestamp.keySet(),
+                            snapshotsWithPinnedTimestamp,
                             repositoryData.getGenId(),
                             minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithPinnedTimestamp.keySet()),
                             remoteSegmentStoreDirectoryFactory,
+                            remoteStorePinnedTimestampService,
                             ActionListener.wrap(updatedRepoData -> {
                                 logger.info("snapshots {} deleted", snapshotsWithPinnedTimestamp);
-                                removeSnapshotsPinnedTimestamp(
-                                    snapshotsWithPinnedTimestamp,
-                                    repository,
-                                    updatedRepoData,
-                                    pinnedTimestampListener
-                                );
+                                removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
                             }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
                         );
                     }
@@ -2573,28 +2541,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 );
             }
         }
-    }
-
-    private void removeSnapshotsPinnedTimestamp(
-        Map<SnapshotId, Long> snapshotsWithPinnedTimestamp,
-        Repository repository,
-        RepositoryData repositoryData,
-        ActionListener<RepositoryData> pinnedTimestampListener
-    ) {
-        // Create a GroupedActionListener to aggregate the results of all unpin operations
-        GroupedActionListener<RepositoryData> groupedListener = new GroupedActionListener<>(
-            ActionListener.wrap(
-                // This is called once all operations have succeeded
-                ignored -> pinnedTimestampListener.onResponse(repositoryData),
-                // This is called if any operation fails
-                pinnedTimestampListener::onFailure
-            ),
-            snapshotsWithPinnedTimestamp.size()
-        );
-
-        snapshotsWithPinnedTimestamp.forEach((snapshotId, pinnedTimestamp) -> {
-            removeSnapshotPinnedTimestamp(snapshotId, repository.getMetadata().name(), pinnedTimestamp, groupedListener);
-        });
     }
 
     /**
