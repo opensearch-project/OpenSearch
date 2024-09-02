@@ -693,8 +693,12 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
             }
         }
-
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
+        if (flags.getIncludeIndicesStatsByLevel()) {
+            NodeIndicesStats.StatsLevel statsLevel = NodeIndicesStats.getAcceptedLevel(flags.getLevels());
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, statsLevel);
+        } else {
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
+        }
     }
 
     Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {

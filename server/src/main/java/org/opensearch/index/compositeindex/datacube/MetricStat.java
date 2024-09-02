@@ -20,35 +20,41 @@ import java.util.List;
  */
 @ExperimentalApi
 public enum MetricStat {
-    VALUE_COUNT("value_count"),
-    SUM("sum"),
-    MIN("min"),
-    MAX("max"),
-    AVG("avg", VALUE_COUNT, SUM),
-    DOC_COUNT("doc_count", true);
+    VALUE_COUNT("value_count", 0),
+    SUM("sum", 1),
+    MIN("min", 2),
+    MAX("max", 3),
+    AVG("avg", 4, VALUE_COUNT, SUM),
+    DOC_COUNT("doc_count", true, 5);
 
     private final String typeName;
     private final MetricStat[] baseMetrics;
+    private final int metricOrdinal;
 
     // System field stats cannot be used as input for user metric types
     private final boolean isSystemFieldStat;
 
-    MetricStat(String typeName) {
-        this(typeName, false);
+    MetricStat(String typeName, int metricOrdinal) {
+        this(typeName, false, metricOrdinal);
     }
 
-    MetricStat(String typeName, MetricStat... baseMetrics) {
-        this(typeName, false, baseMetrics);
+    MetricStat(String typeName, int metricOrdinal, MetricStat... baseMetrics) {
+        this(typeName, false, metricOrdinal, baseMetrics);
     }
 
-    MetricStat(String typeName, boolean isSystemFieldStat, MetricStat... baseMetrics) {
+    MetricStat(String typeName, boolean isSystemFieldStat, int metricOrdinal, MetricStat... baseMetrics) {
         this.typeName = typeName;
         this.isSystemFieldStat = isSystemFieldStat;
         this.baseMetrics = baseMetrics;
+        this.metricOrdinal = metricOrdinal;
     }
 
     public String getTypeName() {
         return typeName;
+    }
+
+    public int getMetricOrdinal() {
+        return metricOrdinal;
     }
 
     /**
@@ -75,5 +81,14 @@ public enum MetricStat {
             }
         }
         throw new IllegalArgumentException("Invalid metric stat: " + typeName);
+    }
+
+    public static MetricStat fromMetricOrdinal(int metricOrdinal) {
+        for (MetricStat metric : MetricStat.values()) {
+            if (metric.getMetricOrdinal() == metricOrdinal) {
+                return metric;
+            }
+        }
+        throw new IllegalArgumentException("Invalid metric stat: " + metricOrdinal);
     }
 }

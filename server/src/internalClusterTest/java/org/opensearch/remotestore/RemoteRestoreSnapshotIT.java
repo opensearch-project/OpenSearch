@@ -13,12 +13,14 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
@@ -34,6 +36,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -73,6 +76,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -589,6 +593,37 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(restoredIndexName1);
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
 
+        // ensure recovery details are non-zero
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(restoredIndexName1).execute().actionGet();
+        assertEquals(1, recoveryResponse.getTotalShards());
+        assertEquals(1, recoveryResponse.getSuccessfulShards());
+        assertEquals(0, recoveryResponse.getFailedShards());
+        assertEquals(1, recoveryResponse.shardRecoveryStates().size());
+        assertTrue(recoveryResponse.shardRecoveryStates().containsKey(restoredIndexName1));
+        assertEquals(1, recoveryResponse.shardRecoveryStates().get(restoredIndexName1).size());
+
+        RecoveryState recoveryState = recoveryResponse.shardRecoveryStates().get(restoredIndexName1).get(0);
+        assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
+        assertEquals(0, recoveryState.getShardId().getId());
+        assertTrue(recoveryState.getPrimary());
+        assertEquals(RecoverySource.Type.SNAPSHOT, recoveryState.getRecoverySource().getType());
+        assertThat(recoveryState.getIndex().time(), greaterThanOrEqualTo(0L));
+
+        // ensure populated file details
+        assertTrue(recoveryState.getIndex().totalFileCount() > 0);
+        assertTrue(recoveryState.getIndex().totalRecoverFiles() > 0);
+        assertTrue(recoveryState.getIndex().recoveredFileCount() > 0);
+        assertThat(recoveryState.getIndex().recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(recoveryState.getIndex().recoveredFilesPercent(), lessThanOrEqualTo(100.0f));
+        assertFalse(recoveryState.getIndex().fileDetails().isEmpty());
+
+        // ensure populated bytes details
+        assertTrue(recoveryState.getIndex().recoveredBytes() > 0L);
+        assertTrue(recoveryState.getIndex().totalBytes() > 0L);
+        assertTrue(recoveryState.getIndex().totalRecoverBytes() > 0L);
+        assertThat(recoveryState.getIndex().recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(recoveryState.getIndex().recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
+
         // indexing some new docs and validating
         indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(restoredIndexName1);
@@ -768,20 +803,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -837,20 +866,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
+
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
         createIndex(indexName1, indexSettings);
@@ -871,20 +894,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.getPinnedTimestamp(), equalTo(0L));
 
         // enable shallow_snapshot_v2
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
+
         indexDocuments(client, indexName1, 10);
         indexDocuments(client, indexName2, 20);
 
@@ -917,20 +934,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -999,20 +1009,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -1053,20 +1056,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -1127,20 +1123,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), false)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), false)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -1182,20 +1171,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
 
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
@@ -1260,21 +1242,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String snapshotName1 = "test-create-snapshot-v1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
-                )
-        );
         Client client = client();
         Settings indexSettings = getIndexSettings(20, 0).build();
 
@@ -1311,19 +1286,16 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
                 assertThrows(
                     IllegalStateException.class,
-                    () -> client().admin()
-                        .cluster()
-                        .preparePutRepository(snapshotRepoName)
-                        .setType(FsRepository.TYPE)
-                        .setSettings(
-                            Settings.builder()
-                                .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                                .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                                .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                        )
-                        .get()
+                    () -> createRepository(
+                        snapshotRepoName,
+                        FsRepository.TYPE,
+                        Settings.builder()
+                            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                    )
                 );
 
             } catch (Exception e) {

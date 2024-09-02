@@ -35,7 +35,6 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     public static final int SPLITTED_MANIFEST_FILE_LENGTH = 6;
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
     public static final String COMMITTED = "C";
     public static final String PUBLISHED = "P";
 
@@ -150,7 +149,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
 
     private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat() {
         long codecVersion = getManifestCodecVersion();
-        if (codecVersion == MANIFEST_CURRENT_CODEC_VERSION) {
+        if (codecVersion == ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V2) {
             return CLUSTER_METADATA_MANIFEST_FORMAT_V2;
