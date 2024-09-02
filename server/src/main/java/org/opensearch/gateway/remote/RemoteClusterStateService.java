@@ -1364,7 +1364,6 @@ public class RemoteClusterStateService implements Closeable {
             if (includeEphemeral && checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
                 validateClusterStateFromChecksum(manifest, clusterState, clusterName, localNodeId, true);
             }
-            return clusterState;
         } else {
             ClusterState state = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),

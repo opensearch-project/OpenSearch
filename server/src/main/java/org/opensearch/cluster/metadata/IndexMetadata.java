@@ -1288,6 +1288,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
         out.writeMapValues(rolloverInfos, (stream, val) -> val.writeTo(stream));
         out.writeBoolean(isSystem);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(context);
+        }
     }
 
     public boolean isSystem() {
