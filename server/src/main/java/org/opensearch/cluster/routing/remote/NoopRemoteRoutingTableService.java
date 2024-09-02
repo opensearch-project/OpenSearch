@@ -10,16 +10,15 @@ package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.Diff;
-import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Noop impl for RemoteRoutingTableService.
@@ -32,16 +31,8 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     }
 
     @Override
-    public DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(
-        RoutingTable before,
-        RoutingTable after
-    ) {
-        return DiffableUtils.diff(
-            Map.of(),
-            Map.of(),
-            DiffableUtils.getStringKeySerializer(),
-            CUSTOM_ROUTING_TABLE_DIFFABLE_VALUE_SERIALIZER
-        );
+    public StringKeyDiffProvider<IndexRoutingTable> getIndicesRoutingMapDiff(RoutingTable before, RoutingTable after) {
+        return new RoutingTableIncrementalDiff(RoutingTable.builder().build(), RoutingTable.builder().build());
     }
 
     @Override
@@ -60,7 +51,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         String clusterUUID,
         long term,
         long version,
-        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
+        StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         // noop
@@ -89,7 +80,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     public void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
+        LatchedActionListener<Diff<RoutingTable>> latchedActionListener
     ) {
         // noop
     }
