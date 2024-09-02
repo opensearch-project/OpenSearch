@@ -238,23 +238,18 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
     public void testWriteVerifiableTo() throws Exception {
         String templateName = randomUnicodeOfCodepointLengthBetween(1, 10);
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(templateName);
-        templateBuilder.patterns(Arrays.asList("pattern-1"));
-        int numAlias = 3;
+        templateBuilder.patterns(Arrays.asList("pattern-1", "pattern-2"));
+        int numAlias = between(2, 5);
         for (int i = 0; i < numAlias; i++) {
             AliasMetadata.Builder alias = AliasMetadata.builder(randomRealisticUnicodeOfLengthBetween(1, 100));
             alias.indexRouting(randomRealisticUnicodeOfLengthBetween(1, 100));
-
             alias.searchRouting(randomRealisticUnicodeOfLengthBetween(1, 100));
-
             templateBuilder.putAlias(alias);
         }
         templateBuilder.settings(Settings.builder().put("index.setting-1", randomLong()));
         templateBuilder.settings(Settings.builder().put("index.setting-2", randomTimeValue()));
-
         templateBuilder.order(randomInt());
-
         templateBuilder.version(between(0, 100));
-
         templateBuilder.putMapping("doc", "{\"doc\":{\"properties\":{\"type\":\"text\"}}}");
 
         IndexTemplateMetadata template = templateBuilder.build();
@@ -263,7 +258,25 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
         template.writeVerifiableTo(checksumOut);
         StreamInput in = out.bytes().streamInput();
         IndexTemplateMetadata result = IndexTemplateMetadata.readFrom(in);
-        assertThat(result, equalTo(template));
+        assertEquals(result, template);
+
+        IndexTemplateMetadata.Builder templateBuilder2 = IndexTemplateMetadata.builder(templateName);
+        templateBuilder2.patterns(Arrays.asList("pattern-2", "pattern-1"));
+        template.getAliases()
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEachOrdered(entry -> templateBuilder2.putAlias(entry.getValue()));
+        templateBuilder2.settings(template.settings());
+        templateBuilder2.order(template.order());
+        templateBuilder2.version(template.version());
+        templateBuilder2.putMapping("doc", template.mappings());
+
+        IndexTemplateMetadata template2 = templateBuilder.build();
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        template2.writeVerifiableTo(checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
     }
 
     public void testDeprecationWarningsOnMultipleMappings() throws IOException {

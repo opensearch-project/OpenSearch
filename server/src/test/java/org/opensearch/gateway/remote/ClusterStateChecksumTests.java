@@ -206,11 +206,15 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
                     .build()
             )
             .nodes(DiscoveryNodes.builder().clusterManagerNodeId("test-node").build())
-            .blocks(ClusterBlocks.builder()
-                .addBlocks(indexMetadata)
-                .addGlobalBlock(new ClusterBlock(1, "block", true, true, true, RestStatus.ACCEPTED,  EnumSet.of(ClusterBlockLevel.READ)))
-                .addGlobalBlock(new ClusterBlock(2, "block-name", false, true, true, RestStatus.OK,  EnumSet.of(ClusterBlockLevel.WRITE)))
-                .build())
+            .blocks(
+                ClusterBlocks.builder()
+                    .addBlocks(indexMetadata)
+                    .addGlobalBlock(new ClusterBlock(1, "block", true, true, true, RestStatus.ACCEPTED, EnumSet.of(ClusterBlockLevel.READ)))
+                    .addGlobalBlock(
+                        new ClusterBlock(2, "block-name", false, true, true, RestStatus.OK, EnumSet.of(ClusterBlockLevel.WRITE))
+                    )
+                    .build()
+            )
             .customs(Map.of(clusterStateCustom1.getWriteableName(), clusterStateCustom1))
             .routingTable(RoutingTable.builder().addAsNew(indexMetadata).addAsNew(indexMetadata2).version(1L).build())
             .build();

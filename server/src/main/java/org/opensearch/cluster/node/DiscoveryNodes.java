@@ -712,6 +712,39 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DiscoveryNodes that = (DiscoveryNodes) o;
+        return Objects.equals(nodes, that.nodes)
+            && Objects.equals(dataNodes, that.dataNodes)
+            && Objects.equals(clusterManagerNodes, that.clusterManagerNodes)
+            && Objects.equals(ingestNodes, that.ingestNodes)
+            && Objects.equals(clusterManagerNodeId, that.clusterManagerNodeId)
+            && Objects.equals(localNodeId, that.localNodeId)
+            && Objects.equals(minNonClientNodeVersion, that.minNonClientNodeVersion)
+            && Objects.equals(maxNonClientNodeVersion, that.maxNonClientNodeVersion)
+            && Objects.equals(maxNodeVersion, that.maxNodeVersion)
+            && Objects.equals(minNodeVersion, that.minNodeVersion);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            nodes,
+            dataNodes,
+            clusterManagerNodes,
+            ingestNodes,
+            clusterManagerNodeId,
+            localNodeId,
+            minNonClientNodeVersion,
+            maxNonClientNodeVersion,
+            maxNodeVersion,
+            minNodeVersion
+        );
+    }
+
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         Builder builder = new Builder();
         if (in.readBoolean()) {
