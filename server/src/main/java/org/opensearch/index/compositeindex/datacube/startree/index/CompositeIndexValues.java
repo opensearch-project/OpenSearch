@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite;
+package org.opensearch.index.compositeindex.datacube.startree.index;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
