@@ -575,7 +575,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             RemoteStateTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10), MANIFEST_CURRENT_CODEC_VERSION)
         );
-        assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getUploadStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataNonClusterManagerNode() throws IOException {
@@ -587,7 +587,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             null
         );
         Assert.assertThat(manifestDetails, nullValue());
-        assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getUploadStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataWhenTermChanged() {
@@ -861,6 +861,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(mockedResult.getComponent()).thenReturn(COORDINATION_METADATA);
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
+
+        assertNotNull(remoteClusterStateService.getFullDownloadStats());
+        assertEquals(1, remoteClusterStateService.getFullDownloadStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getFailedCount());
         verify(mockService, times(1)).readClusterStateInParallel(
             any(),
             eq(manifest),
@@ -2582,7 +2586,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(previousClusterUUID, equalTo("cluster-uuid2"));
     }
 
-    public void testRemoteStateStats() throws IOException {
+    public void testRemoteStateUploadStats() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
@@ -2592,10 +2596,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             MANIFEST_CURRENT_CODEC_VERSION
         ).getClusterMetadataManifest();
 
-        assertTrue(remoteClusterStateService.getStats() != null);
-        assertEquals(1, remoteClusterStateService.getStats().getSuccessCount());
-        assertEquals(0, remoteClusterStateService.getStats().getCleanupAttemptFailedCount());
-        assertEquals(0, remoteClusterStateService.getStats().getFailedCount());
+        assertTrue(remoteClusterStateService.getUploadStats() != null);
+        assertEquals(1, remoteClusterStateService.getUploadStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getCleanupAttemptFailedCount());
+        assertEquals(0, remoteClusterStateService.getUploadStats().getFailedCount());
     }
 
     public void testRemoteRoutingTableNotInitializedWhenDisabled() {
