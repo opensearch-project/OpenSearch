@@ -9,15 +9,18 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.VectorEncoding;
-import org.apache.lucene.index.VectorSimilarityFunction;
-import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValuesWriterWrapper;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -26,6 +29,8 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.ValueAggregator;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
@@ -38,16 +43,18 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.getFieldInfo;
 
 /**
  * Builder for star tree. Defines the algorithm to construct star-tree
@@ -76,18 +83,29 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     protected final InMemoryTreeNode rootNode = getNewNode();
 
     protected final StarTreeField starTreeField;
-    private final SegmentWriteState state;
-    static String NUM_SEGMENT_DOCS = "numSegmentDocs";
+    private final SegmentWriteState writeState;
+
+    private final IndexOutput metaOut;
+    private final IndexOutput dataOut;
 
     /**
      * Reads all the configuration related to dimensions and metrics, builds a star-tree based on the different construction parameters.
      *
      * @param starTreeField holds the configuration for the star tree
-     * @param state         stores the segment write state
+     * @param writeState    stores the segment write writeState
      * @param mapperService helps to find the original type of the field
      */
-    protected BaseStarTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService) {
+    protected BaseStarTreeBuilder(
+        IndexOutput metaOut,
+        IndexOutput dataOut,
+        StarTreeField starTreeField,
+        SegmentWriteState writeState,
+        MapperService mapperService
+    ) {
         logger.debug("Building star tree : {}", starTreeField.getName());
+
+        this.metaOut = metaOut;
+        this.dataOut = dataOut;
 
         this.starTreeField = starTreeField;
         StarTreeFieldConfiguration starTreeFieldSpec = starTreeField.getStarTreeConfig();
@@ -96,8 +114,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         this.numDimensions = dimensionsSplitOrder.size();
 
         this.skipStarNodeCreationForDimensions = new HashSet<>();
-        this.totalSegmentDocs = state.segmentInfo.maxDoc();
-        this.state = state;
+        this.totalSegmentDocs = writeState.segmentInfo.maxDoc();
+        this.writeState = writeState;
 
         Set<String> skipStarNodeCreationForDimensions = starTreeFieldSpec.getSkipStarNodeCreationInDims();
 
@@ -153,6 +171,227 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             }
         }
         return metricAggregatorInfos;
+    }
+
+    /**
+     * Generates the configuration required to perform aggregation for all the metrics on a field
+     *
+     * @return list of MetricAggregatorInfo
+     */
+    public List<SequentialDocValuesIterator> getMetricReaders(SegmentWriteState state, Map<String, DocValuesProducer> fieldProducerMap)
+        throws IOException {
+
+        List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
+        for (Metric metric : this.starTreeField.getMetrics()) {
+            for (MetricStat metricStat : metric.getMetrics()) {
+                SequentialDocValuesIterator metricReader;
+                FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
+                if (metricStat.equals(MetricStat.DOC_COUNT)) {
+                    // _doc_count is numeric field , so we convert to sortedNumericDocValues and get iterator
+                    metricReader = getIteratorForNumericField(fieldProducerMap, metricFieldInfo, DocCountFieldMapper.NAME);
+                } else {
+                    if (metricFieldInfo == null) {
+                        metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
+                    }
+                    metricReader = new SequentialDocValuesIterator(
+                        fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
+                    );
+                }
+                metricReaders.add(metricReader);
+            }
+        }
+        return metricReaders;
+    }
+
+    /**
+     * Builds the star tree from the original segment documents
+     *
+     * @param fieldProducerMap           contain s the docValues producer to get docValues associated with each field
+     * @param fieldNumberAcrossStarTrees maintains a counter for the number of star-tree fields
+     * @param starTreeDocValuesConsumer  consumes the generated star-tree docValues
+     * @throws IOException when we are unable to build star-tree
+     */
+    public void build(
+        Map<String, DocValuesProducer> fieldProducerMap,
+        AtomicInteger fieldNumberAcrossStarTrees,
+        DocValuesConsumer starTreeDocValuesConsumer
+    ) throws IOException {
+        long startTime = System.currentTimeMillis();
+        logger.debug("Star-tree build is a go with star tree field {}", starTreeField.getName());
+
+        List<SequentialDocValuesIterator> metricReaders = getMetricReaders(writeState, fieldProducerMap);
+        List<Dimension> dimensionsSplitOrder = starTreeField.getDimensionsOrder();
+        SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[dimensionsSplitOrder.size()];
+        for (int i = 0; i < numDimensions; i++) {
+            String dimension = dimensionsSplitOrder.get(i).getField();
+            FieldInfo dimensionFieldInfo = writeState.fieldInfos.fieldInfo(dimension);
+            if (dimensionFieldInfo == null) {
+                dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC);
+            }
+            dimensionReaders[i] = new SequentialDocValuesIterator(
+                fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
+            );
+        }
+        Iterator<StarTreeDocument> starTreeDocumentIterator = sortAndAggregateSegmentDocuments(dimensionReaders, metricReaders);
+        logger.debug("Sorting and aggregating star-tree in ms : {}", (System.currentTimeMillis() - startTime));
+        build(starTreeDocumentIterator, fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
+        logger.debug("Finished Building star-tree in ms : {}", (System.currentTimeMillis() - startTime));
+    }
+
+    /**
+     * Builds the star tree using sorted and aggregated star-tree Documents
+     *
+     * @param starTreeDocumentIterator   contains the sorted and aggregated documents
+     * @param fieldNumberAcrossStarTrees maintains a counter for the number of star-tree fields
+     * @param starTreeDocValuesConsumer  consumes the generated star-tree docValues
+     * @throws IOException when we are unable to build star-tree
+     */
+    public void build(
+        Iterator<StarTreeDocument> starTreeDocumentIterator,
+        AtomicInteger fieldNumberAcrossStarTrees,
+        DocValuesConsumer starTreeDocValuesConsumer
+    ) throws IOException {
+        int numSegmentStarTreeDocument = totalSegmentDocs;
+
+        appendDocumentsToStarTree(starTreeDocumentIterator);
+        int numStarTreeDocument = numStarTreeDocs;
+        logger.debug("Generated star tree docs : [{}] from segment docs : [{}]", numStarTreeDocument, numSegmentStarTreeDocument);
+
+        if (numStarTreeDocs == 0) {
+            // serialize the star tree data
+            serializeStarTree(numStarTreeDocument, numStarTreeDocs);
+            return;
+        }
+
+        constructStarTree(rootNode, 0, numStarTreeDocs);
+        int numStarTreeDocumentUnderStarNode = numStarTreeDocs - numStarTreeDocument;
+        logger.debug(
+            "Finished constructing star-tree, got [ {} ] tree nodes and [ {} ] starTreeDocument under star-node",
+            numStarTreeNodes,
+            numStarTreeDocumentUnderStarNode
+        );
+
+        createAggregatedDocs(rootNode);
+        int numAggregatedStarTreeDocument = numStarTreeDocs - numStarTreeDocument - numStarTreeDocumentUnderStarNode;
+        logger.debug("Finished creating aggregated documents : {}", numAggregatedStarTreeDocument);
+
+        // Create doc values indices in disk
+        createSortedDocValuesIndices(starTreeDocValuesConsumer, fieldNumberAcrossStarTrees);
+
+        // serialize star-tree
+        serializeStarTree(numStarTreeDocument, numStarTreeDocs);
+    }
+
+    void appendDocumentsToStarTree(Iterator<StarTreeDocument> starTreeDocumentIterator) throws IOException {
+        while (starTreeDocumentIterator.hasNext()) {
+            appendToStarTree(starTreeDocumentIterator.next());
+        }
+    }
+
+    private void serializeStarTree(int numSegmentStarTreeDocument, int numStarTreeDocs) throws IOException {
+        // serialize the star tree data
+        long dataFilePointer = dataOut.getFilePointer();
+        StarTreeWriter starTreeWriter = new StarTreeWriter();
+        long totalStarTreeDataLength = starTreeWriter.writeStarTree(dataOut, rootNode, numStarTreeNodes, starTreeField.getName());
+
+        // serialize the star tree meta
+        starTreeWriter.writeStarTreeMetadata(
+            metaOut,
+            starTreeField,
+            metricAggregatorInfos,
+            numStarTreeNodes,
+            numSegmentStarTreeDocument,
+            numStarTreeDocs,
+            dataFilePointer,
+            totalStarTreeDataLength
+        );
+    }
+
+    private void createSortedDocValuesIndices(DocValuesConsumer docValuesConsumer, AtomicInteger fieldNumberAcrossStarTrees)
+        throws IOException {
+        List<SortedNumericDocValuesWriterWrapper> dimensionWriters = new ArrayList<>();
+        List<SortedNumericDocValuesWriterWrapper> metricWriters = new ArrayList<>();
+        FieldInfo[] dimensionFieldInfoList = new FieldInfo[starTreeField.getDimensionsOrder().size()];
+        FieldInfo[] metricFieldInfoList = new FieldInfo[metricAggregatorInfos.size()];
+        for (int i = 0; i < dimensionFieldInfoList.length; i++) {
+            final FieldInfo fi = getFieldInfo(
+                fullyQualifiedFieldNameForStarTreeDimensionsDocValues(
+                    starTreeField.getName(),
+                    starTreeField.getDimensionsOrder().get(i).getField()
+                ),
+                DocValuesType.SORTED_NUMERIC,
+                fieldNumberAcrossStarTrees.getAndIncrement()
+            );
+            dimensionFieldInfoList[i] = fi;
+            dimensionWriters.add(new SortedNumericDocValuesWriterWrapper(fi, Counter.newCounter()));
+        }
+        for (int i = 0; i < metricAggregatorInfos.size(); i++) {
+
+            final FieldInfo fi = getFieldInfo(
+                fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                    starTreeField.getName(),
+                    metricAggregatorInfos.get(i).getField(),
+                    metricAggregatorInfos.get(i).getMetricStat().getTypeName()
+                ),
+                DocValuesType.SORTED_NUMERIC,
+                fieldNumberAcrossStarTrees.getAndIncrement()
+            );
+
+            metricFieldInfoList[i] = fi;
+            metricWriters.add(new SortedNumericDocValuesWriterWrapper(fi, Counter.newCounter()));
+        }
+
+        for (int docId = 0; docId < numStarTreeDocs; docId++) {
+            StarTreeDocument starTreeDocument = getStarTreeDocument(docId);
+            for (int i = 0; i < starTreeDocument.dimensions.length; i++) {
+                if (starTreeDocument.dimensions[i] != null) {
+                    dimensionWriters.get(i).addValue(docId, starTreeDocument.dimensions[i]);
+                }
+            }
+
+            for (int i = 0; i < starTreeDocument.metrics.length; i++) {
+                try {
+                    switch (metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType()) {
+                        case LONG:
+                            if (starTreeDocument.metrics[i] != null) {
+                                metricWriters.get(i).addValue(docId, (long) starTreeDocument.metrics[i]);
+                            }
+                            break;
+                        case DOUBLE:
+                            if (starTreeDocument.metrics[i] != null) {
+                                metricWriters.get(i)
+                                    .addValue(docId, NumericUtils.doubleToSortableLong((Double) starTreeDocument.metrics[i]));
+                            }
+                            break;
+                        default:
+                            throw new IllegalStateException("Unknown metric doc value type");
+                    }
+                } catch (IllegalArgumentException e) {
+                    logger.error("could not parse the value, exiting creation of star tree");
+                }
+            }
+        }
+
+        addStarTreeDocValueFields(docValuesConsumer, dimensionWriters, dimensionFieldInfoList, starTreeField.getDimensionsOrder().size());
+        addStarTreeDocValueFields(docValuesConsumer, metricWriters, metricFieldInfoList, metricAggregatorInfos.size());
+    }
+
+    private void addStarTreeDocValueFields(
+        DocValuesConsumer docValuesConsumer,
+        List<SortedNumericDocValuesWriterWrapper> docValuesWriters,
+        FieldInfo[] fieldInfoList,
+        int fieldCount
+    ) throws IOException {
+        for (int i = 0; i < fieldCount; i++) {
+            final int writerIndex = i;
+            DocValuesProducer docValuesProducer = new EmptyDocValuesProducer() {
+                @Override
+                public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                    return docValuesWriters.get(writerIndex).getDocValues();
+                }
+            };
+            docValuesConsumer.addSortedNumericField(fieldInfoList[i], docValuesProducer);
+        }
     }
 
     /**
@@ -376,6 +615,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     private static Long getLong(Object metric) {
         Long metricValue = null;
+
         if (metric instanceof Long) {
             metricValue = (long) metric;
         }
@@ -423,89 +663,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     }
 
     /**
-     * Builds the star tree from the original segment documents
-     *
-     * @param fieldProducerMap contain s the docValues producer to get docValues associated with each field
-     * @throws IOException when we are unable to build star-tree
-     */
-    public void build(Map<String, DocValuesProducer> fieldProducerMap) throws IOException {
-        long startTime = System.currentTimeMillis();
-        logger.debug("Star-tree build is a go with star tree field {}", starTreeField.getName());
-        if (totalSegmentDocs == 0) {
-            logger.debug("No documents found in the segment");
-            return;
-        }
-        List<SequentialDocValuesIterator> metricReaders = getMetricReaders(state, fieldProducerMap);
-        List<Dimension> dimensionsSplitOrder = starTreeField.getDimensionsOrder();
-        SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[dimensionsSplitOrder.size()];
-        for (int i = 0; i < numDimensions; i++) {
-            String dimension = dimensionsSplitOrder.get(i).getField();
-            FieldInfo dimensionFieldInfo = state.fieldInfos.fieldInfo(dimension);
-            if (dimensionFieldInfo == null) {
-                dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC);
-            }
-            dimensionReaders[i] = new SequentialDocValuesIterator(
-                fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
-            );
-        }
-        Iterator<StarTreeDocument> starTreeDocumentIterator = sortAndAggregateSegmentDocuments(dimensionReaders, metricReaders);
-        logger.debug("Sorting and aggregating star-tree in ms : {}", (System.currentTimeMillis() - startTime));
-        build(starTreeDocumentIterator);
-        logger.debug("Finished Building star-tree in ms : {}", (System.currentTimeMillis() - startTime));
-    }
-
-    private static FieldInfo getFieldInfo(String field, DocValuesType docValuesType) {
-        return new FieldInfo(
-            field,
-            1, // This is filled as part of doc values creation and is not used otherwise
-            false,
-            false,
-            false,
-            IndexOptions.NONE,
-            docValuesType,
-            -1,
-            Collections.emptyMap(),
-            0,
-            0,
-            0,
-            0,
-            VectorEncoding.FLOAT32,
-            VectorSimilarityFunction.EUCLIDEAN,
-            false,
-            false
-        );
-    }
-
-    /**
-     * Generates the configuration required to perform aggregation for all the metrics on a field
-     *
-     * @return list of MetricAggregatorInfo
-     */
-    public List<SequentialDocValuesIterator> getMetricReaders(SegmentWriteState state, Map<String, DocValuesProducer> fieldProducerMap)
-        throws IOException {
-        List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
-        for (Metric metric : this.starTreeField.getMetrics()) {
-            for (MetricStat metricStat : metric.getMetrics()) {
-                SequentialDocValuesIterator metricReader = null;
-                FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
-                if (metricStat.equals(MetricStat.DOC_COUNT)) {
-                    // _doc_count is numeric field , so we convert to sortedNumericDocValues and get iterator
-                    metricReader = getIteratorForNumericField(fieldProducerMap, metricFieldInfo, DocCountFieldMapper.NAME);
-                } else {
-                    if (metricFieldInfo == null) {
-                        metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
-                    }
-                    metricReader = new SequentialDocValuesIterator(
-                        fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
-                    );
-                }
-                metricReaders.add(metricReader);
-            }
-        }
-        return metricReaders;
-    }
-
-    /**
      * Converts numericDocValues to sortedNumericDocValues and returns SequentialDocValuesIterator
      */
     private SequentialDocValuesIterator getIteratorForNumericField(
@@ -522,45 +679,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             DocValues.singleton(fieldProducerMap.get(fieldInfo.name).getNumeric(fieldInfo))
         );
         return sequentialDocValuesIterator;
-    }
-
-    /**
-     * Builds the star tree using Star-Tree Document
-     *
-     * @param starTreeDocumentIterator contains the sorted and aggregated documents
-     * @throws IOException when we are unable to build star-tree
-     */
-    void build(Iterator<StarTreeDocument> starTreeDocumentIterator) throws IOException {
-        int numSegmentStarTreeDocument = totalSegmentDocs;
-
-        while (starTreeDocumentIterator.hasNext()) {
-            appendToStarTree(starTreeDocumentIterator.next());
-        }
-        int numStarTreeDocument = numStarTreeDocs;
-        logger.debug("Generated star tree docs : [{}] from segment docs : [{}]", numStarTreeDocument, numSegmentStarTreeDocument);
-
-        if (numStarTreeDocs == 0) {
-            // TODO: Uncomment when segment codec and file formats is ready
-            // StarTreeBuilderUtils.serializeTree(indexOutput, rootNode, dimensionsSplitOrder, numNodes);
-            return;
-        }
-
-        constructStarTree(rootNode, 0, numStarTreeDocs);
-        int numStarTreeDocumentUnderStarNode = numStarTreeDocs - numStarTreeDocument;
-        logger.debug(
-            "Finished constructing star-tree, got [ {} ] tree nodes and [ {} ] starTreeDocument under star-node",
-            numStarTreeNodes,
-            numStarTreeDocumentUnderStarNode
-        );
-
-        createAggregatedDocs(rootNode);
-        int numAggregatedStarTreeDocument = numStarTreeDocs - numStarTreeDocument - numStarTreeDocumentUnderStarNode;
-        logger.debug("Finished creating aggregated documents : {}", numAggregatedStarTreeDocument);
-
-        // TODO: When StarTreeFactory Codec is ready
-        // Create doc values indices in disk
-        // Serialize and save in disk
-        // Write star tree metadata for off heap implementation
     }
 
     /**
@@ -585,6 +703,20 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     }
 
     /**
+     * Returns a new star-tree node
+     * @param dimensionId dimension id of the star-tree node
+     * @param startDocId start doc id of the star-tree node
+     * @param endDocId end doc id of the star-tree node
+     * @param nodeType node type of the star-tree node
+     * @param dimensionValue dimension value of the star-tree node
+     * @return
+     */
+    private InMemoryTreeNode getNewNode(int dimensionId, int startDocId, int endDocId, byte nodeType, long dimensionValue) {
+        numStarTreeNodes++;
+        return new InMemoryTreeNode(dimensionId, startDocId, endDocId, nodeType, dimensionValue);
+    }
+
+    /**
      * Implements the algorithm to construct a star-tree
      *
      * @param node       star-tree node
@@ -594,63 +726,73 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     private void constructStarTree(InMemoryTreeNode node, int startDocId, int endDocId) throws IOException {
 
-        int childDimensionId = node.dimensionId + 1;
+        int childDimensionId = node.getDimensionId() + 1;
         if (childDimensionId == numDimensions) {
             return;
         }
 
         // Construct all non-star children nodes
-        node.childDimensionId = childDimensionId;
-        Map<Long, InMemoryTreeNode> children = constructNonStarNodes(startDocId, endDocId, childDimensionId);
-        node.children = children;
+        node.setChildDimensionId(childDimensionId);
+        constructNonStarNodes(node, startDocId, endDocId, childDimensionId);
 
         // Construct star-node if required
-        if (!skipStarNodeCreationForDimensions.contains(childDimensionId) && children.size() > 1) {
-            children.put((long) ALL, constructStarNode(startDocId, endDocId, childDimensionId));
+        if (!skipStarNodeCreationForDimensions.contains(childDimensionId) && node.getChildren().size() > 1) {
+            node.addChildNode(constructStarNode(startDocId, endDocId, childDimensionId), (long) ALL);
+        }
+
+        // Further split star node if needed
+        if (node.getChildStarNode() != null
+            && (node.getChildStarNode().getEndDocId() - node.getChildStarNode().getStartDocId() > maxLeafDocuments)) {
+            constructStarTree(node.getChildStarNode(), node.getChildStarNode().getStartDocId(), node.getChildStarNode().getEndDocId());
         }
 
         // Further split on child nodes if required
-        for (InMemoryTreeNode child : children.values()) {
-            if (child.endDocId - child.startDocId > maxLeafDocuments) {
-                constructStarTree(child, child.startDocId, child.endDocId);
+        for (InMemoryTreeNode child : node.getChildren().values()) {
+            if (child.getEndDocId() - child.getStartDocId() > maxLeafDocuments) {
+                constructStarTree(child, child.getStartDocId(), child.getEndDocId());
             }
         }
+
     }
 
     /**
      * Constructs non star tree nodes
      *
+     * @param node parent node
      * @param startDocId  start document id (inclusive)
      * @param endDocId    end document id (exclusive)
      * @param dimensionId id of the dimension in the star tree
-     * @return root node with non-star nodes constructed
+     *
      * @throws IOException throws an exception if we are unable to construct non-star nodes
      */
-    private Map<Long, InMemoryTreeNode> constructNonStarNodes(int startDocId, int endDocId, int dimensionId) throws IOException {
-        Map<Long, InMemoryTreeNode> nodes = new HashMap<>();
+    private void constructNonStarNodes(InMemoryTreeNode node, int startDocId, int endDocId, int dimensionId) throws IOException {
         int nodeStartDocId = startDocId;
         Long nodeDimensionValue = getDimensionValue(startDocId, dimensionId);
         for (int i = startDocId + 1; i < endDocId; i++) {
             Long dimensionValue = getDimensionValue(i, dimensionId);
             if (Objects.equals(dimensionValue, nodeDimensionValue) == false) {
-                InMemoryTreeNode child = getNewNode();
-                child.dimensionId = dimensionId;
-                child.dimensionValue = nodeDimensionValue != null ? nodeDimensionValue : ALL;
-                child.startDocId = nodeStartDocId;
-                child.endDocId = i;
-                nodes.put(nodeDimensionValue, child);
+                addChildNode(node, i, dimensionId, nodeStartDocId, nodeDimensionValue);
 
                 nodeStartDocId = i;
                 nodeDimensionValue = dimensionValue;
             }
         }
-        InMemoryTreeNode lastNode = getNewNode();
-        lastNode.dimensionId = dimensionId;
-        lastNode.dimensionValue = nodeDimensionValue != null ? nodeDimensionValue : ALL;
-        lastNode.startDocId = nodeStartDocId;
-        lastNode.endDocId = endDocId;
-        nodes.put(nodeDimensionValue, lastNode);
-        return nodes;
+        addChildNode(node, endDocId, dimensionId, nodeStartDocId, nodeDimensionValue);
+    }
+
+    private void addChildNode(InMemoryTreeNode node, int endDocId, int dimensionId, int nodeStartDocId, Long nodeDimensionValue) {
+        long childNodeDimensionValue;
+        byte childNodeType;
+        if (nodeDimensionValue == null) {
+            childNodeDimensionValue = ALL;
+            childNodeType = StarTreeNodeType.NULL.getValue();
+        } else {
+            childNodeDimensionValue = nodeDimensionValue;
+            childNodeType = StarTreeNodeType.DEFAULT.getValue();
+        }
+
+        InMemoryTreeNode lastNode = getNewNode(dimensionId, nodeStartDocId, endDocId, childNodeType, childNodeDimensionValue);
+        node.addChildNode(lastNode, nodeDimensionValue);
     }
 
     /**
@@ -663,17 +805,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @throws IOException throws an exception if we are unable to construct non-star nodes
      */
     private InMemoryTreeNode constructStarNode(int startDocId, int endDocId, int dimensionId) throws IOException {
-        InMemoryTreeNode starNode = getNewNode();
-        starNode.dimensionId = dimensionId;
-        starNode.dimensionValue = ALL;
-        starNode.nodeType = StarTreeNodeType.STAR.getValue();
-        starNode.startDocId = numStarTreeDocs;
+        int starNodeStartDocId = numStarTreeDocs;
         Iterator<StarTreeDocument> starTreeDocumentIterator = generateStarTreeDocumentsForStarNode(startDocId, endDocId, dimensionId);
-        while (starTreeDocumentIterator.hasNext()) {
-            appendToStarTree(starTreeDocumentIterator.next());
-        }
-        starNode.endDocId = numStarTreeDocs;
-        return starNode;
+        appendDocumentsToStarTree(starTreeDocumentIterator);
+        return getNewNode(dimensionId, starNodeStartDocId, numStarTreeDocs, StarTreeNodeType.STAR.getValue(), ALL);
     }
 
     /**
@@ -685,57 +820,56 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     private StarTreeDocument createAggregatedDocs(InMemoryTreeNode node) throws IOException {
         StarTreeDocument aggregatedStarTreeDocument = null;
-        if (node.children == null) {
 
-            // For leaf node
-            if (node.startDocId == node.endDocId - 1) {
+        // For leaf node
+        if (!node.hasChild()) {
+
+            if (node.getStartDocId() == node.getEndDocId() - 1) {
                 // If it has only one document, use it as the aggregated document
-                aggregatedStarTreeDocument = getStarTreeDocument(node.startDocId);
-                node.aggregatedDocId = node.startDocId;
+                aggregatedStarTreeDocument = getStarTreeDocument(node.getStartDocId());
+                node.setAggregatedDocId(node.getStartDocId());
             } else {
                 // If it has multiple documents, aggregate all of them
-                for (int i = node.startDocId; i < node.endDocId; i++) {
+                for (int i = node.getStartDocId(); i < node.getEndDocId(); i++) {
                     aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, getStarTreeDocument(i));
                 }
                 if (null == aggregatedStarTreeDocument) {
                     throw new IllegalStateException("aggregated star-tree document is null after reducing the documents");
                 }
-                for (int i = node.dimensionId + 1; i < numDimensions; i++) {
+                for (int i = node.getDimensionId() + 1; i < numDimensions; i++) {
                     aggregatedStarTreeDocument.dimensions[i] = STAR_IN_DOC_VALUES_INDEX;
                 }
-                node.aggregatedDocId = numStarTreeDocs;
+                node.setAggregatedDocId(numStarTreeDocs);
                 appendToStarTree(aggregatedStarTreeDocument);
             }
         } else {
             // For non-leaf node
-            if (node.children.containsKey((long) ALL)) {
+            if (node.getChildStarNode() != null) {
                 // If it has star child, use the star child aggregated document directly
-                for (InMemoryTreeNode child : node.children.values()) {
-                    if (child.nodeType == StarTreeNodeType.STAR.getValue()) {
-                        aggregatedStarTreeDocument = createAggregatedDocs(child);
-                        node.aggregatedDocId = child.aggregatedDocId;
-                    } else {
-                        createAggregatedDocs(child);
-                    }
+                aggregatedStarTreeDocument = createAggregatedDocs(node.getChildStarNode());
+                node.setAggregatedDocId(node.getChildStarNode().getAggregatedDocId());
+
+                for (InMemoryTreeNode child : node.getChildren().values()) {
+                    createAggregatedDocs(child);
                 }
             } else {
                 // If no star child exists, aggregate all aggregated documents from non-star children
-                if (node.children.values().size() == 1) {
-                    for (InMemoryTreeNode child : node.children.values()) {
+                if (node.getChildren().values().size() == 1) {
+                    for (InMemoryTreeNode child : node.getChildren().values()) {
                         aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
-                        node.aggregatedDocId = child.aggregatedDocId;
+                        node.setAggregatedDocId(child.getAggregatedDocId());
                     }
                 } else {
-                    for (InMemoryTreeNode child : node.children.values()) {
+                    for (InMemoryTreeNode child : node.getChildren().values()) {
                         aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
                     }
                     if (null == aggregatedStarTreeDocument) {
                         throw new IllegalStateException("aggregated star-tree document is null after reducing the documents");
                     }
-                    for (int i = node.dimensionId + 1; i < numDimensions; i++) {
+                    for (int i = node.getDimensionId() + 1; i < numDimensions; i++) {
                         aggregatedStarTreeDocument.dimensions[i] = STAR_IN_DOC_VALUES_INDEX;
                     }
-                    node.aggregatedDocId = numStarTreeDocs;
+                    node.setAggregatedDocId(numStarTreeDocs);
                     appendToStarTree(aggregatedStarTreeDocument);
                 }
             }
