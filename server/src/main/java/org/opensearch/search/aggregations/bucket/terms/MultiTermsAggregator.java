@@ -275,8 +275,8 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
     @FunctionalInterface
     interface MultiTermsValuesSourceCollector {
         /**
-         * Collect a list values of multi_terms on each doc.
-         * Each terms could have multi_values, so the result is the cartesian product of each term's values.
+         * Generates the cartesian product of all fields used in aggregation and
+         * collects them in buckets using the composite key of their field values.
          */
         void apply(int doc, long owningBucketOrd) throws IOException;
 
