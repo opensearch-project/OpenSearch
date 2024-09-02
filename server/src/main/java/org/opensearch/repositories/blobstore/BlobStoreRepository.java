@@ -113,8 +113,8 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
-import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteStorePathStrategy.SnapshotShardPathInput;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -778,10 +778,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 assert wasBestEffortConsistency
                     || metadata.generation() == RepositoryData.CORRUPTED_REPO_GEN
                     || previousBest < metadata.generation() : "Illegal move from repository generation ["
-                    + previousBest
-                    + "] to generation ["
-                    + metadata.generation()
-                    + "]";
+                        + previousBest
+                        + "] to generation ["
+                        + metadata.generation()
+                        + "]";
                 logger.debug("Updated repository generation from [{}] to [{}]", previousBest, metadata.generation());
             }
         }
@@ -1186,7 +1186,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 afterCleanupsListener,
                 idToShardInfoMap
             );
-            if (isShallowSnapshotV2==false) {
+            if (isShallowSnapshotV2 == false) {
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
                     snapshotIds,
@@ -1903,7 +1903,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // If there are matchingShardPaths, then we delete them after we have deleted the shard data.
                 deleteResult = deleteResult.add(cleanUpStaleSnapshotShardPathsFile(matchingShardPaths, snapshotShardPaths));
 
-                if(remoteStoreLockManagerFactory!=null) {
+                if (remoteStoreLockManagerFactory != null) {
                     cleanRemoteStoreDirectoryIfNeeded(indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
                 }
 
@@ -2481,8 +2481,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected void assertSnapshotOrGenericThread() {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') : "Expected current thread ["
-            + Thread.currentThread()
-            + "] to be the snapshot or generic thread.";
+                + Thread.currentThread()
+                + "] to be the snapshot or generic thread.";
     }
 
     @Override
@@ -4018,13 +4018,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .filter(
                 blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                     || (blob.startsWith(SNAPSHOT_PREFIX)
-                    && blob.endsWith(".dat")
-                    && survivingSnapshotUUIDs.contains(
-                    blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
-                ) == false)
+                        && blob.endsWith(".dat")
+                        && survivingSnapshotUUIDs.contains(
+                            blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
+                        ) == false)
                     || (remoteStoreLockManagerFactory != null
-                    && extractShallowSnapshotUUID(blob).map(snapshotUUID -> !survivingSnapshotUUIDs.contains(snapshotUUID))
-                    .orElse(false))
+                        && extractShallowSnapshotUUID(blob).map(snapshotUUID -> !survivingSnapshotUUIDs.contains(snapshotUUID))
+                            .orElse(false))
                     || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                     || FsBlobContainer.isTempBlobName(blob)
             )
@@ -4094,10 +4094,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return new Tuple<>(shardSnapshots, latest);
         } else if (blobs.stream()
             .anyMatch(b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(INDEX_FILE_PREFIX) || b.startsWith(UPLOADED_DATA_BLOB_PREFIX))) {
-            logger.warn(
-                "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]"
-            );
-        }
+                logger.warn(
+                    "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]"
+                );
+            }
         return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }
 

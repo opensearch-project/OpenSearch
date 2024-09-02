@@ -54,6 +54,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -464,6 +465,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // Create a mock RemoteStoreLockManagerFactory
         RemoteStoreLockManagerFactory mockRemoteStoreLockManagerFactory = mock(RemoteStoreLockManagerFactory.class);
+        RemoteSegmentStoreDirectoryFactory mockRemoteSegmentStoreDirectoryFactory = mock(RemoteSegmentStoreDirectoryFactory.class);
         RemoteStoreLockManager mockLockManager = mock(RemoteStoreLockManager.class);
         when(mockRemoteStoreLockManagerFactory.newLockManager(anyString(), anyString(), anyString(), any())).thenReturn(mockLockManager);
 
@@ -494,7 +496,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
             listener.onResponse(result);
             return null;
-        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), anyMap());
+        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), any(), any(), anyMap());
 
         AtomicReference<Collection<DeleteResult>> resultReference = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -512,6 +514,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             foundIndices,
             survivingIndexIds,
             mockRemoteStoreLockManagerFactory,
+            mockRemoteSegmentStoreDirectoryFactory,
+            mock(RepositoryData.class),
             listener,
             mockSnapshotShardPaths,
             Collections.emptyMap()
