@@ -23,6 +23,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
@@ -51,7 +52,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
@@ -752,5 +756,122 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(tlogBytes.length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
         // Expect delay for both tlog and ckp file
         assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= delayForBlobDownload);
+    }
+
+    public void testlistTranslogMetadataFilesAsync() throws Exception {
+        String tm1 = new TranslogTransferMetadata(1, 1, 1, 2).getFileName();
+        String tm2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
+        String tm3 = new TranslogTransferMetadata(2, 3, 1, 2).getFileName();
+        doAnswer(invocation -> {
+            ActionListener<List<BlobMetadata>> actionListener = invocation.getArgument(4);
+            List<BlobMetadata> bmList = new LinkedList<>();
+            bmList.add(new PlainBlobMetadata(tm1, 1));
+            bmList.add(new PlainBlobMetadata(tm2, 1));
+            bmList.add(new PlainBlobMetadata(tm3, 1));
+            actionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrderAsync(
+                eq(ThreadPool.Names.REMOTE_PURGE),
+                any(BlobPath.class),
+                eq(TranslogTransferMetadata.METADATA_PREFIX),
+                anyInt(),
+                any(ActionListener.class)
+            );
+        AtomicBoolean fetchCompleted = new AtomicBoolean(false);
+        translogTransferManager.listTranslogMetadataFilesAsync(new ActionListener<>() {
+            @Override
+            public void onResponse(List<BlobMetadata> blobMetadata) {
+                assertEquals(3, blobMetadata.size());
+                assertEquals(blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()), List.of(tm1, tm2, tm3));
+                fetchCompleted.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fetchCompleted.set(true);
+                throw new RuntimeException(e);
+            }
+        });
+        assertBusy(() -> assertTrue(fetchCompleted.get()));
+    }
+
+    public void testReadMetadataForGivenTimestampNoFile() throws IOException {
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            List<BlobMetadata> bmList = new LinkedList<>();
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        assertNull(translogTransferManager.readMetadata(1234L));
+        assertNoDownloadStats(false);
+    }
+
+    public void testReadMetadataForGivenTimestampNoMatchingFile() throws IOException {
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            String timestamp1 = RemoteStoreUtils.invertLong(2345L);
+            BlobMetadata bm1 = new PlainBlobMetadata("metadata__1__12__" + timestamp1 + "__node1__1", 1);
+            String timestamp2 = RemoteStoreUtils.invertLong(3456L);
+            BlobMetadata bm2 = new PlainBlobMetadata("metadata__1__12__" + timestamp2 + "__node1__1", 1);
+            List<BlobMetadata> bmList = List.of(bm1, bm2);
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        assertNull(translogTransferManager.readMetadata(1234L));
+        assertNoDownloadStats(false);
+    }
+
+    public void testReadMetadataForGivenTimestampFile() throws IOException {
+        AtomicReference<String> mdFilename1 = new AtomicReference<>();
+        String timestamp1 = RemoteStoreUtils.invertLong(2345L);
+        mdFilename1.set("metadata__1__12__" + timestamp1 + "__node1__1");
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            BlobMetadata bm1 = new PlainBlobMetadata(mdFilename1.get(), 1);
+            String timestamp2 = RemoteStoreUtils.invertLong(3456L);
+            BlobMetadata bm2 = new PlainBlobMetadata("metadata__1__12__" + timestamp2 + "__node1__1", 1);
+            List<BlobMetadata> bmList = List.of(bm1, bm2);
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        long delayForMdDownload = 1;
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename1.get()))).thenAnswer(invocation -> {
+            Thread.sleep(delayForMdDownload);
+            return new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata));
+        });
+
+        assertEquals(metadata, translogTransferManager.readMetadata(3000L));
+
+        assertEquals(translogTransferManager.getMetadataBytes(metadata).length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
+        assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= delayForMdDownload);
+    }
+
+    public void testReadMetadataForGivenTimestampException() throws IOException {
+        AtomicReference<String> mdFilename1 = new AtomicReference<>();
+        String timestamp1 = RemoteStoreUtils.invertLong(2345L);
+        mdFilename1.set("metadata__1__12__" + timestamp1 + "__node1__1");
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            BlobMetadata bm1 = new PlainBlobMetadata(mdFilename1.get(), 1);
+            String timestamp2 = RemoteStoreUtils.invertLong(3456L);
+            BlobMetadata bm2 = new PlainBlobMetadata("metadata__1__12__" + timestamp2 + "__node1__1", 1);
+            List<BlobMetadata> bmList = List.of(bm1, bm2);
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename1.get()))).thenThrow(new IOException("Something went wrong"));
+
+        assertThrows(IOException.class, () -> translogTransferManager.readMetadata(3000L));
+        assertNoDownloadStats(true);
     }
 }
