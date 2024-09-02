@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation.allocator;
 
+import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.MoveDecision;
@@ -73,4 +74,7 @@ public interface ShardsAllocator {
      * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
      */
     ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation);
+
+    default void setRerouteService(RerouteService rerouteService) {
+    }
 }

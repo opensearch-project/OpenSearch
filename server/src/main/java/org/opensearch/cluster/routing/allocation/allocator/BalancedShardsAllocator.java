@@ -235,6 +235,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(ALLOCATOR_TIMEOUT_SETTING, this::setAllocatorTimeout);
     }
 
+    @Override
     public void setRerouteService(RerouteService rerouteService) {
         assert this.rerouteService == null : "RerouteService is already set";
         this.rerouteService = rerouteService;
