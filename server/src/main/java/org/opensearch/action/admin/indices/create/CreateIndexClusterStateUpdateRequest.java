@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
 import org.opensearch.cluster.block.ClusterBlock;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
@@ -65,6 +66,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final Set<Alias> aliases = new HashSet<>();
 
+    private Context context;
+
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -87,6 +90,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest aliases(Set<Alias> aliases) {
         this.aliases.addAll(aliases);
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest context(Context context) {
+        this.context = context;
         return this;
     }
 
@@ -128,6 +136,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Set<Alias> aliases() {
         return aliases;
+    }
+
+    public Context context() {
+        return context;
     }
 
     public Set<ClusterBlock> blocks() {
@@ -199,6 +211,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             + settings
             + ", aliases="
             + aliases
+            + ", context="
+            + context
             + ", blocks="
             + blocks
             + ", waitForActiveShards="

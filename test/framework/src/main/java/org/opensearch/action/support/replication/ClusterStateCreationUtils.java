@@ -35,6 +35,7 @@ package org.opensearch.action.support.replication;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -368,6 +369,44 @@ public class ClusterStateCreationUtils {
         }
         state.metadata(metadataBuilder);
         state.routingTable(routingTableBuilder.build());
+        return state.build();
+    }
+
+    public static ClusterState stateWithContext(String index, final int numberOfNodes, final int numberOfPrimaries, Context context) {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        Set<String> nodes = new HashSet<>();
+        for (int i = 0; i < numberOfNodes; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.add(node);
+            nodes.add(node.getId());
+        }
+        discoBuilder.localNodeId(newNode(0).getId());
+        discoBuilder.clusterManagerNodeId(randomFrom(nodes));
+        IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .context(context)
+            .build();
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+        for (int i = 0; i < numberOfPrimaries; i++) {
+            ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED)
+            );
+            indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
+        }
+
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
+        state.routingTable(RoutingTable.builder().add(indexRoutingTable).build());
         return state.build();
     }
 
