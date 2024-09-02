@@ -41,15 +41,23 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplate;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
+import org.opensearch.cluster.applicationtemplates.TemplateRepositoryMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -58,7 +66,10 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -427,6 +438,55 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
                 numReplicas,
                 (int) indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null)
             );
+        }
+    }
+
+    public void testCreateIndexWithContextSettingsAndTemplate() throws Exception {
+        int numReplicas = 1;
+        String indexName = "test-idx-1";
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), (String) null)
+            .build();
+        Context context = new Context("test");
+
+        String templateContent = "{\n"
+            + "  \"template\": {\n"
+            + "    \"settings\": {\n"
+            + "      \"merge.policy\": \"log_byte_size\"\n"
+            + "    }\n"
+            + "  },\n"
+            + "  \"_meta\": {\n"
+            + "    \"_type\": \"@abc_template\",\n"
+            + "    \"_version\": 1\n"
+            + "  },\n"
+            + "  \"version\": 1\n"
+            + "}\n";
+
+        ClusterStateSystemTemplateLoader loader = new ClusterStateSystemTemplateLoader(
+            internalCluster().clusterManagerClient(),
+            () -> internalCluster().getInstance(ClusterService.class).state()
+        );
+        loader.loadTemplate(
+            new SystemTemplate(
+                BytesReference.fromByteBuffer(ByteBuffer.wrap(templateContent.getBytes(StandardCharsets.UTF_8))),
+                SystemTemplateMetadata.fromComponentTemplateInfo("test", 1L),
+                new TemplateRepositoryMetadata(UUID.randomUUID().toString(), 1L)
+            )
+        );
+
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settings).setContext(context).get());
+
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getClusterManagerName());
+
+        for (IndexService indexService : indicesService) {
+            assertEquals(indexName, indexService.index().getName());
+            assertEquals(
+                numReplicas,
+                (int) indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null)
+            );
+            assertEquals(context, indexService.getMetadata().context());
+            assertEquals("log_byte_size", indexService.getMetadata().getSettings().get(IndexSettings.INDEX_MERGE_POLICY.getKey()));
         }
     }
 }
