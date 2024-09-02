@@ -416,10 +416,6 @@ public class SimulateExecutionServiceTests extends OpenSearchTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor());
         SimulatePipelineRequest.Parsed request = new SimulatePipelineRequest.Parsed(pipeline, documents, false);
 
-        AtomicReference<SimulatePipelineResponse> responseHolder = new AtomicReference<>();
-        AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
         doThrow(new IllegalStateException()).when(ingestService).validateProcessorCountForIngestPipeline(pipeline);
 
         expectThrows(IllegalStateException.class, () -> executionService.execute(request, ActionListener.wrap(response -> {}, e -> {})));
