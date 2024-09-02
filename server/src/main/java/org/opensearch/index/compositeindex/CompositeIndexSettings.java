@@ -47,7 +47,8 @@ public class CompositeIndexSettings {
         new ByteSizeValue(512, ByteSizeUnit.MB),
         new ByteSizeValue(128, ByteSizeUnit.MB),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private volatile boolean starTreeIndexCreationEnabled;

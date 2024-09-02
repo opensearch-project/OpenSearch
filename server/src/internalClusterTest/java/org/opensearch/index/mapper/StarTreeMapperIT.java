@@ -8,6 +8,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -686,6 +687,23 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         assertTrue(
             ex.getMessage().contains("You can configure 'index.translog.flush_threshold_size' with upto '512mb' for composite index")
         );
+
+        // update cluster settings to higher value
+        Settings updatedSettings = Settings.builder()
+            .put(CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1030m")
+            .build();
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(updatedSettings);
+
+        client().admin().cluster().updateSettings(updateSettingsRequest).actionGet();
+
+        // update index threshold flush to higher value
+        validUpdateResponse = client().admin()
+            .indices()
+            .prepareUpdateSettings(TEST_INDEX)
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1024mb"))
+            .get();
+        assertTrue(validUpdateResponse.isAcknowledged());
     }
 
     public void testMinimumTranslogFlushThresholdSize() {

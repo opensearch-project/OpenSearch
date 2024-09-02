@@ -61,10 +61,8 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -74,7 +72,6 @@ import java.util.function.UnaryOperator;
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
-import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -383,37 +380,6 @@ public final class IndexSettings {
          */
         new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        new Setting.Validator<ByteSizeValue>() {
-            @Override
-            public void validate(final ByteSizeValue value) {}
-
-            @Override
-            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings) {
-                boolean isCompositeIndex = (boolean) settings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
-                ByteSizeValue compositeIndexMaxFlushThreshold = (ByteSizeValue) settings.get(
-                    COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING
-                );
-                if (isCompositeIndex && value.compareTo(compositeIndexMaxFlushThreshold) > 0) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "You can configure '%s' with upto '%s' for composite index",
-                            INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                            compositeIndexMaxFlushThreshold
-                        )
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Arrays.asList(
-                    StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING,
-                    COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING
-                );
-                return settings.iterator();
-            }
-        },
         Property.Dynamic,
         Property.IndexScope
     );

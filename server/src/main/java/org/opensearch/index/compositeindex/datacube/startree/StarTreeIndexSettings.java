@@ -126,6 +126,7 @@ public class StarTreeIndexSettings {
     public static final Setting<Boolean> IS_COMPOSITE_INDEX_SETTING = Setting.boolSetting(
         "index.composite_index",
         false,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.Final
     );
 }

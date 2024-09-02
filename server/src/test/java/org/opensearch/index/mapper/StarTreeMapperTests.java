@@ -122,23 +122,6 @@ public class StarTreeMapperTests extends MapperTestCase {
         assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings));
     }
 
-    public void testInvalidValueForCompositeIndex() {
-        Settings settings = Settings.builder()
-            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1gb")
-            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-            .put(COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "512mb")
-            .build();
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings)
-        );
-
-        assertTrue(
-            exception.getMessage().contains("You can configure 'index.translog.flush_threshold_size' with upto '512mb' for composite index")
-        );
-    }
-
     public void testValidValueForCompositeIndex() {
         Settings settings = Settings.builder()
             .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")

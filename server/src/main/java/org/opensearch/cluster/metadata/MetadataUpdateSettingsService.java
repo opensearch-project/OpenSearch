@@ -82,6 +82,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SE
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findComponentTemplate;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
@@ -221,6 +222,12 @@ public class MetadataUpdateSettingsService {
                                 index.getName()
                             ).ifPresent(validationErrors::add);
                         }
+                        validateTranslogFlushIntervalSettingsForCompositeIndex(
+                            normalizedSettings,
+                            clusterService.getClusterSettings(),
+                            metadata.getSettings()
+                        );
+
                     }
 
                     if (validationErrors.size() > 0) {
