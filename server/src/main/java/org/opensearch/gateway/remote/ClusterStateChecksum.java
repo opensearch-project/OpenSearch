@@ -95,7 +95,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             templatesMetadataChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            checksumOut.writeCollection(clusterState.metadata().customs().keySet(), StreamOutput::writeString);
+            checksumOut.writeStringCollection(clusterState.metadata().customs().keySet());
             customMetadataMapChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
@@ -114,7 +114,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             blocksChecksum = checksumOut.getChecksum();
 
             checksumOut.reset();
-            checksumOut.writeCollection(clusterState.customs().keySet(), StreamOutput::writeString);
+            checksumOut.writeStringCollection(clusterState.customs().keySet());
             clusterStateCustomsChecksum = checksumOut.getChecksum();
         } catch (IOException e) {
             logger.error("Failed to create checksum for cluster state.", e);
