@@ -416,7 +416,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     private void scheduleRerouteIfAllocatorTimedOut() {
-        if(allocatorTimedOut()) {
+        if (allocatorTimedOut()) {
             if (rerouteService == null) {
                 logger.info("RerouteService not set to schedule reroute after allocator time out");
                 return;

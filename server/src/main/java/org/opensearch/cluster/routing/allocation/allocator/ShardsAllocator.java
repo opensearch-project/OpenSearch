@@ -75,6 +75,5 @@ public interface ShardsAllocator {
      */
     ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation);
 
-    default void setRerouteService(RerouteService rerouteService) {
-    }
+    default void setRerouteService(RerouteService rerouteService) {}
 }
