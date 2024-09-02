@@ -800,7 +800,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             : null;
         ClusterStateStats stateStats = new ClusterStateStats();
         RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
-        stateStats.setPersistenceStats(Arrays.asList(remoteStateStats));
+        stateStats.setPersistenceStats(Arrays.asList(remoteStateStats.getUploadStats()));
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
                 randomBoolean() ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt()) : null,

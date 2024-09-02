@@ -747,7 +747,7 @@ public class GatewayMetaState implements Closeable {
 
         @Override
         public PersistedStateStats getStats() {
-            return remoteClusterStateService.getStats();
+            return remoteClusterStateService.getUploadStats();
         }
 
         private boolean verifyManifestAndClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {
