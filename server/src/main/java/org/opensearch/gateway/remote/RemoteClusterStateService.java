@@ -1514,7 +1514,7 @@ public class RemoteClusterStateService implements Closeable {
         String clusterName,
         String localNodeId,
         boolean isFullStateDownload
-    ) throws IOException {
+    ) {
         ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
         List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(manifest.getClusterStateChecksum());
         if (!failedValidation.isEmpty()) {
