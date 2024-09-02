@@ -121,12 +121,12 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private AtomicLong globalCheckpoint;
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
-    private final AtomicLong primaryTerm = new AtomicLong();
+    protected final AtomicLong primaryTerm = new AtomicLong();
     private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
-    private ThreadPool threadPool;
-    private final static String METADATA_DIR = "metadata";
-    private final static String DATA_DIR = "data";
+    protected ThreadPool threadPool;
+    protected final static String METADATA_DIR = "metadata";
+    protected final static String DATA_DIR = "data";
     AtomicInteger writeCalls = new AtomicInteger();
     BlobStoreRepository repository;
 
@@ -277,7 +277,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         return loc;
     }
 
-    private Translog.Location addToTranslogAndListAndUpload(Translog translog, List<Translog.Operation> list, Translog.Operation op)
+    protected Translog.Location addToTranslogAndListAndUpload(Translog translog, List<Translog.Operation> list, Translog.Operation op)
         throws IOException {
         Translog.Location loc = translog.add(op);
         translog.ensureSynced(loc);
@@ -390,7 +390,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     }
 
-    private TranslogConfig getConfig(int gensToKeep) {
+    protected TranslogConfig getConfig(int gensToKeep) {
         Path tempDir = createTempDir();
         final TranslogConfig temp = getTranslogConfig(tempDir, gensToKeep);
         final TranslogConfig config = new TranslogConfig(
@@ -405,7 +405,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         return config;
     }
 
-    private ChannelFactory getChannelFactory() {
+    protected ChannelFactory getChannelFactory() {
         writeCalls = new AtomicInteger();
         final ChannelFactory channelFactory = (file, openOption) -> {
             FileChannel delegate = FileChannel.open(file, openOption);
@@ -493,8 +493,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 6,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
-
         }
+
     }
 
     public void testReadLocation() throws IOException {
@@ -671,13 +671,13 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        assertEquals(4, translog.allUploaded().size());
+        assertEquals(2, translog.allUploaded().size());
 
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
-        assertEquals(6, translog.allUploaded().size());
+        assertEquals(4, translog.allUploaded().size());
 
         translog.rollGeneration();
-        assertEquals(6, translog.allUploaded().size());
+        assertEquals(4, translog.allUploaded().size());
 
         Set<String> mdFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
         assertEquals(2, mdFiles.size());
@@ -736,7 +736,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
         assertBusy(() -> {
-            assertEquals(4, translog.allUploaded().size());
+            assertEquals(2, translog.allUploaded().size());
             assertEquals(
                 4,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
@@ -755,13 +755,12 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertEquals(1, translog.readers.size());
         assertEquals(1, translog.stats().estimatedNumberOfOperations());
         assertBusy(() -> {
-            assertEquals(4, translog.allUploaded().size());
+            assertEquals(2, translog.allUploaded().size());
             assertEquals(
                 4,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
-
     }
 
     public void testMetadataFileDeletion() throws Exception {
@@ -775,7 +774,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
             assertEquals(1, translog.readers.size());
         }
-        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+        assertBusy(() -> assertEquals(2, translog.allUploaded().size()));
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
         int moreDocs = randomIntBetween(3, 10);
         logger.info("numDocs={} moreDocs={}", numDocs, moreDocs);
@@ -873,7 +872,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> assertEquals(0, latch.getCount()));
         assertEquals(0, translog.availablePermits());
         slowDown.setSleepSeconds(0);
-        assertEquals(6, translog.allUploaded().size());
+        assertEquals(4, translog.allUploaded().size());
         assertEquals(2, translog.readers.size());
         Set<String> mdFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
 
@@ -882,7 +881,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         translog.trimUnreferencedReaders();
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
-        assertEquals(6, translog.allUploaded().size());
+        assertEquals(2, translog.allUploaded().size());
         assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
 
         // Case 4 - After drainSync, if an upload is an attempted, we do not upload to remote store.
@@ -892,25 +891,25 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             new Translog.Index(String.valueOf(2), 2, primaryTerm.get(), new byte[] { 1 })
         );
         assertEquals(1, translog.readers.size());
-        assertEquals(6, translog.allUploaded().size());
+        assertEquals(2, translog.allUploaded().size());
         assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
 
         // Refill the permits back
         Releasables.close(releasable);
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(3), 3, primaryTerm.get(), new byte[] { 1 }));
         assertEquals(2, translog.readers.size());
-        assertEquals(8, translog.allUploaded().size());
+        assertEquals(4, translog.allUploaded().size());
         assertEquals(3, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
 
         translog.setMinSeqNoToKeep(3);
         translog.trimUnreferencedReaders();
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
-        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+        assertBusy(() -> assertEquals(2, translog.allUploaded().size()));
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
     }
 
-    private BlobPath getTranslogDirectory() {
+    protected BlobPath getTranslogDirectory() {
         return repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG.getName());
     }
 
@@ -1688,13 +1687,13 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
-        when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
+        when(mockTransfer.readMetadata(0)).thenReturn(translogTransferMetadata);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
         when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
         TranslogTransferManager finalMockTransfer = mockTransfer;
-        assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false));
+        assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0));
 
         // File not found in first attempt . File found in second attempt.
         mockTransfer = mock(TranslogTransferManager.class);
@@ -1715,7 +1714,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }).when(mockTransfer).downloadTranslog(any(), any(), any());
 
         // no exception thrown
-        RemoteFsTranslog.download(mockTransfer, location, logger, false);
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
     }
 
     // No translog data in local as well as remote, we skip creating empty translog
@@ -1728,7 +1727,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         Path[] filesBeforeDownload = FileSystemUtils.files(location);
-        RemoteFsTranslog.download(mockTransfer, location, logger, false);
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
         assertEquals(filesBeforeDownload, FileSystemUtils.files(location));
     }
 
@@ -1748,7 +1747,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         Checkpoint existingCheckpoint = Translog.readCheckpoint(location);
 
         TranslogTransferManager finalMockTransfer = mockTransfer;
-        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0);
 
         Path[] filesPostDownload = FileSystemUtils.files(location);
         assertEquals(2, filesPostDownload.length);
@@ -1784,11 +1783,11 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         TranslogTransferManager finalMockTransfer = mockTransfer;
 
         // download first time will ensure creating empty translog
-        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0);
         Path[] filesPostFirstDownload = FileSystemUtils.files(location);
 
         // download on empty translog should be a no-op
-        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0);
         Path[] filesPostSecondDownload = FileSystemUtils.files(location);
 
         assertArrayEquals(filesPostFirstDownload, filesPostSecondDownload);
