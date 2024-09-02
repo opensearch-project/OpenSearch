@@ -19,7 +19,7 @@ opensearchplugin {
 
 dependencies {
   api "com.google.apis:google-api-services-compute:v1-rev20240407-2.0.0"
-  api "com.google.api-client:google-api-client:1.35.2"
+  api "com.google.api-client:google-api-client:2.7.0"
   api "com.google.oauth-client:google-oauth-client:1.35.0"
   api "com.google.http-client:google-http-client:${versions.google_http_client}"
   api "com.google.http-client:google-http-client-gson:${versions.google_http_client}"
