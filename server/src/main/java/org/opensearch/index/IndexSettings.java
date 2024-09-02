@@ -49,6 +49,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.Translog;
@@ -708,6 +709,14 @@ public final class IndexSettings {
 
     public static final Setting<String> SEARCHABLE_SNAPSHOT_INDEX_ID = Setting.simpleString(
         "index.searchable_snapshot.index.id",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<PathType> SEARCHABLE_SNAPSHOT_SHARD_PATH_TYPE = new Setting<>(
+        "index.searchable_snapshot.shard_path_type",
+        PathType.FIXED.toString(),
+        PathType::parseString,
         Property.IndexScope,
         Property.InternalIndex
     );

@@ -48,6 +48,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -70,6 +71,7 @@ import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -2563,6 +2565,85 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
     }
 
+    protected void createRepository(String repoName, String type, Settings.Builder settings, String timeout) {
+        logger.info("--> creating repository [{}] [{}]", repoName, type);
+        putRepository(clusterAdmin(), repoName, type, timeout, settings);
+    }
+
+    protected void createRepository(String repoName, String type, Settings.Builder settings) {
+        logger.info("--> creating repository [{}] [{}]", repoName, type);
+        putRepository(clusterAdmin(), repoName, type, null, settings);
+    }
+
+    protected void updateRepository(String repoName, String type, Settings.Builder settings) {
+        logger.info("--> updating repository [{}] [{}]", repoName, type);
+        putRepository(clusterAdmin(), repoName, type, null, settings);
+    }
+
+    public static void putRepository(ClusterAdminClient adminClient, String repoName, String type, Settings.Builder settings) {
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null, false));
+    }
+
+    public static void putRepository(
+        ClusterAdminClient adminClient,
+        String repoName,
+        String type,
+        String timeout,
+        Settings.Builder settings
+    ) {
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, timeout, false));
+    }
+
+    public static void putRepository(
+        ClusterAdminClient adminClient,
+        String repoName,
+        String type,
+        boolean verify,
+        Settings.Builder settings
+    ) {
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, verify, settings, null, false));
+    }
+
+    public static void putRepositoryWithNoSettingOverrides(
+        ClusterAdminClient adminClient,
+        String repoName,
+        String type,
+        boolean verify,
+        Settings.Builder settings
+    ) {
+        assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, verify, settings, null, true));
+    }
+
+    public static void putRepository(
+        ClusterAdminClient adminClient,
+        String repoName,
+        String type,
+        Settings.Builder settings,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null, false).execute(listener);
+    }
+
+    public static PutRepositoryRequestBuilder putRepositoryRequestBuilder(
+        ClusterAdminClient adminClient,
+        String repoName,
+        String type,
+        boolean verify,
+        Settings.Builder settings,
+        String timeout,
+        boolean finalSettings
+    ) {
+        PutRepositoryRequestBuilder builder = adminClient.preparePutRepository(repoName).setType(type).setVerify(verify);
+        if (timeout != null) {
+            builder.setTimeout(timeout);
+        }
+        if (finalSettings == false) {
+            settings.put(BlobStoreRepository.SHARD_PATH_TYPE.getKey(), randomFrom(PathType.values()));
+        }
+        builder.setSettings(settings);
+        return builder;
+    }
+
     public static Settings remoteStoreClusterSettings(String name, Path path) {
         return remoteStoreClusterSettings(name, path, name, path);
     }
@@ -2803,5 +2884,4 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), randomBoolean());
         return settings.build();
     }
-
 }

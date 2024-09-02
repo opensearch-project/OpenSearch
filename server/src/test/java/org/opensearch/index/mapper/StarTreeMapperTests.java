@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -357,6 +358,24 @@ public class StarTreeMapperTests extends MapperTestCase {
         );
     }
 
+    public void testDuplicateDimensions() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(true, false);
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(finalMapping));
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate dimension [numeric_dv] present as part star tree index field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testDuplicateMetrics() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(false, true);
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(finalMapping));
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate metrics [numeric_dv] present as part star tree index field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
     public void testMetric() {
         List<MetricStat> m1 = new ArrayList<>();
         m1.add(MetricStat.MAX);
@@ -571,6 +590,56 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
+    }
+
+    private XContentBuilder getMappingWithDuplicateFields(boolean isDuplicateDim, boolean isDuplicateMetric) {
+        XContentBuilder mapping = null;
+        try {
+            mapping = jsonBuilder().startObject()
+                .startObject("composite")
+                .startObject("startree-1")
+                .field("type", "star_tree")
+                .startObject("config")
+                .startArray("ordered_dimensions")
+                .startObject()
+                .field("name", "timestamp")
+                .endObject()
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateDim ? "numeric_dv" : "numeric_dv1")  // Duplicate dimension
+                .endObject()
+                .endArray()
+                .startArray("metrics")
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateMetric ? "numeric_dv" : "numeric_dv1")  // Duplicate metric
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("properties")
+                .startObject("timestamp")
+                .field("type", "date")
+                .endObject()
+                .startObject("numeric_dv")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("numeric_dv1")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            fail("Failed to create mapping: " + e.getMessage());
+        }
+        return mapping;
     }
 
     private XContentBuilder getExpandedMappingWithJustSum(String dim, String metric) throws IOException {
