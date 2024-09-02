@@ -14,6 +14,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
@@ -78,7 +79,7 @@ public class StarTreeValidator {
                         String.format(Locale.ROOT, "unknown metric field [%s] as part of star tree field", metric.getField())
                     );
                 }
-                if (ft.isAggregatable() == false) {
+                if (ft.isAggregatable() == false && ft instanceof DocCountFieldMapper.DocCountFieldType == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,

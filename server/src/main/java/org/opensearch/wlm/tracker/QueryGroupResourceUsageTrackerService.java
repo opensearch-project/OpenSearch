@@ -8,11 +8,11 @@
 
 package org.opensearch.wlm.tracker;
 
-import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.EnumMap;
 import java.util.EnumSet;

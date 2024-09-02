@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -225,6 +226,10 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 for (Object metric : metricsList) {
                     Map<String, Object> metricMap = (Map<String, Object>) metric;
                     String name = (String) XContentMapValues.extractValue(CompositeDataCubeFieldType.NAME, metricMap);
+                    // Handle _doc_count metric separately at the end
+                    if (name.equals(DocCountFieldMapper.NAME)) {
+                        continue;
+                    }
                     metricMap.remove(CompositeDataCubeFieldType.NAME);
                     if (objbuilder == null || objbuilder.mappersBuilders == null) {
                         metrics.add(getMetric(name, metricMap, context));
@@ -249,7 +254,8 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             } else {
                 throw new MapperParsingException(String.format(Locale.ROOT, "unable to parse metrics for star tree field [%s]", this.name));
             }
-
+            Metric docCountMetric = new Metric(DocCountFieldMapper.NAME, List.of(MetricStat.DOC_COUNT));
+            metrics.add(docCountMetric);
             return metrics;
         }
 
@@ -262,15 +268,48 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 .collect(Collectors.toList());
             metric.remove(STATS);
             if (metricStrings.isEmpty()) {
-                metricTypes = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
-            } else {
-                Set<MetricStat> metricSet = new LinkedHashSet<>();
-                for (String metricString : metricStrings) {
-                    metricSet.add(MetricStat.fromTypeName(metricString));
-                }
-                metricTypes = new ArrayList<>(metricSet);
+                metricStrings = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
             }
+            // Add all required metrics initially
+            Set<MetricStat> metricSet = new LinkedHashSet<>();
+            for (String metricString : metricStrings) {
+                MetricStat metricStat = MetricStat.fromTypeName(metricString);
+                metricSet.add(metricStat);
+                addBaseMetrics(metricStat, metricSet);
+            }
+            addEligibleDerivedMetrics(metricSet);
+            metricTypes = new ArrayList<>(metricSet);
             return new Metric(name, metricTypes);
+        }
+
+        /**
+         * Add base metrics of derived metric to metric set
+         */
+        private void addBaseMetrics(MetricStat metricStat, Set<MetricStat> metricSet) {
+            if (metricStat.isDerivedMetric()) {
+                Queue<MetricStat> metricQueue = new LinkedList<>(metricStat.getBaseMetrics());
+                while (metricQueue.isEmpty() == false) {
+                    MetricStat metric = metricQueue.poll();
+                    if (metric.isDerivedMetric() && !metricSet.contains(metric)) {
+                        metricQueue.addAll(metric.getBaseMetrics());
+                    }
+                    metricSet.add(metric);
+                }
+            }
+        }
+
+        /**
+         * Add derived metrics if all associated base metrics are present
+         */
+        private void addEligibleDerivedMetrics(Set<MetricStat> metricStats) {
+            for (MetricStat metric : MetricStat.values()) {
+                if (metric.isDerivedMetric() && !metricStats.contains(metric)) {
+                    List<MetricStat> sourceMetrics = metric.getBaseMetrics();
+                    if (metricStats.containsAll(sourceMetrics)) {
+                        metricStats.add(metric);
+                    }
+                }
+            }
         }
 
         @Override
