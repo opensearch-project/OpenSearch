@@ -52,8 +52,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -183,27 +185,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         for (final DiscoveryNode discoveryNode : nodesConnected) {
             transportService.markPendingJoinAsCompleted(discoveryNode);
         }
-    }
-
-    public void disconnectFromNonBlockedNodesExcept(DiscoveryNodes discoveryNodes, DiscoveryNodes.Delta nodesDelta) {
-        final List<Runnable> runnables = new ArrayList<>();
-        synchronized (mutex) {
-            final Set<DiscoveryNode> nodesToDisconnect = new HashSet<>(targetsByNode.keySet());
-            for (final DiscoveryNode discoveryNode : discoveryNodes) {
-                nodesToDisconnect.remove(discoveryNode);
-            }
-
-            for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
-                // if node is trying to be disconnected (node-left) and pendingjoin , skip disconnect and then remove the blocking
-                if (transportService.getNodesJoinInProgress().contains(discoveryNode)) {
-                    logger.info("Skipping disconnection for node [{}] as it has a join in progress", discoveryNode);
-                    continue;
-                }
-                logger.info("NodeConnectionsService - disconnecting from node [{}] in loop", discoveryNode);
-                runnables.add(targetsByNode.get(discoveryNode).disconnect());
-            }
-        }
-        runnables.forEach(Runnable::run);
     }
 
     void ensureConnections(Runnable onCompletion) {
@@ -362,20 +343,30 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             final AbstractRunnable abstractRunnable = this;
 
             @Override
-            protected void doRun() {
+            protected void doRun() throws IOException {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                // if we are trying a connect activity while a node left is in progress, fail
+                if (transportService.getNodesLeftInProgress().contains(discoveryNode)) {
+                    throw new ConnectTransportException(discoveryNode, "failed to connect while node-left in progress");
+                }
                 if (transportService.nodeConnected(discoveryNode)) {
                     // transportService.connectToNode is a no-op if already connected, but we don't want any DEBUG logging in this case
                     // since we run this for every node on every cluster state update.
                     logger.trace("still connected to {}", discoveryNode);
                     onConnected();
                 } else {
-                    logger.debug("connecting to {}", discoveryNode);
+                    logger.info("connecting to {}", discoveryNode);
                     transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void aVoid) {
                             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                            logger.debug("connected to {}", discoveryNode);
+                            logger.info("connected to {}", discoveryNode);
+                            transportService.markPendingJoinAsCompleted(discoveryNode);
+                            logger.info(
+                                "marked pending join for {} as completed. new list of nodes pending join: {}",
+                                discoveryNode,
+                                transportService.getNodesJoinInProgress()
+                            );
                             onConnected();
                         }
 
@@ -418,8 +409,13 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
                 logger.info("disconnecting from {}", discoveryNode);
                 transportService.disconnectFromNode(discoveryNode);
+                transportService.markPendingLeftAsCompleted(discoveryNode);
                 consecutiveFailureCount.set(0);
-                logger.info("disconnected from {}", discoveryNode);
+                logger.info(
+                    "disconnected from {} and marked pending left as completed. " + "pending lefts: [{}]",
+                    discoveryNode,
+                    transportService.getNodesLeftInProgress()
+                );
                 onCompletion(ActivityType.DISCONNECTING, null, connectActivity);
             }
 

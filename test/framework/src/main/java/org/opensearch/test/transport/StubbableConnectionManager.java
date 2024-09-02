@@ -40,6 +40,7 @@ import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportConnectionListener;
 
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -119,23 +120,34 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void connectToNodeAndBlockDisconnects(
-        DiscoveryNode node,
-        ConnectionProfile connectionProfile,
-        ConnectionValidator connectionValidator,
-        ActionListener<Void> listener
-    ) throws ConnectTransportException {
-        delegate.connectToNodeAndBlockDisconnects(node, connectionProfile, connectionValidator, listener);
+    public Set<DiscoveryNode> getNodesJoinInProgress() {
+
+        return delegate.getNodesJoinInProgress();
     }
 
     @Override
-    public Set<DiscoveryNode> getNodesJoinInProgress() {
-        return delegate.getNodesJoinInProgress();
+    public Set<DiscoveryNode> getNodesLeftInProgress() {
+        return delegate.getNodesLeftInProgress();
     }
 
     @Override
     public boolean markPendingJoinCompleted(DiscoveryNode node) {
         return delegate.markPendingJoinCompleted(node);
+    }
+
+    @Override
+    public boolean markPendingLeftCompleted(DiscoveryNode node) {
+        return delegate.markPendingLeftCompleted(node);
+    }
+
+    @Override
+    public void markPendingJoins(List<DiscoveryNode> nodes) {
+        delegate.markPendingJoins(nodes);
+    }
+
+    @Override
+    public void markPendingLefts(List<DiscoveryNode> nodes) {
+        delegate.markPendingLefts(nodes);
     }
 
     @Override

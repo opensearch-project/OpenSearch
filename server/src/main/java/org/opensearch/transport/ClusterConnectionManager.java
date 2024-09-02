@@ -44,8 +44,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -65,7 +65,8 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
-    private final Set<DiscoveryNode> pendingJoins = new HashSet<>();
+    private final Set<DiscoveryNode> pendingJoins = ConcurrentCollections.newConcurrentSet();
+    private final Set<DiscoveryNode> pendingLeft = ConcurrentCollections.newConcurrentSet();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
@@ -118,8 +119,30 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     @Override
+    public Set<DiscoveryNode> getNodesLeftInProgress() {
+        return this.pendingLeft;
+    }
+
+    @Override
+    public void markPendingJoins(List<DiscoveryNode> nodes) {
+        logger.info("marking pending join for nodes: [{}]", nodes);
+        pendingJoins.addAll(nodes);
+    }
+
+    @Override
+    public void markPendingLefts(List<DiscoveryNode> nodes) {
+        logger.info("marking pending left for nodes: [{}]", nodes);
+        pendingLeft.addAll(nodes);
+    }
+
+    @Override
     public boolean markPendingJoinCompleted(DiscoveryNode discoveryNode) {
         return pendingJoins.remove(discoveryNode);
+    }
+
+    @Override
+    public boolean markPendingLeftCompleted(DiscoveryNode discoveryNode) {
+        return pendingLeft.remove(discoveryNode);
     }
 
     /**
@@ -184,89 +207,6 @@ public class ClusterConnectionManager implements ConnectionManager {
                             conn.addCloseListener(ActionListener.wrap(() -> {
                                 logger.info("unregistering {} after connection close and marking as disconnected", node);
                                 connectedNodes.remove(node, finalConnection);
-                                connectionListener.onNodeDisconnected(node, conn);
-                            }));
-                        }
-                    }
-                } finally {
-                    ListenableFuture<Void> future = pendingConnections.remove(node);
-                    assert future == currentListener : "Listener in pending map is different than the expected listener";
-                    releaseOnce.run();
-                    future.onResponse(null);
-                }
-            }, e -> {
-                assert Transports.assertNotTransportThread("connection validator failure");
-                IOUtils.closeWhileHandlingException(conn);
-                failConnectionListeners(node, releaseOnce, e, currentListener);
-            }));
-        }, e -> {
-            assert Transports.assertNotTransportThread("internalOpenConnection failure");
-            failConnectionListeners(node, releaseOnce, e, currentListener);
-        }));
-    }
-
-    // THIS IS ALMOST A COMPLETE COPY OF connectToNode, with a few lines added for pendingJoins list tracking
-    @Override
-    public void connectToNodeAndBlockDisconnects(
-        DiscoveryNode node,
-        ConnectionProfile connectionProfile,
-        ConnectionValidator connectionValidator,
-        ActionListener<Void> listener
-    ) throws ConnectTransportException {
-        logger.info("[{}]connecting to node [{}] while blocking disconnects", Thread.currentThread().getName(), node);
-        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
-        if (node == null) {
-            listener.onFailure(new ConnectTransportException(null, "can't connect to a null node"));
-            return;
-        }
-
-        if (connectingRefCounter.tryIncRef() == false) {
-            listener.onFailure(new IllegalStateException("connection manager is closed"));
-            return;
-        }
-
-        if (connectedNodes.containsKey(node)) {
-            logger.info("connectedNodes already has key for node [{}]", node);
-            pendingJoins.add(node);
-            connectingRefCounter.decRef();
-            listener.onResponse(null);
-            return;
-        }
-
-        final ListenableFuture<Void> currentListener = new ListenableFuture<>();
-        final ListenableFuture<Void> existingListener = pendingConnections.putIfAbsent(node, currentListener);
-        if (existingListener != null) {
-            try {
-                // wait on previous entry to complete connection attempt
-                existingListener.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
-            } finally {
-                connectingRefCounter.decRef();
-            }
-            return;
-        }
-
-        currentListener.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
-
-        final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
-        internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -> {
-            connectionValidator.validate(conn, resolvedProfile, ActionListener.wrap(ignored -> {
-                assert Transports.assertNotTransportThread("connection validator success");
-                try {
-                    if (connectedNodes.putIfAbsent(node, conn) != null) {
-                        logger.info("existing connection to node [{}], marking as blocked and closing new redundant connection", node);
-                        pendingJoins.add(node);
-                        IOUtils.closeWhileHandlingException(conn);
-                    } else {
-                        logger.info("connected to node [{}]", node);
-                        try {
-                            connectionListener.onNodeConnected(node, conn);
-                        } finally {
-                            pendingJoins.add(node);
-                            final Transport.Connection finalConnection = conn;
-                            conn.addCloseListener(ActionListener.wrap(() -> {
-                                logger.info("unregistering {} after connection close and marking as disconnected", node);
-                                connectedNodes.remove(node, finalConnection);
-                                pendingJoins.remove(node);
                                 connectionListener.onNodeDisconnected(node, conn);
                             }));
                         }

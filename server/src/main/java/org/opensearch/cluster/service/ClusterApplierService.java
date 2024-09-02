@@ -569,7 +569,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
         logger.info("connecting to nodes of cluster state with version {}", newClusterState.version());
         try (TimingHandle ignored = stopWatch.timing("connecting to new nodes")) {
-            connectToNodesAndWaitAndMarkCompletedJoins(newClusterState, clusterChangedEvent.nodesDelta().addedNodes());
+            // connectToNodesAndWaitAndMarkCompletedJoins(newClusterState, clusterChangedEvent.nodesDelta().addedNodes());
+            connectToNodesAndWait(newClusterState);
         }
 
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
@@ -584,8 +585,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         logger.info("apply cluster state with version {}", newClusterState.version());
         callClusterStateAppliers(clusterChangedEvent, stopWatch);
 
-        // nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
-        nodeConnectionsService.disconnectFromNonBlockedNodesExcept(newClusterState.nodes(), clusterChangedEvent.nodesDelta());
+        nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
+        // nodeConnectionsService.disconnectFromNonBlockedNodesExcept(newClusterState.nodes(), clusterChangedEvent.nodesDelta());
 
         assert newClusterState.coordinationMetadata()
             .getLastAcceptedConfiguration()

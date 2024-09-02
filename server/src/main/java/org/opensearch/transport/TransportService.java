@@ -41,6 +41,7 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Streamables;
 import org.opensearch.common.lease.Releasable;
@@ -482,25 +483,26 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, null, listener);
     }
 
-    public void connectToNodeAndBlockDisconnects(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
-        connectToNodeAndBlockDisconnects(node, null, listener);
-    }
-
-    public void connectToNodeAndBlockDisconnects(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener)
-        throws ConnectTransportException {
-        if (isLocalNode(node)) {
-            listener.onResponse(null);
-            return;
-        }
-        connectionManager.connectToNodeAndBlockDisconnects(node, connectionProfile, connectionValidator(node), listener);
-    }
-
     public Set<DiscoveryNode> getNodesJoinInProgress() {
         return connectionManager.getNodesJoinInProgress();
     }
 
+    public Set<DiscoveryNode> getNodesLeftInProgress() {
+        return connectionManager.getNodesLeftInProgress();
+    }
+
+    // this
+    public void markPendingConnections(DiscoveryNodes.Delta nodesDelta) {
+        connectionManager.markPendingJoins(nodesDelta.addedNodes());
+        connectionManager.markPendingLefts(nodesDelta.removedNodes());
+    }
+
     public boolean markPendingJoinAsCompleted(DiscoveryNode node) {
         return connectionManager.markPendingJoinCompleted(node);
+    }
+
+    public boolean markPendingLeftAsCompleted(DiscoveryNode node) {
+        return connectionManager.markPendingLeftCompleted(node);
     }
 
     public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {

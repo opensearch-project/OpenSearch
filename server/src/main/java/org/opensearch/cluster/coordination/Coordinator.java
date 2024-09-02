@@ -633,9 +633,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             );
             return;
         }
+        // add a check here, if node-left is still in progress, we fail the connection
+        if (transportService.getNodesLeftInProgress().contains(joinRequest.getSourceNode())) {
+            joinCallback.onFailure(
+                new IllegalStateException(
+                    "cannot join node [" + joinRequest.getSourceNode() + "] because node-left is currently in progress for this node"
+
+                )
+            );
+            return;
+        }
 
         // cluster manager connects to the node
-        transportService.connectToNodeAndBlockDisconnects(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
+        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
             final ClusterState stateForJoinValidation = getStateForClusterManagerService();
             if (stateForJoinValidation.nodes().isLocalNodeElectedClusterManager()) {
                 onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
@@ -1368,24 +1378,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
                 coordinationState.get().handlePrePublish(clusterState);
-                // join publish is failing
-                // before we publish, we might need
-                // can we recreate connections as part of publish if we don't find it?
-                // reconnect to any nodes that are trying to join, redundancy to avoid node connection wiping by concurrent node-join and
-                // left
-                // find diff of nodes from old state and new publishNodes
-                // this fails because we can't add blocking code to cluster manager thread
-                // for (DiscoveryNode addedNode : clusterChangedEvent.nodesDelta().addedNodes()) {
-                // // maybe add a listener here to handle failures
-                // try {
-                // transportService.connectToNode(addedNode);
-                // }
-                // catch (Exception e) {
-                // logger.info(() -> new ParameterizedMessage("[{}] failed reconnecting to [{}]", clusterChangedEvent.source(), addedNode),
-                // e);
-                // }
-                // }
-
+                // trying to mark pending connects/disconnects before publish
+                // if we try to connect during pending disconnect or vice versa - fail
+                transportService.markPendingConnections(clusterChangedEvent.nodesDelta());
                 publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {

@@ -120,22 +120,32 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void connectToNodeAndBlockDisconnects(
-        DiscoveryNode node,
-        ConnectionProfile connectionProfile,
-        ConnectionValidator connectionValidator,
-        ActionListener<Void> listener
-    ) throws ConnectTransportException {
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
     public Set<DiscoveryNode> getNodesJoinInProgress() {
         throw new UnsupportedOperationException("not implemented");
     }
 
     @Override
+    public Set<DiscoveryNode> getNodesLeftInProgress() {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
     public boolean markPendingJoinCompleted(DiscoveryNode node) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public boolean markPendingLeftCompleted(DiscoveryNode node) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public void markPendingJoins(List<DiscoveryNode> nodes) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public void markPendingLefts(List<DiscoveryNode> nodes) {
         throw new UnsupportedOperationException("not implemented");
     }
 
