@@ -121,6 +121,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                     elapsedTime,
                     RemoteStoreSettings.getPinnedTimestampsLookbackInterval().nanos()
                 );
+                logger.error(errorMessage);
                 unpinTimestamp(timestamp, pinningEntity, ActionListener.wrap(() -> listener.onFailure(new RuntimeException(errorMessage))));
             } else {
                 listener.onResponse(null);
@@ -165,6 +166,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                     timestamp,
                     existingPinningEntity
                 );
+                logger.error(errorMessage);
                 listener.onFailure(new IllegalArgumentException(errorMessage));
             }
         } catch (IOException e) {
@@ -205,6 +207,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 listener.onResponse(null);
             } else {
                 String errorMessage = String.format(Locale.ROOT, "Timestamp: %s is not pinned by entity: %s", timestamp, pinningEntity);
+                logger.error(errorMessage);
                 listener.onFailure(new IllegalArgumentException(errorMessage));
             }
         } catch (IOException e) {
