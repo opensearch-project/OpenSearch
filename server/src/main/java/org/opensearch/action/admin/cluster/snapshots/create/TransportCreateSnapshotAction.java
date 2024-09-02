@@ -111,18 +111,22 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener
     ) {
+
         if (state.nodes().getMinNodeVersion().before(SnapshotsService.NO_REPO_INITIALIZE_VERSION)) {
             if (request.waitForCompletion()) {
                 snapshotsService.executeSnapshotLegacy(request, ActionListener.map(listener, CreateSnapshotResponse::new));
             } else {
                 snapshotsService.createSnapshotLegacy(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
             }
+
         } else {
             Repository repository = repositoriesService.repository(request.repository());
             boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
 
-            if (request.waitForCompletion() || isSnapshotV2) {
+            if (request.waitForCompletion()) {
                 snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
+            } else if (isSnapshotV2) {
+                snapshotsService.executeSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
             } else {
                 snapshotsService.createSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
             }

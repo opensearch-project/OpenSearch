@@ -845,18 +845,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         String snapshotName2 = "test-create-snapshot2";
 
-        // verify even if waitForCompletion is not true, the request executes in a sync manner
-        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+        // verify response status if waitForCompletion is not true
+        RestStatus createSnapshotResponseStatus = client().admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
-            .get();
-        snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
-        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
-        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
-
+            .get()
+            .status();
+        assertEquals(RestStatus.ACCEPTED, createSnapshotResponseStatus);
     }
 
     public void testMixedSnapshotCreationWithV2RepositorySetting() throws Exception {
@@ -932,6 +927,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         CreateSnapshotResponse createSnapshotResponse2 = client().admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
+            .setWaitForCompletion(true)
             .get();
         snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -993,6 +989,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                     CreateSnapshotResponse createSnapshotResponse2 = client().admin()
                         .cluster()
                         .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+                        .setWaitForCompletion(true)
                         .get();
                     SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
                     assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -1068,6 +1065,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         CreateSnapshotResponse createSnapshotResponse2 = client().admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
             .get();
         SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -1136,6 +1134,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         CreateSnapshotResponse createSnapshotResponse2 = client().admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
             .get();
 
         SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
@@ -1256,6 +1255,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 CreateSnapshotResponse createSnapshotResponse = client().admin()
                     .cluster()
                     .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+                    .setWaitForCompletion(true)
                     .get();
                 snapshotInfo[0] = createSnapshotResponse.getSnapshotInfo();
 
