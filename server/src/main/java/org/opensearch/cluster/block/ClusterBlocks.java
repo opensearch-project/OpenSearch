@@ -47,7 +47,6 @@ import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -308,21 +307,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements Ve
 
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
-        writeVerifiableBlockSet(global, out);
-        out.writeMapOrdered(
-            indicesBlocks,
-            StreamOutput::writeString,
-            (o, s) -> writeVerifiableBlockSet(s, (BufferedChecksumStreamOutput) o),
-            Map.Entry.comparingByKey()
-        );
+        writeTo(out);
     }
 
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {
         out.writeCollection(blocks);
-    }
-
-    private static void writeVerifiableBlockSet(Set<ClusterBlock> blocks, BufferedChecksumStreamOutput out) throws IOException {
-        out.writeCollectionOrdered(blocks, (o, v) -> v.writeTo(o), Comparator.comparing(ClusterBlock::id));
     }
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {

@@ -31,11 +31,14 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -230,6 +233,37 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
             IndexTemplateMetadata parsed = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
             assertThat(parsed, equalTo(template));
         }
+    }
+
+    public void testWriteVerifiableTo() throws Exception {
+        String templateName = randomUnicodeOfCodepointLengthBetween(1, 10);
+        IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(templateName);
+        templateBuilder.patterns(Arrays.asList("pattern-1"));
+        int numAlias = 3;
+        for (int i = 0; i < numAlias; i++) {
+            AliasMetadata.Builder alias = AliasMetadata.builder(randomRealisticUnicodeOfLengthBetween(1, 100));
+            alias.indexRouting(randomRealisticUnicodeOfLengthBetween(1, 100));
+
+            alias.searchRouting(randomRealisticUnicodeOfLengthBetween(1, 100));
+
+            templateBuilder.putAlias(alias);
+        }
+        templateBuilder.settings(Settings.builder().put("index.setting-1", randomLong()));
+        templateBuilder.settings(Settings.builder().put("index.setting-2", randomTimeValue()));
+
+        templateBuilder.order(randomInt());
+
+        templateBuilder.version(between(0, 100));
+
+        templateBuilder.putMapping("doc", "{\"doc\":{\"properties\":{\"type\":\"text\"}}}");
+
+        IndexTemplateMetadata template = templateBuilder.build();
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        template.writeVerifiableTo(checksumOut);
+        StreamInput in = out.bytes().streamInput();
+        IndexTemplateMetadata result = IndexTemplateMetadata.readFrom(in);
+        assertThat(result, equalTo(template));
     }
 
     public void testDeprecationWarningsOnMultipleMappings() throws IOException {

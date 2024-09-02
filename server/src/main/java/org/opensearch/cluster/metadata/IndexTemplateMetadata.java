@@ -265,8 +265,8 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         out.writeInt(order);
         out.writeStringCollection(patterns);
         Settings.writeSettingsToStream(settings, out);
-        out.writeMapOrdered(mappings, StreamOutput::writeString, (stream, val) -> val.writeTo(stream), Map.Entry.comparingByKey());
-        out.writeMapValuesOrdered(aliases, (stream, val) -> val.writeTo(stream), Map.Entry.comparingByKey());
+        out.writeMap(mappings, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
         out.writeOptionalVInt(version);
     }
 

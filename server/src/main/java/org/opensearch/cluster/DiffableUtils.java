@@ -273,7 +273,14 @@ public final class DiffableUtils {
 
         @Override
         public String toString() {
-            return "MapDiff{" + "deletes=" + deletes + ", diffs=" + diffs + ", upserts=" + upserts + '}';
+            return new StringBuilder().append("MapDiff{deletes=")
+                .append(deletes)
+                .append(", diffs=")
+                .append(diffs)
+                .append(", upserts=")
+                .append(upserts)
+                .append("}")
+                .toString();
         }
 
         @Override

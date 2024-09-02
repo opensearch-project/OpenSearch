@@ -700,11 +700,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeClusterManager(out);
-        out.writeMapValuesOrdered(
-            nodes,
-            (stream, val) -> val.writeVerifiableTo((BufferedChecksumStreamOutput) stream),
-            Map.Entry.comparingByKey()
-        );
+        out.writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
     }
 
     private void writeClusterManager(StreamOutput out) throws IOException {

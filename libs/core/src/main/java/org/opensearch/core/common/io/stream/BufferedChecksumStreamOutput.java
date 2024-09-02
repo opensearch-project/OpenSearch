@@ -107,32 +107,31 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         writeGenericValue(newMap);
     }
 
-    public <K, V> void writeMapOrdered(
+    @Override
+    public <K, V> void writeMap(
         Map<K, V> map,
         final Writeable.Writer<K> keyWriter,
-        final Writeable.Writer<V> valueWriter,
-        Comparator<Map.Entry<K, V>> entryComparator
+        final Writeable.Writer<V> valueWriter
     ) throws IOException {
         writeVInt(map.size());
-        map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry -> {
+        map.keySet().stream().sorted().forEachOrdered(key -> {
             try {
-                keyWriter.write(this, entry.getKey());
-                valueWriter.write(this, entry.getValue());
+                keyWriter.write(this, key);
+                valueWriter.write(this, map.get(key));
             } catch (IOException e) {
                 throw new RuntimeException("Failed to write map values.", e);
             }
         });
     }
 
-    public <K, V> void writeMapValuesOrdered(
+    public <K, V> void writeMapValues(
         Map<K, V> map,
-        final Writeable.Writer<V> valueWriter,
-        Comparator<Map.Entry<K, V>> entryComparator
+        final Writeable.Writer<V> valueWriter
     ) throws IOException {
         writeVInt(map.size());
-        map.entrySet().stream().sorted(entryComparator).forEachOrdered(entry -> {
+        map.keySet().stream().sorted().forEachOrdered(key -> {
             try {
-                valueWriter.write(this, entry.getValue());
+                valueWriter.write(this, map.get(key));
             } catch (IOException e) {
                 throw new RuntimeException("Failed to write map values.", e);
             }
@@ -151,10 +150,14 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         super.writeVLongArray(values);
     }
 
-    public <T> void writeCollectionOrdered(Collection<T> collection, final Writeable.Writer<T> valueWriter, Comparator<T> comparing)
-        throws IOException {
-        List<T> sortedList = collection.stream().sorted(comparing).collect(Collectors.toList());
-        writeCollection(sortedList, valueWriter);
+    @Override
+    public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
+        if(!collection.isEmpty() && collection.iterator().next() instanceof Comparable) {
+            List<? extends Writeable> sortedList = collection.stream().sorted().collect(Collectors.toList());
+            super.writeCollection(sortedList, (o, v) -> v.writeTo(o));
+        } else {
+            super.writeCollection(collection, (o, v) -> v.writeTo(o));
+        }
     }
 
     @Override

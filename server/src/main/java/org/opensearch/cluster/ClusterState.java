@@ -841,30 +841,30 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         @Override
         public String toString() {
-            return "ClusterStateDiff{"
-                + "toVersion="
-                + toVersion
-                + ", fromUuid='"
-                + fromUuid
-                + '\''
-                + ", toUuid='"
-                + toUuid
-                + '\''
-                + ", clusterName="
-                + clusterName
-                + ", routingTable="
-                + routingTable
-                + ", nodes="
-                + nodes
-                + ", metadata="
-                + metadata
-                + ", blocks="
-                + blocks
-                + ", customs="
-                + customs
-                + ", minimumClusterManagerNodesOnPublishingClusterManager="
-                + minimumClusterManagerNodesOnPublishingClusterManager
-                + '}';
+            return new StringBuilder().append("ClusterStateDiff{toVersion=")
+                .append(toVersion)
+                .append(", fromUuid='")
+                .append(fromUuid)
+                .append('\'')
+                .append(", toUuid='")
+                .append(toUuid)
+                .append('\'')
+                .append(", clusterName=")
+                .append(clusterName)
+                .append(", routingTable=")
+                .append(routingTable)
+                .append(", nodes=")
+                .append(nodes)
+                .append(", metadata=")
+                .append(metadata)
+                .append(", blocks=")
+                .append(blocks)
+                .append(", customs=")
+                .append(customs)
+                .append(", minimumClusterManagerNodesOnPublishingClusterManager=")
+                .append(minimumClusterManagerNodesOnPublishingClusterManager)
+                .append("}")
+                .toString();
         }
 
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {

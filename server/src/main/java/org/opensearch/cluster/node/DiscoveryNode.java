@@ -372,7 +372,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeNodeDetails(out);
-        out.writeMapOrdered(attributes, StreamOutput::writeString, StreamOutput::writeString, Map.Entry.comparingByKey());
+        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         writeRolesAndVersion(out);
     }
 

@@ -408,11 +408,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         out.writeLong(version);
-        out.writeMapValuesOrdered(
-            indicesRouting,
-            (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream),
-            Map.Entry.comparingByKey()
-        );
+        out.writeMapValues(indicesRouting, (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
     }
 
     private static class RoutingTableDiff implements Diff<RoutingTable> {

@@ -174,7 +174,7 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
             .put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true)
             .build();
         final IndexMetadata indexMetadata2 = new IndexMetadata.Builder(index2.getName()).settings(idxSettings2)
-            .numberOfShards(1)
+            .numberOfShards(3)
             .numberOfReplicas(2)
             .build();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();

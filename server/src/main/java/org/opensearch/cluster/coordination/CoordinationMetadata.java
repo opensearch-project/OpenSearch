@@ -49,7 +49,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -154,10 +153,7 @@ public class CoordinationMetadata implements VerifiableWriteable, ToXContentFrag
 
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
-        out.writeLong(term);
-        lastCommittedConfiguration.writeTo(out);
-        lastAcceptedConfiguration.writeTo(out);
-        out.writeCollectionOrdered(votingConfigExclusions, (o, v) -> v.writeTo(o), Comparator.comparing(VotingConfigExclusion::getNodeId));
+        writeTo(out);
     }
 
     @Override
@@ -283,7 +279,7 @@ public class CoordinationMetadata implements VerifiableWriteable, ToXContentFrag
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static class VotingConfigExclusion implements Writeable, ToXContentFragment {
+    public static class VotingConfigExclusion implements Writeable, ToXContentFragment, Comparable<VotingConfigExclusion> {
         public static final String MISSING_VALUE_MARKER = "_absent_";
         private final String nodeId;
         private final String nodeName;
@@ -372,6 +368,10 @@ public class CoordinationMetadata implements VerifiableWriteable, ToXContentFrag
             return sb.toString();
         }
 
+        @Override
+        public int compareTo(VotingConfigExclusion votingConfigExclusion) {
+            return votingConfigExclusion.getNodeId().compareTo(this.getNodeId());
+        }
     }
 
     /**
