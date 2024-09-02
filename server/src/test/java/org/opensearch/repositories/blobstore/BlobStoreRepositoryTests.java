@@ -463,6 +463,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         Set<String> survivingIndexIds = new HashSet<>();
         survivingIndexIds.add("current-index");
 
+        RepositoryData repositoryData = generateRandomRepoData();
+
         // Create a mock RemoteStoreLockManagerFactory
         RemoteStoreLockManagerFactory mockRemoteStoreLockManagerFactory = mock(RemoteStoreLockManagerFactory.class);
         RemoteSegmentStoreDirectoryFactory mockRemoteSegmentStoreDirectoryFactory = mock(RemoteSegmentStoreDirectoryFactory.class);
@@ -515,7 +517,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             survivingIndexIds,
             mockRemoteStoreLockManagerFactory,
             mockRemoteSegmentStoreDirectoryFactory,
-            mock(RepositoryData.class),
+            repositoryData,
             listener,
             mockSnapshotShardPaths,
             Collections.emptyMap()

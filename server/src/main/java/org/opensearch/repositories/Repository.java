@@ -189,9 +189,11 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryStateId             the unique id identifying the state of the repository when the snapshot deletion began
      * @param repositoryMetaVersion         version of the updated repository metadata to write
      * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
+     * @param remoteSegmentStoreDirectoryFactory   RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
+     * @param remoteStorePinnedTimestampService service to pin/umpin the timestamp
      * @param listener                      completion listener
      */
-    default void deleteSnapshotsAndReleaseLockFiles(
+    default void deleteSnapshotsInternal(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
@@ -211,6 +213,16 @@ public interface Repository extends LifecycleComponent {
         Version repositoryMetaVersion,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        ActionListener<RepositoryData> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    default void deleteSnapshotsAndReleaseLockFiles(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<RepositoryData> listener
     ) {
         throw new UnsupportedOperationException();

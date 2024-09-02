@@ -2492,10 +2492,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             repositoryData.getGenId(),
                             minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithLockFiles),
                             remoteStoreLockManagerFactory,
-                            remoteSegmentStoreDirectoryFactory,
-                            null,
-                            Collections.emptyMap(),
-                            false,
                             ActionListener.wrap(updatedRepoData -> {
                                 logger.info("snapshots {} deleted", snapshotsWithLockFiles);
                                 removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);

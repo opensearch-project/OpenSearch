@@ -967,7 +967,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return new RepositoryStats(store.stats());
     }
 
-    public void deleteSnapshotsAndReleaseLockFiles(
+    public void deleteSnapshotsInternal(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
@@ -1022,7 +1022,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
         ActionListener<RepositoryData> listener
     ) {
-        deleteSnapshotsAndReleaseLockFiles(
+        deleteSnapshotsInternal(
             snapshotIdPinnedTimestampMap.keySet(),
             repositoryStateId,
             repositoryMetaVersion,
@@ -1036,13 +1036,34 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
+    public void deleteSnapshotsAndReleaseLockFiles(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<RepositoryData> listener
+    ) {
+        deleteSnapshotsInternal(
+            snapshotIds,
+            repositoryStateId,
+            repositoryMetaVersion,
+            remoteStoreLockManagerFactory,
+            null,
+            null,
+            Collections.emptyMap(),
+            false,
+            listener
+        );
+    }
+
+    @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     ) {
-        deleteSnapshotsAndReleaseLockFiles(
+        deleteSnapshotsInternal(
             snapshotIds,
             repositoryStateId,
             repositoryMetaVersion,
@@ -1724,6 +1745,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             Map<String, BlobMetadata> snapshotShardPaths = getSnapshotShardPaths();
             cleanupStaleIndices(
+                deletedSnapshots,
                 foundIndices,
                 survivingIndexIds,
                 remoteStoreLockManagerFactory,
@@ -1891,6 +1913,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     void cleanupStaleIndices(
+        Collection<SnapshotId> deletedSnapshots,
         Map<String, BlobContainer> foundIndices,
         Set<String> survivingIndexIds,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
@@ -1923,6 +1946,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
             for (int i = 0; i < workers; ++i) {
                 executeOneStaleIndexDelete(
+                    deletedSnapshots,
                     staleIndicesToDelete,
                     remoteStoreLockManagerFactory,
                     remoteSegmentStoreDirectoryFactory,
@@ -1961,6 +1985,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     private void executeOneStaleIndexDelete(
+        Collection<SnapshotId> deletedSnapshots,
         BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
@@ -1996,7 +2021,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 deleteResult = deleteResult.add(cleanUpStaleSnapshotShardPathsFile(matchingShardPaths, snapshotShardPaths));
 
                 if (remoteSegmentStoreDirectoryFactory != null) {
-                    cleanRemoteStoreDirectoryIfNeeded(indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
+                    cleanRemoteStoreDirectoryIfNeeded(deletedSnapshots, indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
                 }
 
                 // Finally, we delete the [base_path]/indexId folder
@@ -2020,6 +2045,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return DeleteResult.ZERO;
             } finally {
                 executeOneStaleIndexDelete(
+                    deletedSnapshots,
                     staleIndicesToDelete,
                     remoteStoreLockManagerFactory,
                     remoteSegmentStoreDirectoryFactory,
@@ -2049,6 +2075,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *                                          store segments
      */
     private void cleanRemoteStoreDirectoryIfNeeded(
+        Collection<SnapshotId> deletedSnapshots,
         String indexSnId,
         RepositoryData oldRepoData,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory
@@ -2071,6 +2098,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             for (SnapshotId snapshotId : snapshotIds) {
                 try {
+                    // skip cleanup for snapshot not present in deleted snapshots list
+                    if (!deletedSnapshots.contains(snapshotId)) {
+                        continue;
+                    }
                     IndexMetadata prevIndexMetadata = this.getSnapshotIndexMetaData(oldRepoData, snapshotId, indexId);
                     if (prevIndexMetadata != null && !isIndexPresent(clusterService, prevIndexMetadata.getIndexUUID())) {
                         String remoteStoreRepository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
