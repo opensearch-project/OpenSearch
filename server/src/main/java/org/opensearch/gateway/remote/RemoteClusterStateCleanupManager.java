@@ -81,7 +81,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         RemoteRoutingTableService remoteRoutingTableService
     ) {
         this.remoteClusterStateService = remoteClusterStateService;
-        this.remoteStateStats = remoteClusterStateService.getStats();
+        this.remoteStateStats = remoteClusterStateService.getRemoteStateStats();
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.clusterApplierService = clusterService.getClusterApplierService();
         this.staleFileCleanupInterval = clusterSettings.get(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING);
