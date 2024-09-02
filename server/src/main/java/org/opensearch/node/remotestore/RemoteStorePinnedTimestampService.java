@@ -30,6 +30,7 @@ import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -115,6 +116,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
             long elapsedTime = System.nanoTime() - startTime;
             if (elapsedTime > RemoteStoreSettings.getPinnedTimestampsLookbackInterval().nanos()) {
                 String errorMessage = String.format(
+                    Locale.ROOT,
                     "Timestamp pinning took %s nanoseconds which is more than limit of %s nanoseconds, failing the operation",
                     elapsedTime,
                     RemoteStoreSettings.getPinnedTimestampsLookbackInterval().nanos()
@@ -157,7 +159,12 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 blobContainer.writeBlob(getBlobName(timestamp, newPinningEntity), new ByteArrayInputStream(new byte[0]), 0, true);
                 listener.onResponse(null);
             } else {
-                String errorMessage = String.format("Timestamp: %s is not pinned by existing entity: %s", timestamp, existingPinningEntity);
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "Timestamp: %s is not pinned by existing entity: %s",
+                    timestamp,
+                    existingPinningEntity
+                );
                 listener.onFailure(new IllegalArgumentException(errorMessage));
             }
         } catch (IOException e) {
@@ -197,7 +204,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 blobContainer.deleteBlobsIgnoringIfNotExists(List.of(blobName));
                 listener.onResponse(null);
             } else {
-                String errorMessage = String.format("Timestamp: %s is not pinned by entity: %s", timestamp, pinningEntity);
+                String errorMessage = String.format(Locale.ROOT, "Timestamp: %s is not pinned by entity: %s", timestamp, pinningEntity);
                 listener.onFailure(new IllegalArgumentException(errorMessage));
             }
         } catch (IOException e) {
