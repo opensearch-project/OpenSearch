@@ -5024,7 +5024,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        syncTranslogFilesFromRemoteTranslog(
+        syncTranslogFilesFromGivenRemoteTranslog(
             repository,
             shardId,
             indexSettings.getRemoteStorePathStrategy(),
@@ -5033,7 +5033,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public void syncTranslogFilesFromRemoteTranslog(
+    public void syncTranslogFilesFromGivenRemoteTranslog(
         Repository repository,
         ShardId shardId,
         RemoteStorePathStrategy remoteStorePathStrategy,

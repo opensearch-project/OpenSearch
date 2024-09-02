@@ -497,7 +497,7 @@ final class StoreRecovery {
                     );
 
                     String remoteTranslogRepository = ((SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource())
-                        .sourceRemoteStoreRepository();
+                        .sourceRemoteTranslogRepository();
                     if (remoteTranslogRepository == null) {
                         remoteTranslogRepository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
                             prevIndexMetadata.getSettings()
@@ -505,7 +505,7 @@ final class StoreRecovery {
                     }
 
                     indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, remoteSegmentMetadata, true);
-                    indexShard.syncTranslogFilesFromRemoteTranslog(
+                    indexShard.syncTranslogFilesFromGivenRemoteTranslog(
                         repositoriesService.repository(remoteTranslogRepository),
                         new ShardId(prevIndexMetadata.getIndex(), shardId.id()),
                         remoteStorePathStrategy,

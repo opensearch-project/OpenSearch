@@ -2478,7 +2478,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long lastFailedGeneration = RepositoryData.UNKNOWN_REPO_GEN;
         while (true) {
             final long genToLoad;
-            if (bestEffortConsistency || true) {
+            if (bestEffortConsistency) {
                 // We're only using #latestKnownRepoGen as a hint in this mode and listing repo contents as a secondary way of trying
                 // to find a higher generation
                 final long generation;
