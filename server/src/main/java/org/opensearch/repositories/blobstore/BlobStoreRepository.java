@@ -1170,7 +1170,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Once we have updated the repository, run the clean-ups
         final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
         writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
-            if (snapshotIdPinnedTimestampMap == null || snapshotIdPinnedTimestampMap.size() == 0) {
+            if (snapshotIdPinnedTimestampMap == null || snapshotIdPinnedTimestampMap.isEmpty()) {
                 pinnedTimestampListener.onResponse(updatedRepoData);
             } else {
                 removeSnapshotsPinnedTimestamp(
@@ -1758,6 +1758,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param repositoryStateId             Current repository state id
      * @param repositoryMetaVersion         version of the updated repository metadata to write
      * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files.
+     * @param remoteSegmentStoreDirectoryFactory    RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segments.
      * @param listener                      Listener to complete when done
      */
     public void cleanup(
@@ -2031,6 +2032,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }));
     }
 
+    /**
+     * Cleans up the remote store directory if needed.
+     * <p> This method cleans up segments in the remote store directory for deleted indices.
+     * This cleanup flow is executed only for v2 snapshots. For v1 snapshots,
+     * the cleanup is done per shard after releasing the lock files.
+     * </p>
+     *
+     * <p> Since this method requires old repository data to fetch index metadata of the deleted index,
+     * the cleanup won't happen on retries in case of failures. This is because subsequent retries may
+     * not have access to the older repository data. </p>
+     *
+     * @param indexSnId     The snapshot index id of the index to be cleaned up
+     * @param oldRepoData   The old repository metadata used to fetch the index metadata.
+     * @param remoteSegmentStoreDirectoryFactory RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote
+     *                                          store segments
+     */
     private void cleanRemoteStoreDirectoryIfNeeded(
         String indexSnId,
         RepositoryData oldRepoData,
