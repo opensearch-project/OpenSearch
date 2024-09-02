@@ -207,8 +207,6 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
         assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
 
-        System.out.println("=======================================================================================");
-
         // deleting data for restoredIndexName1 and restoring from remote store.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
         ensureRed(restoredIndexName1);
