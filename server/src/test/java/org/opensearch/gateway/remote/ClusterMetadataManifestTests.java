@@ -23,6 +23,7 @@ import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -40,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -50,6 +50,7 @@ import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V0;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V4;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -208,6 +209,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 new ClusterStateDiffManifest(
                     RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
                     ClusterState.EMPTY_STATE,
+                    ClusterMetadataManifest.CODEC_V3,
                     null,
                     "indicesRoutingDiffPath"
                 )
@@ -559,6 +561,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 new ClusterStateDiffManifest(
                     RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
                     ClusterState.EMPTY_STATE,
+                    CODEC_V2,
                     null,
                     null
                 )
@@ -578,9 +581,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
     public void testClusterMetadataManifestXContentV3() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
-        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff = Mockito.mock(
-            DiffableUtils.MapDiff.class
-        );
+        final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(StringKeyDiffProvider.class);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)
@@ -625,6 +626,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 new ClusterStateDiffManifest(
                     RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
                     ClusterState.EMPTY_STATE,
+                    CODEC_V3,
                     routingTableIncrementalDiff,
                     uploadedMetadataAttribute.getUploadedFilename()
                 )
@@ -764,6 +766,71 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
     }
 
+    public void testClusterMetadataManifestXContentV4() throws IOException {
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
+        final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(StringKeyDiffProvider.class);
+        ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .clusterUUID("test-cluster-uuid")
+            .stateUUID("test-state-uuid")
+            .opensearchVersion(Version.CURRENT)
+            .nodeId("test-node-id")
+            .committed(false)
+            .codecVersion(ClusterMetadataManifest.CODEC_V4)
+            .indices(Collections.singletonList(uploadedIndexMetadata))
+            .previousClusterUUID("prev-cluster-uuid")
+            .clusterUUIDCommitted(true)
+            .coordinationMetadata(uploadedMetadataAttribute)
+            .settingMetadata(uploadedMetadataAttribute)
+            .templatesMetadata(uploadedMetadataAttribute)
+            .customMetadataMap(
+                Collections.unmodifiableList(
+                    Arrays.asList(
+                        new UploadedMetadataAttribute(
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
+                            "custom--repositories-file"
+                        ),
+                        new UploadedMetadataAttribute(
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                            "custom--index_graveyard-file"
+                        ),
+                        new UploadedMetadataAttribute(
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + WeightedRoutingMetadata.TYPE,
+                            "custom--weighted_routing_netadata-file"
+                        )
+                    )
+                ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity()))
+            )
+            .routingTableVersion(1L)
+            .indicesRouting(Collections.singletonList(uploadedIndexMetadata))
+            .discoveryNodesMetadata(uploadedMetadataAttribute)
+            .clusterBlocksMetadata(uploadedMetadataAttribute)
+            .transientSettingsMetadata(uploadedMetadataAttribute)
+            .hashesOfConsistentSettings(uploadedMetadataAttribute)
+            .clusterStateCustomMetadataMap(Collections.emptyMap())
+            .diffManifest(
+                new ClusterStateDiffManifest(
+                    RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
+                    ClusterState.EMPTY_STATE,
+                    CODEC_V4,
+                    routingTableIncrementalDiff,
+                    uploadedMetadataAttribute.getUploadedFilename()
+                )
+            )
+            .build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
+            assertEquals(originalManifest, fromXContentManifest);
+        }
+    }
+
     public static List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
         final int size = randomIntBetween(1, 10);
         final List<UploadedIndexMetadata> uploadedIndexMetadataList = new ArrayList<>(size);
@@ -816,7 +883,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         assertEquals(CODEC_V1, ClusterMetadataManifest.getCodecForVersion(Version.V_2_13_0));
         assertEquals(CODEC_V2, ClusterMetadataManifest.getCodecForVersion(Version.V_2_15_0));
         assertEquals(CODEC_V3, ClusterMetadataManifest.getCodecForVersion(Version.V_2_16_0));
-        assertEquals(CODEC_V3, ClusterMetadataManifest.getCodecForVersion(Version.V_2_17_0));
+        assertEquals(CODEC_V4, ClusterMetadataManifest.getCodecForVersion(Version.V_2_17_0));
     }
 
     private UploadedIndexMetadata randomlyChangingUploadedIndexMetadata(UploadedIndexMetadata uploadedIndexMetadata) {

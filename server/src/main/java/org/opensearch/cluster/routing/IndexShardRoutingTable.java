@@ -35,6 +35,8 @@ package org.opensearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -76,7 +78,7 @@ import static java.util.Collections.emptyMap;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexShardRoutingTable implements Iterable<ShardRouting> {
+public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTable> implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
     // Shuffler for weighted round-robin shard routing. This uses rotation to permute shards.
@@ -544,6 +546,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         return sortedShards;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        this.shardId().getIndex().writeTo(out);
+        Builder.writeToThin(this, out);
     }
 
     private static class NodeRankComparator implements Comparator<ShardRouting> {
@@ -1066,6 +1074,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             initializingShardsByWeight = new MapBuilder().put(key, new WeightedShardRoutings(weightedRoutings, nonWeightedRoutings))
                 .immutableMap();
         }
+    }
+
+    public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
+        return IndexShardRoutingTable.Builder.readFrom(in);
+    }
+
+    public static Diff<IndexShardRoutingTable> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(IndexShardRoutingTable::readFrom, in);
     }
 
     /**
