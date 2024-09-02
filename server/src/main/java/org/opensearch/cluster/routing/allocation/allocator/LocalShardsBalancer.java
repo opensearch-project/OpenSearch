@@ -41,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -71,6 +72,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
+    private final Supplier<Boolean> timedOutFunc;
     private int totalShardCount = 0;
 
     public LocalShardsBalancer(
@@ -81,7 +83,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         float threshold,
         boolean preferPrimaryBalance,
         boolean preferPrimaryRebalance,
-        boolean ignoreThrottleInRestore
+        boolean ignoreThrottleInRestore,
+        Supplier<Boolean> timedOutFunc
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -99,6 +102,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
         this.ignoreThrottleInRestore = ignoreThrottleInRestore;
+        this.timedOutFunc = timedOutFunc;
     }
 
     /**
@@ -344,6 +348,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final BalancedShardsAllocator.ModelNode[] modelNodes = sorter.modelNodes;
         final float[] weights = sorter.weights;
         for (String index : buildWeightOrderedIndices()) {
+            // Terminate if the time allocated to the balanced shards allocator has elapsed
+            if (timedOutFunc != null && timedOutFunc.get()) {
+                logger.info(
+                    "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
+                        + ". Skipping indices iteration"
+                );
+                return;
+            }
             IndexMetadata indexMetadata = metadata.index(index);
 
             // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
@@ -368,6 +380,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
             int lowIdx = 0;
             int highIdx = relevantNodes - 1;
             while (true) {
+                // break if the time allocated to the balanced shards allocator has elapsed
+                if (timedOutFunc != null && timedOutFunc.get()) {
+                    logger.info(
+                        "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
+                            + ". Skipping relevant nodes iteration"
+                    );
+                    return;
+                }
                 final BalancedShardsAllocator.ModelNode minNode = modelNodes[lowIdx];
                 final BalancedShardsAllocator.ModelNode maxNode = modelNodes[highIdx];
                 advance_range: if (maxNode.numShards(index) > 0) {
@@ -567,6 +587,15 @@ public class LocalShardsBalancer extends ShardsBalancer {
             if (sorter.modelNodes.length == inEligibleTargetNode.size()) {
                 logger.info(
                     "Cannot move any shard in the cluster as there is no node on which shards can be allocated"
+                        + ". Skipping shard iteration"
+                );
+                return;
+            }
+
+            // Terminate if the time allocated to the balanced shards allocator has elapsed
+            if (timedOutFunc != null && timedOutFunc.get()) {
+                logger.info(
+                    "Cannot move any shard in the cluster as time allocated to balanced shards allocator has elapsed"
                         + ". Skipping shard iteration"
                 );
                 return;
@@ -799,8 +828,23 @@ public class LocalShardsBalancer extends ShardsBalancer {
         int secondaryLength = 0;
         int primaryLength = primary.length;
         ArrayUtil.timSort(primary, comparator);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Staring allocation of [{}] unassigned shards", primaryLength);
+        }
         do {
             for (int i = 0; i < primaryLength; i++) {
+                if (timedOutFunc != null && timedOutFunc.get()) {
+                    // TODO - maybe check if we can allow wait for active shards thingy bypass this condition
+                    logger.info(
+                        "Ignoring [{}] unassigned shards for allocation as time allocated to balanced shards allocator has elapsed",
+                        (primaryLength - i)
+                    );
+                    while (i < primaryLength) {
+                        unassigned.ignoreShard(primary[i], UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        i++;
+                    }
+                    return;
+                }
                 ShardRouting shard = primary[i];
                 final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard);
                 final String assignedNodeId = allocationDecision.getTargetNode() != null
