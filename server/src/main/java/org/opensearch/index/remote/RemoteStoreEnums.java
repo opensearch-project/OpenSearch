@@ -13,6 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.hash.FNV1a;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
 import java.util.HashMap;
@@ -107,9 +108,9 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return BlobPath.cleanPath()
-                    .add(pathInput.fixedPrefix())
-                    .add(hashAlgorithm.hash(pathInput))
+                BlobPath path = BlobPath.cleanPath();
+                String fixedPrefix = pathInput.fixedPrefix();
+                return (Strings.isNullOrEmpty(fixedPrefix) ? path : path.add(fixedPrefix)).add(hashAlgorithm.hash(pathInput))
                     .add(pathInput.basePath())
                     .add(pathInput.fixedSubPath());
             }
@@ -123,7 +124,10 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return pathInput.basePath().add(pathInput.fixedPrefix()).add(hashAlgorithm.hash(pathInput)).add(pathInput.fixedSubPath());
+                BlobPath path = pathInput.basePath();
+                String fixedPrefix = pathInput.fixedPrefix();
+                return (Strings.isNullOrEmpty(fixedPrefix) ? path : path.add(fixedPrefix)).add(hashAlgorithm.hash(pathInput))
+                    .add(pathInput.fixedSubPath());
             }
 
             @Override
