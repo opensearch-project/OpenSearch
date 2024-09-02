@@ -95,6 +95,11 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         builder.endObject();
     }
 
+    @Override
+    public final String fieldName() {
+        return getDefaultFieldName();
+    }
+
     public static IntervalQueryBuilder fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");

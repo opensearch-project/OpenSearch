@@ -117,7 +117,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .opensearchVersion(Version.CURRENT)
             .nodeId("test-node-id")
             .committed(false)
-            .codecVersion(ClusterMetadataManifest.CODEC_V2)
+            .codecVersion(CODEC_V2)
             .indices(Collections.singletonList(uploadedIndexMetadata))
             .previousClusterUUID("prev-cluster-uuid")
             .clusterUUIDCommitted(true)
@@ -164,7 +164,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .opensearchVersion(Version.CURRENT)
             .nodeId("B10RX1f5RJenMQvYccCgSQ")
             .committed(true)
-            .codecVersion(ClusterMetadataManifest.CODEC_V3)
+            .codecVersion(CODEC_V3)
             .indices(randomUploadedIndexMetadataList())
             .previousClusterUUID("yfObdx8KSMKKrXf8UyHhM")
             .clusterUUIDCommitted(true)
@@ -498,7 +498,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .opensearchVersion(Version.CURRENT)
             .nodeId("test-node-id")
             .committed(false)
-            .codecVersion(ClusterMetadataManifest.CODEC_V2)
+            .codecVersion(CODEC_V2)
             .indices(Collections.singletonList(uploadedIndexMetadata))
             .previousClusterUUID("prev-cluster-uuid")
             .clusterUUIDCommitted(true)
@@ -563,7 +563,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .opensearchVersion(Version.CURRENT)
             .nodeId("test-node-id")
             .committed(false)
-            .codecVersion(ClusterMetadataManifest.CODEC_V3)
+            .codecVersion(CODEC_V3)
             .indices(Collections.singletonList(uploadedIndexMetadata))
             .previousClusterUUID("prev-cluster-uuid")
             .clusterUUIDCommitted(true)
@@ -633,7 +633,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .opensearchVersion(Version.CURRENT)
             .nodeId("test-node-id")
             .committed(false)
-            .codecVersion(ClusterMetadataManifest.CODEC_V2)
+            .codecVersion(CODEC_V2)
             .indices(Collections.singletonList(uploadedIndexMetadata))
             .previousClusterUUID("prev-cluster-uuid")
             .clusterUUIDCommitted(true)
@@ -778,6 +778,17 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             final UploadedIndexMetadata fromXContentUploadedIndexMetadata = UploadedIndexMetadata.fromXContent(parser, 1L);
             assertEquals(originalUploadedIndexMetadata, fromXContentUploadedIndexMetadata);
         }
+    }
+
+    public void testGetCodecForVersion() {
+        assertEquals(-1, ClusterMetadataManifest.getCodecForVersion(Version.fromString("1.3.0")));
+        assertEquals(-1, ClusterMetadataManifest.getCodecForVersion(Version.V_2_1_0));
+        assertEquals(CODEC_V0, ClusterMetadataManifest.getCodecForVersion(Version.V_2_10_0));
+        assertEquals(CODEC_V1, ClusterMetadataManifest.getCodecForVersion(Version.V_2_12_0));
+        assertEquals(CODEC_V1, ClusterMetadataManifest.getCodecForVersion(Version.V_2_13_0));
+        assertEquals(CODEC_V2, ClusterMetadataManifest.getCodecForVersion(Version.V_2_15_0));
+        assertEquals(CODEC_V3, ClusterMetadataManifest.getCodecForVersion(Version.V_2_16_0));
+        assertEquals(CODEC_V3, ClusterMetadataManifest.getCodecForVersion(Version.V_2_17_0));
     }
 
     private UploadedIndexMetadata randomlyChangingUploadedIndexMetadata(UploadedIndexMetadata uploadedIndexMetadata) {

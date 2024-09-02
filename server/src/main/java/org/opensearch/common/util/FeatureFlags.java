@@ -77,6 +77,8 @@ public class FeatureFlags {
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = "opensearch.experimental.feature.task.background.enabled";
 
+    public static final String READER_WRITER_SPLIT_EXPERIMENTAL = "opensearch.experimental.feature.read.write.split.enabled";
+
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
@@ -101,6 +103,12 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> REMOTE_PUBLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_PUBLICATION_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> READER_WRITER_SPLIT_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        READER_WRITER_SPLIT_EXPERIMENTAL,
         false,
         Property.NodeScope
     );
@@ -132,7 +140,8 @@ public class FeatureFlags {
         PLUGGABLE_CACHE_SETTING,
         REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
         STAR_TREE_INDEX_SETTING,
-        APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING
+        APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
+        READER_WRITER_SPLIT_EXPERIMENTAL_SETTING
     );
 
     /**

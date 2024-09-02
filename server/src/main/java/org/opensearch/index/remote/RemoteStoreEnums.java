@@ -207,7 +207,7 @@ public class RemoteStoreEnums {
             @Override
             String hash(PathInput pathInput) {
                 StringBuilder input = new StringBuilder();
-                for (String path : pathInput.fixedSubPath().toArray()) {
+                for (String path : pathInput.hashPath().toArray()) {
                     input.append(path);
                 }
                 long hash = FNV1a.hash64(input.toString());
@@ -222,7 +222,7 @@ public class RemoteStoreEnums {
             @Override
             String hash(PathInput pathInput) {
                 StringBuilder input = new StringBuilder();
-                for (String path : pathInput.fixedSubPath().toArray()) {
+                for (String path : pathInput.hashPath().toArray()) {
                     input.append(path);
                 }
                 long hash = FNV1a.hash64(input.toString());
