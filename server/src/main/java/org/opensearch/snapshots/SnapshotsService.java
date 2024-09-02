@@ -2504,12 +2504,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (snapshotsWithPinnedTimestamp.size() > 0) {
 
-                        // final StepListener<Void> pinnedTimestampListener = new StepListener<>();
-                        // pinnedTimestampListener.whenComplete(
-                        // updatedRepoData -> { removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData); },
-                        // ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)
-                        // );
-
                         repository.deleteSnapshotsWithPinnedTimestamp(
                             snapshotsWithPinnedTimestamp,
                             repositoryData.getGenId(),
