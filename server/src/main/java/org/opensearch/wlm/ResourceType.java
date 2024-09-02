@@ -14,12 +14,15 @@ import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Function;
 
 /**
  * Enum to hold the resource type
+ *
+ * @opensearch.api
  */
-@PublicApi(since = "2.x")
+@PublicApi(since = "2.17.0")
 public enum ResourceType {
     CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU), true),
     MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY), true);
@@ -27,6 +30,8 @@ public enum ResourceType {
     private final String name;
     private final Function<Task, Long> getResourceUsage;
     private final boolean statsEnabled;
+
+    private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
     ResourceType(String name, Function<Task, Long> getResourceUsage, boolean statsEnabled) {
         this.name = name;
@@ -68,5 +73,9 @@ public enum ResourceType {
 
     public boolean hasStatsEnabled() {
         return statsEnabled;
+    }
+
+    public static List<ResourceType> getSortedValues() {
+        return sortedValues;
     }
 }

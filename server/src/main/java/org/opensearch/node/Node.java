@@ -178,6 +178,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.SegmentReplicator;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
@@ -267,7 +268,9 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
+import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
 
 import javax.net.ssl.SNIHostName;
 
@@ -307,6 +310,7 @@ import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
@@ -814,7 +818,7 @@ public class Node implements Closeable {
                 remoteClusterStateCleanupManager = null;
             }
             final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService;
-            if (isRemoteStoreAttributePresent(settings) && CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.get(settings)) {
+            if (isRemoteDataAttributePresent(settings) && CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.get(settings)) {
                 remoteStorePinnedTimestampService = new RemoteStorePinnedTimestampService(
                     repositoriesServiceReference::get,
                     settings,
@@ -1016,11 +1020,23 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
+            final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
+                                                                                 // queryGroupService
+            final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
+                queryGroupService,
+                threadPool
+            );
+
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
                 new SearchRequestOperationsCompositeListenerFactory(
                     Stream.concat(
-                        Stream.of(searchRequestStats, searchRequestSlowLog, searchTaskRequestOperationsListener),
+                        Stream.of(
+                            searchRequestStats,
+                            searchRequestSlowLog,
+                            searchTaskRequestOperationsListener,
+                            queryGroupRequestOperationListener
+                        ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
                             .map(p -> (SearchRequestOperationsListener) p)
@@ -1070,7 +1086,8 @@ public class Node implements Closeable {
             );
 
             WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
-                threadPool
+                threadPool,
+                new QueryGroupService() // We will need to replace this with actual implementation
             );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
@@ -1415,7 +1432,8 @@ public class Node implements Closeable {
                                 transportService,
                                 new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                                 indicesService,
-                                clusterService
+                                clusterService,
+                                new SegmentReplicator(threadPool)
                             )
                         );
                     b.bind(SegmentReplicationSourceService.class)
