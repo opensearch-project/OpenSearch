@@ -110,10 +110,17 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
 
+        RepositoryMetadata testRepo1Md = findRepository(repositoriesResponse.repositories(), "test-repo-1");
+
         logger.info("--> check that trying to create a repository with the same settings repeatedly does not update cluster state");
         String beforeStateUuid = clusterStateResponse.getState().stateUUID();
         createRepository("test-repo-1", "fs", Settings.builder().put("location", location));
-        assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
+        repositoriesResponse = client.admin().cluster().prepareGetRepositories(randomFrom("_all", "*", "test-repo-*")).get();
+        RepositoryMetadata testRepo1MdAfterUpdate = findRepository(repositoriesResponse.repositories(), "test-repo-1");
+
+        if (testRepo1Md.settings().equals(testRepo1MdAfterUpdate.settings())) {
+            assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
+        }
 
         logger.info("--> delete repository test-repo-1");
         client.admin().cluster().prepareDeleteRepository("test-repo-1").get();

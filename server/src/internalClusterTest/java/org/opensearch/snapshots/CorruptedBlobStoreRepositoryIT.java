@@ -40,13 +40,9 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
-import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
-import org.opensearch.index.remote.RemoteStoreEnums.PathType;
-import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -62,7 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
+import static org.opensearch.test.OpenSearchIntegTestCase.resolvePath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -682,17 +678,5 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             repositoryException4.getMessage(),
             containsString("Could not read repository data because the contents of the repository do not match its expected state.")
         );
-    }
-
-    private static String resolvePath(IndexId indexId, String shardId) {
-        PathType pathType = PathType.fromCode(indexId.getShardPathType());
-        RemoteStorePathStrategy.SnapshotShardPathInput shardPathInput = new RemoteStorePathStrategy.SnapshotShardPathInput.Builder()
-            .basePath(BlobPath.cleanPath())
-            .indexUUID(indexId.getId())
-            .shardId(shardId)
-            .build();
-        PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
-        BlobPath blobPath = pathType.path(shardPathInput, pathHashAlgorithm);
-        return blobPath.buildAsString();
     }
 }
