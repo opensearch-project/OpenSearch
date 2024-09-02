@@ -7,6 +7,7 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.LinkedHashMap;
@@ -24,6 +25,12 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
 public class InMemoryTreeNode {
 
     public InMemoryTreeNode() {
+        this.dimensionId = ALL;
+        this.startDocId = ALL;
+        this.endDocId = ALL;
+        this.nodeType = (byte) 0;
+        this.dimensionValue = ALL;
+        this.childStarNode = new SetOnce<>();
         this.children = new LinkedHashMap<>();
     }
 
@@ -33,23 +40,24 @@ public class InMemoryTreeNode {
         this.endDocId = endDocId;
         this.nodeType = nodeType;
         this.dimensionValue = dimensionValue;
+        this.childStarNode = new SetOnce<>();
         this.children = new LinkedHashMap<>();
     }
 
     /**
      * The dimension id for the dimension (field) associated with this star-tree node.
      */
-    private int dimensionId = ALL;
+    private final int dimensionId;
 
     /**
      * The starting document id (inclusive) associated with this star-tree node.
      */
-    private int startDocId = ALL;
+    private final int startDocId;
 
     /**
      * The ending document id (exclusive) associated with this star-tree node.
      */
-    private int endDocId = ALL;
+    private final int endDocId;
 
     /**
      * The aggregated document id associated with this star-tree node.
@@ -64,12 +72,12 @@ public class InMemoryTreeNode {
     /**
      * The value of the dimension associated with this star-tree node.
      */
-    private long dimensionValue = ALL;
+    private final long dimensionValue;
 
     /**
      * A byte indicating whether the node is star node, null node or default node (with dimension value present).
      */
-    private byte nodeType = 0;
+    private byte nodeType;
 
     /**
      * A map containing the child nodes of this star-tree node, keyed by their dimension id.
@@ -79,7 +87,7 @@ public class InMemoryTreeNode {
     /**
      * A map containing the child star node of this star-tree node.
      */
-    private InMemoryTreeNode childStarNode;
+    private final SetOnce<InMemoryTreeNode> childStarNode;
 
     public long getDimensionValue() {
         return dimensionValue;
@@ -90,7 +98,7 @@ public class InMemoryTreeNode {
     }
 
     public boolean hasChild() {
-        return !(this.children.isEmpty() && this.childStarNode == null);
+        return !(this.children.isEmpty() && this.childStarNode.get() == null);
     }
 
     public int getDimensionId() {
@@ -111,8 +119,10 @@ public class InMemoryTreeNode {
 
     public void addChildNode(InMemoryTreeNode childNode, Long dimensionValue) {
         if (childNode.getNodeType() == StarTreeNodeType.STAR.getValue()) {
-            this.childStarNode = childNode;
+            assert this.childStarNode.get() == null;
+            this.childStarNode.set(childNode);
         } else {
+            assert assertStarTreeChildOrder(childNode);
             this.children.put(dimensionValue, childNode);
         }
     }
@@ -122,7 +132,7 @@ public class InMemoryTreeNode {
     }
 
     public InMemoryTreeNode getChildStarNode() {
-        return childStarNode;
+        return childStarNode.get();
     }
 
     public int getChildDimensionId() {
@@ -140,4 +150,16 @@ public class InMemoryTreeNode {
     public void setAggregatedDocId(int aggregatedDocId) {
         this.aggregatedDocId = aggregatedDocId;
     }
+
+    private boolean assertStarTreeChildOrder(InMemoryTreeNode childNode) {
+        if (childNode.nodeType != StarTreeNodeType.NULL.getValue() && !this.children.isEmpty()) {
+            InMemoryTreeNode lastNode = null;
+            for (Map.Entry<Long, InMemoryTreeNode> entry : this.children.entrySet()) {
+                lastNode = entry.getValue();
+            }
+            assert lastNode.dimensionValue <= childNode.dimensionValue;
+        }
+        return true;
+    }
+
 }
