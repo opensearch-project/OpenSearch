@@ -120,29 +120,13 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public Set<DiscoveryNode> getNodesJoinInProgress() {
-
-        return delegate.getNodesJoinInProgress();
-    }
-
-    @Override
     public Set<DiscoveryNode> getNodesLeftInProgress() {
         return delegate.getNodesLeftInProgress();
     }
 
     @Override
-    public boolean markPendingJoinCompleted(DiscoveryNode node) {
-        return delegate.markPendingJoinCompleted(node);
-    }
-
-    @Override
     public boolean markPendingLeftCompleted(DiscoveryNode node) {
         return delegate.markPendingLeftCompleted(node);
-    }
-
-    @Override
-    public void markPendingJoins(List<DiscoveryNode> nodes) {
-        delegate.markPendingJoins(nodes);
     }
 
     @Override

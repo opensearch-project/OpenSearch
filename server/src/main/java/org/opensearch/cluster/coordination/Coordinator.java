@@ -419,8 +419,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getClusterManagerNode();
-            logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
-            logger.info(
+            logger.debug(
                 "handlePublishRequest: handling version [{}] from [{}]",
                 publishRequest.getAcceptedState().getVersion(),
                 sourceNode
@@ -633,7 +632,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             );
             return;
         }
-        // add a check here, if node-left is still in progress, we fail the connection
+        // if node-left is still in progress, we fail the joinRequest early
         if (transportService.getNodesLeftInProgress().contains(joinRequest.getSourceNode())) {
             joinCallback.onFailure(
                 new IllegalStateException(
@@ -644,7 +643,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        // cluster manager connects to the node
         transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
             final ClusterState stateForJoinValidation = getStateForClusterManagerService();
             if (stateForJoinValidation.nodes().isLocalNodeElectedClusterManager()) {
@@ -783,7 +781,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
             logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}", method, leaderNode, getCurrentTerm());
         } else {
-            logger.info(
+            logger.debug(
                 "{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
                 method,
                 leaderNode,
@@ -930,7 +928,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     public void startInitialJoin() {
         synchronized (mutex) {
-            logger.info("Starting initial join, becoming candidate");
+            logger.trace("Starting initial join, becoming candidate");
             becomeCandidate("startInitialJoin");
         }
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
@@ -1373,13 +1371,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 currentPublication = Optional.of(publication);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
-
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
                 coordinationState.get().handlePrePublish(clusterState);
-                // trying to mark pending connects/disconnects before publish
-                // if we try to connect during pending disconnect or vice versa - fail
+                // trying to mark pending disconnects before publish
+                // if we try to joinRequest during pending disconnect, it should fail
                 transportService.markPendingConnections(clusterChangedEvent.nodesDelta());
                 publication.start(followersChecker.getFaultyNodes());
             }

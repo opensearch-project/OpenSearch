@@ -681,24 +681,6 @@ public class Node implements Closeable {
                 clusterManagerMetrics
             );
             clusterService.addStateApplier(scriptService);
-            /*
-            if (DiscoveryNode.isClusterManagerNode(settings)) {
-                // dummy applier for repro race condition
-                clusterService.addStateApplier(new ClusterStateApplier() {
-                    @Override
-                    public void applyClusterState(ClusterChangedEvent event) {
-                        if (event.nodesRemoved()) {
-                            try {
-                                Thread.sleep(5000);
-                            } catch (InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    }
-                });
-            }
-
-             */
             resourcesToClose.add(clusterService);
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
             if (consistentSettings.isEmpty() == false) {

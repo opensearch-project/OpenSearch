@@ -65,7 +65,6 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
-    private final Set<DiscoveryNode> pendingJoins = ConcurrentCollections.newConcurrentSet();
     private final Set<DiscoveryNode> pendingLeft = ConcurrentCollections.newConcurrentSet();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
@@ -114,30 +113,14 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public Set<DiscoveryNode> getNodesJoinInProgress() {
-        return this.pendingJoins;
-    }
-
-    @Override
     public Set<DiscoveryNode> getNodesLeftInProgress() {
         return this.pendingLeft;
-    }
-
-    @Override
-    public void markPendingJoins(List<DiscoveryNode> nodes) {
-        logger.info("marking pending join for nodes: [{}]", nodes);
-        pendingJoins.addAll(nodes);
     }
 
     @Override
     public void markPendingLefts(List<DiscoveryNode> nodes) {
         logger.info("marking pending left for nodes: [{}]", nodes);
         pendingLeft.addAll(nodes);
-    }
-
-    @Override
-    public boolean markPendingJoinCompleted(DiscoveryNode discoveryNode) {
-        return pendingJoins.remove(discoveryNode);
     }
 
     @Override

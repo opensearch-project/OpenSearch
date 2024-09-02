@@ -47,7 +47,6 @@ import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.TimeoutClusterStateListener;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -71,7 +70,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -504,7 +502,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 applyChanges(task, previousClusterState, newClusterState, stopWatch);
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
-                // at this point, cluster state appliers and listeners are completed
+                // At this point, cluster state appliers and listeners are completed
                 logger.debug(
                     "processing [{}]: took [{}] done applying updated cluster state (version: {}, uuid: {})",
                     task.source,
@@ -513,7 +511,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     newClusterState.stateUUID()
                 );
                 warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
-                // then we call the ClusterApplyListener of the task
+                // Then we call the ClusterApplyListener of the task
                 task.listener.onSuccess(task.source);
             } catch (Exception e) {
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
@@ -556,7 +554,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
             String summary = nodesDelta.shortSummary();
             if (summary.length() > 0) {
-                // print node deltas
                 logger.info(
                     "{}, term: {}, version: {}, reason: {}",
                     summary,
@@ -567,9 +564,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             }
         }
 
-        logger.info("connecting to nodes of cluster state with version {}", newClusterState.version());
+        logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
         try (TimingHandle ignored = stopWatch.timing("connecting to new nodes")) {
-            // connectToNodesAndWaitAndMarkCompletedJoins(newClusterState, clusterChangedEvent.nodesDelta().addedNodes());
             connectToNodesAndWait(newClusterState);
         }
 
@@ -582,11 +578,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             }
         }
 
-        logger.info("apply cluster state with version {}", newClusterState.version());
+        logger.debug("apply cluster state with version {}", newClusterState.version());
         callClusterStateAppliers(clusterChangedEvent, stopWatch);
 
         nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
-        // nodeConnectionsService.disconnectFromNonBlockedNodesExcept(newClusterState.nodes(), clusterChangedEvent.nodesDelta());
 
         assert newClusterState.coordinationMetadata()
             .getLastAcceptedConfiguration()
@@ -602,19 +597,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
         callClusterStateListeners(clusterChangedEvent, stopWatch);
         logger.info("completed appliers and listeners of cluster state for version {}", newClusterState.version());
-    }
-
-    protected void connectToNodesAndWaitAndMarkCompletedJoins(ClusterState newClusterState, List<DiscoveryNode> nodesAdded) {
-        // can't wait for an ActionFuture on the cluster applier thread, but we do want to block the thread here, so use a CountDownLatch.
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        nodeConnectionsService.connectToNodes(newClusterState.nodes(), countDownLatch::countDown);
-        try {
-            countDownLatch.await();
-            nodeConnectionsService.markPendingJoinsAsComplete(nodesAdded);
-        } catch (InterruptedException e) {
-            logger.debug("interrupted while connecting to nodes, continuing", e);
-            Thread.currentThread().interrupt();
-        }
     }
 
     protected void connectToNodesAndWait(ClusterState newClusterState) {

@@ -363,7 +363,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     }
                 }
 
-                logger.info("publishing cluster state version [{}]", newClusterState.version());
+                logger.debug("publishing cluster state version [{}]", newClusterState.version());
                 publish(clusterChangedEvent, taskOutputs, publicationStartTime);
             } catch (Exception e) {
                 handleException(shortSummary, publicationStartTime, newClusterState, e);
@@ -464,7 +464,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, String taskSummary) {
         ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, previousClusterState, taskSummary);
         ClusterState newClusterState = patchVersions(previousClusterState, clusterTasksResult);
-        logger.info("in cluster compute, finished computing new cluster state for version: {}", newClusterState.getVersion());
+        logger.debug("in cluster compute, finished computing new cluster state for version: {}", newClusterState.getVersion());
         return new TaskOutputs(
             taskInputs,
             previousClusterState,
@@ -911,7 +911,6 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterTasksResult<Object> clusterTasksResult;
         try {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
-
             clusterTasksResult = taskInputs.executor.execute(previousClusterState, inputs);
             if (previousClusterState != clusterTasksResult.resultingState
                 && previousClusterState.nodes().isLocalNodeElectedClusterManager()

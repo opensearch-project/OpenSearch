@@ -52,10 +52,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -179,12 +177,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
         }
         runnables.forEach(Runnable::run);
-    }
-
-    public void markPendingJoinsAsComplete(List<DiscoveryNode> nodesConnected) {
-        for (final DiscoveryNode discoveryNode : nodesConnected) {
-            transportService.markPendingJoinAsCompleted(discoveryNode);
-        }
     }
 
     void ensureConnections(Runnable onCompletion) {
@@ -343,30 +335,20 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             final AbstractRunnable abstractRunnable = this;
 
             @Override
-            protected void doRun() throws IOException {
+            protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                // if we are trying a connect activity while a node left is in progress, fail
-                if (transportService.getNodesLeftInProgress().contains(discoveryNode)) {
-                    throw new ConnectTransportException(discoveryNode, "failed to connect while node-left in progress");
-                }
                 if (transportService.nodeConnected(discoveryNode)) {
                     // transportService.connectToNode is a no-op if already connected, but we don't want any DEBUG logging in this case
                     // since we run this for every node on every cluster state update.
                     logger.trace("still connected to {}", discoveryNode);
                     onConnected();
                 } else {
-                    logger.info("connecting to {}", discoveryNode);
+                    logger.debug("connecting to {}", discoveryNode);
                     transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void aVoid) {
                             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                            logger.info("connected to {}", discoveryNode);
-                            transportService.markPendingJoinAsCompleted(discoveryNode);
-                            logger.info(
-                                "marked pending join for {} as completed. new list of nodes pending join: {}",
-                                discoveryNode,
-                                transportService.getNodesJoinInProgress()
-                            );
+                            logger.debug("connected to {}", discoveryNode);
                             onConnected();
                         }
 
@@ -407,11 +389,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             @Override
             protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                logger.info("disconnecting from {}", discoveryNode);
                 transportService.disconnectFromNode(discoveryNode);
                 transportService.markPendingLeftAsCompleted(discoveryNode);
                 consecutiveFailureCount.set(0);
-                logger.info(
+                logger.debug(
                     "disconnected from {} and marked pending left as completed. " + "pending lefts: [{}]",
                     discoveryNode,
                     transportService.getNodesLeftInProgress()
@@ -444,7 +425,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         Runnable disconnect() {
-            logger.info("running runnable disconnect");
             return addListenerAndStartActivity(
                 null,
                 ActivityType.DISCONNECTING,
