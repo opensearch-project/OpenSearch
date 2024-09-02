@@ -52,9 +52,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.repositories.IndexId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -70,8 +70,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.opensearch.test.OpenSearchIntegTestCase.resolvePath;
 import static org.opensearch.snapshots.SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API;
+import static org.opensearch.test.OpenSearchIntegTestCase.resolvePath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

@@ -204,10 +204,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    // TODO: discuss values and name to be used here
+    /**
+     * Setting to specify the maximum number of shards that can be included in the result for the snapshot status
+     * API call. Note that it does not apply to V2-shallow snapshots.
+     */
     public static final Setting<Integer> MAX_SHARDS_ALLOWED_IN_STATUS_API = Setting.intSetting(
         "snapshot.max_shards_allowed_in_status_api",
-        1000,
+        200000,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
