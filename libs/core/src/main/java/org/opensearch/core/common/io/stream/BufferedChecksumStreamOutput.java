@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -108,11 +107,8 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
     }
 
     @Override
-    public <K, V> void writeMap(
-        Map<K, V> map,
-        final Writeable.Writer<K> keyWriter,
-        final Writeable.Writer<V> valueWriter
-    ) throws IOException {
+    public <K, V> void writeMap(Map<K, V> map, final Writeable.Writer<K> keyWriter, final Writeable.Writer<V> valueWriter)
+        throws IOException {
         writeVInt(map.size());
         map.keySet().stream().sorted().forEachOrdered(key -> {
             try {
@@ -124,10 +120,7 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         });
     }
 
-    public <K, V> void writeMapValues(
-        Map<K, V> map,
-        final Writeable.Writer<V> valueWriter
-    ) throws IOException {
+    public <K, V> void writeMapValues(Map<K, V> map, final Writeable.Writer<V> valueWriter) throws IOException {
         writeVInt(map.size());
         map.keySet().stream().sorted().forEachOrdered(key -> {
             try {
@@ -152,12 +145,8 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
 
     @Override
     public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
-        if(!collection.isEmpty() && collection.iterator().next() instanceof Comparable) {
-            List<? extends Writeable> sortedList = collection.stream().sorted().collect(Collectors.toList());
-            super.writeCollection(sortedList, (o, v) -> v.writeTo(o));
-        } else {
-            super.writeCollection(collection, (o, v) -> v.writeTo(o));
-        }
+        List<? extends Writeable> sortedList = collection.stream().sorted().collect(Collectors.toList());
+        super.writeCollection(sortedList, (o, v) -> v.writeTo(o));
     }
 
     @Override
