@@ -628,16 +628,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
-        assertTrue(
-            e.getMessage()
-                .equals(
-                    "a remote store node ["
-                        + joiningNode
-                        + "] is trying to join a remote store cluster with incompatible node attributes in comparison with existing node ["
-                        + currentState.getNodes().getNodes().values().stream().findFirst().get()
-                        + "]"
-                )
-        );
+        assertTrue(e.getMessage().equals("a non remote store node [" + joiningNode + "] is trying to join a remote store cluster"));
     }
 
     public void testPreventJoinClusterWithRemoteStoreNodeJoiningRemoteStateCluster() {
@@ -657,16 +648,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
-        assertTrue(
-            e.getMessage()
-                .equals(
-                    "a remote store node ["
-                        + joiningNode
-                        + "] is trying to join a remote store cluster with incompatible node attributes in comparison with existing node ["
-                        + currentState.getNodes().getNodes().values().stream().findFirst().get()
-                        + "]"
-                )
-        );
+        assertTrue(e.getMessage().equals("a remote store node [" + joiningNode + "] is trying to join a non remote store cluster"));
     }
 
     public void testUpdatesClusterStateWithSingleNodeCluster() throws Exception {

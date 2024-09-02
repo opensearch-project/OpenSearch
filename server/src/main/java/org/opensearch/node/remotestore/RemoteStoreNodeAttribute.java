@@ -264,6 +264,14 @@ public class RemoteStoreNodeAttribute {
         return this.getRepositoriesMetadata().equalsIgnoreGenerationsWithRepoSkip(that.getRepositoriesMetadata(), reposToSkip);
     }
 
+    public boolean equalsForRepositories(Object otherNode, List<String> repositoryToValidate) {
+        if (this == otherNode) return true;
+        if (otherNode == null || getClass() != otherNode.getClass()) return false;
+
+        RemoteStoreNodeAttribute other = (RemoteStoreNodeAttribute) otherNode;
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsForRepo(other.repositoriesMetadata, repositoryToValidate);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
