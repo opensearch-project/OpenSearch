@@ -278,7 +278,7 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
         if (hasIndexFilter) {
             assertEquals(0, snapshotStatus.getStats().getTotalSize());
         } else {
-            // TODO: after adding primary store size at the snapshot level, total size here should be > 0
+            assertTrue(snapshotStatus.getStats().getTotalSize() > 0L);
         }
         // assert that total and incremental values of file count and size_in_bytes are 0 at index and shard levels
         assertEquals(0, snapshotStatus.getStats().getTotalFileCount());

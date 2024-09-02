@@ -69,11 +69,13 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     final Map<ShardRouting, String> routingToDataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, FileCacheStats> nodeFileCacheStats;
+    final long primaryStoreSize;
+
     private long avgTotalBytes;
     private long avgFreeByte;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), 0L);
     }
 
     /**
@@ -84,6 +86,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @param shardSizes a shardkey to size in bytes mapping per shard.
      * @param routingToDataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
+     * @param primaryStoreSize total size in bytes for all the primary shards
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -92,7 +95,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         final Map<String, Long> shardSizes,
         final Map<ShardRouting, String> routingToDataPath,
         final Map<NodeAndPath, ReservedSpace> reservedSpace,
-        final Map<String, FileCacheStats> nodeFileCacheStats
+        final Map<String, FileCacheStats> nodeFileCacheStats,
+        final long primaryStoreSize
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
@@ -100,6 +104,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.routingToDataPath = routingToDataPath;
         this.reservedSpace = reservedSpace;
         this.nodeFileCacheStats = nodeFileCacheStats;
+        this.primaryStoreSize = primaryStoreSize;
         calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
     }
 
@@ -120,6 +125,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             this.nodeFileCacheStats = in.readMap(StreamInput::readString, FileCacheStats::new);
         } else {
             this.nodeFileCacheStats = Map.of();
+        }
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            this.primaryStoreSize = in.readOptionalLong();
+        } else {
+            this.primaryStoreSize = 0L;
         }
 
         calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
@@ -165,6 +175,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.reservedSpace, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeMap(this.nodeFileCacheStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        }
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeOptionalLong(this.primaryStoreSize);
         }
     }
 
@@ -220,6 +233,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             }
         }
         builder.endArray(); // end "reserved_sizes"
+        builder.field("primary_store_size", this.primaryStoreSize);
         return builder;
     }
 
@@ -244,6 +258,13 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      */
     public Map<String, FileCacheStats> getNodeFileCacheStats() {
         return Collections.unmodifiableMap(this.nodeFileCacheStats);
+    }
+
+    /**
+     * Returns the total size in bytes for all the primary shards
+     */
+    public long getPrimaryStoreSize() {
+        return primaryStoreSize;
     }
 
     /**
