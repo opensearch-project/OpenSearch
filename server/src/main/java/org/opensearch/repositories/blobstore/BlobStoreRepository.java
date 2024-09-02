@@ -1029,7 +1029,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             null, // Passing null since no remote store lock files need to be cleaned up.
             remoteSegmentStoreDirectoryFactory,
             remoteStorePinnedTimestampService,
-            Collections.emptyMap(),
+            snapshotIdPinnedTimestampMap,
             true, // true only for shallow snapshot v2
             listener
         );
@@ -1994,7 +1994,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // If there are matchingShardPaths, then we delete them after we have deleted the shard data.
                 deleteResult = deleteResult.add(cleanUpStaleSnapshotShardPathsFile(matchingShardPaths, snapshotShardPaths));
 
-                if (remoteStoreLockManagerFactory != null) {
+                if (remoteSegmentStoreDirectoryFactory != null) {
                     cleanRemoteStoreDirectoryIfNeeded(indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
                 }
 

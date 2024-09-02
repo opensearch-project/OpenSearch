@@ -542,6 +542,91 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     }
 
+    public void testRemoteStoreCleanupForDeletedIndexForSnapshotV2() throws Exception {
+        disableRepoConsistencyCheck("Remote store repository is being used in the test");
+        final Path remoteStoreRepoPath = randomRepoPath();
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Settings settings = remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath);
+
+        internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        final Client clusterManagerClient = internalCluster().clusterManagerClient();
+        ensureStableCluster(2);
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        final Path snapshotRepoPath = randomRepoPath();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(remoteStoreEnabledIndexName)
+            .get()
+            .getSetting(remoteStoreEnabledIndexName, IndexMetadata.SETTING_INDEX_UUID);
+
+        logger.info("--> create two remote index shallow snapshots");
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, "snap1")
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo snapshotInfo1 = createSnapshotResponse.getSnapshotInfo();
+
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, "snap2")
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo snapshotInfo2 = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo2.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo2.totalShards()));
+        assertThat(snapshotInfo2.snapshotId().getName(), equalTo("snap2"));
+        final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
+
+        // delete remote store index
+        assertAcked(client().admin().indices().prepareDelete(remoteStoreEnabledIndexName));
+
+        logger.info("--> delete snapshot 1");
+        AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
+            .cluster()
+            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo1.snapshotId().getName())
+            .get();
+        assertAcked(deleteSnapshotResponse);
+
+        logger.info("--> delete snapshot 2");
+        deleteSnapshotResponse = clusterManagerClient.admin()
+            .cluster()
+            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo2.snapshotId().getName())
+            .get();
+        assertAcked(deleteSnapshotResponse);
+
+        Path indexPath = Path.of(String.valueOf(remoteStoreRepoPath), indexUUID);
+        // Delete is async. Give time for it
+        assertBusy(() -> {
+            try {
+                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(indexPath), comparesEqualTo(0));
+            } catch (Exception e) {}
+        }, 30, TimeUnit.SECONDS);
+    }
+
     private List<String> createNSnapshots(String repoName, int count) {
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
