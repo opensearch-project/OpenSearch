@@ -15,6 +15,8 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Optional;
+
 /**
  * Tests for translog flush interval settings update with and without composite index
  */
@@ -35,11 +37,15 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
         MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(requestSettings, clusterSettings);
     }
 
-    public void testMissingTranslogFlushSetting() {
+    public void testDefaultTranslogFlushSetting() {
         Settings requestSettings = Settings.builder().put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true).build();
 
         // This should not throw an exception
-        MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(requestSettings, clusterSettings);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(requestSettings, clusterSettings)
+        );
+        assertEquals("You can configure 'index.translog.flush_threshold_size' with upto '130mb' for composite index", ex.getMessage());
     }
 
     public void testMissingCompositeIndexSetting() {
@@ -92,7 +98,13 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
         Settings indexSettings = Settings.builder().put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true).build();
 
         // This should not throw an exception
-        MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(requestSettings, clusterSettings, indexSettings);
+        assertTrue(
+            MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(
+                requestSettings,
+                clusterSettings,
+                indexSettings
+            ).isEmpty()
+        );
     }
 
     public void testUpdateFlushSizeAboveThresholdWithCompositeIndex() {
@@ -102,15 +114,13 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
 
         Settings indexSettings = Settings.builder().put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true).build();
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(
-                requestSettings,
-                clusterSettings,
-                indexSettings
-            )
+        Optional<String> err = MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(
+            requestSettings,
+            clusterSettings,
+            indexSettings
         );
-        assertEquals("You can configure 'index.translog.flush_threshold_size' with upto '130mb' for composite index", ex.getMessage());
+        assertTrue(err.isPresent());
+        assertEquals("You can configure 'index.translog.flush_threshold_size' with upto '130mb' for composite index", err.get());
     }
 
     public void testUpdateFlushSizeAboveThresholdWithoutCompositeIndex() {
@@ -121,6 +131,12 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
         Settings indexSettings = Settings.builder().build();
 
         // This should not throw an exception
-        MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(requestSettings, clusterSettings, indexSettings);
+        assertTrue(
+            MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(
+                requestSettings,
+                clusterSettings,
+                indexSettings
+            ).isEmpty()
+        );
     }
 }

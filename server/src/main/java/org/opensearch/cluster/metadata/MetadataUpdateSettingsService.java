@@ -226,7 +226,7 @@ public class MetadataUpdateSettingsService {
                             normalizedSettings,
                             clusterService.getClusterSettings(),
                             metadata.getSettings()
-                        );
+                        ).ifPresent(validationErrors::add);
 
                     }
 

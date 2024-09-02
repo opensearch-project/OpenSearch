@@ -663,6 +663,22 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         );
     }
 
+    public void testTranslogFlushThresholdSizeWithDefaultCompositeSettingLow() {
+        Settings updatedSettings = Settings.builder()
+            .put(CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "130m")
+            .build();
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(updatedSettings);
+
+        client().admin().cluster().updateSettings(updateSettingsRequest).actionGet();
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get()
+        );
+
+        assertEquals("You can configure 'index.translog.flush_threshold_size' with upto '130mb' for composite index", ex.getMessage());
+    }
+
     public void testUpdateTranslogFlushThresholdSize() {
         prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get();
 

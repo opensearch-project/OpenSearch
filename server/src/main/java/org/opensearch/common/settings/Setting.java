@@ -2081,17 +2081,6 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<ByteSizeValue> byteSizeSetting(
         String key,
-        ByteSizeValue defaultValue,
-        ByteSizeValue minValue,
-        ByteSizeValue maxValue,
-        Validator<ByteSizeValue> validator,
-        Property... properties
-    ) {
-        return new Setting<>(key, defaultValue.getStringRep(), new ByteSizeValueParser(minValue, maxValue, key), validator, properties);
-    }
-
-    public static Setting<ByteSizeValue> byteSizeSetting(
-        String key,
         Function<Settings, String> defaultValue,
         ByteSizeValue minValue,
         ByteSizeValue maxValue,

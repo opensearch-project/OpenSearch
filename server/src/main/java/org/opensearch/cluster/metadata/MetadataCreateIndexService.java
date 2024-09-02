@@ -1753,39 +1753,10 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster setting
      */
     public static void validateTranslogFlushIntervalSettingsForCompositeIndex(Settings requestSettings, ClusterSettings clusterSettings) {
-        if (INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.exists(requestSettings) == false
-            || requestSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()) == null
-            || StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.exists(requestSettings) == false
+        if (StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.exists(requestSettings) == false
             || requestSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey()) == null) {
             return;
         }
-        validateTranslogFlushSize(requestSettings, clusterSettings);
-    }
-
-    /**
-     * Validates {@code index.translog.flush_threshold_size} is equal or below the {@code indices.composite_index.translog.max_flush_threshold_size}
-     * for composite indices based on {{@code index.composite_index}}
-     * This is used during update index settings flow
-     *
-     * @param requestSettings settings passed in during index update request
-     * @param clusterSettings cluster setting
-     * @param indexSettings index settings
-     */
-    public static void validateTranslogFlushIntervalSettingsForCompositeIndex(
-        Settings requestSettings,
-        ClusterSettings clusterSettings,
-        Settings indexSettings
-    ) {
-        if (INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.exists(requestSettings) == false
-            || requestSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()) == null
-            || StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.exists(indexSettings) == false
-            || indexSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey()) == null) {
-            return;
-        }
-        validateTranslogFlushSize(requestSettings, clusterSettings);
-    }
-
-    private static void validateTranslogFlushSize(Settings requestSettings, ClusterSettings clusterSettings) {
         ByteSizeValue translogFlushSize = INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(requestSettings);
         ByteSizeValue compositeIndexMaxFlushSize = clusterSettings.get(
             CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING
@@ -1800,6 +1771,43 @@ public class MetadataCreateIndexService {
                 )
             );
         }
+    }
+
+    /**
+     * Validates {@code index.translog.flush_threshold_size} is equal or below the {@code indices.composite_index.translog.max_flush_threshold_size}
+     * for composite indices based on {{@code index.composite_index}}
+     * This is used during update index settings flow
+     *
+     * @param requestSettings settings passed in during index update request
+     * @param clusterSettings cluster setting
+     * @param indexSettings index settings
+     */
+    public static Optional<String> validateTranslogFlushIntervalSettingsForCompositeIndex(
+        Settings requestSettings,
+        ClusterSettings clusterSettings,
+        Settings indexSettings
+    ) {
+        if (INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.exists(requestSettings) == false
+            || requestSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()) == null
+            || StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.exists(indexSettings) == false
+            || indexSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey()) == null) {
+            return Optional.empty();
+        }
+        ByteSizeValue translogFlushSize = INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(requestSettings);
+        ByteSizeValue compositeIndexMaxFlushSize = clusterSettings.get(
+            CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING
+        );
+        if (translogFlushSize.compareTo(compositeIndexMaxFlushSize) > 0) {
+            return Optional.of(
+                String.format(
+                    Locale.ROOT,
+                    "You can configure '%s' with upto '%s' for composite index",
+                    INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                    compositeIndexMaxFlushSize
+                )
+            );
+        }
+        return Optional.empty();
     }
 
     /**
