@@ -101,6 +101,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.applicationtemplates.TestSystemTemplatesRepositoryPlugin;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.network.NetworkModule;
@@ -145,7 +146,9 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -161,6 +164,7 @@ import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
@@ -227,6 +231,7 @@ import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -2902,5 +2907,17 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), randomBoolean());
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), false);
         return settings.build();
+    }
+
+    public static String resolvePath(IndexId indexId, String shardId) {
+        PathType pathType = PathType.fromCode(indexId.getShardPathType());
+        RemoteStorePathStrategy.SnapshotShardPathInput shardPathInput = new RemoteStorePathStrategy.SnapshotShardPathInput.Builder()
+            .basePath(BlobPath.cleanPath())
+            .indexUUID(indexId.getId())
+            .shardId(shardId)
+            .build();
+        RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
+        BlobPath blobPath = pathType.path(shardPathInput, pathHashAlgorithm);
+        return blobPath.buildAsString();
     }
 }
