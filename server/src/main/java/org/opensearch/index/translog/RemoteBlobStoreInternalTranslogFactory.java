@@ -69,19 +69,36 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
-        return new RemoteFsTranslog(
-            config,
-            translogUUID,
-            deletionPolicy,
-            globalCheckpointSupplier,
-            primaryTermSupplier,
-            persistedSequenceNumberConsumer,
-            blobStoreRepository,
-            threadPool,
-            startedPrimarySupplier,
-            remoteTranslogTransferTracker,
-            remoteStoreSettings
-        );
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+            return new RemoteFsTranslogWithPinnedTimestamps(
+                config,
+                translogUUID,
+                deletionPolicy,
+                globalCheckpointSupplier,
+                primaryTermSupplier,
+                persistedSequenceNumberConsumer,
+                blobStoreRepository,
+                threadPool,
+                startedPrimarySupplier,
+                remoteTranslogTransferTracker,
+                remoteStoreSettings,
+                0
+            );
+        } else {
+            return new RemoteFsTranslog(
+                config,
+                translogUUID,
+                deletionPolicy,
+                globalCheckpointSupplier,
+                primaryTermSupplier,
+                persistedSequenceNumberConsumer,
+                blobStoreRepository,
+                threadPool,
+                startedPrimarySupplier,
+                remoteTranslogTransferTracker,
+                remoteStoreSettings
+            );
+        }
     }
 
     public Repository getRepository() {

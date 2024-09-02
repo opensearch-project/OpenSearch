@@ -118,11 +118,11 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected RemoteFsTranslog translog;
-    private AtomicLong globalCheckpoint;
+    protected AtomicLong globalCheckpoint;
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
     protected final AtomicLong primaryTerm = new AtomicLong();
-    private final AtomicBoolean primaryMode = new AtomicBoolean(true);
+    protected final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     protected ThreadPool threadPool;
     protected final static String METADATA_DIR = "metadata";
@@ -136,7 +136,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     TestTranslog.SlowDownWriteSwitch slowDown;
 
-    private LongConsumer getPersistedSeqNoConsumer() {
+    protected LongConsumer getPersistedSeqNoConsumer() {
         return seqNo -> {
             final LongConsumer consumer = persistedSeqNoConsumer.get();
             if (consumer != null) {
@@ -167,7 +167,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
     }
 
-    private RemoteFsTranslog create(Path path) throws IOException {
+    protected RemoteFsTranslog create(Path path) throws IOException {
         final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         return create(path, createRepository(), translogUUID, 0);
     }
@@ -179,6 +179,14 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         blobStoreTransferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
+        return createTranslogInstance(translogConfig, translogUUID, deletionPolicy);
+    }
+
+    protected RemoteFsTranslog createTranslogInstance(
+        TranslogConfig translogConfig,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy
+    ) throws IOException {
         return new RemoteFsTranslog(
             translogConfig,
             translogUUID,
