@@ -52,7 +52,7 @@ public class StarTreeUtilsTests extends OpenSearchTestCase {
     public void testGetFieldInfo() {
         String fieldName = UUID.randomUUID().toString();
         int fieldNumber = randomInt();
-        assertFieldInfos(StarTreeUtils.getFieldInfo(fieldName, fieldNumber), fieldName, fieldNumber);
+        assertFieldInfos(StarTreeUtils.getFieldInfo(fieldName, DocValuesType.SORTED_NUMERIC, fieldNumber), fieldName, fieldNumber);
 
     }
 
