@@ -144,7 +144,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         remoteManifestManager = mock(RemoteManifestManager.class);
         remoteClusterStateService = mock(RemoteClusterStateService.class);
         when(remoteClusterStateService.getRemoteManifestManager()).thenReturn(remoteManifestManager);
-        when(remoteClusterStateService.getStats()).thenReturn(new RemotePersistenceStats());
+        when(remoteClusterStateService.getRemoteStateStats()).thenReturn(new RemotePersistenceStats());
         when(remoteClusterStateService.getThreadpool()).thenReturn(threadPool);
         when(remoteClusterStateService.getBlobStore()).thenReturn(blobStore);
         when(remoteClusterStateService.getBlobStoreRepository()).thenReturn(blobStoreRepository);
@@ -503,7 +503,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             assertBusy(() -> {
                 // wait for stats to get updated
                 assertTrue(remoteClusterStateCleanupManager.getStats() != null);
-                assertEquals(0, remoteClusterStateCleanupManager.getStats().getSuccessCount());
+                assertEquals(0, remoteClusterStateCleanupManager.getStats().getUploadStats().getSuccessCount());
                 assertEquals(1, remoteClusterStateCleanupManager.getStats().getCleanupAttemptFailedCount());
             });
         } catch (Exception e) {
