@@ -292,6 +292,11 @@ public class RemoteStoreSettings {
         return pinnedTimestampsLookbackInterval;
     }
 
+    // Visible for testing
+    public static void setPinnedTimestampsLookbackInterval(TimeValue pinnedTimestampsLookbackInterval) {
+        RemoteStoreSettings.pinnedTimestampsLookbackInterval = pinnedTimestampsLookbackInterval;
+    }
+
     public static boolean isPinnedTimestampsEnabled() {
         return isPinnedTimestampsEnabled;
     }
