@@ -677,6 +677,23 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
+     * Returns an iterator on replica shards.
+     */
+    public ShardIterator searchReplicaActiveInitializingShardIt() {
+        LinkedList<ShardRouting> ordered = new LinkedList<>();
+        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+            if (replica.isSearchOnly()) {
+                if (replica.active()) {
+                    ordered.addFirst(replica);
+                } else if (replica.initializing()) {
+                    ordered.addLast(replica);
+                }
+            }
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
      * Returns an iterator on active and initializing shards residing on the provided nodeId.
      */
     public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
