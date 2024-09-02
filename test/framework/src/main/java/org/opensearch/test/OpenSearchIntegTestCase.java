@@ -2585,6 +2585,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         putRepository(clusterAdmin(), repoName, type, null, settings);
     }
 
+    public Settings getNodeSettings() {
+        InternalTestCluster internalTestCluster = internalCluster();
+        ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getClusterManagerName());
+        return clusterService.getSettings();
+    }
+
     public static void putRepository(ClusterAdminClient adminClient, String repoName, String type, Settings.Builder settings) {
         assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null, false));
     }
