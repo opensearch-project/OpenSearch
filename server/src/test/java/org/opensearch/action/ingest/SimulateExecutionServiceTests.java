@@ -39,6 +39,7 @@ import org.opensearch.ingest.CompoundProcessor;
 import org.opensearch.ingest.DropProcessor;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.IngestProcessorException;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.Pipeline;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
@@ -67,6 +68,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 public class SimulateExecutionServiceTests extends OpenSearchTestCase {
 
@@ -75,11 +78,13 @@ public class SimulateExecutionServiceTests extends OpenSearchTestCase {
     private TestThreadPool threadPool;
     private SimulateExecutionService executionService;
     private IngestDocument ingestDocument;
+    private IngestService ingestService;
 
     @Before
     public void setup() {
+        ingestService = mock(IngestService.class);
         threadPool = new TestThreadPool(SimulateExecutionServiceTests.class.getSimpleName());
-        executionService = new SimulateExecutionService(threadPool);
+        executionService = new SimulateExecutionService(threadPool, ingestService);
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
     }
 
@@ -398,6 +403,26 @@ public class SimulateExecutionServiceTests extends OpenSearchTestCase {
             assertThat(result.getIngestDocument().getMetadata().get(IngestDocument.Metadata.ID), equalTo(Integer.toString(id)));
             assertThat(result.getIngestDocument().getSourceAndMetadata().get("processed"), is(true));
         }
+    }
+
+    public void testValidateProcessorCountForIngestPipelineThrowsException() {
+
+        int numDocs = randomIntBetween(1, 64);
+        List<IngestDocument> documents = new ArrayList<>(numDocs);
+        for (int id = 0; id < numDocs; id++) {
+            documents.add(new IngestDocument("_index", Integer.toString(id), null, 0L, VersionType.INTERNAL, new HashMap<>()));
+        }
+
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor());
+        SimulatePipelineRequest.Parsed request = new SimulatePipelineRequest.Parsed(pipeline, documents, false);
+
+        AtomicReference<SimulatePipelineResponse> responseHolder = new AtomicReference<>();
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        doThrow(new IllegalStateException()).when(ingestService).validateProcessorCountForIngestPipeline(pipeline);
+
+        expectThrows(IllegalStateException.class, () -> executionService.execute(request, ActionListener.wrap(response -> {}, e -> {})));
     }
 
     private static void assertVerboseResult(
