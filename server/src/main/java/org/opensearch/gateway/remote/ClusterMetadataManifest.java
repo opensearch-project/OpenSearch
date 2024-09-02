@@ -255,7 +255,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V4;
 
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = CODEC_V3;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = CODEC_V4;
 
     private static final Map<Version, Integer> VERSION_TO_CODEC_MAPPING;
 
@@ -279,6 +279,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V3);
             } else if (version.onOrAfter(Version.V_2_17_0)) {
                 versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V4);
+            }
         }
         VERSION_TO_CODEC_MAPPING = Collections.unmodifiableMap(versionToCodecMapping);
     }

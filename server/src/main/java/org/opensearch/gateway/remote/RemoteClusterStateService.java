@@ -1490,7 +1490,6 @@ public class RemoteClusterStateService implements Closeable {
         remoteStateStats.stateDiffDownloadTook(durationMillis);
 
         return clusterState;
-        return clusterState;
     }
 
     void validateClusterStateFromChecksum(
