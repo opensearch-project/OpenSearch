@@ -268,8 +268,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V1);
             } else if (version.onOrAfter(Version.V_2_15_0) && version.before(Version.V_2_16_0)) {
                 versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V2);
-            } else if (version.onOrAfter(Version.V_2_16_0)) {
+            } else if (version.onOrAfter(Version.V_2_16_0) && version.before(Version.V_2_17_0)) {
                 versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V3);
+            } else if (version.onOrAfter(Version.V_2_17_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V4);
             }
         }
         VERSION_TO_CODEC_MAPPING = Collections.unmodifiableMap(versionToCodecMapping);

@@ -788,7 +788,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         assertEquals(CODEC_V1, ClusterMetadataManifest.getCodecForVersion(Version.V_2_13_0));
         assertEquals(CODEC_V2, ClusterMetadataManifest.getCodecForVersion(Version.V_2_15_0));
         assertEquals(CODEC_V3, ClusterMetadataManifest.getCodecForVersion(Version.V_2_16_0));
-        assertEquals(CODEC_V3, ClusterMetadataManifest.getCodecForVersion(Version.V_2_17_0));
+        assertEquals(CODEC_V4, ClusterMetadataManifest.getCodecForVersion(Version.V_2_17_0));
     }
 
     private UploadedIndexMetadata randomlyChangingUploadedIndexMetadata(UploadedIndexMetadata uploadedIndexMetadata) {
