@@ -95,12 +95,7 @@ public class SequentialDocValuesIterator {
             if (docId == DocIdSetIterator.NO_MORE_DOCS || docId != currentDocId) {
                 return null;
             }
-            if (docValue == null) {
-                docValue = sortedNumericDocValues.nextValue();
-            }
-            Long nextValue = docValue;
-            docValue = null;
-            return nextValue;
+            return sortedNumericDocValues.nextValue();
 
         } else {
             throw new IllegalStateException("Unsupported Iterator requested for SequentialDocValuesIterator");

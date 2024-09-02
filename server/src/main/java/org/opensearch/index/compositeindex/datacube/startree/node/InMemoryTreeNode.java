@@ -119,11 +119,10 @@ public class InMemoryTreeNode {
 
     public void addChildNode(InMemoryTreeNode childNode, Long dimensionValue) {
         if (childNode.getNodeType() == StarTreeNodeType.STAR.getValue()) {
-            assert this.childStarNode.get() == null;
             this.childStarNode.set(childNode);
         } else {
-            assert assertStarTreeChildOrder(childNode);
             this.children.put(dimensionValue, childNode);
+            assert assertStarTreeChildOrder(childNode);
         }
     }
 
@@ -158,6 +157,12 @@ public class InMemoryTreeNode {
                 lastNode = entry.getValue();
             }
             assert lastNode.dimensionValue <= childNode.dimensionValue;
+        } else if (childNode.nodeType == StarTreeNodeType.NULL.getValue() && !this.children.isEmpty()) {
+            InMemoryTreeNode lastNode = null;
+            for (Map.Entry<Long, InMemoryTreeNode> entry : this.children.entrySet()) {
+                lastNode = entry.getValue();
+            }
+            assert lastNode.nodeType == StarTreeNodeType.NULL.getValue();
         }
         return true;
     }

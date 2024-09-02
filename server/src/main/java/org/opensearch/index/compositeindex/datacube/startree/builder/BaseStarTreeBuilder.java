@@ -367,7 +367,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                             throw new IllegalStateException("Unknown metric doc value type");
                     }
                 } catch (IllegalArgumentException e) {
-                    logger.info("could not parse the value, exiting creation of star tree");
+                    logger.error("could not parse the value, exiting creation of star tree");
                 }
             }
         }
@@ -671,7 +671,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         String name
     ) throws IOException {
         if (fieldInfo == null) {
-            fieldInfo = getFieldInfo(name, DocValuesType.NUMERIC, 1);
+            fieldInfo = getFieldInfo(name, DocValuesType.NUMERIC);
         }
         SequentialDocValuesIterator sequentialDocValuesIterator;
         assert fieldProducerMap.containsKey(fieldInfo.name);
@@ -822,7 +822,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         StarTreeDocument aggregatedStarTreeDocument = null;
 
         // For leaf node
-        if (node.getChildren().isEmpty() && node.getChildStarNode() == null) {
+        if (!node.hasChild()) {
 
             if (node.getStartDocId() == node.getEndDocId() - 1) {
                 // If it has only one document, use it as the aggregated document

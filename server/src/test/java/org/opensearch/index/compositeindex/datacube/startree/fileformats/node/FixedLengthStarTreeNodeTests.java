@@ -12,6 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -152,6 +153,26 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
             FixedLengthStarTreeNode child = iterator.next();
             assertNotNull(child);
             count++;
+        }
+        assertEquals(starTreeNode.getNumChildren(), count);
+    }
+
+    public void testChildrenOrder() throws IOException {
+        Iterator<FixedLengthStarTreeNode> iterator = starTreeNode.getChildrenIterator();
+        int count = 0;
+        while (iterator.hasNext()) {
+            FixedLengthStarTreeNode child = iterator.next();
+            count++;
+            if (count == 1) {
+                StarTreeTestUtils.assertStarTreeNode(child, starChild);
+            } else if (count == 2) {
+                StarTreeTestUtils.assertStarTreeNode(child, childWithMinus1);
+            } else if (count == starTreeNode.getNumChildren()) {
+                StarTreeTestUtils.assertStarTreeNode(child, nullChild);
+            } else {
+                StarTreeTestUtils.assertStarTreeNode(child, node.getChildren().get(child.getDimensionValue()));
+            }
+            assertNotNull(child);
         }
         assertEquals(starTreeNode.getNumChildren(), count);
     }

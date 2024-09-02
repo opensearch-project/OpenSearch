@@ -68,7 +68,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     public IndexOutput metaOut;
     private final Set<String> segmentFieldSet;
     private final boolean segmentHasCompositeFields;
-    private AtomicInteger fieldNumberAcrossStarTrees;
+    private final AtomicInteger fieldNumberAcrossCompositeFields;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
 
@@ -78,7 +78,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         this.delegate = delegate;
         this.state = segmentWriteState;
         this.mapperService = mapperService;
-        this.fieldNumberAcrossStarTrees = new AtomicInteger();
+        this.fieldNumberAcrossCompositeFields = new AtomicInteger();
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
@@ -223,7 +223,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         if (compositeFieldSet.isEmpty()) {
             for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
                 if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
-                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossStarTrees)) {
+                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
                         starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, composite99DocValuesConsumer);
                     }
                 }
@@ -312,7 +312,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                 }
             }
         }
-        try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossStarTrees)) {
+        try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
             starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, composite99DocValuesConsumer);
         }
     }
