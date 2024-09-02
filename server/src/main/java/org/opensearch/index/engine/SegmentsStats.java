@@ -41,6 +41,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
 import org.opensearch.index.codec.fuzzy.FuzzyFilterPostingsFormat;
 import org.opensearch.index.remote.RemoteSegmentStats;
 
@@ -97,6 +98,10 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         Map.entry("tvd", "Term Vector Documents"),
         Map.entry("tvf", "Term Vector Fields"),
         Map.entry("liv", "Live Documents"),
+        Map.entry(Composite99DocValuesFormat.DATA_EXTENSION, "Composite Index"),
+        Map.entry(Composite99DocValuesFormat.META_EXTENSION, "Composite Index"),
+        Map.entry(Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION, "Composite Index DocValues"),
+        Map.entry(Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION, "Composite Index DocValues"),
         Map.entry(FuzzyFilterPostingsFormat.FUZZY_FILTER_FILE_EXTENSION, "Fuzzy Filter")
     );
 
