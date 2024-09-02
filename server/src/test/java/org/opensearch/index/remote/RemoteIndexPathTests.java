@@ -9,6 +9,8 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -16,6 +18,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -51,6 +54,28 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
         String expected =
             "{\"version\":\"1\",\"index_uuid\":\"djjsid73he8yd7usduh\",\"shard_count\":2,\"path_type\":\"HASHED_PREFIX\",\"path_hash_algorithm\":\"FNV_1A_BASE64\",\"path_creation_map\":{\"segments\":[\"data\",\"metadata\",\"lock_files\"]},\"paths\":[\"9BmBinD5HYs/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/segments/data/\",\"ExCNOD8_5ew/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/segments/data/\",\"z8wtf0yr2l4/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/segments/metadata/\",\"VheHVwFlExE/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/segments/metadata/\",\"IgFKbsDeUpQ/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/segments/lock_files/\",\"pA3gy_GZtns/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/segments/lock_files/\"]}";
         assertEquals(expected, xContentBuilder.toString());
+
+        // Fixed prefix
+        Settings settings = Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), ".").build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        indexPath = new RemoteIndexPath(
+            "djjsid73he8yd7usduh",
+            2,
+            new BlobPath().add("djsd878ndjh").add("hcs87cj8"),
+            PathType.HASHED_PREFIX,
+            PathHashAlgorithm.FNV_1A_BASE64,
+            RemoteIndexPath.SEGMENT_PATH,
+            remoteStoreSettings
+        );
+        xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        xContentBuilder.startObject();
+        xContentBuilder = indexPath.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+        xContentBuilder.endObject();
+        expected =
+            "{\"version\":\"1\",\"index_uuid\":\"djjsid73he8yd7usduh\",\"shard_count\":2,\"path_type\":\"HASHED_PREFIX\",\"path_hash_algorithm\":\"FNV_1A_BASE64\",\"path_creation_map\":{\"segments\":[\"data\",\"metadata\",\"lock_files\"]},\"paths\":[\".9BmBinD5HYs/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/segments/data/\",\".ExCNOD8_5ew/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/segments/data/\",\".z8wtf0yr2l4/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/segments/metadata/\",\".VheHVwFlExE/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/segments/metadata/\",\".IgFKbsDeUpQ/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/segments/lock_files/\",\".pA3gy_GZtns/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/segments/lock_files/\"]}";
+        assertEquals(expected, xContentBuilder.toString());
+
     }
 
     /**
@@ -72,6 +97,27 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         String expected =
             "{\"version\":\"1\",\"index_uuid\":\"djjsid73he8yd7usduh\",\"shard_count\":2,\"path_type\":\"HASHED_PREFIX\",\"path_hash_algorithm\":\"FNV_1A_BASE64\",\"path_creation_map\":{\"translog\":[\"data\",\"metadata\"]},\"paths\":[\"2EaVODaKBck/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/translog/data/\",\"dTS2VqEOUNo/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/translog/data/\",\"PVNKNGonmZw/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/translog/metadata/\",\"NXmt0Y6NjA8/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/translog/metadata/\"]}";
+        assertEquals(expected, xContentBuilder.toString());
+
+        // Fixed prefix
+        Settings settings = Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), ".").build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        indexPath = new RemoteIndexPath(
+            "djjsid73he8yd7usduh",
+            2,
+            new BlobPath().add("djsd878ndjh").add("hcs87cj8"),
+            PathType.HASHED_PREFIX,
+            PathHashAlgorithm.FNV_1A_BASE64,
+            RemoteIndexPath.TRANSLOG_PATH,
+            remoteStoreSettings
+        );
+        xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        xContentBuilder.startObject();
+        xContentBuilder = indexPath.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+        xContentBuilder.endObject();
+        expected =
+            "{\"version\":\"1\",\"index_uuid\":\"djjsid73he8yd7usduh\",\"shard_count\":2,\"path_type\":\"HASHED_PREFIX\",\"path_hash_algorithm\":\"FNV_1A_BASE64\",\"path_creation_map\":{\"translog\":[\"data\",\"metadata\"]},\"paths\":[\".2EaVODaKBck/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/translog/data/\",\".dTS2VqEOUNo/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/translog/data/\",\".PVNKNGonmZw/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/0/translog/metadata/\",\".NXmt0Y6NjA8/djsd878ndjh/hcs87cj8/djjsid73he8yd7usduh/1/translog/metadata/\"]}";
         assertEquals(expected, xContentBuilder.toString());
     }
 
@@ -98,9 +144,42 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
         String expected =
             "{\"version\":\"1\",\"index_uuid\":\"csbdqiu8a7sdnjdks\",\"shard_count\":3,\"path_type\":\"HASHED_PREFIX\",\"path_hash_algorithm\":\"FNV_1A_BASE64\",\"path_creation_map\":{\"translog\":[\"data\",\"metadata\"],\"segments\":[\"data\",\"metadata\",\"lock_files\"]},\"paths\":[\"Cjo0F6kNjYk/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/segments/data/\",\"kpayyhxct1I/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/segments/data/\",\"p2RlgnHeIgc/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/segments/data/\",\"gkPIurBtB1w/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/segments/metadata/\",\"Y4YhlbxAB1c/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/segments/metadata/\",\"HYc8fyVPouI/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/segments/metadata/\",\"igzyZCz1ysI/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/segments/lock_files/\",\"uEluEiYmptk/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/segments/lock_files/\",\"TfAD8f06_7A/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/segments/lock_files/\",\"QqKEpasbEGs/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/translog/data/\",\"sNyoimoe1Bw/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/translog/data/\",\"d4YQtONfq50/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/translog/data/\",\"zLr4UXjK8T4/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/translog/metadata/\",\"_s8i7ZmlXGE/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/translog/metadata/\",\"tvtD3-k5ISg/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/translog/metadata/\"]}";
         assertEquals(expected, xContentBuilder.toString());
+
+        // Fixed prefix
+        Settings settings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), ".")
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), ".")
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        indexPath = new RemoteIndexPath(
+            "csbdqiu8a7sdnjdks",
+            3,
+            new BlobPath().add("nxf9yv0").add("c3ejoi"),
+            PathType.HASHED_PREFIX,
+            PathHashAlgorithm.FNV_1A_BASE64,
+            pathCreationMap,
+            remoteStoreSettings
+        );
+        xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        xContentBuilder.startObject();
+        xContentBuilder = indexPath.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+        xContentBuilder.endObject();
+        expected =
+            "{\"version\":\"1\",\"index_uuid\":\"csbdqiu8a7sdnjdks\",\"shard_count\":3,\"path_type\":\"HASHED_PREFIX\",\"path_hash_algorithm\":\"FNV_1A_BASE64\",\"path_creation_map\":{\"translog\":[\"data\",\"metadata\"],\"segments\":[\"data\",\"metadata\",\"lock_files\"]},\"paths\":[\".Cjo0F6kNjYk/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/segments/data/\",\".kpayyhxct1I/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/segments/data/\",\".p2RlgnHeIgc/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/segments/data/\",\".gkPIurBtB1w/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/segments/metadata/\",\".Y4YhlbxAB1c/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/segments/metadata/\",\".HYc8fyVPouI/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/segments/metadata/\",\".igzyZCz1ysI/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/segments/lock_files/\",\".uEluEiYmptk/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/segments/lock_files/\",\".TfAD8f06_7A/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/segments/lock_files/\",\".QqKEpasbEGs/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/translog/data/\",\".sNyoimoe1Bw/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/translog/data/\",\".d4YQtONfq50/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/translog/data/\",\".zLr4UXjK8T4/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/0/translog/metadata/\",\"._s8i7ZmlXGE/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/1/translog/metadata/\",\".tvtD3-k5ISg/nxf9yv0/c3ejoi/csbdqiu8a7sdnjdks/2/translog/metadata/\"]}";
+        assertEquals(expected, xContentBuilder.toString());
     }
 
-    public void testRemoteIndexPathWithInvalidPathCreationMap() throws IOException {
+    public void testRemoteIndexPathWithInvalidPathCreationMap() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), ".");
+        }
+        if (randomBoolean()) {
+            builder.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), ".");
+        }
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(builder.build(), clusterSettings);
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
             () -> new RemoteIndexPath(
@@ -110,7 +189,7 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
                 PathType.HASHED_PREFIX,
                 PathHashAlgorithm.FNV_1A_BASE64,
                 new HashMap<>(),
-                DefaultRemoteStoreSettings.INSTANCE
+                remoteStoreSettings
             )
         );
         assertEquals(
@@ -129,6 +208,15 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
     }
 
     public void testInvalidPathCreationMap() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), ".");
+        }
+        if (randomBoolean()) {
+            builder.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), ".");
+        }
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(builder.build(), clusterSettings);
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
             () -> new RemoteIndexPath(
@@ -138,7 +226,7 @@ public class RemoteIndexPathTests extends OpenSearchTestCase {
                 PathType.HASHED_PREFIX,
                 PathHashAlgorithm.FNV_1A_BASE64,
                 Map.of(TRANSLOG, List.of(LOCK_FILES)),
-                DefaultRemoteStoreSettings.INSTANCE
+                remoteStoreSettings
             )
         );
         assertEquals("pathCreationMap={TRANSLOG=[LOCK_FILES]} is having illegal combination of category and type", ex.getMessage());

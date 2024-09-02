@@ -167,7 +167,7 @@ public class RemoteStoreSettings {
     /**
      * Controls the fixed prefix for the translog path on remote store.
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX_CHAR = Setting.simpleString(
+    public static final Setting<String> CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX = Setting.simpleString(
         "cluster.remote_store.translog.path.prefix",
         "",
         Property.NodeScope,
@@ -177,7 +177,7 @@ public class RemoteStoreSettings {
     /**
      * Controls the fixed prefix for the segments path on remote store.
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX_CHAR = Setting.simpleString(
+    public static final Setting<String> CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX = Setting.simpleString(
         "cluster.remote_store.segments.path.prefix",
         "",
         Property.NodeScope,
@@ -239,8 +239,8 @@ public class RemoteStoreSettings {
         pinnedTimestampsLookbackInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings);
         isPinnedTimestampsEnabled = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.get(settings);
 
-        translogPathFixedPrefix = CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX_CHAR.get(settings);
-        segmentsPathFixedPrefix = CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX_CHAR.get(settings);
+        translogPathFixedPrefix = CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.get(settings);
+        segmentsPathFixedPrefix = CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(settings);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {

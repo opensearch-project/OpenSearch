@@ -108,9 +108,9 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                BlobPath path = BlobPath.cleanPath();
                 String fixedPrefix = pathInput.fixedPrefix();
-                return (Strings.isNullOrEmpty(fixedPrefix) ? path : path.add(fixedPrefix)).add(hashAlgorithm.hash(pathInput))
+                return BlobPath.cleanPath()
+                    .add(Strings.isNullOrEmpty(fixedPrefix) ? hashAlgorithm.hash(pathInput) : fixedPrefix + hashAlgorithm.hash(pathInput))
                     .add(pathInput.basePath())
                     .add(pathInput.fixedSubPath());
             }
@@ -124,9 +124,9 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                BlobPath path = pathInput.basePath();
                 String fixedPrefix = pathInput.fixedPrefix();
-                return (Strings.isNullOrEmpty(fixedPrefix) ? path : path.add(fixedPrefix)).add(hashAlgorithm.hash(pathInput))
+                return pathInput.basePath()
+                    .add(Strings.isNullOrEmpty(fixedPrefix) ? hashAlgorithm.hash(pathInput) : fixedPrefix + hashAlgorithm.hash(pathInput))
                     .add(pathInput.fixedSubPath());
             }
 
