@@ -185,13 +185,15 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshots and releases respective lock files from remote store repository.
      *
-     * @param snapshotIds                   snapshot ids
-     * @param repositoryStateId             the unique id identifying the state of the repository when the snapshot deletion began
-     * @param repositoryMetaVersion         version of the updated repository metadata to write
-     * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
-     * @param remoteSegmentStoreDirectoryFactory   RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
-     * @param remoteStorePinnedTimestampService service to pin/umpin the timestamp
-     * @param listener                      completion listener
+     * @param snapshotIds                           snapshot ids
+     * @param repositoryStateId                     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion                 version of the updated repository metadata to write
+     * @param remoteStoreLockManagerFactory         RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
+     * @param remoteSegmentStoreDirectoryFactory    RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
+     * @param remoteStorePinnedTimestampService     service for pinning and unpinning of the timestamp
+     * @param snapshotIdsPinnedTimestampMap         map of snapshots ids and the pinned timestamp
+     * @param isShallowSnapshotV2                   true for shallow snapshots v2
+     * @param listener                              completion listener
      */
     default void deleteSnapshotsInternal(
         Collection<SnapshotId> snapshotIds,
@@ -207,6 +209,16 @@ public interface Repository extends LifecycleComponent {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Deletes snapshots and unpin the snapshot timestamp using remoteStorePinnedTimestampService
+     *
+     * @param snapshotsWithPinnedTimestamp          map of snapshot ids and the pinned timestamps
+     * @param repositoryStateId                     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion                 version of the updated repository metadata to write
+     * @param remoteSegmentStoreDirectoryFactory    RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
+     * @param remoteStorePinnedTimestampService     service for pinning and unpinning of the timestamp
+     * @param listener                              completion listener
+     */
     default void deleteSnapshotsWithPinnedTimestamp(
         Map<SnapshotId, Long> snapshotsWithPinnedTimestamp,
         long repositoryStateId,
@@ -218,6 +230,15 @@ public interface Repository extends LifecycleComponent {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Deletes snapshots and releases respective lock files from remote store repository
+     *
+     * @param snapshotIds
+     * @param repositoryStateId
+     * @param repositoryMetaVersion
+     * @param remoteStoreLockManagerFactory
+     * @param listener
+     */
     default void deleteSnapshotsAndReleaseLockFiles(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
