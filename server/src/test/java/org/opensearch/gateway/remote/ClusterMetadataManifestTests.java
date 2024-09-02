@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -646,9 +647,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
     public void testClusterMetadataManifestXContentV4() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
-        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff = Mockito.mock(
-            DiffableUtils.MapDiff.class
-        );
+        final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(StringKeyDiffProvider.class);
         ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState());
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
@@ -694,6 +693,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 new ClusterStateDiffManifest(
                     RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
                     ClusterState.EMPTY_STATE,
+                    CODEC_V4,
                     routingTableIncrementalDiff,
                     uploadedMetadataAttribute.getUploadedFilename()
                 )
@@ -754,71 +754,6 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity()))
             )
             .indicesRouting(Collections.singletonList(uploadedIndexRoutingMetadata))
-            .build();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
-            assertEquals(originalManifest, fromXContentManifest);
-        }
-    }
-
-    public void testClusterMetadataManifestXContentV4() throws IOException {
-        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
-        UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
-        final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(StringKeyDiffProvider.class);
-        ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
-            .clusterTerm(1L)
-            .stateVersion(1L)
-            .clusterUUID("test-cluster-uuid")
-            .stateUUID("test-state-uuid")
-            .opensearchVersion(Version.CURRENT)
-            .nodeId("test-node-id")
-            .committed(false)
-            .codecVersion(ClusterMetadataManifest.CODEC_V4)
-            .indices(Collections.singletonList(uploadedIndexMetadata))
-            .previousClusterUUID("prev-cluster-uuid")
-            .clusterUUIDCommitted(true)
-            .coordinationMetadata(uploadedMetadataAttribute)
-            .settingMetadata(uploadedMetadataAttribute)
-            .templatesMetadata(uploadedMetadataAttribute)
-            .customMetadataMap(
-                Collections.unmodifiableList(
-                    Arrays.asList(
-                        new UploadedMetadataAttribute(
-                            CUSTOM_METADATA + CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
-                            "custom--repositories-file"
-                        ),
-                        new UploadedMetadataAttribute(
-                            CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE,
-                            "custom--index_graveyard-file"
-                        ),
-                        new UploadedMetadataAttribute(
-                            CUSTOM_METADATA + CUSTOM_DELIMITER + WeightedRoutingMetadata.TYPE,
-                            "custom--weighted_routing_netadata-file"
-                        )
-                    )
-                ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity()))
-            )
-            .routingTableVersion(1L)
-            .indicesRouting(Collections.singletonList(uploadedIndexMetadata))
-            .discoveryNodesMetadata(uploadedMetadataAttribute)
-            .clusterBlocksMetadata(uploadedMetadataAttribute)
-            .transientSettingsMetadata(uploadedMetadataAttribute)
-            .hashesOfConsistentSettings(uploadedMetadataAttribute)
-            .clusterStateCustomMetadataMap(Collections.emptyMap())
-            .diffManifest(
-                new ClusterStateDiffManifest(
-                    RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
-                    ClusterState.EMPTY_STATE,
-                    CODEC_V4,
-                    routingTableIncrementalDiff,
-                    uploadedMetadataAttribute.getUploadedFilename()
-                )
-            )
             .build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
