@@ -75,6 +75,7 @@ import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -460,6 +461,10 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         foundIndices.put("stale-index", staleIndexContainer);
         foundIndices.put("current-index", currentIndexContainer);
 
+        List<SnapshotId> snapshotIds = new ArrayList<>();
+        snapshotIds.add(new SnapshotId("snap1", UUIDs.randomBase64UUID()));
+        snapshotIds.add(new SnapshotId("snap2", UUIDs.randomBase64UUID()));
+
         Set<String> survivingIndexIds = new HashSet<>();
         survivingIndexIds.add("current-index");
 
@@ -483,9 +488,9 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // Mock the cleanupStaleIndices method to call our test implementation
         doAnswer(invocation -> {
-            Map<String, BlobContainer> indices = invocation.getArgument(0);
-            Set<String> surviving = invocation.getArgument(1);
-            GroupedActionListener<DeleteResult> listener = invocation.getArgument(3);
+            Map<String, BlobContainer> indices = invocation.getArgument(1);
+            Set<String> surviving = invocation.getArgument(2);
+            GroupedActionListener<DeleteResult> listener = invocation.getArgument(6);
 
             // Simulate the cleanup process
             DeleteResult result = DeleteResult.ZERO;
@@ -498,7 +503,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
             listener.onResponse(result);
             return null;
-        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), any(), any(), anyMap());
+        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), any(), any(), any(), anyMap());
 
         AtomicReference<Collection<DeleteResult>> resultReference = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -513,10 +518,11 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // Call the method we're testing
         repository.cleanupStaleIndices(
+            snapshotIds,
             foundIndices,
             survivingIndexIds,
             mockRemoteStoreLockManagerFactory,
-            mockRemoteSegmentStoreDirectoryFactory,
+            null,
             repositoryData,
             listener,
             mockSnapshotShardPaths,
