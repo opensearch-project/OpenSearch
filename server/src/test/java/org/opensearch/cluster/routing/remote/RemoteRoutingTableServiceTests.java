@@ -114,6 +114,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         Settings settings = Settings.builder()
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
+            .put(REMOTE_PUBLICATION_SETTING_KEY, "true")
             .build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterService = mock(ClusterService.class);
@@ -126,8 +127,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         compressor = new NoneCompressor();
         basePath = BlobPath.cleanPath().add("base-path");
         when(blobStoreRepository.basePath()).thenReturn(basePath);

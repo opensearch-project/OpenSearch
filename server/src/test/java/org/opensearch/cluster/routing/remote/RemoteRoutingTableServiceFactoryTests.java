@@ -10,7 +10,6 @@ package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
@@ -50,9 +49,8 @@ public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
             .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), false)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, "true")
             .build();
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         RemoteRoutingTableService service = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
             settings,
