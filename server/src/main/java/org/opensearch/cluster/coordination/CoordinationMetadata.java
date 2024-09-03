@@ -37,12 +37,12 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class CoordinationMetadata implements VerifiableWriteable, ToXContentFragment {
+public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     public static final CoordinationMetadata EMPTY_METADATA = builder().build();
 
@@ -150,8 +150,7 @@ public class CoordinationMetadata implements VerifiableWriteable, ToXContentFrag
         out.writeCollection(votingConfigExclusions);
     }
 
-    @Override
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeTo(out);
     }
 

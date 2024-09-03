@@ -40,10 +40,11 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.VerifiableWriteable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -73,7 +74,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
+public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -395,8 +396,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         writeRolesAndVersion(out);
     }
 
-    @Override
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeNodeDetails(out);
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         writeRolesAndVersion(out);

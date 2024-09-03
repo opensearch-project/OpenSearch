@@ -48,6 +48,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.node.ResponseCollectorService;
 
 import java.io.IOException;
@@ -1171,7 +1172,7 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
             }
         }
 
-        public static void writeVerifiableTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
+        public static void writeVerifiableTo(IndexShardRoutingTable indexShard, BufferedChecksumStreamOutput out) throws IOException {
             out.writeVInt(indexShard.shardId.id());
             out.writeVInt(indexShard.shards.size());
             // Order allocated shards by allocationId
