@@ -837,7 +837,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
-        assertSnapshotOrGenericThread();
+        // assertSnapshotOrGenericThread();
 
         BlobContainer blobContainer = this.blobContainer.get();
         if (blobContainer == null) {
@@ -3958,6 +3958,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return snapshot.getIndexShardSnapshotStatus();
     }
 
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotInfo snapshotInfo, IndexId indexId, ShardId shardId) {
+        IndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotInfo);
+        return snapshot.getIndexShardSnapshotStatus();
+    }
+
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
         if (isSystemRepository == false) {
@@ -4160,6 +4165,38 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new SnapshotException(
                 metadata.name(),
                 snapshotId,
+                "failed to read shard snapshot file for [" + shardContainer.path() + ']',
+                ex
+            );
+        }
+    }
+
+    public IndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotInfo snapshotInfo) {
+        try {
+            SnapshotId snapshotId = snapshotInfo.snapshotId();
+            if (snapshotInfo.getPinnedTimestamp() != 0) {
+                return () -> IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0, 0, "1");
+            } else if (snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()) {
+                if (shardContainer.blobExists(REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
+                    return REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
+                        shardContainer,
+                        snapshotId.getUUID(),
+                        namedXContentRegistry
+                    );
+                } else {
+                    throw new SnapshotMissingException(metadata.name(), snapshotId.getName());
+                }
+            } else {
+                if (shardContainer.blobExists(INDEX_SHARD_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
+                    return INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
+                } else {
+                    throw new SnapshotMissingException(metadata.name(), snapshotId.getName());
+                }
+            }
+        } catch (IOException ex) {
+            throw new SnapshotException(
+                metadata.name(),
+                snapshotInfo.snapshotId(),
                 "failed to read shard snapshot file for [" + shardContainer.path() + ']',
                 ex
             );
