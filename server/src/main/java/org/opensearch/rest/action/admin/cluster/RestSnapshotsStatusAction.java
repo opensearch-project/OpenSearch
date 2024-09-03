@@ -61,6 +61,7 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(
             asList(
+                new Route(GET, "/_snapshot/{repository}/{snapshot}/{index}/_status"),
                 new Route(GET, "/_snapshot/{repository}/{snapshot}/_status"),
                 new Route(GET, "/_snapshot/{repository}/_status"),
                 new Route(GET, "/_snapshot/_status")
@@ -80,7 +81,8 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         if (snapshots.length == 1 && "_all".equalsIgnoreCase(snapshots[0])) {
             snapshots = Strings.EMPTY_ARRAY;
         }
-        SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots);
+        String[] indices = request.paramAsStringArray("index", Strings.EMPTY_ARRAY);
+        SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots).indices(indices);
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
         snapshotsStatusRequest.clusterManagerNodeTimeout(
