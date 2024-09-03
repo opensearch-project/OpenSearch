@@ -441,9 +441,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 3));
 
         final CountDownLatch latch = new CountDownLatch(1);
-
         // Taking lock on tasksCount will not impact throttling behaviour now.
-        new Thread(() -> {
+        var threadToLock = new Thread(() -> {
             throttler.tasksCount.computeIfPresent(taskKey, (key, count) -> {
                 try {
                     latch.await();
@@ -452,15 +451,27 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
                 }
                 return 10L;
             });
-        }).start();
+        });
+        threadToLock.start();
 
         // adding one task will throttle
         // taskCount in Queue: 5 Threshold: 5
-        assertThrows(
+        final ClusterManagerThrottlingException exception = assertThrows(
             ClusterManagerThrottlingException.class,
             () -> throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 1))
         );
+        assertEquals("Throttling Exception : Limit exceeded for test", exception.getMessage());
+        assertEquals(Optional.of(5L).get(), throttler.tasksCount.get(taskKey));
+        assertEquals(4L, throttlingStats.getThrottlingCount(taskKey));
+
         latch.countDown();
+        try {
+            // Wait to complete and then assert on new tasksCount that got modified by threadToLock Thread
+            threadToLock.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        assertEquals(Optional.of(10L).get(), throttler.tasksCount.get(taskKey));
     }
 
     private List<TaskBatcherTests.TestTaskBatcher.UpdateTask> getMockUpdateTaskList(
