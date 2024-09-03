@@ -239,6 +239,7 @@ import org.opensearch.search.aggregations.pipeline.SimpleModel;
 import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.deciders.ConcurrentSearchDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.ExplainPhase;
@@ -282,6 +283,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -316,6 +318,8 @@ public class SearchModule {
     private final QueryPhaseSearcher queryPhaseSearcher;
     private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
 
+    private final Collection<ConcurrentSearchDecider> concurrentSearchDeciders;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -344,6 +348,25 @@ public class SearchModule {
         queryPhaseSearcher = registerQueryPhaseSearcher(plugins);
         indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        concurrentSearchDeciders = registerConcurrentSearchDeciders(plugins);
+    }
+
+    private Collection<ConcurrentSearchDecider> registerConcurrentSearchDeciders(List<SearchPlugin> plugins) {
+        List<ConcurrentSearchDecider> concurrentSearchDeciders = new ArrayList<>();
+        for (SearchPlugin plugin : plugins) {
+            ConcurrentSearchDecider decider = plugin.getConcurrentSearchDecider();
+            if (decider != null) {
+                concurrentSearchDeciders.add(decider);
+            }
+        }
+        return concurrentSearchDeciders;
+    }
+
+    /**
+     * Returns the concurrent search deciders that the plugins have registered
+     */
+    public Collection<ConcurrentSearchDecider> getConcurrentSearchDeciders() {
+        return concurrentSearchDeciders;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
