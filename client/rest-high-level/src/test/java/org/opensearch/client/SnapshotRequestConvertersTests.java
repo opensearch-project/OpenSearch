@@ -230,6 +230,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         String repository = RequestConvertersTests.randomIndicesNames(1, 1)[0];
         String[] snapshots = RequestConvertersTests.randomIndicesNames(1, 5);
+        String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
         StringBuilder snapshotNames = new StringBuilder(snapshots[0]);
         for (int idx = 1; idx < snapshots.length; idx++) {
             snapshotNames.append(",").append(snapshots[idx]);
@@ -237,7 +238,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         boolean ignoreUnavailable = randomBoolean();
         String endpoint = "/_snapshot/" + repository + "/" + snapshotNames.toString() + "/_status";
 
-        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots);
+        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots, indices);
         RequestConvertersTests.setRandomMasterTimeout(snapshotsStatusRequest, expectedParams);
         snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
         expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));

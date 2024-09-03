@@ -13,6 +13,7 @@ import org.opensearch.crypto.CryptoRegistryException;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
+import static org.opensearch.Version.CURRENT;
 import static org.opensearch.Version.V_2_10_0;
 import static org.opensearch.Version.V_2_17_0;
 import static org.opensearch.Version.V_2_1_0;
@@ -1186,6 +1187,14 @@ public final class OpenSearchServerException {
                 org.opensearch.indices.InvalidIndexContextException::new,
                 174,
                 V_2_17_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException.class,
+                org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException::new,
+                175,
+                CURRENT
             )
         );
         registerExceptionHandle(
