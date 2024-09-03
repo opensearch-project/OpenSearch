@@ -72,7 +72,7 @@ public class StarTreeQuery extends Query {
 
     @Override
     public String toString(String field) {
-        // Does not implements a user-readable toString
+        // Does not implement a user-readable toString
         return null;
     }
 
@@ -98,6 +98,7 @@ public class StarTreeQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
+                // TODO: Can only cache when segment maxDocs > starTreeDocCount
                 return false;
             }
         };

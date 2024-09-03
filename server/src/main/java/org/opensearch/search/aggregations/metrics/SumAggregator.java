@@ -144,7 +144,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.SUM.getTypeName()
         );
-        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(metricName);
+        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
 
         final BigArrays bigArrays = context.bigArrays();
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
