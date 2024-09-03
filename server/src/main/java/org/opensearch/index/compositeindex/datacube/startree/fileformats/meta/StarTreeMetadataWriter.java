@@ -128,13 +128,11 @@ public class StarTreeMetadataWriter {
         metaOut.writeVInt(numNodes);
 
         // number of dimensions
-        // TODO: Revisit the number of dimensions for timestamps (as we will split timestamp into min, hour, etc.)
-        metaOut.writeVInt(starTreeField.getDimensionsOrder().size());
+        metaOut.writeVInt(starTreeField.getDimensionNames().size());
 
         // dimensions
-        // TODO: Add sub-dimensions for timestamps (as we will split timestamp into min, hour, etc.)
-        for (Dimension dimension : starTreeField.getDimensionsOrder()) {
-            metaOut.writeString(dimension.getField());
+        for (String dim : starTreeField.getDimensionNames()) {
+            metaOut.writeString(dim);
         }
 
         // number of metrics

@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import java.util.List;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
@@ -29,6 +30,22 @@ public class ReadDimension implements Dimension {
 
     public String getField() {
         return field;
+    }
+
+    @Override
+    public int getNumSubDimensions() {
+        return 1;
+    }
+
+    @Override
+    public int setDimensionValues(Long value, Long[] dims, int index) {
+        dims[index++] = value;
+        return index;
+    }
+
+    @Override
+    public List<String> getDimensionFieldsNames() {
+        return List.of(field);
     }
 
     @Override

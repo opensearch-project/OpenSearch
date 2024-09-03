@@ -100,7 +100,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 Rounding.DateTimeUnit.DAY_OF_MONTH,
                 Rounding.DateTimeUnit.MONTH_OF_YEAR
             );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            for(int i=0; i<expectedTimeUnits.size(); i++) {
+                assertEquals(new DateTimeUnitAdapter(expectedTimeUnits.get(i)), dateDim.getIntervals().get(i));
+            }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
@@ -128,7 +130,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 Rounding.DateTimeUnit.DAY_OF_MONTH,
                 Rounding.DateTimeUnit.MONTH_OF_YEAR
             );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            for(int i=0; i<expectedTimeUnits.size(); i++) {
+                assertEquals(new DateTimeUnitAdapter(expectedTimeUnits.get(i)), dateDim.getIntervals().get(i));
+            }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
@@ -160,11 +164,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof NumericDimension);
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(
-                MetricStat.AVG,
                 MetricStat.VALUE_COUNT,
                 MetricStat.SUM,
-                MetricStat.MAX,
-                MetricStat.MIN
+                MetricStat.AVG
             );
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
@@ -229,11 +231,8 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(
-                MetricStat.AVG,
                 MetricStat.VALUE_COUNT,
-                MetricStat.SUM,
-                MetricStat.MAX,
-                MetricStat.MIN
+                MetricStat.SUM,MetricStat.AVG
             );
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
@@ -294,7 +293,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     public void testInvalidParam() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(getInvalidMapping(false, false, false, false, true, false))
+            () -> createMapperService(getInvalidMapping(false, false, false, false, true, false, false))
         );
         assertEquals(
             "Failed to parse mapping [_doc]: Star tree mapping definition has unsupported parameters:  [invalid : {invalid=invalid}]",
@@ -351,7 +350,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     public void testInvalidMetricTypeWithDocCount() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(getInvalidMapping(false, false, false, false, false, true))
+            () -> createMapperService(getInvalidMapping(false, false, false, false, false, true, false))
         );
         assertEquals("Failed to parse mapping [_doc]: Invalid metric stat: _doc_count", ex.getMessage());
     }
@@ -370,7 +369,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     public void testInvalidDateDimType() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(getInvalidMapping(false, false, true, false, false, true))
+            () -> createMapperService(getInvalidMapping(false, false, true, false, false, false, true))
         );
         assertEquals(
             "Failed to parse mapping [_doc]: date_dimension [@timestamp] should be of type date for star tree field [startree]",
@@ -629,14 +628,14 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.value("status");
             }
             b.endArray();
-            b.startArray("ordered_dimensions");
-            b.startObject();
+            b.startObject("date_dimension");
             b.field("name", "@timestamp");
             b.startArray("calendar_intervals");
             b.value("day");
             b.value("month");
             b.endArray();
             b.endObject();
+            b.startArray("ordered_dimensions");
             b.startObject();
             b.field("name", dim);
             b.endObject();
@@ -679,14 +678,14 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.value("status");
             }
             b.endArray();
-            b.startArray("ordered_dimensions");
-            b.startObject();
+            b.startObject("date_dimension");
             b.field("name", "@timestamp");
             b.startArray("calendar_intervals");
             b.value("day");
             b.value("month");
             b.endArray();
             b.endObject();
+            b.startArray("ordered_dimensions");
             b.startObject();
             b.field("name", dim);
             b.endObject();
@@ -1064,7 +1063,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     private XContentBuilder getInvalidMapping(boolean singleDim, boolean invalidSkipDims, boolean invalidDimType, boolean invalidMetricType)
         throws IOException {
-        return getInvalidMapping(singleDim, invalidSkipDims, invalidDimType, invalidMetricType, false, false);
+        return getInvalidMapping(singleDim, invalidSkipDims, invalidDimType, invalidMetricType, false, false, false);
     }
 
     protected boolean supportsOrIgnoresBoost() {

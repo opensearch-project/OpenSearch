@@ -50,11 +50,20 @@ public class StarTreeTestUtils {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
             List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
-            SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[dimensionsSplitOrder.size()];
+            int numDimensions = 0;
+            for(Dimension dimension : dimensionsSplitOrder) {
+                numDimensions += dimension.getNumSubDimensions();
+            }
+            SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
 
+            int dimIndex = 0;
             for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
-                String dimension = dimensionsSplitOrder.get(i).getField();
-                dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(dimension));
+                Dimension dimension = dimensionsSplitOrder.get(i);
+                for(String name : dimension.getDimensionFieldsNames()) {
+                    dimensionReaders[dimIndex] =
+                        new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(name));
+                    dimIndex++;
+                }
             }
 
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
