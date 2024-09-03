@@ -191,7 +191,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
 
     public void testGetChildForInvalidDimensionValue() throws IOException {
         long invalidDimensionValue = Long.MAX_VALUE;
-        assertThrows(AssertionError.class, () -> starTreeNode.getChildForDimensionValue(invalidDimensionValue));
+        assertNull(starTreeNode.getChildForDimensionValue(invalidDimensionValue));
     }
 
     public void testOnlyRootNodePresent() throws IOException {

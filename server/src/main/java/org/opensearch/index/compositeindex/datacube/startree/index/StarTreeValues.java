@@ -9,7 +9,6 @@
 package org.opensearch.index.compositeindex.datacube.startree.index;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -75,6 +74,11 @@ public class StarTreeValues implements CompositeIndexValues {
     private final Map<String, String> attributes;
 
     /**
+     * A metadata for the star-tree
+     */
+    private final StarTreeMetadata starTreeMetadata;
+
+    /**
      * Constructs a new StarTreeValues object with the provided parameters.
      * Used for testing.
      *
@@ -89,13 +93,15 @@ public class StarTreeValues implements CompositeIndexValues {
         StarTreeNode root,
         Map<String, Supplier<DocIdSetIterator>> dimensionDocValuesIteratorMap,
         Map<String, Supplier<DocIdSetIterator>> metricDocValuesIteratorMap,
-        Map<String, String> attributes
+        Map<String, String> attributes,
+        StarTreeMetadata compositeIndexMetadata
     ) {
         this.starTreeField = starTreeField;
         this.root = root;
         this.dimensionDocValuesIteratorMap = dimensionDocValuesIteratorMap;
         this.metricDocValuesIteratorMap = metricDocValuesIteratorMap;
         this.attributes = attributes;
+        this.starTreeMetadata = compositeIndexMetadata;
     }
 
     /**
@@ -114,7 +120,7 @@ public class StarTreeValues implements CompositeIndexValues {
         SegmentReadState readState
     ) throws IOException {
 
-        StarTreeMetadata starTreeMetadata = (StarTreeMetadata) compositeIndexMetadata;
+        starTreeMetadata = (StarTreeMetadata) compositeIndexMetadata;
 
         // build skip star node dimensions
         Set<String> skipStarNodeCreationInDims = starTreeMetadata.getSkipStarNodeCreationInDims();
@@ -244,7 +250,7 @@ public class StarTreeValues implements CompositeIndexValues {
             return dimensionDocValuesIteratorMap.get(dimension).get();
         }
 
-        return DocValues.emptySortedNumeric();
+        throw new IllegalArgumentException("dimension [" + dimension + "] does not exist in the segment.");
     }
 
     /**
@@ -259,7 +265,10 @@ public class StarTreeValues implements CompositeIndexValues {
             return metricDocValuesIteratorMap.get(fullyQualifiedMetricName).get();
         }
 
-        return DocValues.emptySortedNumeric();
+        throw new IllegalArgumentException("metric [" + fullyQualifiedMetricName + "] does not exist in the segment.");
     }
 
+    public int getStarTreeDocumentCount() {
+        return starTreeMetadata.getStarTreeDocCount();
+    }
 }
