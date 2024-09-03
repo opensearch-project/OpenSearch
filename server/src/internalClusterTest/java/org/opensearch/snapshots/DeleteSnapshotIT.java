@@ -19,6 +19,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
@@ -321,6 +322,8 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get()
             .getSetting(remoteStoreEnabledIndexName, IndexMetadata.SETTING_INDEX_UUID);
 
+        Path indexPath1 = Path.of(String.valueOf(remoteStoreRepoPath), indexUUID);
+
         logger.info("--> create two remote index shallow snapshots");
         SnapshotInfo snapshotInfo1 = createFullSnapshot(snapshotRepoName, "snap1");
         SnapshotInfo snapshotInfo2 = createFullSnapshot(snapshotRepoName, "snap2");
@@ -545,30 +548,24 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testRemoteStoreCleanupForDeletedIndexForSnapshotV2() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
-        Path absolutePath1 = randomRepoPath().toAbsolutePath();
         Settings settings = remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath);
-
-        internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        // Disabling pinned timestamp as this test is specifically for shallow snapshot.
+        settings = Settings.builder()
+            .put(settings)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.FIXED.toString())
+            .build();
+        internalCluster().startClusterManagerOnlyNode(settings);
+        internalCluster().startDataOnlyNode(settings);
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
+        createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowV2(snapshotRepoPath));
+
+        final String testIndex = "index-test";
+        createIndexWithContent(testIndex);
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
@@ -581,6 +578,12 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get()
             .getSetting(remoteStoreEnabledIndexName, IndexMetadata.SETTING_INDEX_UUID);
 
+        String numShards = client().admin()
+            .indices()
+            .prepareGetSettings(remoteStoreEnabledIndexName)
+            .get()
+            .getSetting(remoteStoreEnabledIndexName, IndexMetadata.SETTING_NUMBER_OF_SHARDS);
+
         logger.info("--> create two remote index shallow snapshots");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
@@ -588,6 +591,8 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(true)
             .get();
         SnapshotInfo snapshotInfo1 = createSnapshotResponse.getSnapshotInfo();
+
+        indexRandomDocs(remoteStoreEnabledIndexName, 25);
 
         CreateSnapshotResponse createSnapshotResponse2 = client().admin()
             .cluster()
@@ -599,10 +604,10 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo2.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo2.totalShards()));
         assertThat(snapshotInfo2.snapshotId().getName(), equalTo("snap2"));
-        final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
 
         // delete remote store index
         assertAcked(client().admin().indices().prepareDelete(remoteStoreEnabledIndexName));
+        Thread.sleep(1000);
 
         logger.info("--> delete snapshot 1");
         AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
@@ -611,20 +616,34 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertAcked(deleteSnapshotResponse);
 
+        Path indexPath = Path.of(String.valueOf(remoteStoreRepoPath), indexUUID);
+        Path shardPath = Path.of(String.valueOf(indexPath), "0");
+        Path segmentsPath = Path.of(String.valueOf(shardPath), "segments");
+
+        Thread.sleep(1000);
+
+        assertBusy(() -> {
+            try {
+                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath), greaterThan(0));
+            } catch (Exception e) {}
+        }, 30, TimeUnit.SECONDS);
+        int segmentsCount = RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath);
+
         logger.info("--> delete snapshot 2");
+        // on snapshot deletion, remote store segment files should get cleaned up for deleted index - `remote-index-1`
         deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
             .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo2.snapshotId().getName())
             .get();
         assertAcked(deleteSnapshotResponse);
 
-        Path indexPath = Path.of(String.valueOf(remoteStoreRepoPath), indexUUID);
+        Thread.sleep(1000);
         // Delete is async. Give time for it
         assertBusy(() -> {
             try {
-                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(indexPath), comparesEqualTo(0));
+                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath), comparesEqualTo(0));
             } catch (Exception e) {}
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     private List<String> createNSnapshots(String repoName, int count) {
@@ -643,7 +662,16 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         Settings settings = Settings.builder()
             .put(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath))
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
             .build();
+        return settings;
+    }
+
+    protected Settings.Builder snapshotRepoSettingsForShallowV2(Path path) {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", path);
+        settings.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
+        settings.put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
         return settings;
     }
 }
