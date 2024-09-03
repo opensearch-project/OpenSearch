@@ -717,9 +717,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeClusterManager(out);
-        ((BufferedChecksumStreamOutput)out).writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo(stream));
+        out.writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
     }
 
     private void writeClusterManager(StreamOutput out) throws IOException {

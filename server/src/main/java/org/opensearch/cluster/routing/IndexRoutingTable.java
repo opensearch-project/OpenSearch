@@ -384,9 +384,12 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
     }
 
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         index.writeTo(out);
-        ((BufferedChecksumStreamOutput)out).writeMapValues(shards, (stream, value) -> IndexShardRoutingTable.Builder.writeVerifiableTo(value, stream));
+        out.writeMapValues(
+            shards,
+            (stream, value) -> IndexShardRoutingTable.Builder.writeVerifiableTo(value, (BufferedChecksumStreamOutput) stream)
+        );
     }
 
     public static Builder builder(Index index) {

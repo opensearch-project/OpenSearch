@@ -42,6 +42,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -303,7 +304,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         out.writeMap(indicesBlocks, StreamOutput::writeString, (o, s) -> writeBlockSet(s, o));
     }
 
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeTo(out);
     }
 

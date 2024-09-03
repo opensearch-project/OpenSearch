@@ -44,6 +44,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -410,7 +411,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         writeRolesAndVersion(out);
     }
 
-    public void writeVerifiableTo(StreamOutput out) throws IOException {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         writeNodeDetails(out);
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         writeRolesAndVersion(out);
