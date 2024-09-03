@@ -141,10 +141,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         Settings settings = clusterService().getSettings();
         logger.info("settings : {}", settings);
         for (Client client : clients()) {
-            ClusterStateResponse response = client.admin().cluster().prepareState().clear()
-                .setMetadata(true)
-                .setLocal(true)
-                .get();
+            ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetadata(true).setLocal(true).get();
 
             String refreshSetting = response.getState()
                 .metadata()
@@ -153,10 +150,8 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
 
             assertEquals("10mb", refreshSetting);
 
-
             // Verify context is present in metadata
-            assertEquals(new Context(CONTEXT_NAME), response.getState()
-                .metadata().indices().get(INDEX_NAME).context());
+            assertEquals(new Context(CONTEXT_NAME), response.getState().metadata().indices().get(INDEX_NAME).context());
         }
     }
 
