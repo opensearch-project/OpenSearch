@@ -688,9 +688,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
         );
 
-        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(
-            metadataFiles
-        );
+        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(metadataFiles);
         assertEquals(1, metadataFilesToBeDeleted.size());
         assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
     }
@@ -712,9 +710,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
         );
 
-        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(
-            metadataFiles
-        );
+        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(metadataFiles);
         assertEquals(2, metadataFilesToBeDeleted.size());
         assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
         assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(1));
@@ -737,9 +733,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
         );
 
-        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(
-            metadataFiles
-        );
+        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(metadataFiles);
         assertEquals(1, metadataFilesToBeDeleted.size());
         assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(0));
     }
