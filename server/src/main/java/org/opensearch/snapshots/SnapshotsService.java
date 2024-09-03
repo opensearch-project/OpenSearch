@@ -216,7 +216,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = ":";
+    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
