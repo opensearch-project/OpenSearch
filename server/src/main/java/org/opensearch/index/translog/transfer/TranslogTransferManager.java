@@ -28,6 +28,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
@@ -711,5 +712,24 @@ public class TranslogTransferManager {
 
     public int getMaxRemoteTranslogReadersSettings() {
         return this.remoteStoreSettings.getMaxRemoteTranslogReaders();
+    }
+
+    public void populateFileTrackerWithLocalState(List<TranslogReader> readers) {
+        if (readers == null) {
+            return;
+        }
+        for (TranslogReader reader : readers) {
+            long generation = reader.getGeneration();
+            String tlogFilename = Translog.getFilename(generation);
+            fileTransferTracker.add(tlogFilename, true);
+            if (isTranslogMetadataEnabled) {
+                String ckpFilename = Translog.getCommitCheckpointFileName(generation);
+                fileTransferTracker.add(ckpFilename, true);
+            }
+        }
+    }
+
+    protected FileTransferTracker getFileTransferTracker() {
+        return fileTransferTracker;
     }
 }
