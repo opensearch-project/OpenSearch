@@ -714,4 +714,5 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         }
         return imdBuilder.build();
     }
+
 }

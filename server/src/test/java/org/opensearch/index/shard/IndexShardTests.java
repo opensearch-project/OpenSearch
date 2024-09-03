@@ -2899,7 +2899,7 @@ public class IndexShardTests extends IndexShardTestCase {
         target = reinitShard(target, routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         target.markAsRecovering("from snapshot", new RecoveryState(routing, localNode, null));
-        target.syncSegmentsFromGivenRemoteSegmentStore(false, tempRemoteSegmentDirectory, primaryTerm, commitGeneration);
+        target.syncSegmentsFromGivenRemoteSegmentStore(false, tempRemoteSegmentDirectory, null, false);
         RemoteSegmentStoreDirectory remoteStoreDirectory = ((RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) target
             .remoteStore()
             .directory()).getDelegate()).getDelegate());
