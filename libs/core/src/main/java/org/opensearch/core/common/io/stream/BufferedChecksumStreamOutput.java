@@ -133,14 +133,16 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
 
     @Override
     public void writeStringArray(String[] array) throws IOException {
-        Arrays.sort(array);
-        super.writeStringArray(array);
+        String[] copyArray = Arrays.copyOf(array, array.length);
+        Arrays.sort(copyArray);
+        super.writeStringArray(copyArray);
     }
 
     @Override
     public void writeVLongArray(long[] values) throws IOException {
-        Arrays.sort(values);
-        super.writeVLongArray(values);
+        long[] copyValues = Arrays.copyOf(values, values.length);
+        Arrays.sort(copyValues);
+        super.writeVLongArray(copyValues);
     }
 
     @Override
