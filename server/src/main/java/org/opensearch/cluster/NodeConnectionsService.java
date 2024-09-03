@@ -172,7 +172,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
 
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
-                logger.info("NodeConnectionsService - disconnecting from node [{}] in loop", discoveryNode);
                 runnables.add(targetsByNode.get(discoveryNode).disconnect());
             }
         }
@@ -390,13 +389,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
                 transportService.disconnectFromNode(discoveryNode);
-                transportService.markPendingLeftAsCompleted(discoveryNode);
                 consecutiveFailureCount.set(0);
-                logger.debug(
-                    "disconnected from {} and marked pending left as completed. " + "pending lefts: [{}]",
-                    discoveryNode,
-                    transportService.getNodesLeftInProgress()
-                );
+                logger.debug("disconnected from {}", discoveryNode);
                 onCompletion(ActivityType.DISCONNECTING, null, connectActivity);
             }
 

@@ -580,6 +580,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
         logger.debug("apply cluster state with version {}", newClusterState.version());
         callClusterStateAppliers(clusterChangedEvent, stopWatch);
+        logger.debug("completed calling appliers of cluster state for version {}", newClusterState.version());
 
         nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
 
@@ -592,11 +593,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 + " on "
                 + newClusterState.nodes().getLocalNode();
 
-        logger.info("set locally applied cluster state to version {}", newClusterState.version());
+        logger.debug("set locally applied cluster state to version {}", newClusterState.version());
         state.set(newClusterState);
 
         callClusterStateListeners(clusterChangedEvent, stopWatch);
-        logger.info("completed appliers and listeners of cluster state for version {}", newClusterState.version());
+        logger.debug("completed calling listeners of cluster state for version {}", newClusterState.version());
     }
 
     protected void connectToNodesAndWait(ClusterState newClusterState) {

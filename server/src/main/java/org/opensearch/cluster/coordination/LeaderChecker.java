@@ -231,7 +231,7 @@ public class LeaderChecker {
                 "rejecting leader check since [" + request.getSender() + "] has been removed from the cluster"
             );
         } else {
-            logger.debug("handling {}", request);
+            logger.trace("handling {}", request);
         }
     }
 

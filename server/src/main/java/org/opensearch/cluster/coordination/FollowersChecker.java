@@ -161,7 +161,6 @@ public class FollowersChecker {
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
             public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
-                logger.info("in transport listener onNodeDisconnected");
                 handleDisconnectedNode(node);
             }
         });
@@ -391,7 +390,6 @@ public class FollowersChecker {
                         failureCountSinceLastSuccess++;
 
                         final String reason;
-
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.info(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";

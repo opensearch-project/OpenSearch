@@ -120,18 +120,8 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public Set<DiscoveryNode> getNodesLeftInProgress() {
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
-    public boolean markPendingLeftCompleted(DiscoveryNode node) {
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
-    public void markPendingLefts(List<DiscoveryNode> nodes) {
-        throw new UnsupportedOperationException("not implemented");
+    public void markPendingDisconnects(List<DiscoveryNode> nodes) {
+        delegate.markPendingDisconnects(nodes);
     }
 
     public Transport.Connection getAnyRemoteConnection() {

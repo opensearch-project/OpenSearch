@@ -483,18 +483,9 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, null, listener);
     }
 
-    public Set<DiscoveryNode> getNodesLeftInProgress() {
-        return connectionManager.getNodesLeftInProgress();
-    }
 
-    // this
-    public void markPendingConnections(DiscoveryNodes.Delta nodesDelta) {
-        // connectionManager.markPendingJoins(nodesDelta.addedNodes());
-        connectionManager.markPendingLefts(nodesDelta.removedNodes());
-    }
-
-    public boolean markPendingLeftAsCompleted(DiscoveryNode node) {
-        return connectionManager.markPendingLeftCompleted(node);
+    public void markPendingDisconnects(DiscoveryNodes.Delta nodesDelta) {
+        connectionManager.markPendingDisconnects(nodesDelta.removedNodes());
     }
 
     public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {

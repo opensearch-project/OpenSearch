@@ -65,7 +65,13 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
-    private final Set<DiscoveryNode> pendingLeft = ConcurrentCollections.newConcurrentSet();
+    /**
+     This set is used only by cluster-manager nodes.
+     Nodes are marked as pending disconnect right before cluster state publish phase.
+     They are cleared up as part of cluster state apply commit phase
+     This is to avoid connections from being made to nodes that are in the process of leaving the cluster
+     */
+    private final Set<DiscoveryNode> pendingDisconnections = ConcurrentCollections.newConcurrentSet();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
@@ -113,19 +119,9 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public Set<DiscoveryNode> getNodesLeftInProgress() {
-        return this.pendingLeft;
-    }
-
-    @Override
-    public void markPendingLefts(List<DiscoveryNode> nodes) {
-        logger.info("marking pending left for nodes: [{}]", nodes);
-        pendingLeft.addAll(nodes);
-    }
-
-    @Override
-    public boolean markPendingLeftCompleted(DiscoveryNode discoveryNode) {
-        return pendingLeft.remove(discoveryNode);
+    public void markPendingDisconnects(List<DiscoveryNode> nodes) {
+        logger.info("marking pending disconnects for nodes: [{}]", nodes);
+        pendingDisconnections.addAll(nodes);
     }
 
     /**
@@ -144,6 +140,16 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         if (node == null) {
             listener.onFailure(new ConnectTransportException(null, "can't connect to a null node"));
+            return;
+        }
+
+        // if node-left is still in progress, we fail the connect request early
+        if (pendingDisconnections.contains(node)) {
+            listener.onFailure(
+                new IllegalStateException(
+                    "blocked connection to node [" + node + "] because node-left is currently in progress for this node"
+                )
+            );
             return;
         }
 
@@ -246,6 +252,8 @@ public class ClusterConnectionManager implements ConnectionManager {
             // if we found it and removed it we close
             nodeChannels.close();
         }
+        pendingDisconnections.remove(node);
+        logger.info("Removed node {} from pending disconnects list", node);
     }
 
     /**

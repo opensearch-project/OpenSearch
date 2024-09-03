@@ -64,11 +64,7 @@ public interface ConnectionManager extends Closeable {
 
     boolean nodeConnected(DiscoveryNode node);
 
-    Set<DiscoveryNode> getNodesLeftInProgress();
-
-    boolean markPendingLeftCompleted(DiscoveryNode node);
-
-    void markPendingLefts(List<DiscoveryNode> nodes);
+    void markPendingDisconnects(List<DiscoveryNode> nodes);
 
     void disconnectFromNode(DiscoveryNode node);
 

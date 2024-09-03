@@ -632,16 +632,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             );
             return;
         }
-        // if node-left is still in progress, we fail the joinRequest early
-        if (transportService.getNodesLeftInProgress().contains(joinRequest.getSourceNode())) {
-            joinCallback.onFailure(
-                new IllegalStateException(
-                    "cannot join node [" + joinRequest.getSourceNode() + "] because node-left is currently in progress for this node"
-
-                )
-            );
-            return;
-        }
 
         transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
             final ClusterState stateForJoinValidation = getStateForClusterManagerService();
@@ -1371,13 +1361,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 currentPublication = Optional.of(publication);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
+                // marking pending disconnects before publish
+                // if we try to joinRequest during pending disconnect, it should fail
+                transportService.markPendingDisconnects(clusterChangedEvent.nodesDelta());
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
                 coordinationState.get().handlePrePublish(clusterState);
-                // trying to mark pending disconnects before publish
-                // if we try to joinRequest during pending disconnect, it should fail
-                transportService.markPendingConnections(clusterChangedEvent.nodesDelta());
                 publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
