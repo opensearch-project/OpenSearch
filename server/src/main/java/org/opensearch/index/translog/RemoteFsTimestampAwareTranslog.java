@@ -45,18 +45,19 @@ import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.ME
  * A Translog implementation which syncs local FS with a remote store
  * The current impl uploads translog , ckp and metadata to remote store
  * for every sync, post syncing to disk. Post that, a new generation is
- * created.
+ * created. This implementation is also aware of pinned timestamp and makes
+ * sure data against pinned timestamp is retained.
  *
  * @opensearch.internal
  */
-public class RemoteFsTranslogWithPinnedTimestamps extends RemoteFsTranslog {
+public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
     private final Logger logger;
     private final Map<Long, String> metadataFilePinnedTimestampMap;
     // For metadata files, with no min generation in the name, we cache generation data to avoid multiple reads.
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFileGenerationMap;
 
-    public RemoteFsTranslogWithPinnedTimestamps(
+    public RemoteFsTimestampAwareTranslog(
         TranslogConfig config,
         String translogUUID,
         TranslogDeletionPolicy deletionPolicy,
@@ -67,8 +68,7 @@ public class RemoteFsTranslogWithPinnedTimestamps extends RemoteFsTranslog {
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        long timestamp
+        RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
         super(
             config,
@@ -81,8 +81,7 @@ public class RemoteFsTranslogWithPinnedTimestamps extends RemoteFsTranslog {
             threadPool,
             startedPrimarySupplier,
             remoteTranslogTransferTracker,
-            remoteStoreSettings,
-            timestamp
+            remoteStoreSettings
         );
         logger = Loggers.getLogger(getClass(), shardId);
         this.metadataFilePinnedTimestampMap = new HashMap<>();
@@ -179,19 +178,19 @@ public class RemoteFsTranslogWithPinnedTimestamps extends RemoteFsTranslog {
                         return;
                     }
 
-                    logger.debug("metadataFilesToBeDeleted = {}", metadataFilesToBeDeleted);
+                    logger.debug(() -> "metadataFilesToBeDeleted = " + metadataFilesToBeDeleted);
                     // For all the files that we are keeping, fetch min and max generations
                     List<String> metadataFilesNotToBeDeleted = new ArrayList<>(metadataFiles);
                     metadataFilesNotToBeDeleted.removeAll(metadataFilesToBeDeleted);
 
-                    logger.debug("metadataFilesNotToBeDeleted = {}", metadataFilesNotToBeDeleted);
+                    logger.debug(() -> "metadataFilesNotToBeDeleted = " + metadataFilesNotToBeDeleted);
                     Set<Long> generationsToBeDeleted = getGenerationsToBeDeleted(
                         metadataFilesNotToBeDeleted,
                         metadataFilesToBeDeleted,
                         indexDeleted
                     );
 
-                    logger.debug("generationsToBeDeleted = {}", generationsToBeDeleted);
+                    logger.debug(() -> "generationsToBeDeleted = " + generationsToBeDeleted);
                     if (generationsToBeDeleted.isEmpty() == false) {
                         // Delete stale generations
                         translogTransferManager.deleteGenerationAsync(

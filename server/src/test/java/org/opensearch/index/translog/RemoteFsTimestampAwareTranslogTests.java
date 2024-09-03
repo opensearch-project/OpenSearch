@@ -68,7 +68,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTests {
+public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
     Runnable updatePinnedTimstampTask;
     BlobContainer blobContainer;
@@ -132,7 +132,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         String translogUUID,
         TranslogDeletionPolicy deletionPolicy
     ) throws IOException {
-        return new RemoteFsTranslogWithPinnedTimestamps(
+        return new RemoteFsTimestampAwareTranslog(
             translogConfig,
             translogUUID,
             deletionPolicy,
@@ -143,8 +143,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
             threadPool,
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
-            DefaultRemoteStoreSettings.INSTANCE,
-            0
+            DefaultRemoteStoreSettings.INSTANCE
         );
     }
 
@@ -242,7 +241,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
 
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         updatePinnedTimstampTask.run();
-        ((RemoteFsTranslogWithPinnedTimestamps) translog).trimUnreferencedReaders(true, false);
+        ((RemoteFsTimestampAwareTranslog) translog).trimUnreferencedReaders(true, false);
 
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
@@ -265,7 +264,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
 
         updatePinnedTimstampTask.run();
-        ((RemoteFsTranslogWithPinnedTimestamps) translog).trimUnreferencedReaders(true, false);
+        ((RemoteFsTimestampAwareTranslog) translog).trimUnreferencedReaders(true, false);
 
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertBusy(() -> {
@@ -611,7 +610,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
             // 27 to 42
             "metadata__9223372036438563903__9223372036854775765__9223370311919910403__31__9223372036854775780__1"
         );
-        Set<Long> generations = ((RemoteFsTranslogWithPinnedTimestamps) translog).getGenerationsToBeDeleted(
+        Set<Long> generations = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
             metadataFilesNotToBeDeleted,
             metadataFilesToBeDeleted,
             true
@@ -646,7 +645,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
             // 27 to 42
             "metadata__9223372036438563903__9223372036854775765__9223370311919910403__31__9223372036854775780__1"
         );
-        Set<Long> generations = ((RemoteFsTranslogWithPinnedTimestamps) translog).getGenerationsToBeDeleted(
+        Set<Long> generations = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
             metadataFilesNotToBeDeleted,
             metadataFilesToBeDeleted,
             true
@@ -673,7 +672,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
             "metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__1"
         );
 
-        assertEquals(metadataFiles, ((RemoteFsTranslogWithPinnedTimestamps) translog).getMetadataFilesToBeDeleted(metadataFiles));
+        assertEquals(metadataFiles, ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(metadataFiles));
     }
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnAgeOnly() {
@@ -689,7 +688,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
             "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
         );
 
-        List<String> metadataFilesToBeDeleted = ((RemoteFsTranslogWithPinnedTimestamps) translog).getMetadataFilesToBeDeleted(
+        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(
             metadataFiles
         );
         assertEquals(1, metadataFilesToBeDeleted.size());
@@ -713,7 +712,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
             "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
         );
 
-        List<String> metadataFilesToBeDeleted = ((RemoteFsTranslogWithPinnedTimestamps) translog).getMetadataFilesToBeDeleted(
+        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(
             metadataFiles
         );
         assertEquals(2, metadataFilesToBeDeleted.size());
@@ -738,7 +737,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
             "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
         );
 
-        List<String> metadataFilesToBeDeleted = ((RemoteFsTranslogWithPinnedTimestamps) translog).getMetadataFilesToBeDeleted(
+        List<String> metadataFilesToBeDeleted = ((RemoteFsTimestampAwareTranslog) translog).getMetadataFilesToBeDeleted(
             metadataFiles
         );
         assertEquals(1, metadataFilesToBeDeleted.size());
@@ -765,7 +764,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         pinnedGenerations.add(new Tuple<>(142L, 180L));
         pinnedGenerations.add(new Tuple<>(4L, 9L));
 
-        RemoteFsTranslogWithPinnedTimestamps translog = (RemoteFsTranslogWithPinnedTimestamps) this.translog;
+        RemoteFsTimestampAwareTranslog translog = (RemoteFsTimestampAwareTranslog) this.translog;
 
         assertFalse(translog.isGenerationPinned(3, pinnedGenerations));
         assertFalse(translog.isGenerationPinned(10, pinnedGenerations));
@@ -784,7 +783,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
     public void testGetMinMaxTranslogGenerationFromMetadataFile() throws IOException {
         TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
 
-        RemoteFsTranslogWithPinnedTimestamps translog = (RemoteFsTranslogWithPinnedTimestamps) this.translog;
+        RemoteFsTimestampAwareTranslog translog = (RemoteFsTimestampAwareTranslog) this.translog;
 
         // Fetch generations directly from the filename
         assertEquals(

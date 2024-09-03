@@ -70,7 +70,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
         if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
-            return new RemoteFsTranslogWithPinnedTimestamps(
+            return new RemoteFsTimestampAwareTranslog(
                 config,
                 translogUUID,
                 deletionPolicy,
@@ -81,8 +81,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 threadPool,
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
-                remoteStoreSettings,
-                0
+                remoteStoreSettings
             );
         } else {
             return new RemoteFsTranslog(
