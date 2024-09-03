@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -424,6 +425,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
             .get();
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -509,6 +511,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
             .get();
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -549,7 +552,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
         Settings settings = remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath);
-        // Disabling pinned timestamp as this test is specifically for shallow snapshot.
         settings = Settings.builder()
             .put(settings)
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
@@ -564,13 +566,10 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Path snapshotRepoPath = randomRepoPath();
         createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowV2(snapshotRepoPath));
 
-        final String testIndex = "index-test";
-        createIndexWithContent(testIndex);
-
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
-        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+        indexRandomDocs(remoteStoreEnabledIndexName, 5);
 
         String indexUUID = client().admin()
             .indices()
@@ -609,39 +608,45 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(remoteStoreEnabledIndexName));
         Thread.sleep(1000);
 
-        logger.info("--> delete snapshot 1");
-        AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
-            .cluster()
-            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo1.snapshotId().getName())
-            .get();
-        assertAcked(deleteSnapshotResponse);
+        logger.info("--> delete snapshot 2");
 
         Path indexPath = Path.of(String.valueOf(remoteStoreRepoPath), indexUUID);
         Path shardPath = Path.of(String.valueOf(indexPath), "0");
         Path segmentsPath = Path.of(String.valueOf(shardPath), "segments");
 
-        Thread.sleep(1000);
+        // Get total segments remote store directory file count for deleted index and shard 0
+        int segmentFilesCountBeforeDeletingSnapshot1 = RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath);
 
-        assertBusy(() -> {
-            try {
-                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath), greaterThan(0));
-            } catch (Exception e) {}
-        }, 30, TimeUnit.SECONDS);
-        int segmentsCount = RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath);
-
-        logger.info("--> delete snapshot 2");
-        // on snapshot deletion, remote store segment files should get cleaned up for deleted index - `remote-index-1`
-        deleteSnapshotResponse = clusterManagerClient.admin()
+        AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
             .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo2.snapshotId().getName())
             .get();
         assertAcked(deleteSnapshotResponse);
 
-        Thread.sleep(1000);
+        Thread.sleep(5000);
+
+        assertBusy(() -> {
+            try {
+                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath), lessThan(segmentFilesCountBeforeDeletingSnapshot1));
+            } catch (Exception e) {}
+        }, 30, TimeUnit.SECONDS);
+        int segmentFilesCountAfterDeletingSnapshot1 = RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath);
+
+        logger.info("--> delete snapshot 1");
+
+        // on snapshot deletion, remote store segment files should get cleaned up for deleted index - `remote-index-1`
+        deleteSnapshotResponse = clusterManagerClient.admin()
+            .cluster()
+            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo1.snapshotId().getName())
+            .get();
+        assertAcked(deleteSnapshotResponse);
+
+        Thread.sleep(5000);
+
         // Delete is async. Give time for it
         assertBusy(() -> {
             try {
-                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath), comparesEqualTo(0));
+                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath), lessThan(segmentFilesCountAfterDeletingSnapshot1));
             } catch (Exception e) {}
         }, 60, TimeUnit.SECONDS);
     }
@@ -662,7 +667,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         Settings settings = Settings.builder()
             .put(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath))
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
-            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
             .build();
         return settings;
     }

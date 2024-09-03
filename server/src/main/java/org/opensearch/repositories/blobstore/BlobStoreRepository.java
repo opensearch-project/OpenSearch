@@ -1205,14 +1205,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, listener::onFailure);
 
         pinnedTimestampListener.whenComplete(updatedRepoData -> {
-            int groupSize = 2;
-            if (isShallowSnapshotV2) {
-                groupSize = 1;
-            }
+
             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
             final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(
                 ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
-                groupSize
+                2
             );
 
             // We can create map of indexId to ShardInfo based on the old repository data. This is later used in cleanup
@@ -1246,8 +1243,40 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     remoteStoreLockManagerFactory,
                     afterCleanupsListener
                 );
+            } else {
+                cleanUpRemoteStoreFilesForDeletedIndices(
+                    repositoryData,
+                    snapshotIds,
+                    writeShardMetaDataAndComputeDeletesStep.result(),
+                    remoteSegmentStoreDirectoryFactory,
+                    afterCleanupsListener
+                );
             }
         }, listener::onFailure);
+    }
+
+    private void cleanUpRemoteStoreFilesForDeletedIndices(
+        RepositoryData repositoryData,
+        Collection<SnapshotId> snapshotIds,
+        Collection<ShardSnapshotMetaDeleteResult> result,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        ActionListener<Void> afterCleanupsListener
+    ) {
+        try {
+            Set<String> uniqueIndexIds = new HashSet<>();
+            for (ShardSnapshotMetaDeleteResult shardSnapshotMetaDeleteResult : result) {
+                uniqueIndexIds.add(shardSnapshotMetaDeleteResult.indexId.getId());
+            }
+            // iterate through all the indices and trigger remote store directory cleanup for deleted index segments
+            for (String indexId : uniqueIndexIds) {
+                cleanRemoteStoreDirectoryIfNeeded(snapshotIds, indexId, repositoryData, remoteSegmentStoreDirectoryFactory);
+            }
+            afterCleanupsListener.onResponse(null);
+        } catch (Exception e) {
+            logger.warn("Exception during cleanup of remote directory files for snapshot v2", e);
+            afterCleanupsListener.onFailure(e);
+        }
+
     }
 
     private void removeSnapshotsPinnedTimestamp(
