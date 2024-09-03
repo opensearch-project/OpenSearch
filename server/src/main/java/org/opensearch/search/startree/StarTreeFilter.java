@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -38,16 +40,19 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class StarTreeFilter {
     private static final Logger logger = LogManager.getLogger(StarTreeFilter.class);
 
-    private final StarTreeNode starTreeRoot;
+    // private final StarTreeNode starTreeRoot;
     Map<String, Long> queryMap;
     DocIdSetBuilder docsWithField;
     DocIdSetBuilder.BulkAdder adder;
-    Map<String, DocIdSetIterator> dimValueMap;
+    // Map<String, DocIdSetIterator> dimValueMap;
+    StarTreeValues starTreeValues;
+    List<Dimension> dimensions;
 
     public StarTreeFilter(StarTreeValues starTreeAggrStructure, Map<String, Long> predicateEvaluators) {
         // This filter operator does not support AND/OR/NOT operations as of now.
-        starTreeRoot = starTreeAggrStructure.getRoot();
-        dimValueMap = starTreeAggrStructure.getDimensionDocValuesIteratorMap();
+        starTreeValues = starTreeAggrStructure;
+        // starTreeRoot = starTreeAggrStructure.getRoot();
+        // dimValueMap = starTreeAggrStructure.getDimensionDocValuesIteratorMap();
         queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
 
         // TODO : this should be the maximum number of doc values
@@ -73,7 +78,9 @@ public class StarTreeFilter {
         for (String remainingPredicateColumn : starTreeResult._remainingPredicateColumns) {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
             DocIdSetBuilder builder = new DocIdSetBuilder(starTreeResult.maxMatchedDoc + 1);
-            SortedNumericDocValues ndv = (SortedNumericDocValues) this.dimValueMap.get(remainingPredicateColumn);
+            SortedNumericDocValues ndv = (SortedNumericDocValues) this.starTreeValues.getDimensionDocIdSetIterator(
+                remainingPredicateColumn
+            );
             List<Integer> docIds = new ArrayList<>();
             long queryValue = queryMap.get(remainingPredicateColumn); // Get the query value directly
 
@@ -106,8 +113,12 @@ public class StarTreeFilter {
      */
     private StarTreeResult traverseStarTree() throws IOException {
         Set<String> globalRemainingPredicateColumns = null;
-        StarTreeNode starTree = starTreeRoot;
-        List<String> dimensionNames = new ArrayList<>(dimValueMap.keySet());
+        StarTreeNode starTree = starTreeValues.getRoot();
+        List<String> dimensionNames = starTreeValues.getStarTreeField()
+            .getDimensionsOrder()
+            .stream()
+            .map(Dimension::getField)
+            .collect(Collectors.toList());
         boolean foundLeafNode = starTree.isLeaf();
         Queue<StarTreeNode> queue = new ArrayDeque<>();
         queue.add(starTree);
@@ -152,12 +163,12 @@ public class StarTreeFilter {
             String childDimension = dimensionNames.get(dimensionId + 1);
             StarTreeNode starNode = null;
             if (globalRemainingPredicateColumns == null || !globalRemainingPredicateColumns.contains(childDimension)) {
-                starNode = starTreeNode.getChildForDimensionValue(StarTreeUtils.ALL, true);
+                starNode = starTreeNode.getChildStarNode();
             }
 
             if (remainingPredicateColumns.contains(childDimension)) {
                 long queryValue = queryMap.get(childDimension); // Get the query value directly from the map
-                StarTreeNode matchingChild = starTreeNode.getChildForDimensionValue(queryValue, false);
+                StarTreeNode matchingChild = starTreeNode.getChildForDimensionValue(queryValue);
                 if (matchingChild != null) {
                     queue.add(matchingChild);
                     foundLeafNode |= matchingChild.isLeaf();
