@@ -109,15 +109,16 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < totalDocs; i++) {
             Document doc = new Document();
             if (random.nextBoolean()) {
-                val = random.nextInt(10) - 5;
-                doc.add(new SortedNumericDocValuesField(SNDV, val)); // Random long between -5 and 4
+                val = random.nextInt(10) - 5; // Random long between -5 and 4
+                doc.add(new SortedNumericDocValuesField(SNDV, val));
             }
             if (random.nextBoolean()) {
-                val = random.nextInt(20) - 10;
-                doc.add(new SortedNumericDocValuesField(DV, val)); // Random long between -10 and 9
+                val = random.nextInt(20) - 10; // Random long between -10 and 9
+                doc.add(new SortedNumericDocValuesField(DV, val));
             }
             if (random.nextBoolean()) {
-                doc.add(new SortedNumericDocValuesField(FIELD_NAME, random.nextInt(50))); // Random long between 0 and 49
+                val = random.nextInt(50); // Random long between 0 and 49
+                doc.add(new SortedNumericDocValuesField(FIELD_NAME, val));
             }
             iw.addDocument(doc);
         }

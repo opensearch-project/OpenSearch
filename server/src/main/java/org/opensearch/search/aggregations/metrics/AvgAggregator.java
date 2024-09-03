@@ -52,8 +52,6 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.OriginalOrStarTreeQuery;
-import org.opensearch.search.startree.StarTreeQuery;
 
 import java.io.IOException;
 import java.util.Map;
@@ -101,9 +99,9 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        if (context.query() instanceof OriginalOrStarTreeQuery && ((OriginalOrStarTreeQuery) context.query()).isStarTreeUsed()) {
-            StarTreeQuery starTreeQuery = ((OriginalOrStarTreeQuery) context.query()).getStarTreeQuery();
-            return getStarTreeLeafCollector(ctx, sub, starTreeQuery.getStarTree());
+        CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree(ctx);
+        if (supportedStarTree != null) {
+            return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
     }

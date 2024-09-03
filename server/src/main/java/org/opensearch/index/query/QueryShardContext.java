@@ -636,17 +636,18 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public boolean validateStarTreeMetricSuport(CompositeDataCubeFieldType compositeIndexFieldInfo, AggregatorFactory aggregatorFactory) {
-        String field;
-        Map<String, List<MetricStat>> supportedMetrics = compositeIndexFieldInfo.getMetrics()
-            .stream()
-            .collect(Collectors.toMap(Metric::getField, Metric::getMetrics));
+        if (aggregatorFactory instanceof MetricAggregatorFactory && aggregatorFactory.getSubFactories().getFactories().length == 0) {
+            String field;
+            Map<String, List<MetricStat>> supportedMetrics = compositeIndexFieldInfo.getMetrics()
+                .stream()
+                .collect(Collectors.toMap(Metric::getField, Metric::getMetrics));
 
-        if (aggregatorFactory instanceof MetricAggregatorFactory) {
             MetricStat metricStat = ((MetricAggregatorFactory) aggregatorFactory).getMetricStat();
             field = ((MetricAggregatorFactory) aggregatorFactory).getField();
             return supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat);
+        } else {
+            return false;
         }
-        return false;
     }
 
     public Index index() {
