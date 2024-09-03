@@ -8,8 +8,6 @@
 
 package org.opensearch.cluster.routing.allocation.allocator;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterName;
@@ -33,9 +31,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.threadpool.TestThreadPool;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,8 +42,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.mockito.Mockito.mock;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING;
@@ -254,7 +250,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
         int node1ShardCount = state.getRoutingNodes().node("node1").size();
         Settings settings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build();
-        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings, new CountDownLatch(Integer.MAX_VALUE)); // such that it never times out
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings, new CountDownLatch(Integer.MAX_VALUE));
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDecidersForExcludeAPI(settings),
             new RoutingNodes(state, false),
@@ -374,7 +370,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
         assertEquals(0, node1ShardCount);
         Settings newSettings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "").build();
-        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(newSettings, new CountDownLatch(Integer.MAX_VALUE)); // such that it never times out
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(newSettings, new CountDownLatch(Integer.MAX_VALUE));
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDecidersForExcludeAPI(newSettings),
             new RoutingNodes(state, false),
