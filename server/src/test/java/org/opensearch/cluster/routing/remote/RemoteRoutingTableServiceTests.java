@@ -63,8 +63,8 @@ import java.util.function.Supplier;
 
 import org.mockito.Mockito;
 
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.ClusterMetadataManifestTests.randomUploadedIndexMetadataList;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.generateClusterStateWithOneIndex;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
@@ -126,7 +126,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         compressor = new NoneCompressor();
         basePath = BlobPath.cleanPath().add("base-path");

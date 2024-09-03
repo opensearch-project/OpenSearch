@@ -20,7 +20,7 @@ import org.junit.After;
 
 import java.util.function.Supplier;
 
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
@@ -51,7 +51,7 @@ public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
             .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), false)
             .build();
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         RemoteRoutingTableService service = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,

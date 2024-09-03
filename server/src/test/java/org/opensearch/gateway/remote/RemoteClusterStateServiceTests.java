@@ -107,12 +107,12 @@ import org.mockito.Mockito;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTE;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata1;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata2;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata3;
@@ -371,7 +371,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void testWriteFullMetadataSuccessPublicationEnabled() throws IOException {
         // TODO Make the publication flag parameterized
         publicationEnabled = true;
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
@@ -749,7 +749,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testWriteIncrementalMetadataSuccessWhenPublicationEnabled() throws IOException {
         publicationEnabled = true;
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
@@ -2658,7 +2658,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings.applySettings(newSettings);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
         remoteClusterStateService = new RemoteClusterStateService(
@@ -2938,7 +2938,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings.applySettings(newSettings);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
@@ -2966,11 +2966,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "remote_store_repository")
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(), mode.name())
+            .put(REMOTE_PUBLICATION_SETTING_KEY, true)
             .build();
         clusterSettings.applySettings(newSettings);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
