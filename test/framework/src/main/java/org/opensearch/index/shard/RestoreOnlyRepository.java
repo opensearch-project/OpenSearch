@@ -130,6 +130,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     ) {
         listener.onResponse(null);
     }
+
     @Override
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
