@@ -22,6 +22,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -557,10 +558,16 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.FIXED.toString())
             .build();
-        internalCluster().startClusterManagerOnlyNode(settings);
+        String clusterManagerName = internalCluster().startClusterManagerOnlyNode(settings);
         internalCluster().startDataOnlyNode(settings);
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            clusterManagerName
+        );
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
@@ -617,6 +624,8 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Get total segments remote store directory file count for deleted index and shard 0
         int segmentFilesCountBeforeDeletingSnapshot1 = RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath);
 
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+
         AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
             .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo2.snapshotId().getName())
@@ -633,7 +642,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         int segmentFilesCountAfterDeletingSnapshot1 = RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath);
 
         logger.info("--> delete snapshot 1");
-
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
         // on snapshot deletion, remote store segment files should get cleaned up for deleted index - `remote-index-1`
         deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
