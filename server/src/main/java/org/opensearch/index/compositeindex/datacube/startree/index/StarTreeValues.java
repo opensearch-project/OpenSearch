@@ -8,9 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.index;
 
-import java.util.Locale;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -32,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -243,8 +242,7 @@ public class StarTreeValues implements CompositeIndexValues {
 
         if (dimensionDocValuesIteratorMap.containsKey(dimension)) {
             return dimensionDocValuesIteratorMap.get(dimension).get();
-        }
-        else {
+        } else {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Dimension %s not present", dimension));
         }
     }

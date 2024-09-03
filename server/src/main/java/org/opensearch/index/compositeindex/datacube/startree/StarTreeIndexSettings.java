@@ -29,6 +29,7 @@ import java.util.function.Function;
 public class StarTreeIndexSettings {
 
     public static int STAR_TREE_MAX_DIMENSIONS_DEFAULT = 10;
+    public static int STAR_TREE_MAX_BASE_METRICS_DEFAULT = 100;
     /**
      * This setting determines the max number of star tree fields that can be part of composite index mapping. For each
      * star tree field, we will generate associated star tree index.
@@ -51,6 +52,19 @@ public class StarTreeIndexSettings {
         STAR_TREE_MAX_DIMENSIONS_DEFAULT,
         2,
         10,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * This setting determines the max number of dimensions that can be part of star tree index field. Number of
+     * dimensions and associated cardinality has direct effect of star tree index size and query performance.
+     */
+    public static final Setting<Integer> STAR_TREE_MAX_BASE_METRICS_SETTING = Setting.intSetting(
+        "index.composite_index.star_tree.field.max_base_metrics",
+        STAR_TREE_MAX_BASE_METRICS_DEFAULT,
+        4,
+        100,
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -113,4 +127,11 @@ public class StarTreeIndexSettings {
         }
         throw new IllegalArgumentException("unknown calendar intervals specified in star tree index mapping");
     }
+
+    public static final Setting<Boolean> IS_COMPOSITE_INDEX_SETTING = Setting.boolSetting(
+        "index.composite_index",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
 }

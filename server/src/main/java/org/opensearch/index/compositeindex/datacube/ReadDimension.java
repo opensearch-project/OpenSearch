@@ -8,11 +8,11 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
-import java.util.List;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**

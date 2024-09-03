@@ -322,12 +322,13 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         FieldInfo[] dimensionFieldInfoList = new FieldInfo[numDimensions];
         FieldInfo[] metricFieldInfoList = new FieldInfo[metricAggregatorInfos.size()];
         int dimIndex = 0;
-        for(Dimension dim : dimensionsSplitOrder) {
-            for(String name : dim.getDimensionFieldsNames()) {
+        for (Dimension dim : dimensionsSplitOrder) {
+            for (String name : dim.getDimensionFieldsNames()) {
                 final FieldInfo fi = getFieldInfo(
-                    fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeField.getName(),
-                        name), DocValuesType.SORTED_NUMERIC,
-                    fieldNumberAcrossStarTrees.getAndIncrement());
+                    fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeField.getName(), name),
+                    DocValuesType.SORTED_NUMERIC,
+                    fieldNumberAcrossStarTrees.getAndIncrement()
+                );
                 dimensionFieldInfoList[dimIndex] = fi;
                 dimensionWriters.add(new SortedNumericDocValuesWriterWrapper(fi, Counter.newCounter()));
                 dimIndex++;
@@ -444,9 +445,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     ) {
         List<String> dimensionNames = starTreeValues.getStarTreeField().getDimensionNames();
         for (int i = 0; i < numDimensions; i++) {
-            dimensionReaders[i] = new SequentialDocValuesIterator(
-                starTreeValues.getDimensionDocIdSetIterator(dimensionNames.get(i))
-            );
+            dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(dimensionNames.get(i)));
         }
         // get doc id set iterators for metrics
         for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
@@ -460,8 +459,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             }
         }
 
-        numSegmentDocs.set(Integer.parseInt(
-            starTreeValues.getAttributes().getOrDefault(SEGMENT_DOCS_COUNT, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))));
+        numSegmentDocs.set(
+            Integer.parseInt(starTreeValues.getAttributes().getOrDefault(SEGMENT_DOCS_COUNT, String.valueOf(DocIdSetIterator.NO_MORE_DOCS)))
+        );
     }
 
     /**

@@ -51,7 +51,7 @@ public class StarTreeTestUtils {
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
             List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
             int numDimensions = 0;
-            for(Dimension dimension : dimensionsSplitOrder) {
+            for (Dimension dimension : dimensionsSplitOrder) {
                 numDimensions += dimension.getNumSubDimensions();
             }
             SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
@@ -59,9 +59,8 @@ public class StarTreeTestUtils {
             int dimIndex = 0;
             for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
                 Dimension dimension = dimensionsSplitOrder.get(i);
-                for(String name : dimension.getDimensionFieldsNames()) {
-                    dimensionReaders[dimIndex] =
-                        new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(name));
+                for (String name : dimension.getDimensionFieldsNames()) {
+                    dimensionReaders[dimIndex] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(name));
                     dimIndex++;
                 }
             }
