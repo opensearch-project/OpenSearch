@@ -37,6 +37,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -59,7 +60,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class CoordinationMetadata implements Writeable, ToXContentFragment {
+public class CoordinationMetadata implements VerifiableWriteable, ToXContentFragment {
 
     public static final CoordinationMetadata EMPTY_METADATA = builder().build();
 
@@ -147,6 +148,11 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         lastCommittedConfiguration.writeTo(out);
         lastAcceptedConfiguration.writeTo(out);
         out.writeCollection(votingConfigExclusions);
+    }
+
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
+        writeTo(out);
     }
 
     @Override
@@ -272,7 +278,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static class VotingConfigExclusion implements Writeable, ToXContentFragment {
+    public static class VotingConfigExclusion implements Writeable, ToXContentFragment, Comparable<VotingConfigExclusion> {
         public static final String MISSING_VALUE_MARKER = "_absent_";
         private final String nodeId;
         private final String nodeName;
@@ -361,6 +367,10 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
             return sb.toString();
         }
 
+        @Override
+        public int compareTo(VotingConfigExclusion votingConfigExclusion) {
+            return votingConfigExclusion.getNodeId().compareTo(this.getNodeId());
+        }
     }
 
     /**

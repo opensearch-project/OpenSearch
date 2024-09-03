@@ -36,10 +36,14 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -326,6 +330,28 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertThat(discoveryNodes.resolveNodes("master:true"), arrayContainingInAnyOrder(clusterManagerNodes));
         assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonClusterManagerNodes));
         assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
+    }
+
+    public void testWriteVerifiableTo() throws IOException {
+        final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        discoveryNodes.writeVerifiableTo(checksumOut);
+        StreamInput in = out.bytes().streamInput();
+        DiscoveryNodes result = DiscoveryNodes.readFrom(in, discoveryNodes.getLocalNode());
+        assertEquals(result, discoveryNodes);
+
+        final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
+            .clusterManagerNodeId(discoveryNodes.getClusterManagerNodeId());
+        discoveryNodes.getNodes()
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEachOrdered(entry -> discoveryNodesBuilder.add(entry.getValue()));
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        discoveryNodesBuilder.build().writeVerifiableTo(checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
     }
 
     private static AtomicInteger idGenerator = new AtomicInteger();
