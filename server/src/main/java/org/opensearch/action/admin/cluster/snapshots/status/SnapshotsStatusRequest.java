@@ -78,7 +78,7 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         repository = in.readString();
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             indices = in.readOptionalStringArray();
         }
     }
@@ -89,7 +89,7 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         out.writeString(repository);
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalStringArray(indices);
         }
     }
