@@ -40,6 +40,26 @@
               "description":"A comma-separated list of snapshot names"
             }
           }
+        },
+        {
+          "path":"/_snapshot/{repository}/{snapshot}/{index}/_status",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "repository":{
+              "type":"string",
+              "description":"A repository name"
+            },
+            "snapshot":{
+              "type":"string",
+              "description":"A snapshot name"
+            },
+            "index":{
+              "type": "list",
+              "description":"A comma-separated list of index names"
+            }
+          }
         }
       ]
     },
@@ -58,7 +78,7 @@
       },
       "ignore_unavailable":{
         "type":"boolean",
-        "description":"Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
+        "description":"Whether to ignore unavailable snapshots and indices, defaults to false which means a SnapshotMissingException or IndexNotFoundException is thrown"
       }
     }
   }
