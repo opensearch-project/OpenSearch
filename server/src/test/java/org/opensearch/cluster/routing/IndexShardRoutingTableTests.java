@@ -33,9 +33,9 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

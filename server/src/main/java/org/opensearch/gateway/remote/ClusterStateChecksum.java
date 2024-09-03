@@ -21,6 +21,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +29,6 @@ import java.util.List;
 import java.util.Objects;
 
 import com.jcraft.jzlib.JZlib;
-import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 

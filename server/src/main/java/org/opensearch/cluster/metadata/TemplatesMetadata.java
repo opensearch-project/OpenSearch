@@ -69,7 +69,7 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
 
     @Override
     public void writeVerifiableTo(StreamOutput out) throws IOException {
-        ((BufferedChecksumStreamOutput)out).writeMapValues(templates, (stream, value) -> value.writeVerifiableTo(stream));
+        ((BufferedChecksumStreamOutput) out).writeMapValues(templates, (stream, value) -> value.writeVerifiableTo(stream));
     }
 
     @Override

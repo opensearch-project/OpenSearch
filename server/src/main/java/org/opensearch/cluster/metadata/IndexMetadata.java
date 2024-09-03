@@ -1301,15 +1301,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
-        ((BufferedChecksumStreamOutput)out).writeMapValues(mappings, (stream, val) -> val.writeTo(stream));
-        ((BufferedChecksumStreamOutput)out).writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
+        ((BufferedChecksumStreamOutput) out).writeMapValues(mappings, (stream, val) -> val.writeTo(stream));
+        ((BufferedChecksumStreamOutput) out).writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
         out.writeMap(customData, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
         out.writeMap(
             inSyncAllocationIds,
             StreamOutput::writeVInt,
             (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
         );
-        ((BufferedChecksumStreamOutput)out).writeMapValues(rolloverInfos, (stream, val) -> val.writeTo(stream));
+        ((BufferedChecksumStreamOutput) out).writeMapValues(rolloverInfos, (stream, val) -> val.writeTo(stream));
         out.writeBoolean(isSystem);
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalWriteable(context);
