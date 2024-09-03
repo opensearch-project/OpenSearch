@@ -525,61 +525,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected void doRun() {
-                int batchSize = originalBulkRequest.batchSize();
-                if (shouldExecuteBulkRequestInBatch(originalBulkRequest.requests().size(), batchSize)) {
-                    runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
-                    return;
-                }
-
-                final Thread originalThread = Thread.currentThread();
-                final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
-                int i = 0;
-                for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                    if (indexRequest == null) {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
-                        i++;
-                        continue;
-                    }
-                    final String pipelineId = indexRequest.getPipeline();
-                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                    final String finalPipelineId = indexRequest.getFinalPipeline();
-                    indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-                    boolean hasFinalPipeline = true;
-                    final List<String> pipelines;
-                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                        && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = Arrays.asList(pipelineId, finalPipelineId);
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        pipelines = Collections.singletonList(pipelineId);
-                        hasFinalPipeline = false;
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = Collections.singletonList(finalPipelineId);
-                    } else {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
-                        i++;
-                        continue;
-                    }
-
-                    executePipelines(
-                        i,
-                        pipelines.iterator(),
-                        hasFinalPipeline,
-                        indexRequest,
-                        onDropped,
-                        onFailure,
-                        counter,
-                        onCompletion,
-                        originalThread
-                    );
-                    i++;
-                }
+                runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
             }
         });
     }
@@ -635,7 +581,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             i++;
         }
 
-        int batchSize = originalBulkRequest.batchSize();
+        int batchSize = Math.min(numberOfActionRequests, originalBulkRequest.batchSize());
         List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
 
@@ -652,10 +598,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 originalThread
             );
         }
-    }
-
-    private boolean shouldExecuteBulkRequestInBatch(int documentSize, int batchSize) {
-        return documentSize > 1 && batchSize > 1;
     }
 
     /**
@@ -685,7 +627,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         List<List<IndexRequestWrapper>> batchedIndexRequests = new ArrayList<>();
         for (Map.Entry<Integer, List<IndexRequestWrapper>> indexRequestsPerKey : indexRequestsPerIndexAndPipelines.entrySet()) {
-            for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += batchSize) {
+            for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += Math.min(indexRequestsPerKey.getValue().size(), batchSize)) {
                 batchedIndexRequests.add(
                     new ArrayList<>(
                         indexRequestsPerKey.getValue().subList(i, i + Math.min(batchSize, indexRequestsPerKey.getValue().size() - i))
@@ -1055,7 +997,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Consumer<List<IngestDocumentWrapper>> handler
     ) {
         if (pipeline.getProcessors().isEmpty()) {
-            handler.accept(null);
+            handler.accept(toIngestDocumentWrappers(slots, indexRequests));
             return;
         }
 
@@ -1327,6 +1269,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private static IngestDocumentWrapper toIngestDocumentWrapper(int slot, IndexRequest indexRequest) {
         return new IngestDocumentWrapper(slot, toIngestDocument(indexRequest), null);
+    }
+
+    private static List<IngestDocumentWrapper> toIngestDocumentWrappers(List<Integer> slots, List<IndexRequest> indexRequests) {
+        List<IngestDocumentWrapper> ingestDocumentWrappers = new ArrayList<>();
+        for (int i = 0; i < slots.size(); ++i) {
+            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), indexRequests.get(i)));
+        }
+        return ingestDocumentWrappers;
     }
 
     private static Map<Integer, IndexRequest> createSlotIndexRequestMap(List<Integer> slots, List<IndexRequest> indexRequests) {

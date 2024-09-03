@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
@@ -29,7 +29,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 /**
  * Wrapper class for uploading/downloading {@link ClusterBlocks} to/from remote blob store
  */
-public class RemoteClusterBlocks extends AbstractRemoteWritableBlobEntity<ClusterBlocks> {
+public class RemoteClusterBlocks extends AbstractClusterMetadataWriteableBlobEntity<ClusterBlocks> {
 
     public static final String CLUSTER_BLOCKS = "blocks";
     public static final ChecksumWritableBlobStoreFormat<ClusterBlocks> CLUSTER_BLOCKS_FORMAT = new ChecksumWritableBlobStoreFormat<>(

@@ -13,6 +13,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.PrimaryShardBatchAllocator;
@@ -28,11 +29,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator {
 
+    CountDownLatch latch;
+
     public TestShardBatchGatewayAllocator() {
 
+    }
+
+    public TestShardBatchGatewayAllocator(CountDownLatch latch) {
+        this.latch = latch;
     }
 
     public TestShardBatchGatewayAllocator(long maxBatchSize) {
@@ -82,6 +90,13 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
             }
             return new AsyncShardFetch.FetchResult<>(foundShards, shardsToIgnoreNodes);
         }
+
+        @Override
+        protected void allocateUnassignedBatchOnTimeout(Set<ShardId> shardIds, RoutingAllocation allocation, boolean primary) {
+            for (int i = 0; i < shardIds.size(); i++) {
+                latch.countDown();
+            }
+        }
     };
 
     ReplicaShardBatchAllocator replicaBatchShardAllocator = new ReplicaShardBatchAllocator() {
@@ -99,12 +114,19 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
         protected boolean hasInitiatedFetching(ShardRouting shard) {
             return true;
         }
+
+        @Override
+        protected void allocateUnassignedBatchOnTimeout(Set<ShardId> shardIds, RoutingAllocation allocation, boolean primary) {
+            for (int i = 0; i < shardIds.size(); i++) {
+                latch.countDown();
+            }
+        }
     };
 
     @Override
-    public void allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    public BatchRunnableExecutor allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         currentNodes = allocation.nodes();
-        innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
+        return innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
     }
 
     @Override

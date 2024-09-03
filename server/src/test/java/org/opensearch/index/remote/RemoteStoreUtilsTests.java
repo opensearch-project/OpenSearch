@@ -9,30 +9,54 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
+import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
 import static org.opensearch.index.remote.RemoteStoreUtils.URL_BASE64_CHARSET;
 import static org.opensearch.index.remote.RemoteStoreUtils.determineTranslogMetadataEnabled;
+import static org.opensearch.index.remote.RemoteStoreUtils.finalizeMigration;
+import static org.opensearch.index.remote.RemoteStoreUtils.isSwitchToStrictCompatibilityMode;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 import static org.opensearch.index.remote.RemoteStoreUtils.urlBase64ToLong;
@@ -42,6 +66,10 @@ import static org.opensearch.index.shard.IndexShardTestUtils.MOCK_TLOG_REPO_NAME
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 
 public class RemoteStoreUtilsTests extends OpenSearchTestCase {
 
@@ -398,4 +426,659 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testFinalizeMigrationWithAllRemoteNodes() {
+        String migratedIndex = "migrated-index";
+        Settings mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict").build();
+        DiscoveryNode remoteNode1 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNode remoteNode2 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(remoteNode1)
+            .localNodeId(remoteNode1.getId())
+            .add(remoteNode2)
+            .localNodeId(remoteNode2.getId())
+            .build();
+        Metadata docrepIdxMetadata = createIndexMetadataWithDocrepSettings(migratedIndex);
+        assertDocrepSettingsApplied(docrepIdxMetadata.index(migratedIndex));
+        Metadata remoteIndexMd = Metadata.builder(docrepIdxMetadata).persistentSettings(mockSettings).build();
+        ClusterState clusterStateWithDocrepIndexSettings = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(remoteIndexMd)
+            .nodes(discoveryNodes)
+            .routingTable(createRoutingTableAllShardsStarted(migratedIndex, 1, 1, remoteNode1, remoteNode2))
+            .build();
+        Metadata mutatedMetadata = finalizeMigration(clusterStateWithDocrepIndexSettings, logger).metadata();
+        assertTrue(mutatedMetadata.index(migratedIndex).getVersion() > docrepIdxMetadata.index(migratedIndex).getVersion());
+        assertRemoteSettingsApplied(mutatedMetadata.index(migratedIndex));
+    }
+
+    public void testFinalizeMigrationWithAllDocrepNodes() {
+        String docrepIndex = "docrep-index";
+        Settings mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict").build();
+        DiscoveryNode docrepNode1 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode docrepNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(docrepNode1)
+            .localNodeId(docrepNode1.getId())
+            .add(docrepNode2)
+            .localNodeId(docrepNode2.getId())
+            .build();
+        Metadata docrepIdxMetadata = createIndexMetadataWithDocrepSettings(docrepIndex);
+        assertDocrepSettingsApplied(docrepIdxMetadata.index(docrepIndex));
+        Metadata remoteIndexMd = Metadata.builder(docrepIdxMetadata).persistentSettings(mockSettings).build();
+        ClusterState clusterStateWithDocrepIndexSettings = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(remoteIndexMd)
+            .nodes(discoveryNodes)
+            .routingTable(createRoutingTableAllShardsStarted(docrepIndex, 1, 1, docrepNode1, docrepNode2))
+            .build();
+        Metadata mutatedMetadata = finalizeMigration(clusterStateWithDocrepIndexSettings, logger).metadata();
+        assertEquals(docrepIdxMetadata.index(docrepIndex).getVersion(), mutatedMetadata.index(docrepIndex).getVersion());
+        assertDocrepSettingsApplied(mutatedMetadata.index(docrepIndex));
+    }
+
+    public void testIsSwitchToStrictCompatibilityMode() {
+        Settings mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict").build();
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(mockSettings);
+        assertTrue(isSwitchToStrictCompatibilityMode(request));
+
+        mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed").build();
+        request.persistentSettings(mockSettings);
+        assertFalse(isSwitchToStrictCompatibilityMode(request));
+    }
+
+    private void assertRemoteSettingsApplied(IndexMetadata indexMetadata) {
+        assertTrue(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings()));
+        assertTrue(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
+        assertTrue(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
+        assertEquals(ReplicationType.SEGMENT, IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMetadata.getSettings()));
+    }
+
+    private void assertDocrepSettingsApplied(IndexMetadata indexMetadata) {
+        assertFalse(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings()));
+        assertFalse(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
+        assertFalse(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
+        assertEquals(ReplicationType.DOCUMENT, IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMetadata.getSettings()));
+    }
+
+    private RoutingTable createRoutingTableAllShardsStarted(
+        String indexName,
+        int numberOfShards,
+        int numberOfReplicas,
+        DiscoveryNode primaryHostingNode,
+        DiscoveryNode replicaHostingNode
+    ) {
+        RoutingTable.Builder builder = RoutingTable.builder();
+        Index index = new Index(indexName, UUID.randomUUID().toString());
+
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        for (int i = 0; i < numberOfShards; i++) {
+            ShardId shardId = new ShardId(index, i);
+            IndexShardRoutingTable.Builder indexShardRoutingTable = new IndexShardRoutingTable.Builder(shardId);
+            indexShardRoutingTable.addShard(
+                TestShardRouting.newShardRouting(shardId, primaryHostingNode.getId(), true, ShardRoutingState.STARTED)
+            );
+            for (int j = 0; j < numberOfReplicas; j++) {
+                indexShardRoutingTable.addShard(
+                    TestShardRouting.newShardRouting(shardId, replicaHostingNode.getId(), false, ShardRoutingState.STARTED)
+                );
+            }
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingTable.build());
+        }
+        return builder.add(indexRoutingTableBuilder.build()).build();
+    }
+
+    private Map<String, String> getRemoteStoreNodeAttributes() {
+        Map<String, String> remoteStoreNodeAttributes = new HashMap<>();
+        remoteStoreNodeAttributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        return remoteStoreNodeAttributes;
+    }
+
+    private void setupRemotePinnedTimestampFeature(boolean enabled) {
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(
+            Settings.builder().put(CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), enabled).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+    }
+
+    public void testGetPinnedTimestampLockedFilesFeatureDisabled() {
+        setupRemotePinnedTimestampFeature(false);
+        // Pinned timestamps 800, 900, 1000, 2000
+        // Metadata with timestamp 990, 995, 1000, 1001
+        // Metadata timestamp 1000 <= Pinned Timestamp 1000
+        // Metadata timestamp 1001 <= Pinned Timestamp 2000
+        Map<Long, String> metadataFilePinnedTimestampCache = new HashMap<>();
+        Tuple<Map<Long, String>, Set<String>> metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L),
+            Set.of(800L, 900L, 1000L, 2000L),
+            metadataFilePinnedTimestampCache
+        );
+        Map<Long, String> metadataFiles = metadataAndLocks.v1();
+        Set<String> implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(0, implicitLockedFiles.size());
+        assertEquals(0, metadataFilePinnedTimestampCache.size());
+    }
+
+    public void testGetPinnedTimestampLockedFilesWithEmptyMetadataFiles() {
+        setupRemotePinnedTimestampFeature(true);
+        List<String> metadataFiles = Collections.emptyList();
+        Set<Long> pinnedTimestampSet = new HashSet<>(Arrays.asList(1L, 2L, 3L));
+        Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            new HashMap<>(),
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getTimestamp,
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+        );
+        assertTrue(implicitLockedFiles.isEmpty());
+    }
+
+    public void testGetPinnedTimestampLockedFilesWithNoPinnedTimestamps() {
+        setupRemotePinnedTimestampFeature(true);
+        List<String> metadataFiles = Arrays.asList("file1.txt", "file2.txt", "file3.txt");
+        Set<Long> pinnedTimestampSet = Collections.emptySet();
+        Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            new HashMap<>(),
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getTimestamp,
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+        );
+        assertTrue(implicitLockedFiles.isEmpty());
+    }
+
+    public void testGetPinnedTimestampLockedFilesWithNullMetadataFiles() {
+        setupRemotePinnedTimestampFeature(true);
+        List<String> metadataFiles = null;
+        Set<Long> pinnedTimestampSet = new HashSet<>(Arrays.asList(1L, 2L, 3L));
+        Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            new HashMap<>(),
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getTimestamp,
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+        );
+        assertTrue(implicitLockedFiles.isEmpty());
+    }
+
+    public void testGetPinnedTimestampLockedFilesWithNullPinnedTimestampSet() {
+        setupRemotePinnedTimestampFeature(true);
+        List<String> metadataFiles = Arrays.asList("file1.txt", "file2.txt", "file3.txt");
+        Set<Long> pinnedTimestampSet = null;
+        Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            new HashMap<>(),
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getTimestamp,
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+        );
+        assertTrue(implicitLockedFiles.isEmpty());
+    }
+
+    private Tuple<Map<Long, String>, Set<String>> testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+        List<Long> metadataFileTimestamps,
+        Set<Long> pinnedTimetamps,
+        Map<Long, String> metadataFilePinnedTimestampCache
+    ) {
+        String metadataPrefix = "metadata__1__2__3__4__5__";
+        Map<Long, String> metadataFiles = new HashMap<>();
+        for (Long metadataFileTimestamp : metadataFileTimestamps) {
+            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp));
+        }
+        return new Tuple<>(
+            metadataFiles,
+            RemoteStoreUtils.getPinnedTimestampLockedFiles(
+                new ArrayList<>(metadataFiles.values()),
+                pinnedTimetamps,
+                metadataFilePinnedTimestampCache,
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils::getTimestamp,
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+            )
+        );
+    }
+
+    private Tuple<Map<Long, String>, Set<String>> testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+        Map<Long, Long> metadataFileTimestampsPrimaryTermMap,
+        Set<Long> pinnedTimetamps,
+        Map<Long, String> metadataFilePinnedTimestampCache
+    ) {
+        setupRemotePinnedTimestampFeature(true);
+        Map<Long, String> metadataFiles = new HashMap<>();
+        for (Map.Entry<Long, Long> metadataFileTimestampPrimaryTerm : metadataFileTimestampsPrimaryTermMap.entrySet()) {
+            String primaryTerm = RemoteStoreUtils.invertLong(metadataFileTimestampPrimaryTerm.getValue());
+            String metadataPrefix = "metadata__" + primaryTerm + "__2__3__4__5__";
+            long metadataFileTimestamp = metadataFileTimestampPrimaryTerm.getKey();
+            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp));
+        }
+        return new Tuple<>(
+            metadataFiles,
+            RemoteStoreUtils.getPinnedTimestampLockedFiles(
+                new ArrayList<>(metadataFiles.values()),
+                pinnedTimetamps,
+                metadataFilePinnedTimestampCache,
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils::getTimestamp,
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+            )
+        );
+    }
+
+    public void testGetPinnedTimestampLockedFilesWithPinnedTimestamps() {
+        setupRemotePinnedTimestampFeature(true);
+
+        Map<Long, String> metadataFilePinnedTimestampCache = new HashMap<>();
+
+        // Pinned timestamps 800, 900
+        // Metadata with timestamp 990
+        // No metadata matches the timestamp
+        Tuple<Map<Long, String>, Set<String>> metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L),
+            Set.of(800L, 900L),
+            metadataFilePinnedTimestampCache
+        );
+        Map<Long, String> metadataFiles = metadataAndLocks.v1();
+        Set<String> implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(0, implicitLockedFiles.size());
+        assertEquals(0, metadataFilePinnedTimestampCache.size());
+
+        // Pinned timestamps 800, 900, 1000
+        // Metadata with timestamp 990
+        // Metadata timestamp 990 <= Pinned Timestamp 1000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L),
+            Set.of(800L, 900L, 1000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(990L)));
+        // This is still 0 as we don't cache the latest metadata file as it can change (explained in the next test case)
+        assertEquals(0, metadataFilePinnedTimestampCache.size());
+
+        // Pinned timestamps 800, 900, 1000
+        // Metadata with timestamp 990, 995
+        // Metadata timestamp 995 <= Pinned Timestamp 1000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L),
+            Set.of(800L, 900L, 1000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(995L)));
+        // This is still 0 as we don't cache the latest metadata file as it can change
+        assertEquals(0, metadataFilePinnedTimestampCache.size());
+
+        // Pinned timestamps 800, 900, 1000
+        // Metadata with timestamp 990, 995, 1000
+        // Metadata timestamp 1000 <= Pinned Timestamp 1000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L),
+            Set.of(800L, 900L, 1000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1000L)));
+        // This is still 0 as we don't cache the latest metadata file as it can change
+        assertEquals(0, metadataFilePinnedTimestampCache.size());
+
+        // Pinned timestamps 800, 900, 1000, 2000
+        // Metadata with timestamp 990, 995, 1000, 1001
+        // Metadata timestamp 1000 <= Pinned Timestamp 1000
+        // Metadata timestamp 1001 <= Pinned Timestamp 2000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L),
+            Set.of(800L, 900L, 1000L, 2000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(2, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1001L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(1000L), metadataFilePinnedTimestampCache.get(1000L));
+
+        // Pinned timestamps 800, 900, 1000, 2000, 3000, 4000, 5000
+        // Metadata with timestamp 990, 995, 1000, 1001
+        // Metadata timestamp 1000 <= Pinned Timestamp 1000
+        // Metadata timestamp 1001 <= Pinned Timestamp 2000
+        // Metadata timestamp 1001 <= Pinned Timestamp 3000
+        // Metadata timestamp 1001 <= Pinned Timestamp 4000
+        // Metadata timestamp 1001 <= Pinned Timestamp 5000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L),
+            Set.of(800L, 900L, 1000L, 2000L, 3000L, 4000L, 5000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(2, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1001L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(1000L), metadataFilePinnedTimestampCache.get(1000L));
+
+        // Pinned timestamps 800, 900, 1000, 2000, 3000, 4000, 5000
+        // Metadata with timestamp 990, 995, 1000, 1001, 1900, 2300
+        // Metadata timestamp 1000 <= Pinned Timestamp 1000
+        // Metadata timestamp 1900 <= Pinned Timestamp 2000
+        // Metadata timestamp 2300 <= Pinned Timestamp 3000
+        // Metadata timestamp 2300 <= Pinned Timestamp 4000
+        // Metadata timestamp 2300 <= Pinned Timestamp 5000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L, 1900L, 2300L),
+            Set.of(800L, 900L, 1000L, 2000L, 3000L, 4000L, 5000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(3, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1900L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(2300L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(2, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(1000L), metadataFilePinnedTimestampCache.get(1000L));
+        assertEquals(metadataFiles.get(1900L), metadataFilePinnedTimestampCache.get(2000L));
+
+        // Pinned timestamps 2000, 3000, 4000, 5000
+        // Metadata with timestamp 990, 995, 1000, 1001, 1900, 2300
+        // Metadata timestamp 1900 <= Pinned Timestamp 2000
+        // Metadata timestamp 2300 <= Pinned Timestamp 3000
+        // Metadata timestamp 2300 <= Pinned Timestamp 4000
+        // Metadata timestamp 2300 <= Pinned Timestamp 5000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L, 1900L, 2300L),
+            Set.of(2000L, 3000L, 4000L, 5000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(2, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1900L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(2300L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(1900L), metadataFilePinnedTimestampCache.get(2000L));
+
+        // Pinned timestamps 2000, 3000, 4000, 5000
+        // Metadata with timestamp 1001, 1900, 2300, 3000, 3001, 5500, 6000
+        // Metadata timestamp 1900 <= Pinned Timestamp 2000
+        // Metadata timestamp 3000 <= Pinned Timestamp 3000
+        // Metadata timestamp 3001 <= Pinned Timestamp 4000
+        // Metadata timestamp 3001 <= Pinned Timestamp 5000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(1001L, 1900L, 2300L, 3000L, 3001L, 5500L, 6000L),
+            Set.of(2000L, 3000L, 4000L, 5000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(3, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1900L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(3000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(3001L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(4, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(1900L), metadataFilePinnedTimestampCache.get(2000L));
+        assertEquals(metadataFiles.get(3000L), metadataFilePinnedTimestampCache.get(3000L));
+        assertEquals(metadataFiles.get(3001L), metadataFilePinnedTimestampCache.get(4000L));
+        assertEquals(metadataFiles.get(3001L), metadataFilePinnedTimestampCache.get(5000L));
+
+        // Pinned timestamps 4000, 5000, 6000, 7000
+        // Metadata with timestamp 2300, 3000, 3001, 5500, 6000
+        // Metadata timestamp 3001 <= Pinned Timestamp 4000
+        // Metadata timestamp 3001 <= Pinned Timestamp 5000
+        // Metadata timestamp 6000 <= Pinned Timestamp 6000
+        // Metadata timestamp 6000 <= Pinned Timestamp 7000
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(2300L, 3000L, 3001L, 5500L, 6000L),
+            Set.of(4000L, 5000L, 6000L, 7000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(2, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(3001L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(6000L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(2, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(3001L), metadataFilePinnedTimestampCache.get(4000L));
+        assertEquals(metadataFiles.get(3001L), metadataFilePinnedTimestampCache.get(5000L));
+    }
+
+    public void testGetPinnedTimestampLockedFilesWithPinnedTimestampsDifferentPrefix() {
+        setupRemotePinnedTimestampFeature(true);
+
+        Map<Long, String> metadataFilePinnedTimestampCache = new HashMap<>();
+
+        // Pinned timestamp 7000
+        // Primary Term - Timestamp in md file
+        // 6 - 7002
+        // 6 - 6998
+        // 5 - 6995
+        // 5 - 6990
+        Tuple<Map<Long, String>, Set<String>> metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            Map.of(7002L, 6L, 6998L, 6L, 6995L, 5L, 6990L, 5L),
+            Set.of(4000L, 5000L, 6000L, 7000L),
+            metadataFilePinnedTimestampCache
+        );
+        Map<Long, String> metadataFiles = metadataAndLocks.v1();
+        Set<String> implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(6998L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(6998L), metadataFilePinnedTimestampCache.get(7000L));
+
+        // Pinned timestamp 7000
+        // Primary Term - Timestamp in md file
+        // 6 - 7002
+        // 5 - 6998
+        // 5 - 6995
+        // 5 - 6990
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            Map.of(7002L, 6L, 6998L, 5L, 6995L, 5L, 6990L, 5L),
+            Set.of(4000L, 5000L, 6000L, 7000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(6998L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(6998L), metadataFilePinnedTimestampCache.get(7000L));
+
+        // Pinned timestamp 7000
+        // Primary Term - Timestamp in md file
+        // 6 - 7002
+        // 6 - 6998
+        // 5 - 7001
+        // 5 - 6990
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            Map.of(7002L, 6L, 6998L, 6L, 7001L, 5L, 6990L, 5L),
+            Set.of(4000L, 5000L, 6000L, 7000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(6998L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(6998L), metadataFilePinnedTimestampCache.get(7000L));
+
+        // Pinned timestamp 7000
+        // Primary Term - Timestamp in md file
+        // 6 - 7002
+        // 5 - 7005
+        // 5 - 6990
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            Map.of(7002L, 6L, 7005L, 5L, 6990L, 5L),
+            Set.of(4000L, 5000L, 6000L, 7000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(6990L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(6990L), metadataFilePinnedTimestampCache.get(7000L));
+
+        // Pinned timestamp 7000
+        // Primary Term - Timestamp in md file
+        // 6 - 6999
+        // 5 - 7005
+        // 5 - 6990
+        metadataFilePinnedTimestampCache = new HashMap<>();
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            Map.of(6999L, 6L, 7005L, 5L, 6990L, 5L),
+            Set.of(4000L, 5000L, 6000L, 7000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(6999L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(0, metadataFilePinnedTimestampCache.size());
+    }
+
+    public void testFilterOutMetadataFilesBasedOnAgeFeatureDisabled() {
+        setupRemotePinnedTimestampFeature(false);
+        List<String> metadataFiles = new ArrayList<>();
+
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            metadataFiles.add((System.currentTimeMillis() - randomIntBetween(-150000, 150000)) + "_file" + i + ".txt");
+        }
+
+        List<String> result = RemoteStoreUtils.filterOutMetadataFilesBasedOnAge(
+            metadataFiles,
+            file -> Long.valueOf(file.split("_")[0]),
+            System.currentTimeMillis()
+        );
+        assertEquals(metadataFiles, result);
+    }
+
+    public void testFilterOutMetadataFilesBasedOnAge_AllFilesOldEnough() {
+        setupRemotePinnedTimestampFeature(true);
+
+        List<String> metadataFiles = Arrays.asList(
+            (System.currentTimeMillis() - 150000) + "_file1.txt",
+            (System.currentTimeMillis() - 300000) + "_file2.txt",
+            (System.currentTimeMillis() - 450000) + "_file3.txt"
+        );
+
+        List<String> result = RemoteStoreUtils.filterOutMetadataFilesBasedOnAge(
+            metadataFiles,
+            file -> Long.valueOf(file.split("_")[0]),
+            System.currentTimeMillis()
+        );
+        assertEquals(metadataFiles, result);
+    }
+
+    public void testFilterOutMetadataFilesBasedOnAge_SomeFilesTooNew() {
+        setupRemotePinnedTimestampFeature(true);
+
+        String file1 = (System.currentTimeMillis() - 150000) + "_file1.txt";
+        String file2 = (System.currentTimeMillis() - 300000) + "_file2.txt";
+        String file3 = (System.currentTimeMillis() + 450000) + "_file3.txt";
+
+        List<String> metadataFiles = Arrays.asList(file1, file2, file3);
+
+        List<String> result = RemoteStoreUtils.filterOutMetadataFilesBasedOnAge(
+            metadataFiles,
+            file -> Long.valueOf(file.split("_")[0]),
+            System.currentTimeMillis()
+        );
+        List<String> expected = Arrays.asList(file1, file2);
+        assertEquals(expected, result);
+    }
+
+    public void testFilterOutMetadataFilesBasedOnAge_AllFilesTooNew() {
+        setupRemotePinnedTimestampFeature(true);
+
+        String file1 = (System.currentTimeMillis() + 150000) + "_file1.txt";
+        String file2 = (System.currentTimeMillis() + 300000) + "_file2.txt";
+        String file3 = (System.currentTimeMillis() + 450000) + "_file3.txt";
+
+        List<String> metadataFiles = Arrays.asList(file1, file2, file3);
+
+        List<String> result = RemoteStoreUtils.filterOutMetadataFilesBasedOnAge(
+            metadataFiles,
+            file -> Long.valueOf(file.split("_")[0]),
+            System.currentTimeMillis()
+        );
+        assertTrue(result.isEmpty());
+    }
+
+    public void testFilterOutMetadataFilesBasedOnAge_EmptyInputList() {
+        setupRemotePinnedTimestampFeature(true);
+
+        List<String> metadataFiles = Arrays.asList();
+
+        List<String> result = RemoteStoreUtils.filterOutMetadataFilesBasedOnAge(
+            metadataFiles,
+            file -> Long.valueOf(file.split("_")[0]),
+            System.currentTimeMillis()
+        );
+        assertTrue(result.isEmpty());
+    }
+
+    public void testIsPinnedTimestampStateStaleFeatureDisabled() {
+        setupRemotePinnedTimestampFeature(false);
+        assertFalse(RemoteStoreUtils.isPinnedTimestampStateStale());
+    }
+
+    public void testIsPinnedTimestampStateStaleFeatureEnabled() {
+        setupRemotePinnedTimestampFeature(true);
+        assertTrue(RemoteStoreUtils.isPinnedTimestampStateStale());
+    }
 }

@@ -226,6 +226,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private final BooleanSupplier idFieldDataEnabled;
 
+    private volatile Set<CompositeMappedFieldType> compositeMappedFieldTypes;
+
     public MapperService(
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
@@ -542,6 +544,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         assert results.values().stream().allMatch(this::assertSerialization);
+
+        // initialize composite fields post merge
+        this.compositeMappedFieldTypes = getCompositeFieldTypesFromMapper();
         return results;
     }
 
@@ -617,7 +622,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Given the full name of a field, returns its {@link MappedFieldType}.
+     * Given the full name of a field, returns its {@link MappedFieldType}
+     * or null if the field is not found.
      */
     public MappedFieldType fieldType(String fullName) {
         return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
@@ -655,6 +661,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public Set<CompositeMappedFieldType> getCompositeFieldTypes() {
+        return compositeMappedFieldTypes;
+    }
+
+    private Set<CompositeMappedFieldType> getCompositeFieldTypesFromMapper() {
         Set<CompositeMappedFieldType> compositeMappedFieldTypes = new HashSet<>();
         if (this.mapper == null) {
             return Collections.emptySet();

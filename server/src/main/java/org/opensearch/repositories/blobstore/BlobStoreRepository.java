@@ -65,6 +65,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.Priority;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -109,6 +110,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
+import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -157,6 +159,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -174,6 +177,8 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
 
@@ -262,6 +267,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<Boolean> REMOTE_STORE_INDEX_SHALLOW_COPY = Setting.boolSetting("remote_store_index_shallow_copy", false);
 
+    public static final Setting<Boolean> SHALLOW_SNAPSHOT_V2 = Setting.boolSetting("shallow_snapshot_v2", false);
+
     /**
      * Setting to set batch size of stale snapshot shard blobs that will be deleted by snapshot workers as part of snapshot deletion.
      * For optimal performance the value of the setting should be equal to or close to repository's max # of keys that can be deleted in single operation
@@ -298,6 +305,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> SYSTEM_REPOSITORY_SETTING = Setting.boolSetting(
         "system_repository",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting to enable prefix mode verification. In this mode, a hashed string is prepended at the prefix of the base
+     * path during repository verification.
+     */
+    public static final Setting<Boolean> PREFIX_MODE_VERIFICATION_SETTING = Setting.boolSetting(
+        "prefix_mode_verification",
         false,
         Setting.Property.NodeScope
     );
@@ -369,6 +386,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final boolean isSystemRepository;
 
+    private final boolean prefixModeVerification;
+
     private final Object lock = new Object();
 
     private final SetOnce<BlobContainer> blobContainer = new SetOnce<>();
@@ -384,7 +403,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
-     * potentially accounting for the the last {@code index-N} write in the cluster state.
+     * potentially accounting for the last {@code index-N} write in the cluster state.
      * Note: While it is true that this value could also be set to {@code true} for an instance on a node that is just joining the cluster
      * during a new {@code index-N} write, this does not present a problem. The node will still load the correct {@link RepositoryData} in
      * all cases and simply do a redundant listing of the repository contents if it tries to load {@link RepositoryData} and falls back
@@ -426,6 +445,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         readRepositoryMetadata(repositoryMetadata);
 
         isSystemRepository = SYSTEM_REPOSITORY_SETTING.get(metadata.settings());
+        prefixModeVerification = PREFIX_MODE_VERIFICATION_SETTING.get(metadata.settings());
         this.namedXContentRegistry = namedXContentRegistry;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
@@ -767,6 +787,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return blobStore.get();
     }
 
+    boolean getPrefixModeVerification() {
+        return prefixModeVerification;
+    }
+
     /**
      * maintains single lazy instance of {@link BlobContainer}
      */
@@ -1025,6 +1049,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 repositoryStateId,
                 repoMetaVersion,
                 Function.identity(),
+                Priority.NORMAL,
                 ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
             );
         }, listener::onFailure);
@@ -1499,6 +1524,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryStateId,
                     repositoryMetaVersion,
                     Function.identity(),
+                    Priority.NORMAL,
                     ActionListener.wrap(
                         v -> cleanupStaleBlobs(
                             Collections.emptyList(),
@@ -1702,6 +1728,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
         final ActionListener<RepositoryData> listener
     ) {
         assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN : "Must finalize based on a valid repository generation but received ["
@@ -1738,6 +1765,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryStateId,
                     repositoryMetaVersion,
                     stateTransformer,
+                    repositoryUpdatePriority,
                     ActionListener.wrap(newRepoData -> {
                         cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
                         listener.onResponse(newRepoData);
@@ -1918,7 +1946,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } else {
                 String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
-                BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+                BlobContainer testContainer = testContainer(seed);
                 BytesArray bytes = new BytesArray(testBytes);
                 if (isSystemRepository == false) {
                     try (InputStream stream = bytes.streamInput()) {
@@ -1936,12 +1964,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Returns the blobContainer depending on the seed and {@code prefixModeVerification}.
+     */
+    private BlobContainer testContainer(String seed) {
+        BlobPath testBlobPath;
+        if (prefixModeVerification == true) {
+            PathInput pathInput = PathInput.builder().basePath(basePath()).indexUUID(seed).build();
+            testBlobPath = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE_1);
+        } else {
+            testBlobPath = basePath();
+        }
+        assert Objects.nonNull(testBlobPath);
+        return blobStore().blobContainer(testBlobPath.add(testBlobPrefix(seed)));
+    }
+
     @Override
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                final String testPrefix = testBlobPrefix(seed);
-                blobStore().blobContainer(basePath().add(testPrefix)).delete();
+                testContainer(seed).delete();
             } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
@@ -2245,10 +2287,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Lastly, the {@link RepositoryMetadata} entry for this repository is updated to the new generation {@code P + 1} and thus
      * pending and safe generation are set to the same value marking the end of the update of the repository data.
      *
-     * @param repositoryData RepositoryData to write
-     * @param expectedGen    expected repository generation at the start of the operation
-     * @param version        version of the repository metadata to write
-     * @param stateFilter    filter for the last cluster state update executed by this method
+     * @param repositoryData            RepositoryData to write
+     * @param expectedGen               expected repository generation at the start of the operation
+     * @param version                   version of the repository metadata to write
+     * @param stateFilter               filter for the last cluster state update executed by this method
+     * @param repositoryUpdatePriority  priority for the cluster state update task
      * @param listener       completion listener
      */
     protected void writeIndexGen(
@@ -2256,6 +2299,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long expectedGen,
         Version version,
         Function<ClusterState, ClusterState> stateFilter,
+        Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     ) {
         assert isReadOnly() == false; // can not write to a read only repository
@@ -2280,7 +2324,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final StepListener<Long> setPendingStep = new StepListener<>();
         clusterService.submitStateUpdateTask(
             "set pending repository generation [" + metadata.name() + "][" + expectedGen + "]",
-            new ClusterStateUpdateTask() {
+            new ClusterStateUpdateTask(repositoryUpdatePriority) {
 
                 private long newGen;
 
@@ -2418,7 +2462,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Step 3: Update CS to reflect new repository generation.
             clusterService.submitStateUpdateTask(
                 "set safe repository generation [" + metadata.name() + "][" + newGen + "]",
-                new ClusterStateUpdateTask() {
+                new ClusterStateUpdateTask(repositoryUpdatePriority) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final RepositoryMetadata meta = getRepoMetadata(currentState);
@@ -2678,7 +2722,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         try {
             final String generation = snapshotStatus.generation();
-            logger.info("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
+            logger.info("[{}] [{}] shallow copy snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
 
             long indexTotalFileSize = 0;
@@ -3266,7 +3310,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
         } else {
-            BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+            BlobContainer testBlobContainer = testContainer(seed);
             try {
                 BytesArray bytes = new BytesArray(seed);
                 try (InputStream stream = bytes.streamInput()) {
