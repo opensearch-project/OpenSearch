@@ -330,6 +330,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         for (int i = 0; i < size; i++) {
             this.attributes.put(in.readString(), in.readString());
         }
+
         int rolesSize = in.readVInt();
         final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
         for (int i = 0; i < rolesSize; i++) {
@@ -359,13 +360,31 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            writeToUtil(out, false);
+        } else {
+            writeToUtil(out, true);
+        }
+
+    }
+
+    public void writeToWithAttribute(StreamOutput out) throws IOException {
+        writeToUtil(out, true);
+    }
+
+    public void writeToUtil(StreamOutput out, boolean includeAllAttributes) throws IOException {
         writeNodeDetails(out);
 
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (includeAllAttributes) {
+            out.writeVInt(attributes.size());
+            for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        } else {
+            out.writeVInt(0);
         }
+
         writeRolesAndVersion(out);
     }
 

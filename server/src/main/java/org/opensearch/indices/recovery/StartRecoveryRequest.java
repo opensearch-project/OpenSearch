@@ -144,8 +144,8 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeString(targetAllocationId);
-        sourceNode.writeTo(out);
-        targetNode.writeTo(out);
+        sourceNode.writeToWithAttribute(out);
+        targetNode.writeToWithAttribute(out);
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
