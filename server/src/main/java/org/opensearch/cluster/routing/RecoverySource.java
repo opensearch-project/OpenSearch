@@ -49,6 +49,8 @@ import org.opensearch.snapshots.Snapshot;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.opensearch.Version.CURRENT;
+
 /**
  * Represents the recovery source of a shard. Available recovery types are:
  * <p>
@@ -265,6 +267,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final boolean isSearchableSnapshot;
         private final boolean remoteStoreIndexShallowCopy;
         private final String sourceRemoteStoreRepository;
+        private final String sourceRemoteTranslogRepository;
+
+        private final long pinnedTimestamp;
 
         public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
             this(restoreUUID, snapshot, version, indexId, false, false, null);
@@ -279,6 +284,30 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             boolean remoteStoreIndexShallowCopy,
             @Nullable String sourceRemoteStoreRepository
         ) {
+            this(
+                restoreUUID,
+                snapshot,
+                version,
+                indexId,
+                isSearchableSnapshot,
+                remoteStoreIndexShallowCopy,
+                sourceRemoteStoreRepository,
+                null,
+                0L
+            );
+        }
+
+        public SnapshotRecoverySource(
+            String restoreUUID,
+            Snapshot snapshot,
+            Version version,
+            IndexId indexId,
+            boolean isSearchableSnapshot,
+            boolean remoteStoreIndexShallowCopy,
+            @Nullable String sourceRemoteStoreRepository,
+            @Nullable String sourceRemoteTranslogRepository,
+            long pinnedTimestamp
+        ) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
@@ -286,6 +315,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             this.isSearchableSnapshot = isSearchableSnapshot;
             this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
             this.sourceRemoteStoreRepository = sourceRemoteStoreRepository;
+            this.sourceRemoteTranslogRepository = sourceRemoteTranslogRepository;
+            this.pinnedTimestamp = pinnedTimestamp;
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
@@ -308,6 +339,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             } else {
                 remoteStoreIndexShallowCopy = false;
                 sourceRemoteStoreRepository = null;
+            }
+            if (in.getVersion().onOrAfter(CURRENT)) {
+                sourceRemoteTranslogRepository = in.readOptionalString();
+                pinnedTimestamp = in.readLong();
+            } else {
+                sourceRemoteTranslogRepository = null;
+                pinnedTimestamp = 0L;
             }
         }
 
@@ -341,8 +379,16 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return sourceRemoteStoreRepository;
         }
 
+        public String sourceRemoteTranslogRepository() {
+            return sourceRemoteTranslogRepository;
+        }
+
         public boolean remoteStoreIndexShallowCopy() {
             return remoteStoreIndexShallowCopy;
+        }
+
+        public long pinnedTimestamp() {
+            return pinnedTimestamp;
         }
 
         @Override
@@ -362,6 +408,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 out.writeBoolean(remoteStoreIndexShallowCopy);
                 out.writeOptionalString(sourceRemoteStoreRepository);
             }
+            if (out.getVersion().onOrAfter(CURRENT)) {
+                out.writeOptionalString(sourceRemoteTranslogRepository);
+                out.writeLong(pinnedTimestamp);
+            }
         }
 
         @Override
@@ -378,7 +428,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 .field("restoreUUID", restoreUUID)
                 .field("isSearchableSnapshot", isSearchableSnapshot)
                 .field("remoteStoreIndexShallowCopy", remoteStoreIndexShallowCopy)
-                .field("sourceRemoteStoreRepository", sourceRemoteStoreRepository);
+                .field("sourceRemoteStoreRepository", sourceRemoteStoreRepository)
+                .field("sourceRemoteTranslogRepository", sourceRemoteTranslogRepository);
         }
 
         @Override
@@ -403,8 +454,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 && isSearchableSnapshot == that.isSearchableSnapshot
                 && remoteStoreIndexShallowCopy == that.remoteStoreIndexShallowCopy
                 && sourceRemoteStoreRepository != null
-                    ? sourceRemoteStoreRepository.equals(that.sourceRemoteStoreRepository)
-                    : that.sourceRemoteStoreRepository == null;
+                ? sourceRemoteStoreRepository.equals(that.sourceRemoteStoreRepository)
+                : that.sourceRemoteStoreRepository == null && sourceRemoteTranslogRepository != null
+                    ? sourceRemoteTranslogRepository.equals(that.sourceRemoteTranslogRepository)
+                : that.sourceRemoteTranslogRepository == null && pinnedTimestamp == that.pinnedTimestamp;
+
         }
 
         @Override
@@ -416,10 +470,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 version,
                 isSearchableSnapshot,
                 remoteStoreIndexShallowCopy,
-                sourceRemoteStoreRepository
+                sourceRemoteStoreRepository,
+                sourceRemoteTranslogRepository,
+                pinnedTimestamp
             );
         }
-
     }
 
     /**

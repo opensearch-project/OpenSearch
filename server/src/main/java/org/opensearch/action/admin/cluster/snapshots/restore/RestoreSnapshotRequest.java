@@ -122,6 +122,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private StorageType storageType = StorageType.LOCAL;
     @Nullable
     private String sourceRemoteStoreRepository = null;
+    @Nullable
+    private String sourceRemoteTranslogRepository = null;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -165,6 +167,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             sourceRemoteStoreRepository = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            sourceRemoteTranslogRepository = in.readOptionalString();
+        }
     }
 
     @Override
@@ -197,6 +202,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         }
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalString(sourceRemoteStoreRepository);
+        }
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeOptionalString(sourceRemoteTranslogRepository);
         }
     }
 
@@ -561,12 +569,31 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * Sets Source Remote Translog Repository for all the restored indices
+     *
+     * @param sourceRemoteTranslogRepository name of the remote translog repository that should be used for all restored indices.
+     */
+    public RestoreSnapshotRequest setSourceRemoteTranslogRepository(String sourceRemoteTranslogRepository) {
+        this.sourceRemoteTranslogRepository = sourceRemoteTranslogRepository;
+        return this;
+    }
+
+    /**
      * Returns Source Remote Store Repository for all the restored indices
      *
      * @return source Remote Store Repository
      */
     public String getSourceRemoteStoreRepository() {
         return sourceRemoteStoreRepository;
+    }
+
+    /**
+     * Returns Source Remote Translog Repository for all the restored indices
+     *
+     * @return source Remote Translog Repository
+     */
+    public String getSourceRemoteTranslogRepository() {
+        return sourceRemoteTranslogRepository;
     }
 
     /**
@@ -688,6 +715,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (sourceRemoteStoreRepository != null) {
             builder.field("source_remote_store_repository", sourceRemoteStoreRepository);
         }
+        if (sourceRemoteTranslogRepository != null) {
+            builder.field("source_remote_translog_repository", sourceRemoteTranslogRepository);
+        }
         builder.endObject();
         return builder;
     }
@@ -716,7 +746,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
             && Objects.equals(storageType, that.storageType)
-            && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository);
+            && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository)
+            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository);
         return equals;
     }
 
@@ -736,7 +767,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             indexSettings,
             snapshotUuid,
             storageType,
-            sourceRemoteStoreRepository
+            sourceRemoteStoreRepository,
+            sourceRemoteTranslogRepository
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
