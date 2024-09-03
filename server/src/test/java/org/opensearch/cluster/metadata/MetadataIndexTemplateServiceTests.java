@@ -58,6 +58,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
@@ -2419,6 +2421,19 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async");
+        request.settings(settingsBuilder.build());
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request, clusterSettings);
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testMaxTranslogFlushSizeWithCompositeIndex() {
+        Settings clusterSettings = Settings.builder()
+            .put(CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "130m")
+            .build();
+        PutRequest request = new PutRequest("test", "test_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+        Settings.Builder settingsBuilder = builder().put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), "true")
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "131m");
         request.settings(settingsBuilder.build());
         List<Throwable> throwables = putTemplate(xContentRegistry(), request, clusterSettings);
         assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
