@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public abstract class TransferManagerTestCase extends OpenSearchTestCase {
@@ -96,6 +97,43 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         } finally {
             assertTrue(terminate(testRunner));
         }
+    }
+
+    public void testFetchBlobWithConcurrentCacheEvictions() {
+    // Submit 256 tasks to an executor with 16 threads that will each randomly
+    // request one of eight blobs. Given that the cache can only hold two
+    // blobs this will lead to a huge amount of contention and thrashing.
+    final ExecutorService testRunner = Executors.newFixedThreadPool(16);
+        try {
+            final List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < 256; i++) {
+                // request an index input and immediately close it
+                final String blobname = "blob-" + randomIntBetween(0, 7);
+                futures.add(testRunner.submit(() -> {
+                    try {
+                        try (IndexInput indexInput = fetchBlobWithName(blobname)) {
+                            assertIndexInputIsFunctional(indexInput);
+                        }
+                    } catch (IOException ignored) { // fetchBlobWithName may fail due to fixed capacity
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }));
+            }
+            // Wait for all threads to complete
+            try {
+                for (Future<?> future : futures) {
+                    future.get(10, TimeUnit.SECONDS);
+                }
+            } catch (java.util.concurrent.ExecutionException ignored) { // Index input may be null
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+
+        } finally {
+            assertTrue(terminate(testRunner));
+        }
+        MatcherAssert.assertThat("Expected many evictions to happen", fileCache.stats().evictionCount(), greaterThan(0L));
     }
 
     public void testOverflowDisabled() throws Exception {
