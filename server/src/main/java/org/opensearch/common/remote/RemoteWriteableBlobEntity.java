@@ -8,7 +8,6 @@
 
 package org.opensearch.common.remote;
 
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.compress.Compressor;
 
@@ -18,7 +17,6 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMIT
  * The abstract class which represents a {@link RemoteWriteableEntity} that can be written to a store
  * @param <T> the entity to be written
  */
-@ExperimentalApi
 public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEntity<T> {
 
     protected String blobFileName;

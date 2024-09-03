@@ -52,7 +52,6 @@ import static org.opensearch.index.translog.transfer.TranslogTransferManager.CHE
  *
  * @opensearch.internal
  */
-@ExperimentalApi
 public class BlobStoreTransferService implements TransferService {
 
     private final BlobStore blobStore;

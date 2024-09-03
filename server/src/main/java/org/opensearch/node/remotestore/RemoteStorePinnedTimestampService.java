@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -43,7 +42,6 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-@ExperimentalApi
 public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
     private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
