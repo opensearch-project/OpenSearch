@@ -240,7 +240,6 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     private static final String STATE = "state";
     private static final String INDICES = "indices";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
-    private static final String INITIAL_TOTAL_SIZE_IN_BYTES = "initial_total_size_in_bytes";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -251,9 +250,6 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         builder.field(STATE, state.name());
         if (includeGlobalState != null) {
             builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
-        }
-        if (initialTotalSizeInBytes != 0) {
-            builder.field(INITIAL_TOTAL_SIZE_IN_BYTES, initialTotalSizeInBytes);
         }
         builder.field(SnapshotShardsStats.Fields.SHARDS_STATS, shardsStats, params);
         builder.field(SnapshotStats.Fields.STATS, stats, params);
@@ -276,7 +272,6 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
             String uuid = (String) parsedObjects[i++];
             String rawState = (String) parsedObjects[i++];
             Boolean includeGlobalState = (Boolean) parsedObjects[i++];
-            Long initialTotalSizeInBytes = (Long) parsedObjects[i++];
             SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
             SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
             @SuppressWarnings("unchecked")
@@ -297,16 +292,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
                     shards.addAll(index.getShards().values());
                 }
             }
-            return new SnapshotStatus(
-                snapshot,
-                state,
-                shards,
-                indicesStatus,
-                shardsStats,
-                stats,
-                includeGlobalState,
-                initialTotalSizeInBytes
-            );
+            return new SnapshotStatus(snapshot, state, shards, indicesStatus, shardsStats, stats, includeGlobalState, 0L);
         }
     );
     static {
@@ -315,7 +301,6 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         PARSER.declareString(constructorArg(), new ParseField(UUID));
         PARSER.declareString(constructorArg(), new ParseField(STATE));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(INCLUDE_GLOBAL_STATE));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField(INITIAL_TOTAL_SIZE_IN_BYTES));
         PARSER.declareField(
             constructorArg(),
             SnapshotStats::fromXContent,
