@@ -18,27 +18,23 @@ import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.tracker.TaskResourceUsageCalculator;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerServiceTests.TestClock;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.opensearch.wlm.cancellation.DefaultTaskCancellation.MIN_VALUE;
+import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.HEAP_SIZE_BYTES;
+
 public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
-
-    public void testSelectTasksFromDeletedQueryGroup() {
-        DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
-        long thresholdInLong = 100L;
-        long reduceBy = Long.MIN_VALUE;
-        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
-        List<QueryGroupTask> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksFromDeletedQueryGroup(tasks);
-        assertFalse(selectedTasks.isEmpty());
-        assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
-    }
-
+    private TestClock clock;
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
-        DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
+        clock = new TestClock();
+        DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy(clock::getTime);
         long thresholdInLong = 100L;
-        long reduceBy = 50L;
+        double reduceBy = 50.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
         List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
         List<QueryGroupTask> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
@@ -49,7 +45,7 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsLesserThanZero() {
         DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
         long thresholdInLong = 100L;
-        long reduceBy = -50L;
+        double reduceBy = -50.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
         List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
         try {
@@ -63,18 +59,18 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsEqualToZero() {
         DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy();
         long thresholdInLong = 100L;
-        long reduceBy = 0;
+        double reduceBy = 0.0;
         ResourceType resourceType = ResourceType.MEMORY;
         List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
-        List<Task> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+        List<QueryGroupTask> selectedTasks = testDefaultTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertTrue(selectedTasks.isEmpty());
     }
 
-    private boolean tasksUsageMeetsThreshold(List<Task> selectedTasks, long threshold) {
-        long memory = 0;
+    private boolean tasksUsageMeetsThreshold(List<QueryGroupTask> selectedTasks, double threshold) {
+        double memory = 0;
         for (Task task : selectedTasks) {
-            memory += task.getTotalResourceUtilization(ResourceStats.MEMORY);
-            if (memory > threshold) {
+            memory += TaskResourceUsageCalculator.from(ResourceType.MEMORY).calculateFor(task, clock::getTime);
+            if ((memory - threshold) > MIN_VALUE ) {
                 return true;
             }
         }

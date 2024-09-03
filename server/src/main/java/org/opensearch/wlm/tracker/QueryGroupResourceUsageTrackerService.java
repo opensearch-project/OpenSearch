@@ -8,34 +8,41 @@
 
 package org.opensearch.wlm.tracker;
 
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
  * This class tracks resource usage per QueryGroup
  */
 public class QueryGroupResourceUsageTrackerService {
-
+    public static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+    // This value should be initialised at the start time of the process and be used throughout the codebase
+    public static final int PROCESSOR_COUNT = Runtime.getRuntime().availableProcessors();
     public static final EnumSet<ResourceType> TRACKED_RESOURCES = EnumSet.allOf(ResourceType.class);
     private final TaskResourceTrackingService taskResourceTrackingService;
+    private final Supplier<Long> nanoTimeSupplier;
 
     /**
      * QueryGroupResourceTrackerService constructor
      *
      * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
-    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService) {
+    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService,
+                                                 Supplier<Long> nanoTimeSupplier) {
         this.taskResourceTrackingService = taskResourceTrackingService;
+        this.nanoTimeSupplier = nanoTimeSupplier;
     }
 
     /**
@@ -49,20 +56,18 @@ public class QueryGroupResourceUsageTrackerService {
 
         // Iterate over each QueryGroup entry
         for (Map.Entry<String, List<QueryGroupTask>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
-            // Compute the QueryGroup usage
-            final EnumMap<ResourceType, Long> queryGroupUsage = new EnumMap<>(ResourceType.class);
-            for (ResourceType resourceType : TRACKED_RESOURCES) {
-                long queryGroupResourceUsage = 0;
-                for (Task task : queryGroupEntry.getValue()) {
-                    queryGroupResourceUsage += resourceType.getResourceUsage(task);
-                }
-                queryGroupUsage.put(resourceType, queryGroupResourceUsage);
+            // Compute the QueryGroup resource usage
+            final Map<ResourceType, QueryGroupResourceUsage> resourceUsage = new HashMap<>();
+            for (ResourceType resourceType: TRACKED_RESOURCES) {
+                final QueryGroupResourceUsage queryGroupResourceUsage = QueryGroupResourceUsage.from(resourceType);
+                queryGroupResourceUsage.initialise(queryGroupEntry.getValue(), nanoTimeSupplier);
+                resourceUsage.put(resourceType, queryGroupResourceUsage);
             }
 
             // Add to the QueryGroup View
             queryGroupViews.put(
                 queryGroupEntry.getKey(),
-                new QueryGroupLevelResourceUsageView(queryGroupUsage, queryGroupEntry.getValue())
+                new QueryGroupLevelResourceUsageView(resourceUsage, queryGroupEntry.getValue())
             );
         }
         return queryGroupViews;

@@ -23,16 +23,14 @@ import java.util.function.Function;
  */
 @PublicApi(since = "2.17.0")
 public enum ResourceType {
-    CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU), true),
-    MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY), true);
+    CPU("cpu", true),
+    MEMORY("memory", true);
 
     private final String name;
-    private final Function<Task, Long> getResourceUsage;
     private final boolean statsEnabled;
 
-    ResourceType(String name, Function<Task, Long> getResourceUsage, boolean statsEnabled) {
+    ResourceType(String name, boolean statsEnabled) {
         this.name = name;
-        this.getResourceUsage = getResourceUsage;
         this.statsEnabled = statsEnabled;
     }
 
@@ -56,16 +54,6 @@ public enum ResourceType {
 
     public String getName() {
         return name;
-    }
-
-    /**
-     * Gets the resource usage for a given resource type and task.
-     *
-     * @param task the task for which to calculate resource usage
-     * @return the resource usage
-     */
-    public long getResourceUsage(Task task) {
-        return getResourceUsage.apply(task);
     }
 
     public boolean hasStatsEnabled() {

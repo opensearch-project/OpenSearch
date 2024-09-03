@@ -9,14 +9,13 @@
 package org.opensearch.wlm.cancellation;
 
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.monitor.jvm.JvmStats;
-import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.WorkloadManagementSettings;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,7 +45,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * @see ResourceType
  */
 public class DefaultTaskCancellation {
-    private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+    public static final double MIN_VALUE = 1e-9;
 
     protected final WorkloadManagementSettings workloadManagementSettings;
     protected final DefaultTaskSelectionStrategy defaultTaskSelectionStrategy;
@@ -134,18 +133,17 @@ public class DefaultTaskCancellation {
             if (queryGroup.getResiliencyMode() != resiliencyMode) {
                 continue;
             }
-            Map<ResourceType, Long> queryGroupResourceUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id())
+            Map<ResourceType, QueryGroupResourceUsage> queryGroupResourcesUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id())
                 .getResourceUsageData();
 
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                if (queryGroup.getResourceLimits().containsKey(resourceType) && queryGroupResourceUsage.containsKey(resourceType)) {
-                    Double resourceLimit = (Double) queryGroup.getResourceLimits().get(resourceType);
-                    Long resourceUsage = queryGroupResourceUsage.get(resourceType);
-
-                    if (isBreachingThreshold(resourceType, resourceLimit, resourceUsage)) {
+                if (queryGroup.getResourceLimits().containsKey(resourceType)) {
+                    final QueryGroupResourceUsage queryGroupResourceUsage = queryGroupResourcesUsage.get(resourceType);
+                    if (queryGroupResourceUsage.isBreachingThresholdFor(queryGroup, workloadManagementSettings)) {
                         queryGroupsToCancelFrom.add(queryGroup);
                         break;
                     }
+
                 }
             }
         }
@@ -175,7 +173,7 @@ public class DefaultTaskCancellation {
     }
 
     private boolean shouldCancelTasks(QueryGroup queryGroup, ResourceType resourceType) {
-        return getReduceBy(queryGroup, resourceType) > 0;
+        return getReduceBy(queryGroup, resourceType) > MIN_VALUE;
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
@@ -205,7 +203,7 @@ public class DefaultTaskCancellation {
     }
 
     private Double getThresholdInPercent(QueryGroup querygroup, ResourceType resourceType) {
-        return ((Double) (querygroup.getResourceLimits().get(resourceType))) * 100;
+        return querygroup.getResourceLimits().get(resourceType) * 100;
     }
 
     private TaskCancellation createTaskCancellation(CancellableTask task, String cancellationReason) {
@@ -226,48 +224,13 @@ public class DefaultTaskCancellation {
         return taskCancellations;
     }
 
-    private long getReduceBy(QueryGroup queryGroup, ResourceType resourceType) {
-        if (queryGroup.getResourceLimits().get(resourceType) == null) {
+    private double getReduceBy(QueryGroup queryGroup, ResourceType resourceType) {
+        if (queryGroup.getResourceLimits().get(resourceType) == null || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
             return 0;
         }
-        Double threshold = queryGroup.getResourceLimits().get(resourceType);
-        return getResourceUsage(queryGroup, resourceType) - convertThresholdIntoLong(resourceType, threshold);
-    }
-
-    private Long convertThresholdIntoLong(ResourceType resourceType, Double resourceThresholdInPercentage) {
-        Long threshold = null;
-        if (resourceType == ResourceType.MEMORY) {
-            // Check if resource usage is breaching the threshold
-            double nodeLevelCancellationThreshold = this.workloadManagementSettings.getNodeLevelMemoryCancellationThreshold()
-                * HEAP_SIZE_BYTES;
-            threshold = (long) (resourceThresholdInPercentage * nodeLevelCancellationThreshold);
-        } else if (resourceType == ResourceType.CPU) {
-            // Get the total CPU time of the process in milliseconds
-            long cpuTotalTimeInMillis = ProcessProbe.getInstance().getProcessCpuTotalTime();
-            double nodeLevelCancellationThreshold = this.workloadManagementSettings.getNodeLevelCpuCancellationThreshold()
-                * cpuTotalTimeInMillis;
-            // Check if resource usage is breaching the threshold
-            threshold = (long) (resourceThresholdInPercentage * nodeLevelCancellationThreshold);
-        }
-        return threshold;
-    }
-
-    private Long getResourceUsage(QueryGroup queryGroup, ResourceType resourceType) {
-        if (!queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
-            return 0L;
-        }
-        return queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getResourceUsageData().get(resourceType);
-    }
-
-    private boolean isBreachingThreshold(ResourceType resourceType, Double resourceThresholdInPercentage, long resourceUsage) {
-        if (resourceType == ResourceType.MEMORY) {
-            // Check if resource usage is breaching the threshold
-            return resourceUsage > convertThresholdIntoLong(resourceType, resourceThresholdInPercentage);
-        }
-        // Resource types should be CPU, resourceUsage is in nanoseconds, convert to milliseconds
-        long resourceUsageInMillis = resourceUsage / 1_000_000;
-        // Check if resource usage is breaching the threshold
-        return resourceUsageInMillis > convertThresholdIntoLong(resourceType, resourceThresholdInPercentage);
+        final QueryGroupLevelResourceUsageView queryGroupLevelResourceUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
+        final QueryGroupResourceUsage queryGroupResourceUsage = queryGroupLevelResourceUsage.getResourceUsageData().get(resourceType);
+        return queryGroupResourceUsage.getReduceByFor(queryGroup, workloadManagementSettings);
     }
 
     private void callbackOnCancel() {

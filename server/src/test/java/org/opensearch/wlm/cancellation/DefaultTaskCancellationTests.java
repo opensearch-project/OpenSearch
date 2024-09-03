@@ -12,13 +12,17 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.search.ResourceType;
-import org.opensearch.tasks.Task;
+import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.junit.Before;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsage.QueryGroupMemoryUsage;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsage.QueryGroupCpuUsage;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerServiceTests.TestClock;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -30,12 +34,15 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DefaultTaskCancellationTests extends OpenSearchTestCase {
     private static final String queryGroupId1 = "queryGroup1";
     private static final String queryGroupId2 = "queryGroup2";
+
+    private TestClock clock;
 
     private static class TestTaskCancellationImpl extends DefaultTaskCancellation {
 
@@ -70,6 +77,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         queryGroupLevelViews = new HashMap<>();
         activeQueryGroups = new HashSet<>();
         deletedQueryGroups = new HashSet<>();
+        clock = new TestClock();
         taskCancellation = new TestTaskCancellationImpl(
             workloadManagementSettings,
             new DefaultTaskSelectionStrategy(),
@@ -82,7 +90,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetCancellableTasksFrom_setupAppropriateCancellationReasonAndScore() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 100_000_000L;
+        QueryGroupCpuUsage usage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.1;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -92,7 +100,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             Map.of(resourceType, threshold),
             1L
         );
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        clock.fastForwardBy(1000);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage, 0.3);
         queryGroupLevelViews.put(queryGroupId1, mockView);
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getCancellableTasksFrom(queryGroup1);
@@ -111,7 +120,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetCancellableTasksFrom_returnsTasksWhenBreachingThreshold() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 100_000_000L;
+        QueryGroupCpuUsage usage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.1;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -121,7 +130,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             Map.of(resourceType, threshold),
             1L
         );
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage, 0.15);
         queryGroupLevelViews.put(queryGroupId1, mockView);
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getCancellableTasksFrom(queryGroup1);
@@ -132,7 +141,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetCancellableTasksFrom_returnsTasksWhenBreachingThresholdForMemory() {
         ResourceType resourceType = ResourceType.MEMORY;
-        long usage = 900_000_000_000L;
+        QueryGroupMemoryUsage usage = mock(QueryGroupMemoryUsage.class);
         Double threshold = 0.1;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -142,8 +151,11 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             Map.of(resourceType, threshold),
             1L
         );
+        when(usage.getCurrentUsage()).thenReturn(0.15);
+        when(usage.isBreachingThresholdFor(any(), any())).thenReturn(true);
 
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage, 0.05);
+
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
@@ -155,7 +167,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetCancellableTasksFrom_returnsNoTasksWhenNotBreachingThreshold() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 500L;
+        QueryGroupMemoryUsage usage = mock(QueryGroupMemoryUsage.class);
         Double threshold = 0.9;
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
@@ -164,8 +176,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             Map.of(resourceType, threshold),
             1L
         );
-
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        when(usage.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage, 0.0);
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
         when(workloadManagementSettings.getNodeLevelCpuCancellationThreshold()).thenReturn(0.90);
@@ -176,7 +188,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetCancellableTasksFrom_filtersQueryGroupCorrectly() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000L;
+        QueryGroupCpuUsage usage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -187,7 +199,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             1L
         );
 
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage, 0.1);
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
@@ -206,7 +218,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testCancelTasks_cancelsGivenTasks() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000_000L;
+        QueryGroupCpuUsage usage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -217,7 +229,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             1L
         );
 
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        when(usage.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage, 0.005);
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
@@ -242,7 +255,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testCancelTasks_cancelsTasksFromDeletedQueryGroups() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000_000L;
+        QueryGroupCpuUsage activeQueryGroupUsage = mock(QueryGroupCpuUsage.class);
+        QueryGroupCpuUsage deletedQueryGroupUsage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.01;
 
         QueryGroup activeQueryGroup = new QueryGroup(
@@ -261,8 +275,11 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             1L
         );
 
-        QueryGroupLevelResourceUsageView mockView1 = createResourceUsageViewMock(resourceType, usage);
-        QueryGroupLevelResourceUsageView mockView2 = createResourceUsageViewMock(resourceType, usage, List.of(1000, 1001));
+        when(activeQueryGroupUsage.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        when(deletedQueryGroupUsage.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        when(deletedQueryGroupUsage.getReduceByFor(any(), any())).thenReturn(0.001);
+        QueryGroupLevelResourceUsageView mockView1 = createResourceUsageViewMock(resourceType, activeQueryGroupUsage, 0.005);
+        QueryGroupLevelResourceUsageView mockView2 = createResourceUsageViewMock(resourceType, deletedQueryGroupUsage, List.of(1000, 1001));
         queryGroupLevelViews.put(queryGroupId1, mockView1);
         queryGroupLevelViews.put(queryGroupId2, mockView2);
         activeQueryGroups.add(activeQueryGroup);
@@ -299,7 +316,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testCancelTasks_does_not_cancelTasksFromDeletedQueryGroups_whenNodeNotInDuress() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000_000L;
+        QueryGroupCpuUsage activeQueryGroupUsage = mock(QueryGroupCpuUsage.class);
+        QueryGroupCpuUsage deletedQueryGroupUsage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.01;
 
         QueryGroup activeQueryGroup = new QueryGroup(
@@ -318,8 +336,12 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             1L
         );
 
-        QueryGroupLevelResourceUsageView mockView1 = createResourceUsageViewMock(resourceType, usage);
-        QueryGroupLevelResourceUsageView mockView2 = createResourceUsageViewMock(resourceType, usage, List.of(1000, 1001));
+        when(activeQueryGroupUsage.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        when(deletedQueryGroupUsage.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        when(deletedQueryGroupUsage.getReduceByFor(any(), any())).thenReturn(0.001);
+
+        QueryGroupLevelResourceUsageView mockView1 = createResourceUsageViewMock(resourceType, activeQueryGroupUsage, 0.001);
+        QueryGroupLevelResourceUsageView mockView2 = createResourceUsageViewMock(resourceType, deletedQueryGroupUsage, List.of(1000, 1001));
         queryGroupLevelViews.put(queryGroupId1, mockView1);
         queryGroupLevelViews.put(queryGroupId2, mockView2);
         activeQueryGroups.add(activeQueryGroup);
@@ -356,7 +378,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testCancelTasks_cancelsGivenTasks_WhenNodeInDuress() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000_000L;
+        QueryGroupCpuUsage usage1 = mock(QueryGroupCpuUsage.class);
+        QueryGroupCpuUsage usage2 = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -375,8 +398,10 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             1L
         );
 
-        queryGroupLevelViews.put(queryGroupId1, createResourceUsageViewMock(resourceType, usage));
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        when(usage1.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        when(usage2.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        queryGroupLevelViews.put(queryGroupId1, createResourceUsageViewMock(resourceType, usage1, 0.0001));
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage2, 0.0001);
         when(mockView.getActiveTasks()).thenReturn(List.of(getRandomSearchTask(5678), getRandomSearchTask(8765)));
         queryGroupLevelViews.put(queryGroupId2, mockView);
         Collections.addAll(activeQueryGroups, queryGroup1, queryGroup2);
@@ -407,9 +432,9 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         assertTrue(cancellableTasksFrom1.get(1).getTask().isCancelled());
     }
 
-    public void testGetAllCancellableTasks_ReturnsNoTasksFromWhenNotBreachingThresholds() {
+    public void testGetAllCancellableTasks_ReturnsNoTasksWhenNotBreachingThresholds() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 1L;
+        QueryGroupCpuUsage queryGroupCpuUsage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.1;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -419,8 +444,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             Map.of(resourceType, threshold),
             1L
         );
-
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        when(queryGroupCpuUsage.isBreachingThresholdFor(any(), any())).thenReturn(false);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, queryGroupCpuUsage, 0.001);
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
@@ -428,9 +453,9 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         assertTrue(allCancellableTasks.isEmpty());
     }
 
-    public void testGetAllCancellableTasks_ReturnsTasksFromWhenBreachingThresholds() {
+    public void testGetAllCancellableTasks_ReturnsTasksWhenBreachingThresholds() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000_000L;
+        QueryGroupCpuUsage queryGroupCpuUsage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -440,8 +465,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             Map.of(resourceType, threshold),
             1L
         );
-
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
+        when(queryGroupCpuUsage.isBreachingThresholdFor(any(), any())).thenReturn(true);
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, queryGroupCpuUsage, 0.001);
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
@@ -453,26 +478,25 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetCancellableTasksFrom_doesNotReturnTasksWhenQueryGroupIdNotFound() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000_000L;
+        QueryGroupCpuUsage usage = mock(QueryGroupCpuUsage.class);
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
-            "testQueryGroup",
+            "testQueryGroup1",
             queryGroupId1,
             QueryGroup.ResiliencyMode.ENFORCED,
             Map.of(resourceType, threshold),
             1L
         );
         QueryGroup queryGroup2 = new QueryGroup(
-            "testQueryGroup",
+            "testQueryGroup2",
             queryGroupId2,
             QueryGroup.ResiliencyMode.ENFORCED,
             Map.of(resourceType, threshold),
             1L
         );
 
-        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage);
-
+        QueryGroupLevelResourceUsageView mockView = createResourceUsageViewMock(resourceType, usage, 0.001);
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
         activeQueryGroups.add(queryGroup2);
@@ -481,21 +505,22 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         assertEquals(0, cancellableTasksFrom.size());
     }
 
-    private QueryGroupLevelResourceUsageView createResourceUsageViewMock(ResourceType resourceType, Long usage) {
+    private QueryGroupLevelResourceUsageView createResourceUsageViewMock(ResourceType resourceType, QueryGroupResourceUsage mockUsage, double usageVal) {
         QueryGroupLevelResourceUsageView mockView = mock(QueryGroupLevelResourceUsageView.class);
-        when(mockView.getResourceUsageData()).thenReturn(Collections.singletonMap(resourceType, usage));
         when(mockView.getActiveTasks()).thenReturn(List.of(getRandomSearchTask(1234), getRandomSearchTask(4321)));
+        when(mockUsage.getReduceByFor(any(), any())).thenReturn(usageVal);
+        when(mockView.getResourceUsageData()).thenReturn(Collections.singletonMap(resourceType, mockUsage));
         return mockView;
     }
 
-    private QueryGroupLevelResourceUsageView createResourceUsageViewMock(ResourceType resourceType, Long usage, Collection<Integer> ids) {
+    private QueryGroupLevelResourceUsageView createResourceUsageViewMock(ResourceType resourceType, QueryGroupResourceUsage usage, Collection<Integer> ids) {
         QueryGroupLevelResourceUsageView mockView = mock(QueryGroupLevelResourceUsageView.class);
         when(mockView.getResourceUsageData()).thenReturn(Collections.singletonMap(resourceType, usage));
         when(mockView.getActiveTasks()).thenReturn(ids.stream().map(this::getRandomSearchTask).collect(Collectors.toList()));
         return mockView;
     }
 
-    private Task getRandomSearchTask(long id) {
+    private QueryGroupTask getRandomSearchTask(long id) {
         return new SearchTask(
             id,
             "transport",
