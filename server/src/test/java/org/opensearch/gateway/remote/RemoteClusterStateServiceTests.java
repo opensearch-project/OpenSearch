@@ -1186,7 +1186,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             diffManifestBuilder.discoveryNodesUpdated(true);
             manifestBuilder.discoveryNodesMetadata(new UploadedMetadataAttribute(DISCOVERY_NODES, DISCOVERY_NODES_FILENAME));
             when(blobContainer.readBlob(DISCOVERY_NODES_FILENAME)).thenAnswer(invocationOnMock -> {
-                BytesReference bytes = DISCOVERY_NODES_FORMAT.serialize(nodesBuilder.build(), DISCOVERY_NODES_FILENAME, compressor);
+                BytesReference bytes = DISCOVERY_NODES_FORMAT.serialize(
+                    (out, nodes) -> nodes.writeToWithAttribute(out),
+                    nodesBuilder.build(),
+                    DISCOVERY_NODES_FILENAME,
+                    compressor
+                );
                 return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
             });
         }

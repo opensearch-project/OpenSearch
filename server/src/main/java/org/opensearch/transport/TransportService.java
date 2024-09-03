@@ -759,7 +759,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(discoveryNode);
+            out.writeOptionalWriteable((stream, node) -> node.writeToWithAttribute(stream), discoveryNode);
             clusterName.writeTo(out);
             if (out.getVersion().before(Version.V_1_0_0)) {
                 out.writeVersion(LegacyESVersion.V_7_10_2);

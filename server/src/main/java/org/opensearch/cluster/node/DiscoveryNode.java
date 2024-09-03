@@ -385,17 +385,34 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            writeToUtil(out, false);
+        } else {
+            writeToUtil(out, true);
+        }
+    }
+
+    public void writeToWithAttribute(StreamOutput out) throws IOException {
+        writeToUtil(out, true);
+    }
+
+    public void writeToUtil(StreamOutput out, boolean includeAllAttributes) throws IOException {
         out.writeString(nodeName);
         out.writeString(nodeId);
         out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (includeAllAttributes) {
+            out.writeVInt(attributes.size());
+            for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        } else {
+            out.writeVInt(0);
         }
+
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             out.writeVInt(roles.size());
             for (final DiscoveryNodeRole role : roles) {
