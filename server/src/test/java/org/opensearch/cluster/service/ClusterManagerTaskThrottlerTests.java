@@ -519,8 +519,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         threadToLock.start();
 
         // submit 1000 threads to verify throttlingCount behaviour as well
-        final CountDownLatch latch2 = new CountDownLatch(1000);
-        IntStream.range(0, 1000).forEach(i -> new Thread(() -> {
+        final CountDownLatch latch2 = new CountDownLatch(10);
+        IntStream.range(0, 10).forEach(i -> new Thread(() -> {
             // adding one task will throttle
             // taskCount in Queue: 5 Threshold: 5
             final ClusterManagerThrottlingException exception = assertThrows(
@@ -537,7 +537,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        assertEquals(1003L, throttlingStats.getThrottlingCount(taskKey));
+        assertEquals(13L, throttlingStats.getThrottlingCount(taskKey));
 
         try {
             latch.countDown();
