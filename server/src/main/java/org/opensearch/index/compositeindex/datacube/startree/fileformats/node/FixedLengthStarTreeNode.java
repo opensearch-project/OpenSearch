@@ -201,7 +201,6 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
         StarTreeNode resultStarTreeNode = null;
         if (null != dimensionValue) {
             resultStarTreeNode = binarySearchChild(dimensionValue);
-            assert null != resultStarTreeNode;
         }
         return resultStarTreeNode;
     }
