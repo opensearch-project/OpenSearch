@@ -9,7 +9,6 @@
 package org.opensearch.repositories.blobstore;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -99,25 +98,15 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
     }
 
     protected void createRepository(Client client, String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType(REPO_TYPE)
-            .setSettings(
-                Settings.builder().put(node().settings()).put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder()
+            .put(node().settings())
+            .put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()));
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repoName, REPO_TYPE, settings);
     }
 
     protected void createRepository(Client client, String repoName, Settings repoSettings) {
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType(REPO_TYPE)
-            .setSettings(repoSettings)
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settingsBuilder = Settings.builder().put(repoSettings);
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repoName, REPO_TYPE, settingsBuilder);
     }
 
     protected void updateRepository(Client client, String repoName, Settings repoSettings) {

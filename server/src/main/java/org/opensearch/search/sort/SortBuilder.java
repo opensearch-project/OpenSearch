@@ -71,6 +71,7 @@ import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBui
 public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
 
     protected SortOrder order = SortOrder.ASC;
+    protected String fieldType;
 
     // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
@@ -161,11 +162,17 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         }
     }
 
+    SortFieldAndFormat buildHelper(QueryShardContext context) throws IOException {
+        SortFieldAndFormat sortFieldAndFormat = build(context);
+        fieldType = context.getFieldTypeString(fieldName());
+        return sortFieldAndFormat;
+    }
+
     public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, QueryShardContext context) throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
-            SortFieldAndFormat sf = builder.build(context);
+            SortFieldAndFormat sf = builder.buildHelper(context);
             sortFields.add(sf.field);
             sortFormats.add(sf.format);
         }
@@ -287,4 +294,25 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     public String toString() {
         return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
+
+    /**
+     * Returns field name as String.
+     * Abstract method to be implemented by all child classes.
+     */
+    public abstract String fieldName();
+
+    /**
+     * Default method for child classes which do not have a custom {@link #fieldName()} implementation.
+     */
+    protected static String getDefaultFieldName() {
+        return null;
+    };
+
+    /**
+     * Returns field type as String for SortBuilder classes which have a defined fieldName.
+     * Else returns null.
+     */
+    public final String getFieldType() {
+        return fieldType;
+    };
 }

@@ -13,10 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.Diff;
-import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
@@ -63,7 +63,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     private final Supplier<RepositoriesService> repositoriesService;
     private Compressor compressor;
     private RemoteWritableEntityStore<IndexRoutingTable, RemoteIndexRoutingTable> remoteIndexRoutingTableStore;
-    private RemoteWritableEntityStore<RoutingTableIncrementalDiff, RemoteRoutingTableDiff> remoteRoutingTableDiffStore;
+    private RemoteWritableEntityStore<Diff<RoutingTable>, RemoteRoutingTableDiff> remoteRoutingTableDiffStore;
     private final ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
     private final ThreadPool threadPool;
@@ -95,16 +95,9 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
      * @param after  current routing table
      * @return incremental diff of the previous and current routing table
      */
-    public DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(
-        RoutingTable before,
-        RoutingTable after
-    ) {
-        return DiffableUtils.diff(
-            before.getIndicesRouting(),
-            after.getIndicesRouting(),
-            DiffableUtils.getStringKeySerializer(),
-            CUSTOM_ROUTING_TABLE_DIFFABLE_VALUE_SERIALIZER
-        );
+    @Override
+    public StringKeyDiffProvider<IndexRoutingTable> getIndicesRoutingMapDiff(RoutingTable before, RoutingTable after) {
+        return new RoutingTableIncrementalDiff(before, after);
     }
 
     /**
@@ -142,18 +135,16 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         String clusterUUID,
         long term,
         long version,
-        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
+        StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(indexRoutingTableDiff);
         RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(
-            routingTableIncrementalDiff,
+            (RoutingTableIncrementalDiff) routingTableDiff,
             clusterUUID,
             compressor,
             term,
             version
         );
-
         ActionListener<Void> completionListener = ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteRoutingTableDiff.getUploadedMetadata()),
             ex -> latchedActionListener.onFailure(
@@ -209,15 +200,14 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     public void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
+        LatchedActionListener<Diff<RoutingTable>> latchedActionListener
     ) {
-        ActionListener<RoutingTableIncrementalDiff> actionListener = ActionListener.wrap(
+        ActionListener<Diff<RoutingTable>> actionListener = ActionListener.wrap(
             latchedActionListener::onResponse,
             latchedActionListener::onFailure
         );
 
         RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor);
-
         remoteRoutingTableDiffStore.readAsync(remoteRoutingTableDiff, actionListener);
     }
 

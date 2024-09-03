@@ -77,6 +77,8 @@ public class FeatureFlags {
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = "opensearch.experimental.feature.task.background.enabled";
 
+    public static final String READER_WRITER_SPLIT_EXPERIMENTAL = "opensearch.experimental.feature.read.write.split.enabled";
+
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
@@ -105,6 +107,12 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> READER_WRITER_SPLIT_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        READER_WRITER_SPLIT_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
+
     /**
      * Gates the functionality of star tree index, which improves the performance of search
      * aggregations.
@@ -122,6 +130,16 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    /**
+     * Gates the functionality of ApproximatePointRangeQuery where we approximate query results.
+     */
+    public static final String APPROXIMATE_POINT_RANGE_QUERY = "opensearch.experimental.feature.approximate_point_range_query.enabled";
+    public static final Setting<Boolean> APPROXIMATE_POINT_RANGE_QUERY_SETTING = Setting.boolSetting(
+        APPROXIMATE_POINT_RANGE_QUERY,
+        false,
+        Property.NodeScope
+    );
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -132,7 +150,8 @@ public class FeatureFlags {
         PLUGGABLE_CACHE_SETTING,
         REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
         STAR_TREE_INDEX_SETTING,
-        APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING
+        APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
+        READER_WRITER_SPLIT_EXPERIMENTAL_SETTING
     );
 
     /**
