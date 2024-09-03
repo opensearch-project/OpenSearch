@@ -399,6 +399,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static Boolean prefixModeVerificationEnable;
 
+    private static Boolean translogPathFixedPrefix;
+
+    private static Boolean segmentsPathFixedPrefix;
+
     private Path remoteStoreRepositoryPath;
 
     private ReplicationType randomReplicationType;
@@ -408,6 +412,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     @BeforeClass
     public static void beforeClass() throws Exception {
         prefixModeVerificationEnable = randomBoolean();
+        translogPathFixedPrefix = randomBoolean();
+        segmentsPathFixedPrefix = randomBoolean();
         testClusterRule.beforeClass();
     }
 
@@ -2585,6 +2591,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         putRepository(clusterAdmin(), repoName, type, null, settings);
     }
 
+    public Settings getNodeSettings() {
+        InternalTestCluster internalTestCluster = internalCluster();
+        ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getClusterManagerName());
+        return clusterService.getSettings();
+    }
+
     public static void putRepository(ClusterAdminClient adminClient, String repoName, String type, Settings.Builder settings) {
         assertAcked(putRepositoryRequestBuilder(adminClient, repoName, type, true, settings, null, false));
     }
@@ -2886,7 +2898,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), randomFrom(PathType.values()));
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), randomBoolean());
-        settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), false);
+        settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), randomBoolean());
+        settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), translogPathFixedPrefix ? "a" : "");
+        settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), segmentsPathFixedPrefix ? "b" : "");
         return settings.build();
     }
 
