@@ -285,6 +285,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == 0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9208")
     public void testRemoteStoreCleanupForDeletedIndex() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
