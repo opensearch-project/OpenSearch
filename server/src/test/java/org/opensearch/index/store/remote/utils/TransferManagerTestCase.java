@@ -100,10 +100,10 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     }
 
     public void testFetchBlobWithConcurrentCacheEvictions() {
-    // Submit 256 tasks to an executor with 16 threads that will each randomly
-    // request one of eight blobs. Given that the cache can only hold two
-    // blobs this will lead to a huge amount of contention and thrashing.
-    final ExecutorService testRunner = Executors.newFixedThreadPool(16);
+        // Submit 256 tasks to an executor with 16 threads that will each randomly
+        // request one of eight blobs. Given that the cache can only hold two
+        // blobs this will lead to a huge amount of contention and thrashing.
+        final ExecutorService testRunner = Executors.newFixedThreadPool(16);
         try {
             final List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < 256; i++) {
