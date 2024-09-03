@@ -151,6 +151,30 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
      *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
+     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
+     */
+    void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        ActionListener<RepositoryData> listener
+    );
+
+    /**
+     * Finalizes snapshotting process
+     * <p>
+     * This method is called on cluster-manager after all shards are snapshotted.
+     *
+     * @param shardGenerations      updated shard generations
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
+     * @param clusterMetadata       cluster metadata
+     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
+     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
      * @param repositoryUpdatePriority  priority for the cluster state update task
      * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
      */
@@ -393,6 +417,18 @@ public interface Repository extends LifecycleComponent {
      * @return snapshot status
      */
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+
+    /**
+     * Retrieve shard snapshot status for the stored snapshot
+     *
+     * @param snapshotInfo snapshot info
+     * @param indexId    the snapshotted index id for the shard to get status for
+     * @param shardId    shard id
+     * @return snapshot status
+     */
+    default IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotInfo snapshotInfo, IndexId indexId, ShardId shardId) {
+        return getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
+    }
 
     /**
      * Update the repository with the incoming cluster state. This method is invoked from {@link RepositoriesService#applyClusterState} and
