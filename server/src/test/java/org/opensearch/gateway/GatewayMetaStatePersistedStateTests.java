@@ -73,6 +73,7 @@ import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.fs.FsRepository;
@@ -504,7 +505,15 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                         clusterService,
                         () -> 0L,
                         threadPool,
-                        List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+                        List.of(
+                            new RemoteIndexPathUploader(
+                                threadPool,
+                                settings,
+                                repositoriesServiceSupplier,
+                                clusterSettings,
+                                DefaultRemoteStoreSettings.INSTANCE
+                            )
+                        ),
                         writableRegistry()
                     );
                 } else {

@@ -367,6 +367,7 @@ final class StoreRecovery {
         Repository repository,
         RepositoriesService repositoriesService,
         ActionListener<Boolean> listener,
+        String segmentsPathFixedPrefix,
         ThreadPool threadPool
     ) {
         try {
@@ -397,7 +398,8 @@ final class StoreRecovery {
 
                 RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
                     () -> repositoriesService,
-                    threadPool
+                    threadPool,
+                    segmentsPathFixedPrefix
                 );
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
