@@ -131,6 +131,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
@@ -423,6 +424,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final RecoverySettings recoverySettings;
 
+    private final RemoteStoreSettings remoteStoreSettings;
+
     private final NamedXContentRegistry namedXContentRegistry;
 
     /**
@@ -475,6 +478,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
     }
 
     @Override
@@ -1478,7 +1482,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
             RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 remoteStoreLockManagerFactory.getRepositoriesService(),
-                threadPool
+                threadPool,
+                remoteStoreSettings.getSegmentsPathFixedPrefix()
             );
             remoteDirectoryCleanupAsync(
                 remoteDirectoryFactory,
@@ -2308,6 +2313,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         deleteFromContainer(snapshotShardPathBlobContainer(), matchingShardPaths);
         long totalBytes = matchingShardPaths.stream().mapToLong(s -> snapshotShardPaths.get(s).length()).sum();
         return new DeleteResult(matchingShardPaths.size(), totalBytes);
+    }
+
+    @Override
+    public void finalizeSnapshot(
+        final ShardGenerations shardGenerations,
+        final long repositoryStateId,
+        final Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        final ActionListener<RepositoryData> listener
+    ) {
+        finalizeSnapshot(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            Priority.NORMAL,
+            listener
+        );
     }
 
     @Override

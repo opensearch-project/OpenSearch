@@ -93,6 +93,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -163,6 +164,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final RemoteStoreLockManagerFactory remoteStoreLockManagerFactory;
 
+    private final RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory;
+
     private final ThreadPool threadPool;
 
     private final Map<Snapshot, List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>>> snapshotCompletionListeners =
@@ -206,6 +209,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
+    public static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
     /**
      * Setting to specify the maximum number of shards that can be included in the result for the snapshot status
      * API call. Note that it does not apply to V2-shallow snapshots.
@@ -217,8 +221,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    public static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = ":";
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -228,13 +230,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         RepositoriesService repositoriesService,
         TransportService transportService,
         ActionFilters actionFilters,
-        @Nullable RemoteStorePinnedTimestampService remoteStorePinnedTimestampService
+        @Nullable RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
-        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService);
+        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(
+            () -> repositoriesService,
+            remoteStoreSettings.getSegmentsPathFixedPrefix()
+        );
         this.threadPool = transportService.getThreadPool();
+        this.remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            () -> repositoriesService,
+            threadPool,
+            remoteStoreSettings.getSegmentsPathFixedPrefix()
+        );
         this.transportService = transportService;
         this.remoteStorePinnedTimestampService = remoteStorePinnedTimestampService;
 
@@ -2494,10 +2505,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 });
                 try {
                     latch.await();
-                    RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
-                        () -> repositoriesService,
-                        threadPool
-                    );
                     if (snapshotsWithLockFiles.size() > 0) {
                         repository.deleteSnapshotsAndReleaseLockFiles(
                             snapshotsWithLockFiles,

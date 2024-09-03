@@ -1817,7 +1817,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BlobPath basePath,
         String shardId,
         RemoteStoreEnums.DataCategory dataCategory,
-        RemoteStoreEnums.DataType dataType
+        RemoteStoreEnums.DataType dataType,
+        String fixedPrefix
     ) {
         String indexUUID = client.admin()
             .indices()
@@ -1842,6 +1843,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             .shardId(shardId)
             .dataCategory(dataCategory)
             .dataType(dataType)
+            .fixedPrefix(fixedPrefix)
             .build();
         return type.path(pathInput, hashAlgorithm);
     }
