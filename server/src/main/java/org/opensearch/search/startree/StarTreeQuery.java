@@ -81,16 +81,10 @@ public class StarTreeQuery extends Query {
         return new ConstantScoreWeight(this, boost) {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                SegmentReader reader = Lucene.segmentReader(context.reader());
-                CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
-                List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
-                StarTreeValues starTreeValues = null;
-                if (compositeIndexFields != null && !compositeIndexFields.isEmpty()) {
-                    starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
-                } else {
+                StarTreeValues starTreeValues = getStarTreeValues(context);
+                if (starTreeValues == null) {
                     return null;
                 }
-
                 StarTreeFilter filter = new StarTreeFilter(starTreeValues, queryMap);
                 DocIdSetIterator result = filter.getStarTreeResult();
                 return new ConstantScoreScorer(this, score(), scoreMode, result);
@@ -98,8 +92,23 @@ public class StarTreeQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                // TODO: Can only cache when segment maxDocs > starTreeDocCount
-                return false;
+                try {
+                    return getStarTreeValues(ctx).getStarTreeDocumentCount() < ctx.reader().maxDoc();
+                } catch (Exception suppressed) {
+                    assert false : "Not able to check cacheable criteria";
+                    return false;
+                }
+            }
+
+            private StarTreeValues getStarTreeValues(LeafReaderContext ctx) throws IOException {
+                SegmentReader reader = Lucene.segmentReader(ctx.reader());
+                CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+                List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+                if (compositeIndexFields != null && !compositeIndexFields.isEmpty()) {
+                    return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
+                } else {
+                    return null;
+                }
             }
         };
     }
