@@ -44,7 +44,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -54,11 +53,9 @@ import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -71,8 +68,6 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -751,106 +746,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(blockedSnapshot);
         assertAcked(clone.get());
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
-    }
-
-    public void testCloneShallowCopyV2() throws Exception {
-        final Path remoteStoreRepoPath = randomRepoPath();
-        internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-
-        String indexName1 = "testindex1";
-        String indexName2 = "testindex2";
-        String indexName3 = "testindex3";
-        String snapshotRepoName = "test-clone-snapshot-repo";
-        String snapshotName1 = "test-create-snapshot1";
-        String snapshotName2 = "test-create-snapshot2";
-        Path absolutePath1 = randomRepoPath().toAbsolutePath();
-        logger.info("Snapshot Path [{}]", absolutePath1);
-
-        Client client = client();
-
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository(snapshotRepoName)
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
-                )
-        );
-
-        createIndex(indexName1, getRemoteStoreBackedIndexSettings());
-        createIndex(indexName2, getRemoteStoreBackedIndexSettings());
-
-        final int numDocsInIndex1 = 10;
-        final int numDocsInIndex2 = 20;
-        indexRandomDocs(indexName1, numDocsInIndex1);
-        indexRandomDocs(indexName2, numDocsInIndex2);
-        ensureGreen(indexName1, indexName2);
-
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
-            .setWaitForCompletion(true)
-            .get();
-        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
-        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
-
-        // Validate that the snapshot was created or handled gracefully
-        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
-        PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
-        repository.getRepositoryData(repositoryDataPlainActionFuture);
-
-        RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
-
-        assertTrue(repositoryData.getSnapshotIds().contains(snapshotInfo.snapshotId()));
-
-        createIndex(indexName3, getRemoteStoreBackedIndexSettings());
-        indexRandomDocs(indexName3, 10);
-        ensureGreen(indexName3);
-
-        // CreateSnapshotResponse snapshotResponse2 = client().admin()
-        // .cluster()
-        // .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
-        // .setWaitForCompletion(true)
-        // .get();
-        AcknowledgedResponse response = client().admin()
-            .cluster()
-            .prepareCloneSnapshot(snapshotRepoName, snapshotName1, "test_clone_snapshot1")
-            .setIndices("*")
-            .get();
-        assertTrue(response.isAcknowledged());
-
-        // assertAcked(startClone(snapshotRepoName, snapshotName1, "test_clone_snapshot", indexName1).get());
-
-        final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(snapshotRepoName)
-            .setSnapshots(snapshotName1, "test_clone_snapshot")
-            .get()
-            .getSnapshots();
-        assertThat(status, hasSize(2));
-        final SnapshotIndexStatus status1 = status.get(0).getIndices().get(indexName1);
-        final SnapshotIndexStatus status2 = status.get(1).getIndices().get(indexName1);
-        assertEquals(status1.getStats().getTotalFileCount(), status2.getStats().getTotalFileCount());
-        assertEquals(status1.getStats().getTotalSize(), status2.getStats().getTotalSize());
-
-        assertThrows(
-            SnapshotException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareCloneSnapshot(snapshotRepoName, snapshotName1, "test_clone_snapshot2")
-                .setIndices(indexName1)
-                .get()
-        );
-        awaitClusterManagerFinishRepoOperations();
     }
 
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(

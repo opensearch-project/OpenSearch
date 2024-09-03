@@ -622,6 +622,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
     }
 
+    private void cloneSnapshotPinnedTimestamp(
+        RepositoryData repositoryData,
+        SnapshotId sourceSnapshot,
+        Snapshot snapshot,
+        long timestampToPin,
+        ActionListener<RepositoryData> listener
+    ) {
+        remoteStorePinnedTimestampService.cloneTimestamp(
+            timestampToPin,
+            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + sourceSnapshot.getUUID(),
+            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshot.getSnapshotId().getUUID(),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.debug("Timestamp pinned successfully for clone snapshot {}", snapshot.getSnapshotId().getName());
+                    listener.onResponse(repositoryData);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to pin timestamp for clone snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
+                    listener.onFailure(e);
+
+                }
+            }
+        );
+    }
+
     private static void ensureSnapshotNameNotRunning(
         List<SnapshotsInProgress.Entry> runningSnapshots,
         String repositoryName,
@@ -808,8 +836,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     );
                                     return;
                                 }
-                                updateSnapshotPinnedTimestamp(
+                                cloneSnapshotPinnedTimestamp(
                                     repositoryData,
+                                    sourceSnapshotId,
                                     snapshot,
                                     snapshotInfo.getPinnedTimestamp(),
                                     pinnedTimestampListener
