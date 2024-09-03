@@ -112,6 +112,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15600")
     public void testApproximateRangeWithSizeUnderDefault() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
@@ -150,6 +151,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15600")
     public void testApproximateRangeWithSizeOverDefault() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
@@ -193,6 +195,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15600")
     public void testApproximateRangeShortCircuit() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
