@@ -67,6 +67,18 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
      * @param repository repository name
      * @param snapshots  list of snapshots
      */
+    public SnapshotsStatusRequest(String repository, String[] snapshots) {
+        this.repository = repository;
+        this.snapshots = snapshots;
+    }
+
+    /**
+     * Constructs a new get snapshots request with given repository name and list of snapshots
+     *
+     * @param repository repository name
+     * @param snapshots  list of snapshots
+     * @param indices  list of indices
+     */
     public SnapshotsStatusRequest(String repository, String[] snapshots, String[] indices) {
         this.repository = repository;
         this.snapshots = snapshots;
