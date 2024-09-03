@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -30,6 +31,7 @@ import java.util.Set;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class StarTreeMetadata extends CompositeIndexMetadata {
     private static final Logger logger = LogManager.getLogger(StarTreeMetadata.class);
 
