@@ -260,7 +260,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
             translogFactorySupplier,
             () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
             DefaultRecoverySettings.INSTANCE,
