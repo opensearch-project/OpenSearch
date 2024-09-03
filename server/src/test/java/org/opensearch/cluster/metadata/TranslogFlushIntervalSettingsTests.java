@@ -64,7 +64,11 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
             .build();
 
         // This should not throw an exception
-        MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(requestSettings, clusterSettings);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(requestSettings, clusterSettings)
+        );
+        assertEquals("You can configure 'index.translog.flush_threshold_size' with upto '130mb' for composite index", ex.getMessage());
     }
 
     public void testExceedingMaxFlushSize() {
