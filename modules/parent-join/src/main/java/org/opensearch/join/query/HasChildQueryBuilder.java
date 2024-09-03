@@ -264,11 +264,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static HasChildQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
