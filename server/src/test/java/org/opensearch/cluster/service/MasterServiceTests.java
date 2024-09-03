@@ -534,8 +534,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 });
                 assertBusy(mockAppender::assertAllExpectationsMatched);
                 // verify stats values after state is published
-                assertEquals(1, clusterManagerService.getClusterStateStats().getUpdateSuccess());
-                assertEquals(0, clusterManagerService.getClusterStateStats().getUpdateFailed());
+                assertBusy(() -> assertEquals(1, clusterManagerService.getClusterStateStats().getUpdateSuccess()));
+                assertBusy(() -> assertEquals(0, clusterManagerService.getClusterStateStats().getUpdateFailed()));
             }
         }
     }
@@ -699,8 +699,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 });
                 assertBusy(mockAppender::assertAllExpectationsMatched);
                 // verify stats values after state is published
-                assertEquals(1, clusterManagerService.getClusterStateStats().getUpdateSuccess());
-                assertEquals(0, clusterManagerService.getClusterStateStats().getUpdateFailed());
+                assertBusy(() -> assertEquals(1, clusterManagerService.getClusterStateStats().getUpdateSuccess()));
+                assertBusy(() -> assertEquals(0, clusterManagerService.getClusterStateStats().getUpdateFailed()));
             }
         }
     }
