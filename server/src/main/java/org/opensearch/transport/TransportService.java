@@ -483,7 +483,6 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, null, listener);
     }
 
-
     public void markPendingDisconnects(DiscoveryNodes.Delta nodesDelta) {
         connectionManager.markPendingDisconnects(nodesDelta.removedNodes());
     }
