@@ -58,7 +58,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
     }
 
     @Override
-    protected void documentation(StringBuilder sb) {
+    public void documentation(StringBuilder sb) {
         sb.append("/_cat/segment_replication\n");
         sb.append("/_cat/segment_replication/{index}\n");
     }

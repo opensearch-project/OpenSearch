@@ -99,7 +99,7 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
-    protected void documentation(StringBuilder sb) {
+    public void documentation(StringBuilder sb) {
         sb.append("/_cat/shards\n");
         sb.append("/_cat/shards/{index}\n");
     }

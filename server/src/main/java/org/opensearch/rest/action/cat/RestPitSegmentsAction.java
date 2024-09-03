@@ -88,7 +88,7 @@ public class RestPitSegmentsAction extends AbstractCatAction {
     }
 
     @Override
-    protected void documentation(StringBuilder sb) {
+    public void documentation(StringBuilder sb) {
         sb.append("/_cat/pit_segments\n");
         sb.append("/_cat/pit_segments/{pit_id}\n");
     }

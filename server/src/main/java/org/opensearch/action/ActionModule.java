@@ -456,7 +456,6 @@ import org.opensearch.rest.action.ingest.RestDeletePipelineAction;
 import org.opensearch.rest.action.ingest.RestGetPipelineAction;
 import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.rest.action.ingest.RestSimulatePipelineAction;
-import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.rest.action.list.RestListAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
@@ -796,12 +795,14 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
-        List<AbstractListAction> listActions = new ArrayList<>();
+        List<AbstractCatAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
             if (handler instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) handler);
-            } else if (handler instanceof AbstractListAction) {
-                listActions.add((AbstractListAction) handler);
+                if (((AbstractCatAction) handler).isActionPaginated()) {
+                    listActions.add((AbstractCatAction) handler);
+                } else {
+                    catActions.add((AbstractCatAction) handler);
+                }
             }
             restController.registerHandler(handler);
         };

@@ -137,12 +137,14 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
             }
         }
 
-        final Table table = RestIndicesAction.RestIndicesActionCommonUtils.buildTable(
+        final RestIndicesAction action = new RestIndicesAction();
+        final Table table = action.buildTable(
             new FakeRestRequest(),
             indicesSettings,
             indicesHealths,
             indicesStats,
             indicesMetadatas,
+            null,
             null
         );
 

@@ -71,7 +71,7 @@ public class RestCountAction extends AbstractCatAction {
     }
 
     @Override
-    protected void documentation(StringBuilder sb) {
+    public void documentation(StringBuilder sb) {
         sb.append("/_cat/count\n");
         sb.append("/_cat/count/{index}\n");
     }

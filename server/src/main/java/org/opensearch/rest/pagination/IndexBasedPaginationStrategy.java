@@ -12,12 +12,9 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.Nullable;
 
-import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * This strategy can be used by the Rest APIs wanting to paginate the responses based on Indices.
@@ -27,12 +24,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class IndexBasedPaginationStrategy implements PaginationStrategy<String> {
 
-    private static final String DESCENDING_SORT_PARAM_VALUE = "descending";
     private final IndexStrategyPageToken nextToken;
     private final List<String> indicesFromRequestedToken;
-
-    private static final String INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE =
-        "Parameter [next_token] has been tainted and is incorrect. Please provide a valid [next_token].";
 
     public IndexBasedPaginationStrategy(
         @Nullable IndexStrategyPageToken requestedToken,
@@ -40,21 +33,43 @@ public class IndexBasedPaginationStrategy implements PaginationStrategy<String> 
         String sortOrder,
         ClusterState clusterState
     ) {
-        // Get sorted list of indices from metadata and filter out the required number of indices
-        List<String> sortedIndicesList = getListOfIndicesSortedByCreateTime(clusterState, sortOrder, requestedToken);
-        final int newPageStartIndexNumber = getNewPageIndexStartNumber(requestedToken, sortedIndicesList, clusterState); // inclusive
-        int newPageEndIndexNumber = Math.min(newPageStartIndexNumber + maxPageSize, sortedIndicesList.size()); // exclusive
-        this.indicesFromRequestedToken = sortedIndicesList.subList(newPageStartIndexNumber, newPageEndIndexNumber);
-        long queryStartTime = requestedToken == null
-            ? clusterState.metadata().indices().get(sortedIndicesList.get(sortedIndicesList.size() - 1)).getCreationDate()
-            : requestedToken.queryStartTime;
-        IndexStrategyPageToken nextPageToken = new IndexStrategyPageToken(
-            newPageEndIndexNumber,
-            clusterState.metadata().indices().get(sortedIndicesList.get(newPageEndIndexNumber - 1)).getCreationDate(),
-            queryStartTime,
-            sortedIndicesList.get(newPageEndIndexNumber - 1)
+        // Get sorted list of indices not containing the ones created after query start time
+        List<String> sortedIndicesList = PaginationStrategy.getListOfIndicesSortedByCreateTime(
+            clusterState,
+            sortOrder,
+            requestedToken == null ? Long.MAX_VALUE : requestedToken.queryStartTime
         );
-        this.nextToken = newPageEndIndexNumber >= sortedIndicesList.size() ? null : nextPageToken;
+        if (sortedIndicesList.isEmpty()) {
+            // Denotes, that all the indices which were created before the queryStartTime have been deleted.
+            // No nextToken and indices need to be shown in such cases.
+            this.indicesFromRequestedToken = new ArrayList<>();
+            this.nextToken = null;
+        } else {
+            final int requestedPageStartIndexNumber = getRequestedPageIndexStartNumber(
+                requestedToken,
+                sortedIndicesList,
+                clusterState,
+                sortOrder
+            ); // inclusive
+            int requestedPageEndIndexNumber = Math.min(requestedPageStartIndexNumber + maxPageSize, sortedIndicesList.size()); // exclusive
+
+            this.indicesFromRequestedToken = sortedIndicesList.subList(requestedPageStartIndexNumber, requestedPageEndIndexNumber);
+
+            // Set the queryStart time as the timestamp of latest created index if requested token is null.
+            long queryStartTime = requestedToken == null
+                ? DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
+                    ? clusterState.metadata().indices().get(sortedIndicesList.get(0)).getCreationDate()
+                    : clusterState.metadata().indices().get(sortedIndicesList.get(sortedIndicesList.size() - 1)).getCreationDate()
+                : requestedToken.queryStartTime;
+            this.nextToken = requestedPageEndIndexNumber >= sortedIndicesList.size()
+                ? null
+                : new IndexStrategyPageToken(
+                    requestedPageEndIndexNumber,
+                    clusterState.metadata().indices().get(sortedIndicesList.get(requestedPageEndIndexNumber - 1)).getCreationDate(),
+                    queryStartTime,
+                    sortedIndicesList.get(requestedPageEndIndexNumber - 1)
+                );
+        }
     }
 
     @Override
@@ -64,62 +79,39 @@ public class IndexBasedPaginationStrategy implements PaginationStrategy<String> 
     }
 
     @Override
-    @Nullable
     public List<String> getElementsFromRequestedToken() {
-        return indicesFromRequestedToken;
+        return Objects.isNull(indicesFromRequestedToken) ? new ArrayList<>() : indicesFromRequestedToken;
     }
 
-    private List<String> getListOfIndicesSortedByCreateTime(
-        final ClusterState clusterState,
-        String sortOrder,
-        IndexStrategyPageToken requestedPageToken
-    ) {
-        long latestValidIndexCreateTime = requestedPageToken == null ? Long.MAX_VALUE : requestedPageToken.queryStartTime;
-        // Filter out the indices which have been created after the latest index which was present when paginated query started.
-        // Also, sort the indices list based on their creation timestamps
-        return clusterState.getRoutingTable()
-            .getIndicesRouting()
-            .keySet()
-            .stream()
-            .filter(index -> (latestValidIndexCreateTime - clusterState.metadata().indices().get(index).getCreationDate()) >= 0)
-            .sorted((index1, index2) -> {
-                Long index1CreationTimeStamp = clusterState.metadata().indices().get(index1).getCreationDate();
-                Long index2CreationTimeStamp = clusterState.metadata().indices().get(index2).getCreationDate();
-                if (index1CreationTimeStamp.equals(index2CreationTimeStamp)) {
-                    return DESCENDING_SORT_PARAM_VALUE.equals(sortOrder) ? index2.compareTo(index1) : index1.compareTo(index2);
-                }
-                return DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
-                    ? Long.compare(index2CreationTimeStamp, index1CreationTimeStamp)
-                    : Long.compare(index1CreationTimeStamp, index2CreationTimeStamp);
-            })
-            .collect(Collectors.toList());
-    }
-
-    private int getNewPageIndexStartNumber(
+    private int getRequestedPageIndexStartNumber(
         final IndexStrategyPageToken requestedPageToken,
         final List<String> sortedIndicesList,
-        final ClusterState clusterState
+        final ClusterState clusterState,
+        final String sortOrder
     ) {
         if (Objects.isNull(requestedPageToken)) {
             return 0;
         }
-        int newPageStartIndexNumber = Math.min(requestedPageToken.posToStartPage, sortedIndicesList.size() - 1);
-        if (newPageStartIndexNumber > 0
-            && !Objects.equals(sortedIndicesList.get(newPageStartIndexNumber - 1), requestedPageToken.nameOfLastRespondedIndex)) {
+        int requestedPageStartIndexNumber = Math.min(requestedPageToken.posToStartPage, sortedIndicesList.size() - 1);
+        if (requestedPageStartIndexNumber > 0
+            && !Objects.equals(sortedIndicesList.get(requestedPageStartIndexNumber - 1), requestedPageToken.nameOfLastRespondedIndex)) {
             // case denoting an already responded index has been deleted while the paginated queries are being executed
-            // find the index whose creation time is just after the index which was last responded
-            newPageStartIndexNumber--;
-            while (newPageStartIndexNumber > 0) {
-                if (clusterState.metadata()
+            // find the index whose creation time is just after/before (based on sortOrder) the index which was last responded.
+            while (requestedPageStartIndexNumber > 0) {
+                long creationTimeOfIndex = clusterState.metadata()
                     .indices()
-                    .get(sortedIndicesList.get(newPageStartIndexNumber - 1))
-                    .getCreationDate() < requestedPageToken.creationTimeOfLastRespondedIndex) {
+                    .get(sortedIndicesList.get(requestedPageStartIndexNumber - 1))
+                    .getCreationDate();
+                if ((DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
+                    && creationTimeOfIndex < requestedPageToken.creationTimeOfLastRespondedIndex)
+                    || (DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
+                        && creationTimeOfIndex > requestedPageToken.creationTimeOfLastRespondedIndex)) {
                     break;
                 }
-                newPageStartIndexNumber--;
+                requestedPageStartIndexNumber--;
             }
         }
-        return newPageStartIndexNumber;
+        return requestedPageStartIndexNumber;
     }
 
     /**
@@ -143,22 +135,18 @@ public class IndexBasedPaginationStrategy implements PaginationStrategy<String> 
          */
         public IndexStrategyPageToken(String requestedTokenString) {
             Objects.requireNonNull(requestedTokenString, "requestedTokenString can not be null");
-            try {
-                requestedTokenString = new String(Base64.getDecoder().decode(requestedTokenString), UTF_8);
-            } catch (IllegalArgumentException exception) {
-                throw new OpenSearchParseException(INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE);
-            }
+            String decryptedToken = PageToken.decryptStringToken(requestedTokenString);
 
-            final String[] requestedTokenElements = requestedTokenString.split("\\$");
-            if (requestedTokenElements.length != 4) {
+            final String[] decryptedTokenElements = decryptedToken.split("\\$");
+            if (decryptedTokenElements.length != 4) {
                 throw new OpenSearchParseException(INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE);
             }
 
             try {
-                this.posToStartPage = Integer.parseInt(requestedTokenElements[0]);
-                this.creationTimeOfLastRespondedIndex = Long.parseLong(requestedTokenElements[1]);
-                this.queryStartTime = Long.parseLong(requestedTokenElements[2]);
-                this.nameOfLastRespondedIndex = requestedTokenElements[3];
+                this.posToStartPage = Integer.parseInt(decryptedTokenElements[0]);
+                this.creationTimeOfLastRespondedIndex = Long.parseLong(decryptedTokenElements[1]);
+                this.queryStartTime = Long.parseLong(decryptedTokenElements[2]);
+                this.nameOfLastRespondedIndex = decryptedTokenElements[3];
                 if (posToStartPage < 0 || creationTimeOfLastRespondedIndex < 0 || queryStartTime < 0) {
                     throw new OpenSearchParseException(INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE);
                 }
@@ -182,11 +170,9 @@ public class IndexBasedPaginationStrategy implements PaginationStrategy<String> 
 
         @Override
         public String generateEncryptedToken() {
-            return Base64.getEncoder()
-                .encodeToString(
-                    (posToStartPage + "$" + creationTimeOfLastRespondedIndex + "$" + queryStartTime + "$" + nameOfLastRespondedIndex)
-                        .getBytes(UTF_8)
-                );
+            return PageToken.encryptStringToken(
+                posToStartPage + "$" + creationTimeOfLastRespondedIndex + "$" + queryStartTime + "$" + nameOfLastRespondedIndex
+            );
         }
     }
 
