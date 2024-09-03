@@ -190,9 +190,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         Settings.Builder settings = Settings.builder()
             .put("location", rmd.settings().get("location"))
             .put(REPOSITORIES_FAILRATE_SETTING.getKey(), value);
-        assertAcked(
-            client().admin().cluster().preparePutRepository(repoName).setType(ReloadableFsRepository.TYPE).setSettings(settings).get()
-        );
+        createRepository(repoName, ReloadableFsRepository.TYPE, settings);
     }
 
     public Settings indexSettings() {

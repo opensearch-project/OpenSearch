@@ -10,12 +10,19 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeDocumentsSorter;
 import org.opensearch.index.mapper.MapperService;
@@ -29,9 +36,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 
 /**
  * Off-heap implementation of the star tree builder.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
@@ -44,12 +56,20 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * Builds star tree based on star tree field configuration consisting of dimensions, metrics and star tree index
      * specific configuration.
      *
+     * @param metaOut       an index output to write star-tree metadata
+     * @param dataOut       an index output to write star-tree data
      * @param starTreeField holds the configuration for the star tree
      * @param state         stores the segment write state
      * @param mapperService helps to find the original type of the field
      */
-    protected OffHeapStarTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService) throws IOException {
-        super(starTreeField, state, mapperService);
+    protected OffHeapStarTreeBuilder(
+        IndexOutput metaOut,
+        IndexOutput dataOut,
+        StarTreeField starTreeField,
+        SegmentWriteState state,
+        MapperService mapperService
+    ) throws IOException {
+        super(metaOut, dataOut, starTreeField, state, mapperService);
         segmentDocumentFileManager = new SegmentDocsFileManager(state, starTreeField, metricAggregatorInfos, numDimensions);
         try {
             starTreeDocumentFileManager = new StarTreeDocsFileManager(state, starTreeField, metricAggregatorInfos, numDimensions);
@@ -71,10 +91,14 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param starTreeValuesSubs contains the star tree values from multiple segments
      */
     @Override
-    public void build(List<StarTreeValues> starTreeValuesSubs) throws IOException {
+    public void build(
+        List<StarTreeValues> starTreeValuesSubs,
+        AtomicInteger fieldNumberAcrossStarTrees,
+        DocValuesConsumer starTreeDocValuesConsumer
+    ) throws IOException {
         boolean success = false;
         try {
-            build(mergeStarTrees(starTreeValuesSubs));
+            build(mergeStarTrees(starTreeValuesSubs), fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
             success = true;
         } finally {
             starTreeDocumentFileManager.deleteFiles(success);
@@ -125,12 +149,31 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         int[] docIds;
         try {
             for (StarTreeValues starTreeValues : starTreeValuesSubs) {
-                SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
+                List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
+                SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[starTreeValues.getStarTreeField()
+                    .getDimensionsOrder()
+                    .size()];
+                for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
+                    String dimension = dimensionsSplitOrder.get(i).getField();
+                    dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(dimension));
+                }
                 List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
-                AtomicInteger numSegmentDocs = new AtomicInteger();
-                setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
+                // get doc id set iterators for metrics
+                for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
+                    for (MetricStat metricStat : metric.getMetrics()) {
+                        String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                            starTreeValues.getStarTreeField().getName(),
+                            metric.getField(),
+                            metricStat.getTypeName()
+                        );
+                        metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricDocIdSetIterator(metricFullName)));
+                    }
+                }
                 int currentDocId = 0;
-                while (currentDocId < numSegmentDocs.get()) {
+                int numSegmentDocs = Integer.parseInt(
+                    starTreeValues.getAttributes().getOrDefault(SEGMENT_DOCS_COUNT, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
+                );
+                while (currentDocId < numSegmentDocs) {
                     StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders);
                     segmentDocumentFileManager.writeStarTreeDocument(starTreeDocument, true);
                     numDocs++;

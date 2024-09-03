@@ -231,7 +231,17 @@ public class RemoteTemplatesMetadataTests extends OpenSearchTestCase {
         return TemplatesMetadata.builder()
             .put(
                 IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
+                    .order(1234)
                     .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(
+                        Settings.builder().put("index.random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build()
+                    )
+                    .build()
+            )
+            .put(
+                IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
+                    .order(5678)
+                    .patterns(Arrays.asList("test-*"))
                     .settings(
                         Settings.builder().put("index.random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build()
                     )
