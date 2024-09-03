@@ -238,8 +238,9 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         boolean ignoreUnavailable = randomBoolean();
         String endpoint = "/_snapshot/" + repository + "/" + snapshotNames.toString() + "/_status";
 
-        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots, indices);
+        SnapshotsStatusRequest snapshotsStatusRequest = (new SnapshotsStatusRequest(repository, snapshots)).indices(indices);
         RequestConvertersTests.setRandomMasterTimeout(snapshotsStatusRequest, expectedParams);
+
         snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
         expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
 
