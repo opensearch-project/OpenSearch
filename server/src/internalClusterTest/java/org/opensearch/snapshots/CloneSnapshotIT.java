@@ -50,7 +50,6 @@ import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
-import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
@@ -832,14 +831,5 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                 : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
             return (BlobStoreIndexShardSnapshot) indexShardSnapshot;
         })));
-    }
-
-    private Settings snapshotV2Settings(Path remoteStoreRepoPath) {
-        String REMOTE_REPO_NAME = "remote-store-repo-name";
-        Settings settings = Settings.builder()
-            .put(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath))
-            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
-            .build();
-        return settings;
     }
 }
