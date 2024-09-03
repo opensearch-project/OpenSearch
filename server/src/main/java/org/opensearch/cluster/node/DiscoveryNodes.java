@@ -44,7 +44,6 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
@@ -69,7 +68,7 @@ import java.util.stream.StreamSupport;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode>, VerifiableWriteable {
+public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -710,7 +709,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
-    @Override
     public void writeVerifiableTo(StreamOutput out) throws IOException {
         writeClusterManager(out);
         ((BufferedChecksumStreamOutput) out).writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo(stream));
