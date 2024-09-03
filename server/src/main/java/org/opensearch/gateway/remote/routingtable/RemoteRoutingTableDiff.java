@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote.routingtable;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
@@ -22,7 +23,6 @@ import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.Map;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 
@@ -30,7 +30,8 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
  * Represents a incremental difference between {@link org.opensearch.cluster.routing.RoutingTable} objects that can be serialized and deserialized.
  * This class is responsible for writing and reading the differences between RoutingTables to and from an input/output stream.
  */
-public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlobEntity<RoutingTableIncrementalDiff> {
+public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlobEntity<Diff<RoutingTable>> {
+
     private final RoutingTableIncrementalDiff routingTableIncrementalDiff;
 
     private long term;
@@ -72,18 +73,6 @@ public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlob
     }
 
     /**
-     * Constructs a new RemoteRoutingTableDiff with the given differences.
-     *
-     * @param routingTableIncrementalDiff a RoutingTableIncrementalDiff object containing the differences of {@link IndexRoutingTable}.
-     * @param clusterUUID the cluster UUID.
-     * @param compressor the compressor to be used.
-     */
-    public RemoteRoutingTableDiff(RoutingTableIncrementalDiff routingTableIncrementalDiff, String clusterUUID, Compressor compressor) {
-        super(clusterUUID, compressor);
-        this.routingTableIncrementalDiff = routingTableIncrementalDiff;
-    }
-
-    /**
      * Constructs a new RemoteIndexRoutingTableDiff with the given blob name, cluster UUID, and compressor.
      *
      * @param blobName the name of the blob.
@@ -101,9 +90,8 @@ public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlob
      *
      * @return a map containing the differences.
      */
-    public Map<String, Diff<IndexRoutingTable>> getDiffs() {
-        assert routingTableIncrementalDiff != null;
-        return routingTableIncrementalDiff.getDiffs();
+    public Diff<RoutingTable> getDiffs() {
+        return routingTableIncrementalDiff;
     }
 
     @Override
@@ -144,7 +132,7 @@ public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlob
     }
 
     @Override
-    public RoutingTableIncrementalDiff deserialize(InputStream in) throws IOException {
+    public Diff<RoutingTable> deserialize(InputStream in) throws IOException {
         return REMOTE_ROUTING_TABLE_DIFF_FORMAT.deserialize(blobName, Streams.readFully(in));
     }
 }

@@ -318,8 +318,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.content().length();
+        final MediaType mediaType = request.getMediaType();
         if (contentLength > 0) {
-            final MediaType mediaType = request.getMediaType();
             if (mediaType == null) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
@@ -335,6 +335,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
+
         RestChannel responseChannel = channel;
         try {
             if (handler.canTripCircuitBreaker()) {
@@ -355,6 +356,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                             + request.getHttpRequest().method()
                             + "]"
                     );
+                }
+
+                if (mediaType == null) {
+                    sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), responseChannel);
+                    return;
                 }
             } else {
                 // if we could reserve bytes for the request we need to send the response also over this channel

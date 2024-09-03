@@ -34,6 +34,9 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -60,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -75,7 +79,7 @@ import static java.util.Collections.emptyMap;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexShardRoutingTable implements Iterable<ShardRouting> {
+public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTable> implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
     // Shuffler for weighted round-robin shard routing. This uses rotation to permute shards.
@@ -209,6 +213,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      */
     public List<ShardRouting> getShards() {
         return shards();
+    }
+
+    /**
+     * Returns a {@link List} of the search only shards in the RoutingTable
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> searchOnlyReplicas() {
+        return replicas.stream().filter(ShardRouting::isSearchOnly).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a {@link List} of the writer replicas (primary eligible) shards in the RoutingTable
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> writerReplicas() {
+        return replicas.stream().filter(r -> r.isSearchOnly() == false).collect(Collectors.toList());
     }
 
     /**
@@ -525,6 +547,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         return sortedShards;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        this.shardId().getIndex().writeTo(out);
+        Builder.writeToThin(this, out);
     }
 
     private static class NodeRankComparator implements Comparator<ShardRouting> {
@@ -1049,6 +1077,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
     }
 
+    public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
+        return IndexShardRoutingTable.Builder.readFrom(in);
+    }
+
+    public static Diff<IndexShardRoutingTable> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(IndexShardRoutingTable::readFrom, in);
+    }
+
     /**
      * Builder of an index shard routing table.
      *
@@ -1135,6 +1171,27 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
 
+        public static void writeVerifiableTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
+            out.writeVInt(indexShard.shardId.id());
+            out.writeVInt(indexShard.shards.size());
+            // Order allocated shards by allocationId
+            AtomicInteger assignedShardCount = new AtomicInteger();
+            indexShard.shards.stream()
+                .filter(shardRouting -> shardRouting.allocationId() != null)
+                .sorted(Comparator.comparing(o -> o.allocationId().getId()))
+                .forEach(shardRouting -> {
+                    try {
+                        assignedShardCount.getAndIncrement();
+                        shardRouting.writeToThin(out);
+                    } catch (IOException e) {
+                        logger.error(() -> new ParameterizedMessage("Failed to write shard {}. Exception {}", indexShard, e));
+                        throw new RuntimeException("Failed to write IndexShardRoutingTable", e);
+                    }
+                });
+            // is primary assigned
+            out.writeBoolean(indexShard.primaryShard().allocationId() != null);
+            out.writeVInt(indexShard.shards.size() - assignedShardCount.get());
+        }
     }
 
     @Override

@@ -92,6 +92,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -137,6 +138,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.Compatibili
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHARD_PATH_TYPE;
 import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
 /**
@@ -203,7 +205,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = ":";
+    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
+    /**
+     * Setting to specify the maximum number of shards that can be included in the result for the snapshot status
+     * API call. Note that it does not apply to V2-shallow snapshots.
+     */
+    public static final Setting<Integer> MAX_SHARDS_ALLOWED_IN_STATUS_API = Setting.intSetting(
+        "snapshot.max_shards_allowed_in_status_api",
+        200000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -213,12 +226,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         RepositoriesService repositoriesService,
         TransportService transportService,
         ActionFilters actionFilters,
-        @Nullable RemoteStorePinnedTimestampService remoteStorePinnedTimestampService
+        @Nullable RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
-        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService);
+        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(
+            () -> repositoriesService,
+            remoteStoreSettings.getSegmentsPathFixedPrefix()
+        );
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
         this.remoteStorePinnedTimestampService = remoteStorePinnedTimestampService;
@@ -335,9 +352,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
+                int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)
+                    ? SHARD_PATH_TYPE.get(repository.getMetadata().settings()).getCode()
+                    : IndexId.DEFAULT_SHARD_PATH_TYPE;
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
                     indices,
-                    getInFlightIndexIds(runningSnapshots, repositoryName)
+                    getInFlightIndexIds(runningSnapshots, repositoryName),
+                    pathType
                 );
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
                 final Map<ShardId, ShardSnapshotStatus> shards = shards(
@@ -475,7 +496,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
                     indices,
-                    getInFlightIndexIds(runningSnapshots, repositoryName)
+                    getInFlightIndexIds(runningSnapshots, repositoryName),
+                    IndexId.DEFAULT_SHARD_PATH_TYPE
                 );
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
                 final ShardGenerations shardGenerations = buildShardsGenerationFromRepositoryData(

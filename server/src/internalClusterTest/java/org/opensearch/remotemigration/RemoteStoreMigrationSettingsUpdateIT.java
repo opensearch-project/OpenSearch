@@ -21,7 +21,6 @@ import java.util.Optional;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationShardAllocationBaseTestCase {
@@ -92,11 +91,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         String snapshotName = "test-snapshot";
         String snapshotRepoName = "test-restore-snapshot-repo";
         Path snapshotRepoNameAbsolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(snapshotRepoName)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", snapshotRepoNameAbsolutePath))
-        );
+        createRepository(snapshotRepoName, "fs", Settings.builder().put("location", snapshotRepoNameAbsolutePath));
 
         logger.info("Create snapshot of non remote stored backed index");
 
