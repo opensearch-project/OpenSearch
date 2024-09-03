@@ -104,7 +104,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
 
         remoteIndexMetadataManager.writeAsync(
             INDEX,
-            new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null),
+            new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null, null, null, null),
             new LatchedActionListener<>(listener, latch)
         );
         latch.await();
@@ -136,7 +136,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
 
         remoteIndexMetadataManager.writeAsync(
             INDEX,
-            new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null),
+            new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null, null, null, null),
             new LatchedActionListener<>(listener, latch)
         );
         latch.await();

@@ -62,7 +62,7 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractCl
     /**
      * Controls the fixed prefix for the routing table path on remote store.
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX_CHAR = Setting.simpleString(
+    public static final Setting<String> CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX = Setting.simpleString(
         "cluster.remote_store.routing_table.path.prefix",
         "",
         Property.NodeScope,
@@ -91,7 +91,7 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractCl
         );
         this.pathType = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING);
         this.pathHashAlgo = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING);
-        this.pathPrefix = clusterSettings.get(CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX_CHAR);
+        this.pathPrefix = clusterSettings.get(CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING, this::setPathTypeSetting);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING, this::setPathHashAlgoSetting);
     }

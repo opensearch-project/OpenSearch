@@ -57,20 +57,11 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
         final RemoteStoreEnums.PathHashAlgorithm pathHashAlgo,
         final String fixedPrefix
     ) {
-        this(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, namedXContentRegistry);
+        this.indexMetadata = indexMetadata;
         this.pathType = pathType;
         this.pathHashAlgo = pathHashAlgo;
         this.fixedPrefix = fixedPrefix;
-    }
-
-    public RemoteIndexMetadata(
-        final IndexMetadata indexMetadata,
-        final String clusterUUID,
-        final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
-    ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
-        this.indexMetadata = indexMetadata;
     }
 
     public RemoteIndexMetadata(

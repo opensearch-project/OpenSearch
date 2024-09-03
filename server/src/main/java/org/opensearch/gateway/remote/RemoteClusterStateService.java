@@ -153,7 +153,7 @@ public class RemoteClusterStateService implements Closeable {
     /**
     * Controls the fixed prefix for the cluster state path on remote store.
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX_CHAR = Setting.simpleString(
+    public static final Setting<String> CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX = Setting.simpleString(
         "cluster.remote_store.state.path.prefix",
         "",
         Property.NodeScope,
@@ -263,7 +263,7 @@ public class RemoteClusterStateService implements Closeable {
         this.isPublicationEnabled = FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
-        this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX_CHAR.get(settings);
+        this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
             settings,

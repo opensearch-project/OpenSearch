@@ -108,11 +108,11 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE
             )
             .put(
-                RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX_CHAR.getKey(),
+                RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.getKey(),
                 hasRemoteStateCharPrefix ? REMOTE_STATE_PREFIX : ""
             )
             .put(
-                RemoteRoutingTableBlobStore.CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX_CHAR.getKey(),
+                RemoteRoutingTableBlobStore.CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX.getKey(),
                 hasRemoteRoutingCharPrefix ? REMOTE_ROUTING_PREFIX : ""
             )
             .put(RemoteIndexMetadataManager.REMOTE_INDEX_METADATA_PATH_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX.toString())
