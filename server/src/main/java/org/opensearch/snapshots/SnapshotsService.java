@@ -671,6 +671,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             .collect(Collectors.toMap(IndexId::getName, Function.identity()));
     }
 
+    /**
+     * This method does some pre-validation, checks for the presence of source snapshot in repository data.
+     * For shallow snapshot v2 clone, it checks the pinned timestamp to be greater than zero in the source snapshot.
+     *
+     * @param request snapshot request
+     * @param listener snapshot completion listener
+     */
     public void executeClone(CloneSnapshotRequest request, ActionListener<Void> listener) {
         final String repositoryName = request.repository();
         Repository repository = repositoriesService.repository(repositoryName);
@@ -702,7 +709,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             throw new SnapshotException(
                                 repositoryName,
                                 snapshotName,
-                                "Aborting clone for Snapshot-v2, only supported wildcard pattern '*' is supported for indices"
+                                "Aborting clone for Snapshot-v2, only wildcard pattern '*' is supported for indices"
                             );
                         }
                         cloneSnapshotV2(request, snapshot, repositoryName, repository, listener);
@@ -714,11 +721,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         } catch (Exception e) {
             assert false : new AssertionError(e);
-            logger.error("SnapshotV2 {} clone failed with exception {}", snapshot.getSnapshotId().getName(), e);
+            logger.error("Snapshot {} clone failed with exception {}", snapshot.getSnapshotId().getName(), e);
             listener.onFailure(e);
         }
     }
 
+    /**
+     * This method is responsible for creating a clone of the shallow snapshot v2.
+     * It pins the same timestamp that is pinned by the source snapshot.
+     *
+     * Unlike traditional snapshot operations, this method performs a synchronous clone execution and doesn't
+     * upload any shard metadata to the snapshot repository.
+     * The pinned timestamp is later reconciled with remote store segment and translog metadata files during the restore
+     * operation.
+     *
+     * @param request snapshot request
+     * @param snapshot clone snapshot
+     * @param repositoryName snapshot repository name
+     * @param repository snapshot repository
+     * @param listener completion listener
+     */
     public void cloneSnapshotV2(
         CloneSnapshotRequest request,
         Snapshot snapshot,
@@ -734,12 +756,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
 
             repositoryDataListener.whenComplete(repositoryData -> {
-                ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
-                ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
-                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
-                ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
-                validate(repositoryName, snapshotName, currentState);
+                createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
 
                 final SnapshotId sourceSnapshotId = repositoryData.getSnapshotIds()
                     .stream()
@@ -847,7 +864,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.error("Failed to upload files to snapshot repo {} for snapshot {} ", repositoryName, snapshotName);
+                                logger.error(
+                                    "Failed to upload files to snapshot repo {} for clone snapshot {} ",
+                                    repositoryName,
+                                    snapshotName
+                                );
                                 listener.onFailure(e);
                             }
                         }
