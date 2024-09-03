@@ -42,11 +42,15 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
 
 /**
  * Transport action for create snapshot operation
@@ -56,12 +60,15 @@ import java.io.IOException;
 public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
     private final SnapshotsService snapshotsService;
 
+    private final RepositoriesService repositoriesService;
+
     @Inject
     public TransportCreateSnapshotAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
+        RepositoriesService repositoriesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -75,6 +82,7 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
             indexNameExpressionResolver
         );
         this.snapshotsService = snapshotsService;
+        this.repositoriesService = repositoriesService;
     }
 
     @Override
@@ -110,7 +118,10 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
                 snapshotsService.createSnapshotLegacy(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
             }
         } else {
-            if (request.waitForCompletion()) {
+            Repository repository = repositoriesService.repository(request.repository());
+            boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
+
+            if (request.waitForCompletion() || isSnapshotV2) {
                 snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
             } else {
                 snapshotsService.createSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
