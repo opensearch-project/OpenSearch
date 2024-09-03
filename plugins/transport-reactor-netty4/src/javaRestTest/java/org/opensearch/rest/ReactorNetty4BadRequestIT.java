@@ -112,4 +112,16 @@ public class ReactorNetty4BadRequestIT extends OpenSearchRestTestCase {
         assertThat(map.get("type"), equalTo("content_type_header_exception"));
         assertThat(map.get("reason"), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header []"));
     }
+
+    public void testUnsupportedContentType() throws IOException {
+        final Request request = new Request("POST", "/_bulk/stream");
+        final RequestOptions.Builder options = request.getOptions().toBuilder();
+        request.setOptions(options);
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        final Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(406));
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final String error = objectPath.evaluate("error");
+        assertThat(error, equalTo("Content-Type header [] is not supported"));
+    }
 }

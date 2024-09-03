@@ -315,7 +315,11 @@ public class RestShardsAction extends AbstractCatAction {
             if (shard.primary()) {
                 table.addCell("p");
             } else {
-                table.addCell("r");
+                if (shard.isSearchOnly()) {
+                    table.addCell("s");
+                } else {
+                    table.addCell("r");
+                }
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
