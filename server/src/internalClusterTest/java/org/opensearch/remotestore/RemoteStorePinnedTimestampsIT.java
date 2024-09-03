@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -17,6 +18,7 @@ import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase {
@@ -75,10 +77,25 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
 
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
 
-        // This should be a no-op as pinning entity is different
-        remoteStorePinnedTimestampService.unpinTimestamp(timestamp1, "no-snapshot", noOpActionListener);
         // Unpinning already pinned entity
         remoteStorePinnedTimestampService.unpinTimestamp(timestamp2, "ss3", noOpActionListener);
+
+        // This should fail as timestamp is not pinned by pinning entity
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteStorePinnedTimestampService.unpinTimestamp(timestamp1, "no-snapshot", new LatchedActionListener<>(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                // onResponse should not get called.
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof IllegalArgumentException);
+            }
+        }, latch));
+        latch.await();
+
         // Adding different entity to already pinned timestamp
         remoteStorePinnedTimestampService.pinTimestamp(timestamp3, "ss5", noOpActionListener);
 
@@ -91,6 +108,76 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
             assertEquals(Set.of(timestamp1, timestamp3), pinnedTimestampWithFetchTimestamp_3.v2());
         });
 
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
+    }
+
+    public void testPinnedTimestampClone() throws Exception {
+        prepareCluster(1, 1, INDEX_NAME, 0, 2);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        long timestamp1 = System.currentTimeMillis() + 30000L;
+        long timestamp2 = System.currentTimeMillis() + 60000L;
+        long timestamp3 = System.currentTimeMillis() + 900000L;
+        remoteStorePinnedTimestampService.pinTimestamp(timestamp1, "ss2", noOpActionListener);
+        remoteStorePinnedTimestampService.pinTimestamp(timestamp2, "ss3", noOpActionListener);
+        remoteStorePinnedTimestampService.pinTimestamp(timestamp3, "ss4", noOpActionListener);
+
+        // Clone timestamp1
+        remoteStorePinnedTimestampService.cloneTimestamp(timestamp1, "ss2", "ss2-2", noOpActionListener);
+
+        // With clone, set of pinned timestamp will not change
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+        assertBusy(
+            () -> assertEquals(Set.of(timestamp1, timestamp2, timestamp3), RemoteStorePinnedTimestampService.getPinnedTimestamps().v2())
+        );
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
+
+        // Clone timestamp1 but provide invalid existing entity
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteStorePinnedTimestampService.cloneTimestamp(
+            timestamp1,
+            "ss3",
+            "ss2-3",
+            new LatchedActionListener<>(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    // onResponse should not get called.
+                    fail();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertTrue(e instanceof IllegalArgumentException);
+                }
+            }, latch)
+        );
+        latch.await();
+
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+        assertBusy(
+            () -> assertEquals(Set.of(timestamp1, timestamp2, timestamp3), RemoteStorePinnedTimestampService.getPinnedTimestamps().v2())
+        );
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
+
+        // Now we have timestamp1 pinned by 2 entities, unpin 1, this should not change set of pinned timestamps
+        remoteStorePinnedTimestampService.unpinTimestamp(timestamp1, "ss2", noOpActionListener);
+
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+        assertBusy(
+            () -> assertEquals(Set.of(timestamp1, timestamp2, timestamp3), RemoteStorePinnedTimestampService.getPinnedTimestamps().v2())
+        );
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
+
+        // Now unpin second entity as well, set of pinned timestamp should be reduced by 1
+        remoteStorePinnedTimestampService.unpinTimestamp(timestamp1, "ss2-2", noOpActionListener);
+
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+        assertBusy(() -> assertEquals(Set.of(timestamp2, timestamp3), RemoteStorePinnedTimestampService.getPinnedTimestamps().v2()));
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
     }
 }
