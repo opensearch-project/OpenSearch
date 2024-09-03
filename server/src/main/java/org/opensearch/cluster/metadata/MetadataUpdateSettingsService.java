@@ -67,8 +67,10 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -77,8 +79,10 @@ import java.util.Set;
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findComponentTemplate;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
@@ -200,6 +204,7 @@ public class MetadataUpdateSettingsService {
                     Set<Index> openIndices = new HashSet<>();
                     Set<Index> closeIndices = new HashSet<>();
                     final String[] actualIndices = new String[request.indices().length];
+                    final List<String> validationErrors = new ArrayList<>();
                     for (int i = 0; i < request.indices().length; i++) {
                         Index index = request.indices()[i];
                         actualIndices[i] = index.getName();
@@ -209,6 +214,19 @@ public class MetadataUpdateSettingsService {
                         } else {
                             closeIndices.add(index);
                         }
+                        if (metadata.context() != null) {
+                            validateOverlap(
+                                normalizedSettings.keySet(),
+                                findComponentTemplate(currentState.metadata(), metadata.context()).template().settings(),
+                                index.getName()
+                            ).ifPresent(validationErrors::add);
+                        }
+                    }
+
+                    if (validationErrors.size() > 0) {
+                        ValidationException exception = new ValidationException();
+                        exception.addValidationErrors(validationErrors);
+                        throw exception;
                     }
 
                     if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {

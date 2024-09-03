@@ -50,6 +50,7 @@ import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -77,6 +78,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -100,6 +102,7 @@ import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.InvalidIndexContextException;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
@@ -127,11 +130,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
@@ -149,6 +152,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findContextTemplateName;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
@@ -498,20 +502,30 @@ public class MetadataCreateIndexService {
         final IndexMetadata sourceMetadata,
         final IndexMetadata temporaryIndexMeta,
         final List<Map<String, Object>> mappings,
-        final Function<IndexService, List<AliasMetadata>> aliasSupplier,
+        final BiFunction<IndexService, Map<String, AliasMetadata>, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
+            Settings.Builder tmpSettingsBuilder = Settings.builder().put(temporaryIndexMeta.getSettings());
+
+            List<Map<String, Object>> updatedMappings = new ArrayList<>();
+            updatedMappings.addAll(mappings);
+
+            Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
+
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
+                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
             }
 
-            final List<AliasMetadata> aliases = aliasSupplier.apply(indexService);
+            final List<AliasMetadata> aliases = aliasSupplier.apply(
+                indexService,
+                Optional.ofNullable(contextTemplate).map(Template::aliases).orElse(Map.of())
+            );
 
             final IndexMetadata indexMetadata;
             try {
@@ -519,11 +533,12 @@ public class MetadataCreateIndexService {
                     request.index(),
                     aliases,
                     indexService.mapperService()::documentMapper,
-                    temporaryIndexMeta.getSettings(),
+                    tmpSettingsBuilder.build(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    temporaryIndexMeta.getCustomData()
+                    temporaryIndexMeta.getCustomData(),
+                    temporaryIndexMeta.context()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -543,6 +558,54 @@ public class MetadataCreateIndexService {
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
             return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, allocationService::reroute, metadataTransformer);
         });
+    }
+
+    Template applyContext(
+        CreateIndexClusterStateUpdateRequest request,
+        ClusterState currentState,
+        List<Map<String, Object>> mappings,
+        Settings.Builder settingsBuilder
+    ) throws IOException {
+        if (request.context() != null) {
+            ComponentTemplate componentTemplate = MetadataIndexTemplateService.findComponentTemplate(
+                currentState.metadata(),
+                request.context()
+            );
+
+            if (componentTemplate.template().mappings() != null) {
+                // Mappings added at last (priority to mappings provided)
+                mappings.add(MapperService.parseMapping(xContentRegistry, componentTemplate.template().mappings().toString()));
+            }
+
+            if (componentTemplate.template().settings() != null) {
+                validateOverlap(settingsBuilder.keys(), componentTemplate.template().settings(), request.index()).ifPresent(message -> {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationError(message);
+                    throw validationException;
+                });
+                // Settings applied at last
+                settingsBuilder.put(componentTemplate.template().settings());
+            }
+
+            settingsBuilder.put(IndexSettings.INDEX_CONTEXT_CREATED_VERSION.getKey(), componentTemplate.version());
+            settingsBuilder.put(IndexSettings.INDEX_CONTEXT_CURRENT_VERSION.getKey(), componentTemplate.version());
+
+            return componentTemplate.template();
+        }
+        return null;
+    }
+
+    static Optional<String> validateOverlap(Set<String> requestSettings, Settings contextTemplateSettings, String indexName) {
+        if (requestSettings.stream().anyMatch(contextTemplateSettings::hasValue)) {
+            return Optional.of(
+                "Cannot apply context template as user provide settings have overlap with the included context template."
+                    + "Please remove the settings ["
+                    + Sets.intersection(requestSettings, contextTemplateSettings.keySet())
+                    + "] to continue using the context for index: "
+                    + indexName
+            );
+        }
+        return Optional.empty();
     }
 
     /**
@@ -570,6 +633,10 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
         addRemoteStoreCustomMetadata(tmpImdBuilder, true);
+
+        if (request.context() != null) {
+            tmpImdBuilder.context(request.context());
+        }
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -651,10 +718,10 @@ public class MetadataCreateIndexService {
             null,
             tmpImd,
             Collections.singletonList(mappings),
-            indexService -> resolveAndValidateAliases(
+            (indexService, contextAlias) -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(templates),
+                Stream.concat(Stream.of(contextAlias), MetadataIndexTemplateService.resolveAliases(templates).stream()).collect(toList()),
                 currentState.metadata(),
                 aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
@@ -716,10 +783,13 @@ public class MetadataCreateIndexService {
             null,
             tmpImd,
             mappings,
-            indexService -> resolveAndValidateAliases(
+            (indexService, contextAlias) -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
+                Stream.concat(
+                    Stream.of(contextAlias),
+                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName).stream()
+                ).collect(toList()),
                 currentState.metadata(),
                 aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
@@ -797,7 +867,7 @@ public class MetadataCreateIndexService {
             sourceMetadata,
             tmpImd,
             Collections.singletonList(mappings),
-            indexService -> resolveAndValidateAliases(
+            (indexService, contextTemplate) -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
                 Collections.emptyList(),
@@ -1280,7 +1350,8 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData
+        Map<String, DiffableStringMap> customData,
+        Context context
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1304,6 +1375,8 @@ public class MetadataCreateIndexService {
         for (Map.Entry<String, DiffableStringMap> entry : customData.entrySet()) {
             indexMetadataBuilder.putCustom(entry.getKey(), entry.getValue());
         }
+
+        indexMetadataBuilder.context(context);
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
         return indexMetadataBuilder.build();
@@ -1398,6 +1471,7 @@ public class MetadataCreateIndexService {
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateContext(request);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
@@ -1741,5 +1815,26 @@ public class MetadataCreateIndexService {
             );
         }
 
+    }
+
+    void validateContext(CreateIndexClusterStateUpdateRequest request) {
+        final boolean isContextAllowed = FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES);
+
+        if (request.context() != null && !isContextAllowed) {
+            throw new InvalidIndexContextException(
+                request.context().name(),
+                request.index(),
+                "index specifies a context which cannot be used without enabling: "
+                    + SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey()
+            );
+        }
+
+        if (request.context() != null && findContextTemplateName(clusterService.state().metadata(), request.context()) == null) {
+            throw new InvalidIndexContextException(
+                request.context().name(),
+                request.index(),
+                "index specifies a context which is not loaded on the cluster."
+            );
+        }
     }
 }
