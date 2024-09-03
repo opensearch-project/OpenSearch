@@ -66,6 +66,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.Priority;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -831,7 +832,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
-        // assertSnapshotOrGenericThread();
+        assertSnapshotOrGenericThread();
 
         BlobContainer blobContainer = this.blobContainer.get();
         if (blobContainer == null) {
@@ -1204,6 +1205,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<Void> listener
     ) {
         final List<Tuple<BlobPath, String>> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
+        long startTimeNs = System.nanoTime();
+        Randomness.shuffle(filesToDelete);
+        logger.debug("[{}] shuffled the filesToDelete with timeElapsedNs={}", metadata.name(), (System.nanoTime() - startTimeNs));
+
         if (filesToDelete.isEmpty()) {
             listener.onResponse(null);
             return;
@@ -1221,8 +1226,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 staleFilesToDeleteInBatch.size()
             );
 
-            // Start as many workers as fit into the snapshot pool at once at the most
-            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), staleFilesToDeleteInBatch.size());
+            // Start as many workers as fit into the snapshot_deletion pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(), staleFilesToDeleteInBatch.size());
             for (int i = 0; i < workers; ++i) {
                 executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, groupedListener);
             }
@@ -1326,7 +1331,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (filesToDelete == null) {
             return;
         }
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.wrap(listener, l -> {
             try {
                 // filtering files for which remote store lock release and cleanup succeeded,
                 // remaining files for which it failed will be retried in next snapshot delete run.
@@ -1390,7 +1395,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION);
         final List<IndexId> indices = oldRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds);
 
         if (indices.isEmpty()) {
@@ -1578,7 +1583,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(deleteResult);
         }, listener::onFailure), 2);
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION);
         final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());
         if (staleRootBlobs.isEmpty()) {
             groupedListener.onResponse(DeleteResult.ZERO);
@@ -1781,7 +1786,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // Start as many workers as fit into the snapshot pool at once at the most
             final int workers = Math.min(
-                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+                threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(),
                 foundIndices.size() - survivingIndexIds.size()
             );
             for (int i = 0; i < workers; ++i) {
@@ -1833,7 +1838,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final String indexSnId = indexEntry.getKey();
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.supply(listener, () -> {
             try {
                 logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
                 List<String> matchingShardPaths = findMatchingShardPaths(indexSnId, snapshotShardPaths);
@@ -2097,8 +2102,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stateTransformer,
                     repositoryUpdatePriority,
                     ActionListener.wrap(newRepoData -> {
-                        cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
-                        listener.onResponse(newRepoData);
+                        cleanupOldShardGens(existingRepositoryData, updatedRepositoryData, newRepoData, listener);
                     }, onUpdateFailure)
                 );
             }, onUpdateFailure), 2 + indices.size());
@@ -2254,7 +2258,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
-    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
+    private void cleanupOldShardGens(
+        RepositoryData existingRepositoryData,
+        RepositoryData updatedRepositoryData,
+        RepositoryData newRepositoryData,
+        ActionListener<RepositoryData> listener
+    ) {
         final List<String> toDelete = new ArrayList<>();
         updatedRepositoryData.shardGenerations()
             .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
@@ -2263,10 +2272,62 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     (shardId, oldGen) -> toDelete.add(shardPath(indexId, shardId).buildAsString() + INDEX_FILE_PREFIX + oldGen)
                 )
             );
+        if (toDelete.isEmpty()) {
+            listener.onResponse(newRepositoryData);
+            return;
+        }
         try {
-            deleteFromContainer(rootBlobContainer(), toDelete);
+            AtomicInteger counter = new AtomicInteger();
+            Collection<List<String>> subList = toDelete.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxShardBlobDeleteBatch))
+                .values();
+            final BlockingQueue<List<String>> staleFilesToDeleteInBatch = new LinkedBlockingQueue<>(subList);
+            logger.info(
+                "[{}] cleanupOldShardGens toDeleteSize={} groupSize={}",
+                metadata.name(),
+                toDelete.size(),
+                staleFilesToDeleteInBatch.size()
+            );
+            final GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.wrap(r -> {
+                logger.info("[{}] completed cleanupOldShardGens", metadata.name());
+                listener.onResponse(newRepositoryData);
+            }, ex -> {
+                logger.error(new ParameterizedMessage("[{}] exception in cleanupOldShardGens", metadata.name()), ex);
+                listener.onResponse(newRepositoryData);
+            }), staleFilesToDeleteInBatch.size());
+
+            // Start as many workers as fit into the snapshot pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(), staleFilesToDeleteInBatch.size());
+            for (int i = 0; i < workers; ++i) {
+                executeOldShardGensCleanup(staleFilesToDeleteInBatch, groupedListener);
+            }
         } catch (Exception e) {
-            logger.warn("Failed to clean up old shard generation blobs", e);
+            logger.warn(new ParameterizedMessage(" [{}] Failed to clean up old shard generation blobs", metadata.name()), e);
+            listener.onResponse(newRepositoryData);
+        }
+    }
+
+    private void executeOldShardGensCleanup(BlockingQueue<List<String>> staleFilesToDeleteInBatch, GroupedActionListener<Void> listener)
+        throws InterruptedException {
+        List<String> filesToDelete = staleFilesToDeleteInBatch.poll(0L, TimeUnit.MILLISECONDS);
+        if (filesToDelete != null) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.wrap(listener, l -> {
+                try {
+                    deleteFromContainer(rootBlobContainer(), filesToDelete);
+                    l.onResponse(null);
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "[{}] Failed to delete following blobs during cleanupOldFiles : {}",
+                            metadata.name(),
+                            filesToDelete
+                        ),
+                        e
+                    );
+                    l.onFailure(e);
+                }
+                executeOldShardGensCleanup(staleFilesToDeleteInBatch, listener);
+            }));
         }
     }
 
@@ -2383,10 +2444,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void assertSnapshotOrGenericThread() {
-        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
+        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT_DELETION + ']')
+            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') : "Expected current thread ["
                 + Thread.currentThread()
-                + "] to be the snapshot or generic thread.";
+                + "] to be the snapshot_deletion or snapshot or generic thread.";
     }
 
     @Override
