@@ -744,6 +744,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
                 RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING,
                 RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING,
+                RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING,
                 RemoteRoutingTableBlobStore.CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX,
 
                 // Admission Control Settings
