@@ -69,7 +69,7 @@ public class IndicesStatsResponse extends BroadcastResponse {
         shards = in.readArray(ShardStats::new, (size) -> new ShardStats[size]);
     }
 
-    IndicesStatsResponse(
+    public IndicesStatsResponse(
         ShardStats[] shards,
         int totalShards,
         int successfulShards,
