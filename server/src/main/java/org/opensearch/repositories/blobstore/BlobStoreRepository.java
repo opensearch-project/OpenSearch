@@ -2032,6 +2032,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
         Function<ClusterState, ClusterState> stateTransformer,
+        final ActionListener<RepositoryData> listener
+    ) {
+        finalizeSnapshot(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            Priority.NORMAL,
+            listener
+        );
+    }
+
+    @Override
+    public void finalizeSnapshot(
+        final ShardGenerations shardGenerations,
+        final long repositoryStateId,
+        final Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
         Priority repositoryUpdatePriority,
         final ActionListener<RepositoryData> listener
     ) {
