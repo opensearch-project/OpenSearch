@@ -46,10 +46,12 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -67,7 +69,7 @@ import java.util.Set;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
+public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> implements VerifiableWriteable {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexTemplateMetadata.class);
 
@@ -254,6 +256,17 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         for (final AliasMetadata cursor : aliases.values()) {
             cursor.writeTo(out);
         }
+        out.writeOptionalVInt(version);
+    }
+
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeInt(order);
+        out.writeStringCollection(patterns);
+        Settings.writeSettingsToStream(settings, out);
+        out.writeMap(mappings, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        ((BufferedChecksumStreamOutput)out).writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
         out.writeOptionalVInt(version);
     }
 

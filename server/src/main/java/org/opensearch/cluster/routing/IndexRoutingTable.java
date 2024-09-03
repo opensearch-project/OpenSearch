@@ -47,8 +47,10 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,7 +81,10 @@ import java.util.function.Predicate;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
+    implements
+        Iterable<IndexShardRoutingTable>,
+        VerifiableWriteable {
 
     private final Index index;
     private final ShardShuffler shuffler;
@@ -353,6 +358,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return result;
     }
 
+    @Override
+    public String toString() {
+        return "IndexRoutingTable{" + "shards=" + shards + ", index=" + index + '}';
+    }
+
     public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
         Index index = new Index(in);
         Builder builder = new Builder(index);
@@ -376,6 +386,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         for (IndexShardRoutingTable indexShard : this) {
             IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
         }
+    }
+
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
+        index.writeTo(out);
+        ((BufferedChecksumStreamOutput)out).writeMapValues(shards, (stream, value) -> IndexShardRoutingTable.Builder.writeVerifiableTo(value, stream));
     }
 
     public static Builder builder(Index index) {

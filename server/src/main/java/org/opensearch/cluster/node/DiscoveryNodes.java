@@ -44,7 +44,9 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +69,7 @@ import java.util.stream.StreamSupport;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
+public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode>, VerifiableWriteable {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -701,16 +703,59 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeClusterManager(out);
+        out.writeVInt(nodes.size());
+        for (DiscoveryNode node : this) {
+            node.writeTo(out);
+        }
+    }
+
+    @Override
+    public void writeVerifiableTo(StreamOutput out) throws IOException {
+        writeClusterManager(out);
+        ((BufferedChecksumStreamOutput)out).writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo(stream));
+    }
+
+    private void writeClusterManager(StreamOutput out) throws IOException {
         if (clusterManagerNodeId == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             out.writeString(clusterManagerNodeId);
         }
-        out.writeVInt(nodes.size());
-        for (DiscoveryNode node : this) {
-            node.writeTo(out);
-        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DiscoveryNodes that = (DiscoveryNodes) o;
+        return Objects.equals(nodes, that.nodes)
+            && Objects.equals(dataNodes, that.dataNodes)
+            && Objects.equals(clusterManagerNodes, that.clusterManagerNodes)
+            && Objects.equals(ingestNodes, that.ingestNodes)
+            && Objects.equals(clusterManagerNodeId, that.clusterManagerNodeId)
+            && Objects.equals(localNodeId, that.localNodeId)
+            && Objects.equals(minNonClientNodeVersion, that.minNonClientNodeVersion)
+            && Objects.equals(maxNonClientNodeVersion, that.maxNonClientNodeVersion)
+            && Objects.equals(maxNodeVersion, that.maxNodeVersion)
+            && Objects.equals(minNodeVersion, that.minNodeVersion);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            nodes,
+            dataNodes,
+            clusterManagerNodes,
+            ingestNodes,
+            clusterManagerNodeId,
+            localNodeId,
+            minNonClientNodeVersion,
+            maxNonClientNodeVersion,
+            maxNodeVersion,
+            minNodeVersion
+        );
     }
 
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
