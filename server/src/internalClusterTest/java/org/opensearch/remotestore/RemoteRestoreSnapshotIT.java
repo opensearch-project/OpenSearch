@@ -10,6 +10,7 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
@@ -25,6 +26,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
@@ -33,8 +35,14 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotRestoreException;
@@ -49,6 +57,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -780,6 +789,598 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get()
         );
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.segment.repository]" + " on restore"));
+    }
+
+    public void testCreateSnapshotV2() throws Exception {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String indexName3 = "testindex3";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+
+        indexDocuments(client, indexName1, 10);
+        indexDocuments(client, indexName2, 20);
+
+        createIndex(indexName3, indexSettings);
+        indexDocuments(client, indexName3, 10);
+
+        String snapshotName2 = "test-create-snapshot2";
+
+        // verify even if waitForCompletion is not true, the request executes in a sync manner
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
+            .get();
+        snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+
+    }
+
+    public void testMixedSnapshotCreationWithV2RepositorySetting() throws Exception {
+
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String indexName3 = "testindex3";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot-v1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
+                )
+        );
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.getPinnedTimestamp(), equalTo(0L));
+
+        // enable shallow_snapshot_v2
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+        indexDocuments(client, indexName1, 10);
+        indexDocuments(client, indexName2, 20);
+
+        createIndex(indexName3, indexSettings);
+        indexDocuments(client, indexName3, 10);
+
+        String snapshotName2 = "test-create-snapshot-v2";
+
+        // verify even if waitForCompletion is not true, the request executes in a sync manner
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
+            .get();
+        snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+
+    }
+
+    public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        int concurrentSnapshots = 5;
+
+        // Prepare threads for concurrent snapshot creation
+        List<Thread> threads = new ArrayList<>();
+
+        for (int i = 0; i < concurrentSnapshots; i++) {
+            int snapshotIndex = i;
+            Thread thread = new Thread(() -> {
+                try {
+                    String snapshotName = "snapshot-concurrent-" + snapshotIndex;
+                    CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+                        .cluster()
+                        .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+                        .get();
+                    SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+                    assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+                    assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+                    assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+                    assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName));
+                    assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+                } catch (Exception e) {}
+            });
+            threads.add(thread);
+        }
+        // start all threads
+        for (Thread thread : threads) {
+            thread.start();
+        }
+
+        // Wait for all threads to complete
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        // Validate that only one snapshot has been created
+        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
+        PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
+        repository.getRepositoryData(repositoryDataPlainActionFuture);
+
+        RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
+        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
+    }
+
+    public void testCreateSnapshotV2WithRedIndex() throws Exception {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        internalCluster().ensureAtLeastNumDataNodes(0);
+        ensureRed(indexName1);
+        ensureRed(indexName2);
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .get();
+        SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+    }
+
+    public void testCreateSnapshotV2WithIndexingLoad() throws Exception {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        Thread indexingThread = new Thread(() -> {
+            try {
+                for (int i = 0; i < 50; i++) {
+                    internalCluster().client().prepareIndex("test-index-load").setSource("field", "value" + i).execute().actionGet();
+                }
+            } catch (Exception e) {
+                fail("indexing failed due to exception: " + e.getMessage());
+            }
+        });
+
+        // Start indexing
+        indexingThread.start();
+
+        // Wait for a bit to let some documents be indexed
+        Thread.sleep(1000);
+
+        // Create a snapshot while indexing is ongoing
+        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .get();
+
+        SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+        assertTrue(snapshotInfo.indices().contains("test-index-load"));
+        assertTrue(snapshotInfo.indices().contains(indexName1));
+        assertTrue(snapshotInfo.indices().contains(indexName2));
+        indexingThread.join();
+
+    }
+
+    public void testCreateSnapshotV2WithShallowCopySettingDisabled() throws Exception {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), false)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        // Will create full copy snapshot if `REMOTE_STORE_INDEX_SHALLOW_COPY` is false but `SHALLOW_SNAPSHOT_V2` is true
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.getPinnedTimestamp(), equalTo(0L));
+
+        // Validate that snapshot is present in repository data
+        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
+        PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
+        repository.getRepositoryData(repositoryDataPlainActionFuture);
+
+        RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
+        assertTrue(repositoryData.getSnapshotIds().contains(snapshotInfo.snapshotId()));
+    }
+
+    public void testClusterManagerFailoverDuringSnapshotCreation() throws Exception {
+
+        internalCluster().startClusterManagerOnlyNodes(3, pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        ensureStableCluster(4, internalCluster().getClusterManagerName());
+
+        final SnapshotInfo[] snapshotInfo = new SnapshotInfo[1];
+        final Boolean[] snapshotFailed = new Boolean[1];
+        snapshotFailed[0] = false;
+        Thread snapshotThread = new Thread(() -> {
+            try {
+                // Start snapshot creation
+                CreateSnapshotResponse createSnapshotResponse = client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+                    .get();
+                snapshotInfo[0] = createSnapshotResponse.getSnapshotInfo();
+
+            } catch (Exception e) {
+                snapshotFailed[0] = true;
+            }
+        });
+        snapshotThread.start();
+        Thread.sleep(100);
+
+        internalCluster().stopCurrentClusterManagerNode();
+
+        // Wait for the cluster to elect a new Cluster Manager and stabilize
+        ensureStableCluster(3, internalCluster().getClusterManagerName());
+
+        // Wait for the snapshot thread to complete
+        snapshotThread.join();
+
+        // Validate that the snapshot was created or handled gracefully
+        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
+        PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
+        repository.getRepositoryData(repositoryDataPlainActionFuture);
+
+        RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
+        if (snapshotFailed[0]) {
+            assertFalse(repositoryData.getSnapshotIds().contains(snapshotInfo[0].snapshotId()));
+        } else {
+            assertTrue(repositoryData.getSnapshotIds().contains(snapshotInfo[0].snapshotId()));
+        }
+    }
+
+    public void testConcurrentV1SnapshotAndV2RepoSettingUpdate() throws Exception {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot-v1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
+                )
+        );
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+
+        for (int i = 0; i < 10; i++) {
+            createIndex("index" + i, indexSettings);
+        }
+        ensureStableCluster(3);
+        for (int i = 0; i < 10; i++) {
+            indexDocuments(client, "index" + i, 15);
+        }
+
+        ensureStableCluster(3);
+        for (int i = 0; i < 10; i++) {
+            ensureGreen("index" + i);
+        }
+        final CreateSnapshotResponse[] snapshotV1Response = new CreateSnapshotResponse[1];
+        // Create a separate thread to create the first snapshot
+        Thread createV1SnapshotThread = new Thread(() -> {
+            try {
+                snapshotV1Response[0] = client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+                    .setWaitForCompletion(true)
+                    .get();
+
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // Create a separate thread to enable shallow_snapshot_v2
+        Thread enableV2Thread = new Thread(() -> {
+            try {
+
+                assertThrows(
+                    IllegalStateException.class,
+                    () -> client().admin()
+                        .cluster()
+                        .preparePutRepository(snapshotRepoName)
+                        .setType(FsRepository.TYPE)
+                        .setSettings(
+                            Settings.builder()
+                                .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                                .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                                .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                        )
+                        .get()
+                );
+
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        createV1SnapshotThread.start();
+
+        Thread.sleep(100);
+
+        enableV2Thread.start();
+
+        enableV2Thread.join();
+        createV1SnapshotThread.join();
+    }
+
+    private Settings pinnedTimestampSettings() {
+        Settings settings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .build();
+        return settings;
     }
 
 }
