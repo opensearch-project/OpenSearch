@@ -443,13 +443,15 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     void assertRemoteSegmentsAndTranslogUploaded(String idx) throws IOException {
         Client client = client();
-        String path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", TRANSLOG, METADATA).buildAsString();
+        String translogPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.get(getNodeSettings());
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", TRANSLOG, METADATA, translogPathFixedPrefix).buildAsString();
         Path remoteTranslogMetadataPath = Path.of(remoteRepoPath + "/" + path);
-        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", TRANSLOG, DATA).buildAsString();
+        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", TRANSLOG, DATA, translogPathFixedPrefix).buildAsString();
         Path remoteTranslogDataPath = Path.of(remoteRepoPath + "/" + path);
-        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", SEGMENTS, METADATA).buildAsString();
+        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", SEGMENTS, METADATA, segmentsPathFixedPrefix).buildAsString();
         Path segmentMetadataPath = Path.of(remoteRepoPath + "/" + path);
-        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", SEGMENTS, DATA).buildAsString();
+        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", SEGMENTS, DATA, segmentsPathFixedPrefix).buildAsString();
         Path segmentDataPath = Path.of(remoteRepoPath + "/" + path);
 
         try (

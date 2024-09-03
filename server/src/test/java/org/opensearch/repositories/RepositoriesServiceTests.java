@@ -62,6 +62,7 @@ import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -147,6 +148,10 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         ClusterState currentClusterState = mock(ClusterState.class);
         when(currentClusterState.getNodes()).thenReturn(nodes);
         when(clusterService.state()).thenReturn(currentClusterState);
+
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         RepositoriesService repositoriesService = new RepositoriesService(
             Settings.EMPTY,
