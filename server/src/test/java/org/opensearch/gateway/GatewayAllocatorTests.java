@@ -434,7 +434,6 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
     public void testCollectTimedOutShardsAndScheduleReroute() throws InterruptedException {
         createIndexAndUpdateClusterState(2, 5, 2);
         TestThreadPool threadPool = new TestThreadPool(getTestName());
-        ;
         ClusterService clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
         final CountDownLatch rerouteLatch = new CountDownLatch(2);
         final RerouteService rerouteService = (reason, priority, listener) -> {
