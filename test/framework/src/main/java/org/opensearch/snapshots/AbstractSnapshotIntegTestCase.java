@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -613,7 +614,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             Collections.emptyList(),
             randomBoolean(),
             metadata,
-            false
+            false,
+            0
         );
         PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
@@ -623,6 +625,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT,
                 Function.identity(),
+                Priority.NORMAL,
                 f
             )
         );
