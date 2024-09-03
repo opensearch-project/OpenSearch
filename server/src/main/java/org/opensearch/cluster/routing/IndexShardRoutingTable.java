@@ -647,15 +647,11 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
             return new PlainShardIterator(shardId, Collections.emptyList());
         }
 
-        LinkedList<ShardRouting> ordered = new LinkedList<>();
-        for (ShardRouting replica : shuffler.shuffle(replicas)) {
-            if (replica.active()) {
-                ordered.addFirst(replica);
-            } else if (replica.initializing()) {
-                ordered.addLast(replica);
-            }
-        }
-        return new PlainShardIterator(shardId, ordered);
+        return filterAndOrderShards(replica -> true);
+    }
+
+    public ShardIterator searchReplicaActiveInitializingShardIt() {
+        return filterAndOrderShards(ShardRouting::isSearchOnly);
     }
 
     /**
@@ -686,13 +682,10 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
         return new PlainShardIterator(shardId, ordered);
     }
 
-    /**
-     * Returns an iterator on replica shards.
-     */
-    public ShardIterator searchReplicaActiveInitializingShardIt() {
+    private ShardIterator filterAndOrderShards(Predicate<ShardRouting> filter) {
         LinkedList<ShardRouting> ordered = new LinkedList<>();
         for (ShardRouting replica : shuffler.shuffle(replicas)) {
-            if (replica.isSearchOnly()) {
+            if (filter.test(replica)) {
                 if (replica.active()) {
                     ordered.addFirst(replica);
                 } else if (replica.initializing()) {
