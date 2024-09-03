@@ -616,7 +616,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // delete remote store index
         assertAcked(client().admin().indices().prepareDelete(remoteStoreEnabledIndexName));
-        Thread.sleep(1000);
 
         logger.info("--> delete snapshot 2");
 
@@ -652,8 +651,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo1.snapshotId().getName())
             .get();
         assertAcked(deleteSnapshotResponse);
-
-        Thread.sleep(5000);
 
         // Delete is async. Give time for it
         assertBusy(() -> {

@@ -1239,7 +1239,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 afterCleanupsListener,
                 idToShardInfoMap
             );
-            if (isShallowSnapshotV2 == false) {
+            if (isShallowSnapshotV2) {
+                cleanUpRemoteStoreFilesForDeletedIndicesV2(
+                    repositoryData,
+                    snapshotIds,
+                    writeShardMetaDataAndComputeDeletesStep.result(),
+                    remoteSegmentStoreDirectoryFactory,
+                    afterCleanupsListener
+                );
+            } else {
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
                     snapshotIds,
@@ -1247,19 +1255,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     remoteStoreLockManagerFactory,
                     afterCleanupsListener
                 );
-            } else {
-                cleanUpRemoteStoreFilesForDeletedIndices(
-                    repositoryData,
-                    snapshotIds,
-                    writeShardMetaDataAndComputeDeletesStep.result(),
-                    remoteSegmentStoreDirectoryFactory,
-                    afterCleanupsListener
-                );
             }
         }, listener::onFailure);
     }
 
-    private void cleanUpRemoteStoreFilesForDeletedIndices(
+    private void cleanUpRemoteStoreFilesForDeletedIndicesV2(
         RepositoryData repositoryData,
         Collection<SnapshotId> snapshotIds,
         Collection<ShardSnapshotMetaDeleteResult> result,
