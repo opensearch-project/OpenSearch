@@ -8,6 +8,10 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -24,6 +28,8 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class TranslogTransferMetadata {
+
+    public static final Logger logger = LogManager.getLogger(TranslogTransferMetadata.class);
 
     private final long primaryTerm;
 
@@ -126,6 +132,24 @@ public class TranslogTransferMetadata {
 
         String nodeId = tokens[4];
         return new Tuple<>(primaryTermAndGen, nodeId);
+    }
+
+    public static Tuple<Long, Long> getMinMaxTranslogGenerationFromFilename(String filename) {
+        String[] tokens = filename.split(METADATA_SEPARATOR);
+        if (tokens.length < 7) {
+            // For versions < 2.17, we don't have min translog generation.
+            return null;
+        }
+        assert Version.CURRENT.onOrAfter(Version.V_2_17_0);
+        try {
+            // instead of direct index, we go backwards to avoid running into same separator in nodeId
+            String minGeneration = tokens[tokens.length - 2];
+            String maxGeneration = tokens[2];
+            return new Tuple<>(RemoteStoreUtils.invertLong(minGeneration), RemoteStoreUtils.invertLong(maxGeneration));
+        } catch (NumberFormatException e) {
+            logger.error(() -> new ParameterizedMessage("Exception while getting min and max translog generation from: {}", filename), e);
+            return null;
+        }
     }
 
     @Override

@@ -356,6 +356,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         builder.endObject();
     }
 
+    @Override
+    public final String fieldName() {
+        return getDefaultFieldName();
+    }
+
     private static final ConstructingObjectParser<PercolateQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         String field = (String) args[0];
         BytesReference document = (BytesReference) args[1];

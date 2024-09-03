@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.ingest.CompoundProcessor;
 import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.Pipeline;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -56,9 +57,11 @@ class SimulateExecutionService {
     private static final String THREAD_POOL_NAME = ThreadPool.Names.MANAGEMENT;
 
     private final ThreadPool threadPool;
+    private final IngestService ingestService;
 
-    SimulateExecutionService(ThreadPool threadPool) {
+    SimulateExecutionService(ThreadPool threadPool, IngestService ingestService) {
         this.threadPool = threadPool;
+        this.ingestService = ingestService;
     }
 
     void executeDocument(
@@ -91,6 +94,9 @@ class SimulateExecutionService {
     }
 
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
+
+        ingestService.validateProcessorCountForIngestPipeline(request.getPipeline());
+
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
             final AtomicInteger counter = new AtomicInteger();
             final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>(

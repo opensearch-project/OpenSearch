@@ -99,6 +99,11 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         builder.endObject();
     }
 
+    @Override
+    public final String fieldName() {
+        return getDefaultFieldName();
+    }
+
     public static SpanMultiTermQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         MultiTermQueryBuilder subQuery = null;

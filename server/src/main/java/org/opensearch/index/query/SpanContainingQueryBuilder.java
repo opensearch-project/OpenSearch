@@ -117,6 +117,11 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         builder.endObject();
     }
 
+    @Override
+    public final String fieldName() {
+        return getDefaultFieldName();
+    }
+
     public static SpanContainingQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
