@@ -209,7 +209,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         return tasksThreshold.get(taskKey);
     }
 
-    private void checkForClusterManagerThrottling(
+    private void failFastWhenThrottlingThresholdsAreAlreadyBreached(
         final boolean throttlingEnabledWithThreshold,
         final Long threshold,
         final long existingTaskCount,
@@ -234,7 +234,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             tasksCount.putIfAbsent(taskThrottlingKey, 0L);
             // Perform shallow check before acquiring lock to avoid blocking of network threads
             // if throttling is ongoing for a specific task
-            checkForClusterManagerThrottling(
+            failFastWhenThrottlingThresholdsAreAlreadyBreached(
                 isThrottlingEnabledWithThreshold,
                 threshold,
                 tasksCount.get(taskThrottlingKey),
@@ -243,7 +243,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             );
 
             tasksCount.computeIfPresent(taskThrottlingKey, (key, existingTaskCount) -> {
-                checkForClusterManagerThrottling(
+                failFastWhenThrottlingThresholdsAreAlreadyBreached(
                     isThrottlingEnabledWithThreshold,
                     threshold,
                     existingTaskCount,
