@@ -81,6 +81,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -2015,6 +2017,43 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             e.getMessage(),
             containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]")
         );
+    }
+
+    public void testValidateNoIndexUsesContextWithIndexUsingContext() throws Exception {
+        String contextName = "testcontext";
+        String indexName = "index";
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.systemTemplatesLookup()).thenReturn(Map.of(contextName, new TreeMap<>() {
+            {
+                put(1L, contextName);
+            }
+        }));
+
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(indexMetadata.context()).thenReturn(new Context(contextName));
+        when(indexMetadata.getIndex()).thenReturn(new Index(indexName, UUID.randomUUID().toString()));
+        when(metadata.indices()).thenReturn(Map.of(indexName, indexMetadata));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataIndexTemplateService.validateNoIndexUsesContext(metadata, Set.of(contextName))
+        );
+    }
+
+    public void testValidateNoIndexUsesContextWithNoIndexUsingContext() throws Exception {
+        String contextName = "testcontext";
+        String indexName = "index";
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.systemTemplatesLookup()).thenReturn(Map.of(contextName, new TreeMap<>() {
+            {
+                put(1L, contextName);
+            }
+        }));
+
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(metadata.indices()).thenReturn(Map.of(indexName, indexMetadata));
+
+        MetadataIndexTemplateService.validateNoIndexUsesContext(metadata, Set.of(contextName));
     }
 
     /**

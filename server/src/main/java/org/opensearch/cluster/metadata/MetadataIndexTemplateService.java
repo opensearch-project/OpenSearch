@@ -52,6 +52,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.HeaderWarning;
@@ -472,6 +473,29 @@ public class MetadataIndexTemplateService {
                     + componentsBeingUsed
                     + " cannot be removed as they are still in use by index templates "
                     + templatesStillUsing
+            );
+        }
+
+        validateNoIndexUsesContext(metadata, matchingComponentTemplates);
+    }
+
+    /**
+     * Validate that a system template is not being used directly by an index.
+     */
+    static void validateNoIndexUsesContext(Metadata metadata, Set<String> matchingComponentTemplates) {
+        List<Tuple<String, String>> indicesUsingSpecifiedContexts = metadata.indices()
+            .values()
+            .stream()
+            .filter(imd -> imd.context() != null)
+            .filter(imd -> matchingComponentTemplates.contains(findContextTemplateName(metadata, imd.context())))
+            .map(imd -> Tuple.tuple(imd.getIndex().getName(), findContextTemplateName(metadata, imd.context())))
+            .collect(Collectors.toList());
+
+        if (!indicesUsingSpecifiedContexts.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Cannot process request to remove component templates as they are being used by indices."
+                    + "First few indices preventing the deletion are: "
+                    + indicesUsingSpecifiedContexts.subList(0, Math.min(10, indicesUsingSpecifiedContexts.size()))
             );
         }
     }
