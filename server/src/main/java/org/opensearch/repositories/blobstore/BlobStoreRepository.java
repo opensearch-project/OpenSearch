@@ -1203,7 +1203,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final List<Tuple<BlobPath, String>> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
         long startTimeNs = System.nanoTime();
         Randomness.shuffle(filesToDelete);
-        logger.info("[{}] shuffled the filesToDelete with timeElapsedNs={}", metadata.name(), (System.nanoTime() - startTimeNs));
+        logger.debug("[{}] shuffled the filesToDelete with timeElapsedNs={}", metadata.name(), (System.nanoTime() - startTimeNs));
 
         if (filesToDelete.isEmpty()) {
             listener.onResponse(null);
