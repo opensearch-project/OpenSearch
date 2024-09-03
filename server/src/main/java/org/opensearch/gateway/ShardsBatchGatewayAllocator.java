@@ -198,6 +198,17 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         this.replicaShardsBatchGatewayAllocatorTimeout = null;
     }
 
+    protected ShardsBatchGatewayAllocator(RerouteService rerouteService) {
+        this.rerouteService = rerouteService;
+        this.batchStartedAction = null;
+        this.primaryShardBatchAllocator = null;
+        this.batchStoreAction = null;
+        this.replicaShardBatchAllocator = null;
+        this.maxBatchSize = DEFAULT_SHARD_BATCH_SIZE;
+        this.primaryShardsBatchGatewayAllocatorTimeout = null;
+        this.replicaShardsBatchGatewayAllocatorTimeout = null;
+    }
+
     // for tests
 
     @Override
@@ -290,17 +301,6 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     @Override
                     public void run() {
                         primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation);
-                        if (timedOutPrimaryShardIds.isEmpty() == false && rerouteService != null) {
-                            logger.trace("scheduling reroute after existing shards allocator timed out for primary shards");
-                            rerouteService.reroute(
-                                "reroute after existing shards allocator timed out",
-                                Priority.HIGH,
-                                ActionListener.wrap(
-                                    r -> logger.trace("reroute after existing shards allocator timed out completed"),
-                                    e -> logger.debug("reroute after existing shards allocator timed out failed", e)
-                                )
-                            );
-                        }
                     }
                 }));
             return new BatchRunnableExecutor(runnables, () -> primaryShardsBatchGatewayAllocatorTimeout) {
@@ -308,6 +308,18 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                 public void onComplete() {
                     logger.trace("Triggering oncomplete after timeout for [{}] primary shards", timedOutPrimaryShardIds.size());
                     primaryBatchShardAllocator.allocateUnassignedBatchOnTimeout(timedOutPrimaryShardIds, allocation, true);
+                    if (timedOutPrimaryShardIds.isEmpty() == false) {
+                        logger.trace("scheduling reroute after existing shards allocator timed out for primary shards");
+                        assert rerouteService != null;
+                        rerouteService.reroute(
+                            "reroute after existing shards allocator timed out",
+                            Priority.HIGH,
+                            ActionListener.wrap(
+                                r -> logger.trace("reroute after existing shards allocator timed out completed"),
+                                e -> logger.debug("reroute after existing shards allocator timed out failed", e)
+                            )
+                        );
+                    }
                 }
             };
         } else {
@@ -331,8 +343,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                 public void onComplete() {
                     logger.trace("Triggering oncomplete after timeout for [{}] replica shards", timedOutReplicaShardIds.size());
                     replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(timedOutReplicaShardIds, allocation, false);
-                    if (timedOutReplicaShardIds.isEmpty() == false && rerouteService != null) {
+                    if (timedOutReplicaShardIds.isEmpty() == false) {
                         logger.trace("scheduling reroute after existing shards allocator timed out for replica shards");
+                        assert rerouteService != null;
                         rerouteService.reroute(
                             "reroute after existing shards allocator timed out",
                             Priority.HIGH,

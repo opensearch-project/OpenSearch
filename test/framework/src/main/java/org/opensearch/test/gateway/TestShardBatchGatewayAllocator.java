@@ -10,6 +10,7 @@ package org.opensearch.test.gateway;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -39,7 +40,8 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
 
     }
 
-    public TestShardBatchGatewayAllocator(CountDownLatch latch) {
+    public TestShardBatchGatewayAllocator(CountDownLatch latch, RerouteService rerouteService) {
+        super(rerouteService);
         this.latch = latch;
     }
 
