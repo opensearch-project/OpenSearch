@@ -104,7 +104,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        node.writeTo(out);
+        node.writeToWithAttribute(out);
         out.writeOptionalWriteable(shardStoreInfo);
         out.writeOptionalWriteable(canAllocateDecision);
         nodeDecision.writeTo(out);
