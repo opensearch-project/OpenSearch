@@ -526,7 +526,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String indexNameToDelete = allIndices.get(randomIntBetween(0, allIndices.size() - 1));
         RoutingTable.Builder updatedRoutingTableBuilder = RoutingTable.builder(routingTable).remove(indexNameToDelete);
 
-        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+        String indexName = randomAlphaOfLength(randomIntBetween(51, 100));
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
