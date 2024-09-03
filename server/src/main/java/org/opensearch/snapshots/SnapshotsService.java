@@ -205,6 +205,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
+    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
     /**
      * Setting to specify the maximum number of shards that can be included in the result for the snapshot status
      * API call. Note that it does not apply to V2-shallow snapshots.
@@ -216,8 +217,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = ":";
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
