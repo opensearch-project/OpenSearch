@@ -362,11 +362,22 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
+        internalCluster().startDataOnlyNodes(numDataOnlyNodes);
+        for (String index : indices.split(",")) {
+            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
+            ensureYellowAndNoInitializingShards(index);
+            ensureGreen(index);
+        }
+    }
+
+    protected void prepareClusterWithDefaultContext(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
+        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
 
         // Adding context template to the cluster
-
         addTemplateForContext(CONTEXT_NAME);
+
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
+
         for (String index : indices.split(",")) {
             // Ensure index is created with additional metadata field.
             assertAcked(prepareCreate(index)
