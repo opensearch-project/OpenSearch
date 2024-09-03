@@ -145,7 +145,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         }
 
         /**
-         * Writes the {@param statsHolder} to {@param out}
+         * Writes the @param {statsHolder} to @param {out}
          * @param out StreamOutput
          * @param statsHolder QueryGroupStatsHolder
          * @throws IOException exception
@@ -235,7 +235,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         }
 
         /**
-         * Writes the {@param stats} to {@param out}
+         * Writes the @param {stats} to @param {out}
          * @param out StreamOutput
          * @param stats QueryGroupStatsHolder
          * @throws IOException exception
