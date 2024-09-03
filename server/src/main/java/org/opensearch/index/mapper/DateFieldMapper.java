@@ -54,7 +54,6 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
-import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -77,7 +76,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -352,10 +350,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
         }
 
-        @Override
-        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
-            return Optional.of(DimensionType.DATE);
-        }
     }
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
