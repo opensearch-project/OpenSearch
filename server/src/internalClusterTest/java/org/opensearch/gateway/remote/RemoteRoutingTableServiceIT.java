@@ -67,6 +67,7 @@ public class RemoteRoutingTableServiceIT extends RemoteStoreBaseIntegTestCase {
             )
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, REMOTE_ROUTING_TABLE_REPO)
             .put(REMOTE_PUBLICATION_EXPERIMENTAL, true)
+            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
