@@ -150,6 +150,13 @@ public class RemoteClusterStateService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Validation mode for cluster state checksum.
+     *  None: Validation will be disabled.
+     *  Debug: Validation enabled but only matches checksum and logs failing entities.
+     *  Trace: Matches checksum and downloads full cluster state to find diff in failing entities. Only logs failures.
+     *  Failure: Throws exception on failing validation.
+     */
     public enum RemoteClusterStateValidationMode {
         DEBUG("debug"),
         TRACE("trace"),
