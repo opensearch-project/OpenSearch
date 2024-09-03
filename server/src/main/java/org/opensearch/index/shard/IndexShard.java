@@ -2913,9 +2913,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
             SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState().getRecoverySource();
             if (recoverySource.pinnedTimestamp() != 0) {
-                storeRecovery.recoverShallowSnapshotV2(this, repository, repositoriesService, listener, remoteStoreSettings.getSegmentsPathFixedPrefix(), threadPool);
+                storeRecovery.recoverShallowSnapshotV2(
+                    this,
+                    repository,
+                    repositoriesService,
+                    listener,
+                    remoteStoreSettings.getSegmentsPathFixedPrefix(),
+                    threadPool
+                );
             } else {
-                storeRecovery.recoverFromSnapshotAndRemoteStore(this, repository, repositoriesService, listener, remoteStoreSettings.getSegmentsPathFixedPrefix(), threadPool);
+                storeRecovery.recoverFromSnapshotAndRemoteStore(
+                    this,
+                    repository,
+                    repositoriesService,
+                    listener,
+                    remoteStoreSettings.getSegmentsPathFixedPrefix(),
+                    threadPool
+                );
             }
         } catch (Exception e) {
             listener.onFailure(e);
