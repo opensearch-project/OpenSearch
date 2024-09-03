@@ -12,8 +12,10 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
@@ -22,12 +24,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.gateway.remote.model.RemotePinnedTimestamps;
-import org.opensearch.gateway.remote.model.RemoteStorePinnedTimestampsBlobStore;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -63,8 +62,6 @@ import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.ME
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,8 +70,7 @@ import static org.mockito.Mockito.when;
 public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTests {
 
     Runnable updatePinnedTimstampTask;
-    BlobStoreTransferService pinnedTimestampBlobStoreTransferService;
-    RemoteStorePinnedTimestampsBlobStore remoteStorePinnedTimestampsBlobStore;
+    BlobContainer blobContainer;
     RemoteStorePinnedTimestampService remoteStorePinnedTimestampServiceSpy;
 
     @Before
@@ -118,16 +114,13 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         );
         remoteStorePinnedTimestampServiceSpy = Mockito.spy(remoteStorePinnedTimestampService);
 
-        remoteStorePinnedTimestampsBlobStore = mock(RemoteStorePinnedTimestampsBlobStore.class);
-        pinnedTimestampBlobStoreTransferService = mock(BlobStoreTransferService.class);
-        when(remoteStorePinnedTimestampServiceSpy.pinnedTimestampsBlobStore()).thenReturn(remoteStorePinnedTimestampsBlobStore);
-        when(remoteStorePinnedTimestampServiceSpy.blobStoreTransferService()).thenReturn(pinnedTimestampBlobStoreTransferService);
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStoreRepository.blobStore()).thenReturn(blobStore);
+        when(blobStoreRepository.basePath()).thenReturn(new BlobPath());
+        blobContainer = mock(BlobContainer.class);
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
 
-        doAnswer(invocationOnMock -> {
-            ActionListener<List<BlobMetadata>> actionListener = invocationOnMock.getArgument(3);
-            actionListener.onResponse(new ArrayList<>());
-            return null;
-        }).when(pinnedTimestampBlobStoreTransferService).listAllInSortedOrder(any(), any(), eq(1), any());
+        when(blobContainer.listBlobs()).thenReturn(new HashMap<>());
 
         remoteStorePinnedTimestampServiceSpy.start();
     }
@@ -362,20 +355,12 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
                         }
                     }
 
-                    doAnswer(invocationOnMock -> {
-                        ActionListener<List<BlobMetadata>> actionListener = invocationOnMock.getArgument(3);
-                        actionListener.onResponse(List.of(new PlainBlobMetadata("pinned_timestamp_123", 1000)));
-                        return null;
-                    }).when(pinnedTimestampBlobStoreTransferService).listAllInSortedOrder(any(), any(), eq(1), any());
-
-                    Map<Long, List<String>> pinnedTimestampsMap = new HashMap<>();
-                    pinnedTimestamps.forEach(ts -> pinnedTimestampsMap.put(ts, new ArrayList<>()));
+                    Map<String, BlobMetadata> pinnedTimestampsMap = new HashMap<>();
+                    pinnedTimestamps.forEach(ts -> pinnedTimestampsMap.put(randomInt(1000) + "__" + ts, new PlainBlobMetadata("x", 100)));
 
                     try {
-                        when(remoteStorePinnedTimestampsBlobStore.read(any())).thenReturn(
-                            new RemotePinnedTimestamps.PinnedTimestamps(pinnedTimestampsMap)
-                        );
-                        when(remoteStorePinnedTimestampsBlobStore.getBlobPathForUpload(any())).thenReturn(new BlobPath());
+
+                        when(blobContainer.listBlobs()).thenReturn(pinnedTimestampsMap);
 
                         Set<String> dataFilesBeforeTrim = blobStoreTransferService.listAll(
                             getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))
@@ -642,7 +627,7 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnAgeOnly() {
         updatePinnedTimstampTask.run();
         long currentTimeInMillis = System.currentTimeMillis();
-        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 100000);
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
         String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 30000);
         String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 60000);
 
@@ -659,21 +644,12 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnPinningOnly() throws IOException {
         long currentTimeInMillis = System.currentTimeMillis();
-        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 100000);
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
         String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
         String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
 
-        doAnswer(invocationOnMock -> {
-            ActionListener<List<BlobMetadata>> actionListener = invocationOnMock.getArgument(3);
-            actionListener.onResponse(List.of(new PlainBlobMetadata("pinned_timestamp_123", 1000)));
-            return null;
-        }).when(pinnedTimestampBlobStoreTransferService).listAllInSortedOrder(any(), any(), eq(1), any());
-
         long pinnedTimestamp = RemoteStoreUtils.invertLong(md2Timestamp) + 10000;
-        when(remoteStorePinnedTimestampsBlobStore.read(any())).thenReturn(
-            new RemotePinnedTimestamps.PinnedTimestamps(Map.of(pinnedTimestamp, List.of("xyz")))
-        );
-        when(remoteStorePinnedTimestampsBlobStore.getBlobPathForUpload(any())).thenReturn(new BlobPath());
+        when(blobContainer.listBlobs()).thenReturn(Map.of(randomInt(100) + "__" + pinnedTimestamp, new PlainBlobMetadata("xyz", 100)));
 
         updatePinnedTimstampTask.run();
 
@@ -695,17 +671,8 @@ public class RemoteFsTranslogWithPinnedTimestampTests extends RemoteFsTranslogTe
         String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
         String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
 
-        doAnswer(invocationOnMock -> {
-            ActionListener<List<BlobMetadata>> actionListener = invocationOnMock.getArgument(3);
-            actionListener.onResponse(List.of(new PlainBlobMetadata("pinned_timestamp_123", 1000)));
-            return null;
-        }).when(pinnedTimestampBlobStoreTransferService).listAllInSortedOrder(any(), any(), eq(1), any());
-
         long pinnedTimestamp = RemoteStoreUtils.invertLong(md2Timestamp) + 10000;
-        when(remoteStorePinnedTimestampsBlobStore.read(any())).thenReturn(
-            new RemotePinnedTimestamps.PinnedTimestamps(Map.of(pinnedTimestamp, List.of("xyz")))
-        );
-        when(remoteStorePinnedTimestampsBlobStore.getBlobPathForUpload(any())).thenReturn(new BlobPath());
+        when(blobContainer.listBlobs()).thenReturn(Map.of(randomInt(100) + "__" + pinnedTimestamp, new PlainBlobMetadata("xyz", 100)));
 
         updatePinnedTimstampTask.run();
 
