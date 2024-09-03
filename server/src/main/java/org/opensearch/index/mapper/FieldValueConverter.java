@@ -20,11 +20,11 @@ package org.opensearch.index.mapper;
 public interface FieldValueConverter {
 
     /**
-     * Converts the given long value to a double value.
+     * Converts the Lucene representation of the value as a long to an actual double representation
      *
      * @param value the long value to be converted
      * @return the corresponding double value
      */
-    double toDoubleValue(Long value);
+    double toDoubleValue(long value);
 
 }

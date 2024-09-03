@@ -355,7 +355,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public double toDoubleValue(Long value) {
+        public double toDoubleValue(long value) {
             double inverseScalingFactor = 1d / scalingFactor;
             return value * inverseScalingFactor;
         }

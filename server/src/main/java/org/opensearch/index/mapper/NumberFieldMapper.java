@@ -228,8 +228,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
-                return HalfFloatPoint.sortableShortToHalfFloat((short) value.longValue());
+            public double toDoubleValue(long value) {
+                return HalfFloatPoint.sortableShortToHalfFloat((short) value);
             }
 
             @Override
@@ -377,8 +377,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
-                return NumericUtils.sortableIntToFloat((int) value.longValue());
+            public double toDoubleValue(long value) {
+                return NumericUtils.sortableIntToFloat((int) value);
             }
 
             @Override
@@ -515,7 +515,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
+            public double toDoubleValue(long value) {
                 return NumericUtils.sortableLongToDouble(value);
             }
 
@@ -652,7 +652,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
+            public double toDoubleValue(long value) {
                 byte[] bytes = new byte[8];
                 NumericUtils.longToSortableBytes(value, bytes, 0);
                 return NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, 0));
@@ -738,7 +738,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
+            public double toDoubleValue(long value) {
                 return (double) value;
             }
 
@@ -818,7 +818,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
+            public double toDoubleValue(long value) {
                 return (double) value;
             }
 
@@ -994,7 +994,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
+            public double toDoubleValue(long value) {
                 return (double) value;
             }
 
@@ -1126,7 +1126,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public double toDoubleValue(Long value) {
+            public double toDoubleValue(long value) {
                 return Numbers.unsignedLongToDouble(value);
             }
 
@@ -1718,7 +1718,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public double toDoubleValue(Long value) {
+        public double toDoubleValue(long value) {
             return type.toDoubleValue(value);
         }
     }
