@@ -815,6 +815,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
     }
 
+    /**
+     * @return a <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        int randomInt = randomInt();
+        return randomInt == Integer.MIN_VALUE ? 0 : Math.abs(randomInt);
+    }
+
     public static float randomFloat() {
         return random().nextFloat();
     }
@@ -1809,7 +1817,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BlobPath basePath,
         String shardId,
         RemoteStoreEnums.DataCategory dataCategory,
-        RemoteStoreEnums.DataType dataType
+        RemoteStoreEnums.DataType dataType,
+        String fixedPrefix
     ) {
         String indexUUID = client.admin()
             .indices()
@@ -1834,6 +1843,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             .shardId(shardId)
             .dataCategory(dataCategory)
             .dataType(dataType)
+            .fixedPrefix(fixedPrefix)
             .build();
         return type.path(pathInput, hashAlgorithm);
     }

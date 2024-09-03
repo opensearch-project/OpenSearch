@@ -48,6 +48,8 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.Translog;
@@ -677,6 +679,14 @@ public final class IndexSettings {
         Property.InternalIndex
     );
 
+    public static final Setting<PathType> SEARCHABLE_SNAPSHOT_SHARD_PATH_TYPE = new Setting<>(
+        "index.searchable_snapshot.shard_path_type",
+        PathType.FIXED.toString(),
+        PathType::parseString,
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
     public static final Setting<String> DEFAULT_SEARCH_PIPELINE = new Setting<>(
         "index.search.default_pipeline",
         SearchPipelineService.NOOP_PIPELINE_ID,
@@ -880,6 +890,8 @@ public final class IndexSettings {
      */
     private volatile double docIdFuzzySetFalsePositiveProbability;
 
+    private final boolean isCompositeIndex;
+
     /**
      * Returns the default search fields for this index.
      */
@@ -1043,7 +1055,7 @@ public final class IndexSettings {
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
-
+        isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1286,6 +1298,10 @@ public final class IndexSettings {
      */
     public int getNumberOfReplicas() {
         return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null);
+    }
+
+    public boolean isCompositeIndex() {
+        return isCompositeIndex;
     }
 
     /**
