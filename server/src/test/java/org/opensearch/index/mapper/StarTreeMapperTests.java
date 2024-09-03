@@ -13,6 +13,8 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
@@ -24,6 +26,7 @@ import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.ReadDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,6 +38,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
+import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -52,7 +58,17 @@ public class StarTreeMapperTests extends MapperTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
+    @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .put(SETTINGS)
+            .build();
+    }
+
     public void testValidStarTree() throws IOException {
+
         MapperService mapperService = createMapperService(getExpandedMappingWithJustAvg("status", "size"));
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
@@ -80,6 +96,40 @@ public class StarTreeMapperTests extends MapperTestCase {
                 starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
             );
         }
+    }
+
+    public void testCompositeIndexWithArraysInCompositeField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(getExpandedMappingWithJustAvg("status", "status"));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("status").value(0).value(1).endArray()))
+        );
+        assertEquals(
+            "object mapping for [_doc] with array for [status] cannot be accepted as field is also part of composite index mapping which does not accept arrays",
+            ex.getMessage()
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("size").value(0).value(1).endArray()));
+        // 1 intPoint , 1 SNDV field for each value , so 4 in total
+        assertEquals(4, doc.rootDoc().getFields("size").length);
+    }
+
+    public void testValidValueForFlushTresholdSizeWithoutCompositeIndex() {
+        Settings settings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), false)
+            .build();
+
+        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings));
+    }
+
+    public void testValidValueForCompositeIndex() {
+        Settings settings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "512mb")
+            .build();
+
+        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings));
     }
 
     public void testMetricsWithJustSum() throws IOException {
@@ -287,6 +337,24 @@ public class StarTreeMapperTests extends MapperTestCase {
         );
         assertEquals(
             "Failed to parse mapping [_doc]: Atleast two dimensions are required to build star tree index field [startree]",
+            ex.getMessage()
+        );
+    }
+
+    public void testDuplicateDimensions() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(true, false);
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(finalMapping));
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate dimension [numeric_dv] present as part star tree index field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testDuplicateMetrics() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(false, true);
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(finalMapping));
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate metrics [numeric_dv] present as part star tree index field [startree-1]",
             ex.getMessage()
         );
     }
@@ -505,6 +573,56 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
+    }
+
+    private XContentBuilder getMappingWithDuplicateFields(boolean isDuplicateDim, boolean isDuplicateMetric) {
+        XContentBuilder mapping = null;
+        try {
+            mapping = jsonBuilder().startObject()
+                .startObject("composite")
+                .startObject("startree-1")
+                .field("type", "star_tree")
+                .startObject("config")
+                .startArray("ordered_dimensions")
+                .startObject()
+                .field("name", "timestamp")
+                .endObject()
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateDim ? "numeric_dv" : "numeric_dv1")  // Duplicate dimension
+                .endObject()
+                .endArray()
+                .startArray("metrics")
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateMetric ? "numeric_dv" : "numeric_dv1")  // Duplicate metric
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("properties")
+                .startObject("timestamp")
+                .field("type", "date")
+                .endObject()
+                .startObject("numeric_dv")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("numeric_dv1")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            fail("Failed to create mapping: " + e.getMessage());
+        }
+        return mapping;
     }
 
     private XContentBuilder getExpandedMappingWithJustSum(String dim, String metric) throws IOException {
