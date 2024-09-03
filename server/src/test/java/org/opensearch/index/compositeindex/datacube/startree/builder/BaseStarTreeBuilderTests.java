@@ -36,7 +36,6 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfig
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
-import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -229,8 +228,8 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
     public void test_generateMetricAggregatorInfos() throws IOException {
         List<MetricAggregatorInfo> metricAggregatorInfos = builder.generateMetricAggregatorInfos(mapperService);
         List<MetricAggregatorInfo> expectedMetricAggregatorInfos = List.of(
-            new MetricAggregatorInfo(MetricStat.SUM, "field2", starTreeField.getName(), IndexNumericFieldData.NumericType.DOUBLE),
-            new MetricAggregatorInfo(MetricStat.SUM, "field4", starTreeField.getName(), IndexNumericFieldData.NumericType.DOUBLE)
+            new MetricAggregatorInfo(MetricStat.SUM, "field2", starTreeField.getName(), NumberFieldMapper.NumberType.DOUBLE),
+            new MetricAggregatorInfo(MetricStat.SUM, "field4", starTreeField.getName(), NumberFieldMapper.NumberType.DOUBLE)
         );
         assertEquals(metricAggregatorInfos, expectedMetricAggregatorInfos);
     }
