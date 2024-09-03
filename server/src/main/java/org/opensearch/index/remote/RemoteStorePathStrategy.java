@@ -88,6 +88,7 @@ public class RemoteStorePathStrategy {
     public static class BasePathInput {
         private final BlobPath basePath;
         private final String indexUUID;
+        private final String fixedPrefix;
 
         // Adding for BWC
         public BasePathInput(BlobPath basePath, String indexUUID) {
@@ -98,6 +99,7 @@ public class RemoteStorePathStrategy {
         public BasePathInput(Builder<?> builder) {
             this.basePath = Objects.requireNonNull(builder.basePath);
             this.indexUUID = Objects.requireNonNull(builder.indexUUID);
+            this.fixedPrefix = Objects.isNull(builder.fixedPrefix) ? "" : builder.fixedPrefix;
         }
 
         BlobPath basePath() {
@@ -106,6 +108,10 @@ public class RemoteStorePathStrategy {
 
         String indexUUID() {
             return indexUUID;
+        }
+
+        String fixedPrefix() {
+            return fixedPrefix;
         }
 
         BlobPath fixedSubPath() {
@@ -137,6 +143,7 @@ public class RemoteStorePathStrategy {
         public static class Builder<T extends Builder<T>> {
             private BlobPath basePath;
             private String indexUUID;
+            private String fixedPrefix;
 
             public T basePath(BlobPath basePath) {
                 this.basePath = basePath;
@@ -145,6 +152,11 @@ public class RemoteStorePathStrategy {
 
             public T indexUUID(String indexUUID) {
                 this.indexUUID = indexUUID;
+                return self();
+            }
+
+            public T fixedPrefix(String fixedPrefix) {
+                this.fixedPrefix = fixedPrefix;
                 return self();
             }
 
