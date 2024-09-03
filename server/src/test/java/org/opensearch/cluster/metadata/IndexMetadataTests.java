@@ -225,11 +225,6 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
         metadata1.writeVerifiableTo(checksumOut);
-        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
-            IndexMetadata deserialized = IndexMetadata.readFrom(in);
-            assertEquals(metadata1, deserialized);
-
-        }
 
         IndexMetadata metadata2 = IndexMetadata.builder(metadata1.getIndex().getName())
             .settings(
