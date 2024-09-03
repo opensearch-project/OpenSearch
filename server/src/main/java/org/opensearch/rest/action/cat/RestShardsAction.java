@@ -113,7 +113,7 @@ public class RestShardsAction extends AbstractCatAction {
         shardsRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", shardsRequest.clusterManagerNodeTimeout()));
         shardsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
         shardsRequest.setIndices(indices);
-        parseDeprecatedMasterTimeoutParameter(shardsRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(shardsRequest, request);
         return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
             public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {
