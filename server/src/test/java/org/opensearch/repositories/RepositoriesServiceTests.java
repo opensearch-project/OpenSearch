@@ -677,6 +677,19 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public void finalizeSnapshot(
+            ShardGenerations shardGenerations,
+            long repositoryStateId,
+            Metadata clusterMetadata,
+            SnapshotInfo snapshotInfo,
+            Version repositoryMetaVersion,
+            Function<ClusterState, ClusterState> stateTransformer,
+            ActionListener<RepositoryData> listener
+        ) {
+            listener.onResponse(null);
+        }
+
+        @Override
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
