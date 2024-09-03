@@ -13,4 +13,17 @@ package org.opensearch.plugins;
  *
  * @opensearch.experimental
  */
-public interface ResourcePlugin {}
+public interface ResourcePlugin {
+
+    /**
+     * Type of the resource
+     * @return a string containing the type of the resource
+     */
+    String getResourceType();
+
+    /**
+     * The index where resource meta-data is stored
+     * @return the name of the parent index where resource meta-data is stored
+     */
+    String getResourceIndex();
+}
