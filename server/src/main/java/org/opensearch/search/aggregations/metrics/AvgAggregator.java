@@ -155,14 +155,14 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.SUM.getTypeName()
         );
-        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(sumMetricName);
+        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(sumMetricName);
 
         String countMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
             starTree.getField(),
             fieldName,
             MetricStat.VALUE_COUNT.getTypeName()
         );
-        SortedNumericDocValues countValues = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(countMetricName);
+        SortedNumericDocValues countValues = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(countMetricName);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override

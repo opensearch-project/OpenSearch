@@ -148,7 +148,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.VALUE_COUNT.getTypeName()
         );
-        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(metricName);
+        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
         final BigArrays bigArrays = context.bigArrays();
 
         return new LeafBucketCollectorBase(sub, values) {

@@ -100,7 +100,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
 
-        List<Document> documents = new ArrayList<>();
         Random random = new Random();
         int totalDocs = 100;
         final String SNDV = "sndv";
@@ -112,22 +111,18 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             Document doc = new Document();
             if (random.nextBoolean()) {
                 val = random.nextInt(10) - 5;
-                val = val == -1 ? 1 : val; // -1 is encoded as null
                 doc.add(new SortedNumericDocValuesField(SNDV, val)); // Random long between -5 and 4
             }
             if (random.nextBoolean()) {
                 val = random.nextInt(20) - 10;
-                val = val == -1 ? 1 : val; // -1 is encoded as null
                 doc.add(new SortedNumericDocValuesField(DV, val)); // Random long between -10 and 9
             }
             if (random.nextBoolean()) {
                 doc.add(new SortedNumericDocValuesField(FIELD_NAME, random.nextInt(50))); // Random long between 0 and 49
             }
             iw.addDocument(doc);
-            documents.add(doc);
         }
 
-        iw.forceMerge(1);
         if (randomBoolean()) {
             iw.forceMerge(1);
         }
@@ -159,19 +154,16 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(indexSearcher, defaultQuery, starTreeQuery, valueCountAggregationBuilder, verifyAggregation(InternalValueCount::getValue));
         testCase(indexSearcher, defaultQuery, starTreeQuery, avgAggregationBuilder, verifyAggregation(InternalAvg::getValue));
         // numeric-terms query
-        for (int cases = 0; cases < 1; cases++) {
+        for (int cases = 0; cases < 100; cases++) {
             Map<String, Long> queryMap;
             String queryField;
             long queryValue;
             if (randomBoolean()) {
                 queryField = SNDV;
-                queryValue = random.nextInt(10) - 5;
+                queryValue = random.nextInt(10);
             } else {
                 queryField = DV;
-                queryValue = random.nextInt(20) - 10;
-            }
-            if (queryValue == -1) {
-                continue; // -1 is encoded as null
+                queryValue = random.nextInt(20) - 15;
             }
             defaultQuery = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
             queryMap = Map.of(queryField, queryValue);

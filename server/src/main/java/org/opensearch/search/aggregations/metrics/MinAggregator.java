@@ -167,7 +167,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.MIN.getTypeName()
         );
-        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(metricName);
+        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
 
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);

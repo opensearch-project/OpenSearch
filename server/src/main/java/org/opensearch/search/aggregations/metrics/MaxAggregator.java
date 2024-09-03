@@ -170,7 +170,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.MAX.getTypeName()
         );
-        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocValuesIteratorMap().get(metricName);
+        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
 
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
