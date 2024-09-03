@@ -367,7 +367,6 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         return builder.endObject().endObject();
     }
 
-
     public static MapperService createMapperService(XContentBuilder builder) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

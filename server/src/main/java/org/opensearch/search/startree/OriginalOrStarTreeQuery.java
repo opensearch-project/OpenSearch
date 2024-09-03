@@ -70,10 +70,6 @@ public class OriginalOrStarTreeQuery extends Query {
         }
     }
 
-    public Query getOriginalQuery() {
-        return originalQuery;
-    }
-
     public StarTreeQuery getStarTreeQuery() {
         return starTreeQuery;
     }
