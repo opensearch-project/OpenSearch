@@ -2247,6 +2247,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
         if (toDelete.isEmpty()) {
             listener.onResponse(newRepositoryData);
+            return;
         }
         try {
             AtomicInteger counter = new AtomicInteger();
@@ -2416,10 +2417,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void assertSnapshotOrGenericThread() {
-        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
+        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT_DELETION + ']')
+            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') : "Expected current thread ["
                 + Thread.currentThread()
-                + "] to be the snapshot or generic thread.";
+                + "] to be the snapshot_deletion or snapshot or generic thread.";
     }
 
     @Override
