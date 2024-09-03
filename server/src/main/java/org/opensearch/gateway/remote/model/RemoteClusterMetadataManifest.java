@@ -35,6 +35,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     public static final int SPLITTED_MANIFEST_FILE_LENGTH = 6;
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
+
     public static final String COMMITTED = "C";
     public static final String PUBLISHED = "P";
 

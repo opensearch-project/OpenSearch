@@ -1215,7 +1215,7 @@ public final class OpenSearchServerException {
                 org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException.class,
                 org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException::new,
                 175,
-                V_3_0_0
+                V_2_17_0
             )
         );
         registerExceptionHandle(
