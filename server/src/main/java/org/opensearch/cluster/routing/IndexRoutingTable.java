@@ -47,7 +47,6 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.BufferedChecksumStreamOutput;
@@ -81,10 +80,7 @@ import java.util.function.Predicate;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
-    implements
-        Iterable<IndexShardRoutingTable>,
-        VerifiableWriteable {
+public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
     private final Index index;
     private final ShardShuffler shuffler;
