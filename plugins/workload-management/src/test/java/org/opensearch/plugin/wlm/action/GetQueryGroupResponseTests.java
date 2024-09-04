@@ -41,7 +41,7 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
 
         GetQueryGroupResponse otherResponse = new GetQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups(), false);
     }
 
     /**
@@ -58,7 +58,7 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         GetQueryGroupResponse otherResponse = new GetQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getQueryGroups().size());
-        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups(), false);
     }
 
     /**
@@ -93,10 +93,10 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
             + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
             + "      \"name\" : \"query_group_one\",\n"
             + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updated_at\" : 4513232413,\n"
             + "      \"resource_limits\" : {\n"
             + "        \"memory\" : 0.3\n"
-            + "      }\n"
+            + "      },\n"
+            + "      \"updated_at\" : 4513232413\n"
             + "    }\n"
             + "  ]\n"
             + "}";
@@ -119,19 +119,19 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
             + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
             + "      \"name\" : \"query_group_one\",\n"
             + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updated_at\" : 4513232413,\n"
             + "      \"resource_limits\" : {\n"
             + "        \"memory\" : 0.3\n"
-            + "      }\n"
+            + "      },\n"
+            + "      \"updated_at\" : 4513232413\n"
             + "    },\n"
             + "    {\n"
             + "      \"_id\" : \"G5iIqHy4g7eK1qIAAAAIH53=1\",\n"
             + "      \"name\" : \"query_group_two\",\n"
             + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updated_at\" : 4513232415,\n"
             + "      \"resource_limits\" : {\n"
             + "        \"memory\" : 0.6\n"
-            + "      }\n"
+            + "      },\n"
+            + "      \"updated_at\" : 4513232415\n"
             + "    }\n"
             + "  ]\n"
             + "}";
