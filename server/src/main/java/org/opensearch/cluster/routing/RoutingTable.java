@@ -48,6 +48,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -378,6 +379,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return new RoutingTableDiff(previousState, this);
     }
 
+    public Diff<RoutingTable> incrementalDiff(RoutingTable previousState) {
+        return new RoutingTableIncrementalDiff(previousState, this);
+    }
+
     public static Diff<RoutingTable> readDiffFrom(StreamInput in) throws IOException {
         return new RoutingTableDiff(in);
     }
@@ -403,7 +408,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
-    private static class RoutingTableDiff implements Diff<RoutingTable> {
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeLong(version);
+        out.writeMapValues(indicesRouting, (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
+    }
+
+    private static class RoutingTableDiff implements Diff<RoutingTable>, StringKeyDiffProvider<IndexRoutingTable> {
 
         private final long version;
 
@@ -423,6 +433,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         @Override
+        public String toString() {
+            return "RoutingTableDiff{" + "version=" + version + ", indicesRouting=" + indicesRouting + '}';
+        }
+
+        @Override
         public RoutingTable apply(RoutingTable part) {
             return new RoutingTable(version, indicesRouting.apply(part.indicesRouting));
         }
@@ -431,6 +446,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(version);
             indicesRouting.writeTo(out);
+        }
+
+        @Override
+        public DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> provideDiff() {
+            return (DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>>) indicesRouting;
         }
     }
 
