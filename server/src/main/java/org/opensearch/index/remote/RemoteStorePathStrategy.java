@@ -94,6 +94,7 @@ public class RemoteStorePathStrategy {
         public BasePathInput(BlobPath basePath, String indexUUID) {
             this.basePath = basePath;
             this.indexUUID = indexUUID;
+            this.fixedPrefix = null;
         }
 
         public BasePathInput(Builder<?> builder) {
