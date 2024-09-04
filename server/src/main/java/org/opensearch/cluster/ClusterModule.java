@@ -75,6 +75,7 @@ import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActi
 import org.opensearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
@@ -85,6 +86,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
@@ -379,6 +381,9 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
+        if (FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(settings)) {
+            addAllocationDecider(deciders, new SearchReplicaAllocationDecider(settings, clusterSettings));
+        }
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
