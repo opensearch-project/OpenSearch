@@ -44,6 +44,11 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
 
     private final ThreadPool threadPool;
 
+    // Added for passing breaking change check
+    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
+        this(repositoriesService, threadPool, null);
+    }
+
     public RemoteSegmentStoreDirectoryFactory(
         Supplier<RepositoriesService> repositoriesService,
         ThreadPool threadPool,
