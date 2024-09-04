@@ -10,6 +10,7 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.ClusterInfo;
@@ -22,6 +23,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -30,6 +32,8 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -37,7 +41,9 @@ import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
+import org.opensearch.threadpool.TestThreadPool;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -47,13 +53,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING;
 import static org.opensearch.gateway.ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY;
 import static org.opensearch.gateway.ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING;
 import static org.opensearch.gateway.ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
 
@@ -426,22 +432,37 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         assertEquals(-1, REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
     }
 
-    public void testCollectTimedOutShards() throws InterruptedException {
+    public void testCollectTimedOutShardsAndScheduleReroute() throws InterruptedException {
         createIndexAndUpdateClusterState(2, 5, 2);
-        CountDownLatch latch = new CountDownLatch(10);
-        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(latch);
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+        final CountDownLatch rerouteLatch = new CountDownLatch(2);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
+            assertEquals("reroute after existing shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteLatch.countDown();
+        };
+        CountDownLatch timedOutShardsLatch = new CountDownLatch(20);
+        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(timedOutShardsLatch, 1000, rerouteService);
         testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
         testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
         BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
         executor.run();
-        assertTrue(latch.await(1, TimeUnit.MINUTES));
-        latch = new CountDownLatch(10);
-        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(latch);
-        testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
-        testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
+        assertEquals(timedOutShardsLatch.getCount(), 10);
+        assertEquals(1, rerouteLatch.getCount());
         executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
         executor.run();
-        assertTrue(latch.await(1, TimeUnit.MINUTES));
+        assertEquals(timedOutShardsLatch.getCount(), 0);
+        assertEquals(0, rerouteLatch.getCount()); // even with failure it doesn't leak any listeners
+        final boolean terminated = terminate(threadPool);
+        assert terminated;
+        clusterService.close();
     }
 
     private void createIndexAndUpdateClusterState(int count, int numberOfShards, int numberOfReplicas) {
