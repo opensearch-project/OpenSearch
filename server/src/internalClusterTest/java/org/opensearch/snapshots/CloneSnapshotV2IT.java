@@ -173,7 +173,6 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         String sourceSnapshotV2 = "test-source-snapshot-v2";
         String sourceSnapshotV1 = "test-source-snapshot-v1";
         String cloneSnapshotV2 = "test-clone-snapshot-v2";
-        String cloneSnapshotV1 = "test-clone-snapshot-v1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
@@ -309,6 +308,7 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             assertTrue(cloneSnapshotInfo.indices().contains(index));
 
         }
+        assertThat(cloneSnapshotInfo.totalShards(), equalTo(sourceSnapshotInfo.totalShards()));
 
     }
 
