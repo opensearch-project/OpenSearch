@@ -52,6 +52,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -171,6 +172,86 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             assertEquals(metadata.isSystem(), deserialized.isSystem());
             assertEquals(metadata.context(), deserialized.context());
         }
+    }
+
+    public void testWriteVerifiableTo() throws IOException {
+        int numberOfReplicas = randomIntBetween(0, 10);
+        final boolean system = randomBoolean();
+        Map<String, String> customMap = new HashMap<>();
+        customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+        customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+
+        RolloverInfo info1 = new RolloverInfo(
+            randomAlphaOfLength(5),
+            Arrays.asList(
+                new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                new MaxDocsCondition(randomNonNegativeLong())
+            ),
+            randomNonNegativeLong()
+        );
+        RolloverInfo info2 = new RolloverInfo(
+            randomAlphaOfLength(5),
+            Arrays.asList(
+                new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                new MaxDocsCondition(randomNonNegativeLong())
+            ),
+            randomNonNegativeLong()
+        );
+
+        IndexMetadata metadata1 = IndexMetadata.builder("foo")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 4)
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .primaryTerm(0, 2)
+            .primaryTerm(1, 3)
+            .setRoutingNumShards(32)
+            .system(system)
+            .putCustom("my_custom", customMap)
+            .putCustom("my_custom2", customMap)
+            .putAlias(AliasMetadata.builder("alias-1").routing("routing-1").build())
+            .putAlias(AliasMetadata.builder("alias-2").routing("routing-2").build())
+            .putRolloverInfo(info1)
+            .putRolloverInfo(info2)
+            .putInSyncAllocationIds(0, Set.of("1", "2", "3"))
+            .build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        metadata1.writeVerifiableTo(checksumOut);
+
+        IndexMetadata metadata2 = IndexMetadata.builder(metadata1.getIndex().getName())
+            .settings(
+                Settings.builder()
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .put("index.number_of_shards", 4)
+                    .put("index.version.created", 1)
+                    .build()
+            )
+            .creationDate(metadata1.getCreationDate())
+            .primaryTerm(1, 3)
+            .primaryTerm(0, 2)
+            .setRoutingNumShards(32)
+            .system(system)
+            .putCustom("my_custom2", customMap)
+            .putCustom("my_custom", customMap)
+            .putAlias(AliasMetadata.builder("alias-2").routing("routing-2").build())
+            .putAlias(AliasMetadata.builder("alias-1").routing("routing-1").build())
+            .putRolloverInfo(info2)
+            .putRolloverInfo(info1)
+            .putInSyncAllocationIds(0, Set.of("3", "1", "2"))
+            .build();
+
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        metadata2.writeVerifiableTo(checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
     }
 
     public void testGetRoutingFactor() {
