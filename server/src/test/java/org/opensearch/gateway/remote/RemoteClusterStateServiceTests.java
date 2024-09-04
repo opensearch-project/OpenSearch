@@ -2978,7 +2978,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    newSettings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
             writableRegistry()
         );
     }
