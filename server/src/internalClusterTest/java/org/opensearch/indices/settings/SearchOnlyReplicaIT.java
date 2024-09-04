@@ -8,14 +8,17 @@
 
 package org.opensearch.indices.settings;
 
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -110,7 +113,6 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
         // add back a node
         internalCluster().startDataOnlyNode();
         ensureGreen(TEST_INDEX);
-
     }
 
     public void testFailoverWithSearchReplica_WithoutWriterReplicas() throws IOException {
@@ -173,6 +175,39 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
             .get();
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(0);
+    }
+
+    public void testSearchReplicaRoutingPreference() throws IOException {
+        int numSearchReplicas = 1;
+        int numWriterReplicas = 1;
+        internalCluster().startClusterManagerOnlyNode();
+        String primaryNodeName = internalCluster().startDataOnlyNode();
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+        ensureYellow(TEST_INDEX);
+        client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // add 2 nodes for the replicas
+        internalCluster().startDataOnlyNodes(2);
+        ensureGreen(TEST_INDEX);
+
+        assertActiveShardCounts(numSearchReplicas, numWriterReplicas);
+
+        // set preference to search replica here - we default to this when there are
+        // search replicas but tests will randomize this value if unset
+        SearchResponse response = client().prepareSearch(TEST_INDEX)
+            .setPreference(Preference.SEARCH_REPLICA.type())
+            .setQuery(QueryBuilders.matchAllQuery())
+            .get();
+
+        String nodeId = response.getHits().getAt(0).getShard().getNodeId();
+        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
+        assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
     }
 
     /**
