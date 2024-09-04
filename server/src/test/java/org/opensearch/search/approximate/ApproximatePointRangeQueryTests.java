@@ -127,9 +127,9 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     }
                     doc.add(new LongPoint("point", scratch));
                     iw.addDocument(doc);
-                    if (i % 15 == 0) iw.flush();
                 }
                 iw.flush();
+                iw.forceMerge(1);
                 try (IndexReader reader = iw.getReader()) {
                     try {
                         long lower = 0;
@@ -168,6 +168,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     iw.addDocument(doc);
                 }
                 iw.flush();
+                iw.forceMerge(1);
                 try (IndexReader reader = iw.getReader()) {
                     try {
                         long lower = 0;
@@ -185,7 +186,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 11000);
-                        assertEquals(topDocs.totalHits, new TotalHits(11001, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+                        assertEquals(topDocs.totalHits, new TotalHits(11000, TotalHits.Relation.EQUAL_TO));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -213,6 +214,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     if (i % 10 == 0) iw.flush();
                 }
                 iw.flush();
+                iw.forceMerge(1);
                 try (IndexReader reader = iw.getReader()) {
                     try {
                         long lower = 0;
@@ -258,6 +260,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     iw.addDocument(doc);
                 }
                 iw.flush();
+                iw.forceMerge(1);
                 try (IndexReader reader = iw.getReader()) {
                     try {
                         long lower = 0;
@@ -284,12 +287,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
                         assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
                         assertEquals(topDocs1.totalHits, new TotalHits(21, TotalHits.Relation.EQUAL_TO));
-                        assertEquals(topDocs.scoreDocs[0].doc, 0);
-                        assertEquals(topDocs.scoreDocs[1].doc, 1);
-                        assertEquals(topDocs.scoreDocs[2].doc, 2);
-                        assertEquals(topDocs.scoreDocs[3].doc, 3);
-                        assertEquals(topDocs.scoreDocs[4].doc, 4);
-                        assertEquals(topDocs.scoreDocs[5].doc, 5);
+                        assertEquals(topDocs.scoreDocs[0].doc, topDocs1.scoreDocs[0].doc);
+                        assertEquals(topDocs.scoreDocs[1].doc, topDocs1.scoreDocs[1].doc);
+                        assertEquals(topDocs.scoreDocs[2].doc, topDocs1.scoreDocs[2].doc);
+                        assertEquals(topDocs.scoreDocs[3].doc, topDocs1.scoreDocs[3].doc);
+                        assertEquals(topDocs.scoreDocs[4].doc, topDocs1.scoreDocs[4].doc);
+                        assertEquals(topDocs.scoreDocs[5].doc, topDocs1.scoreDocs[5].doc);
 
                     } catch (IOException e) {
                         throw new RuntimeException(e);
