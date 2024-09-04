@@ -33,6 +33,12 @@ public class RemoteStoreLockManagerFactory {
     private final Supplier<RepositoriesService> repositoriesService;
     private final String segmentsPathFixedPrefix;
 
+    // Added for passing breaking change check
+    public RemoteStoreLockManagerFactory(Supplier<RepositoriesService> repositoriesService) {
+        this.repositoriesService = repositoriesService;
+        this.segmentsPathFixedPrefix = null;
+    }
+
     public RemoteStoreLockManagerFactory(Supplier<RepositoriesService> repositoriesService, String segmentsPathFixedPrefix) {
         this.repositoriesService = repositoriesService;
         this.segmentsPathFixedPrefix = segmentsPathFixedPrefix;
@@ -45,6 +51,17 @@ public class RemoteStoreLockManagerFactory {
         RemoteStorePathStrategy pathStrategy
     ) {
         return newLockManager(repositoriesService.get(), repositoryName, indexUUID, shardId, pathStrategy, segmentsPathFixedPrefix);
+    }
+
+    // Added for passing breaking change check
+    public static RemoteStoreMetadataLockManager newLockManager(
+        RepositoriesService repositoriesService,
+        String repositoryName,
+        String indexUUID,
+        String shardId,
+        RemoteStorePathStrategy pathStrategy
+    ) {
+        return newLockManager(repositoriesService, repositoryName, indexUUID, shardId, pathStrategy, null);
     }
 
     public static RemoteStoreMetadataLockManager newLockManager(
