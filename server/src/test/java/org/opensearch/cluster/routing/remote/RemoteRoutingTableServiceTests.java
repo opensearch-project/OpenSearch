@@ -28,7 +28,6 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.TestCapturingListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
