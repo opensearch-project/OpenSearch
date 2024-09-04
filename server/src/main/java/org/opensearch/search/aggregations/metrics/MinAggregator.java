@@ -38,12 +38,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericTypeConverters;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.NumericDoubleValues;
@@ -61,6 +61,9 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into a min value
@@ -126,7 +129,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             }
         }
 
-        CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree();
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
             return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }
@@ -165,6 +168,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.MIN.getTypeName()
         );
+        assert starTreeValues != null;
         SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
 
         final BigArrays bigArrays = context.bigArrays();
@@ -179,7 +183,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
                 if (values.advanceExact(doc)) {
-                    final double value = NumericUtils.sortableLongToDouble(values.nextValue());
+                    final double value = StarTreeNumericTypeConverters.sortableLongtoDouble(values.nextValue());
                     double min = mins.get(bucket);
                     min = Math.min(min, value);
                     mins.set(bucket, min);

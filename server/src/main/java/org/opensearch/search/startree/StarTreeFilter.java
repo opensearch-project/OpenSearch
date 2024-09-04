@@ -41,23 +41,13 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 class StarTreeFilter {
     private static final Logger logger = LogManager.getLogger(StarTreeFilter.class);
 
-    // private final StarTreeNode starTreeRoot;
-    Map<String, Long> queryMap;
-    DocIdSetBuilder docsWithField;
-    DocIdSetBuilder.BulkAdder adder;
-    // Map<String, DocIdSetIterator> dimValueMap;
-    StarTreeValues starTreeValues;
-    List<Dimension> dimensions;
+    private final Map<String, Long> queryMap;
+    private final StarTreeValues starTreeValues;
 
     public StarTreeFilter(StarTreeValues starTreeAggrStructure, Map<String, Long> predicateEvaluators) {
         // This filter operator does not support AND/OR/NOT operations as of now.
         starTreeValues = starTreeAggrStructure;
-        // starTreeRoot = starTreeAggrStructure.getRoot();
-        // dimValueMap = starTreeAggrStructure.getDimensionDocValuesIteratorMap();
         queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
-
-        // TODO : this should be the maximum number of doc values
-        docsWithField = new DocIdSetBuilder(Integer.MAX_VALUE);
     }
 
     /**
@@ -113,6 +103,8 @@ class StarTreeFilter {
      * predicate dimensions that are not matched.
      */
     private StarTreeResult traverseStarTree() throws IOException {
+        DocIdSetBuilder docsWithField = new DocIdSetBuilder(this.starTreeValues.getStarTreeDocumentCount());
+        DocIdSetBuilder.BulkAdder adder;
         Set<String> globalRemainingPredicateColumns = null;
         StarTreeNode starTree = starTreeValues.getRoot();
         List<String> dimensionNames = starTreeValues.getStarTreeField()
