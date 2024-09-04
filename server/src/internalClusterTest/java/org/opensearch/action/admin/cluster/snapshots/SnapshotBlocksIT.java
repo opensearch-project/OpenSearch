@@ -80,13 +80,8 @@ public class SnapshotBlocksIT extends OpenSearchIntegTestCase {
 
         logger.info("--> register a repository");
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(REPOSITORY_NAME)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-        );
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath());
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), REPOSITORY_NAME, "fs", settings);
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();

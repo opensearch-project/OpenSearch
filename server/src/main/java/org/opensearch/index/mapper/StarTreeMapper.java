@@ -22,6 +22,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -61,11 +62,6 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
         private ObjectMapper.Builder objbuilder;
-        private static final Set<Class<? extends Mapper.Builder>> ALLOWED_DIMENSION_MAPPER_BUILDERS = Set.of(
-            NumberFieldMapper.Builder.class,
-            DateFieldMapper.Builder.class
-        );
-        private static final Set<Class<? extends Mapper.Builder>> ALLOWED_METRIC_MAPPER_BUILDERS = Set.of(NumberFieldMapper.Builder.class);
 
         @SuppressWarnings("unchecked")
         private final Parameter<StarTreeField> config = new Parameter<>(CONFIG, false, () -> null, (name, context, nodeObj) -> {
@@ -155,8 +151,20 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                         String.format(Locale.ROOT, "Atleast two dimensions are required to build star tree index field [%s]", fieldName)
                     );
                 }
+                Set<String> dimensionFieldNames = new HashSet<>();
                 for (Object dim : dimList) {
-                    dimensions.add(getDimension(fieldName, dim, context));
+                    Dimension dimension = getDimension(fieldName, dim, context);
+                    if (dimensionFieldNames.add(dimension.getField()) == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "Duplicate dimension [%s] present as part star tree index field [%s]",
+                                dimension.getField(),
+                                fieldName
+                            )
+                        );
+                    }
+                    dimensions.add(dimension);
                 }
             } else {
                 throw new MapperParsingException(
@@ -223,6 +231,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             }
             if (metricsFromInput instanceof List<?>) {
                 List<?> metricsList = (List<?>) metricsFromInput;
+                Set<String> metricFieldNames = new HashSet<>();
                 for (Object metric : metricsList) {
                     Map<String, Object> metricMap = (Map<String, Object>) metric;
                     String name = (String) XContentMapValues.extractValue(CompositeDataCubeFieldType.NAME, metricMap);
@@ -232,7 +241,18 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                     }
                     metricMap.remove(CompositeDataCubeFieldType.NAME);
                     if (objbuilder == null || objbuilder.mappersBuilders == null) {
-                        metrics.add(getMetric(name, metricMap, context));
+                        Metric metricFromParser = getMetric(name, metricMap, context);
+                        if (metricFieldNames.add(metricFromParser.getField()) == false) {
+                            throw new IllegalArgumentException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "Duplicate metrics [%s] present as part star tree index field [%s]",
+                                    metricFromParser.getField(),
+                                    fieldName
+                                )
+                            );
+                        }
+                        metrics.add(metricFromParser);
                     } else {
                         Optional<Mapper.Builder> meticBuilder = findMapperBuilderByName(name, this.objbuilder.mappersBuilders);
                         if (meticBuilder.isEmpty()) {
@@ -243,7 +263,18 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                                 String.format(Locale.ROOT, "non-numeric field type is associated with star tree metric [%s]", this.name)
                             );
                         }
-                        metrics.add(getMetric(name, metricMap, context));
+                        Metric metricFromParser = getMetric(name, metricMap, context);
+                        if (metricFieldNames.add(metricFromParser.getField()) == false) {
+                            throw new IllegalArgumentException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "Duplicate metrics [%s] present as part star tree index field [%s]",
+                                    metricFromParser.getField(),
+                                    fieldName
+                                )
+                            );
+                        }
+                        metrics.add(metricFromParser);
                         DocumentMapperParser.checkNoRemainingFields(
                             metricMap,
                             context.indexVersionCreated(),
@@ -253,6 +284,32 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 }
             } else {
                 throw new MapperParsingException(String.format(Locale.ROOT, "unable to parse metrics for star tree field [%s]", this.name));
+            }
+            int numBaseMetrics = 0;
+            for (Metric metric : metrics) {
+                for (MetricStat metricStat : metric.getMetrics()) {
+                    if (metricStat.isDerivedMetric() == false) {
+                        numBaseMetrics++;
+                    }
+                }
+            }
+            if (numBaseMetrics > context.getSettings()
+                .getAsInt(
+                    StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_SETTING.getKey(),
+                    StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_DEFAULT
+                )) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "There cannot be more than [%s] base metrics for star tree field [%s]",
+                        context.getSettings()
+                            .getAsInt(
+                                StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_SETTING.getKey(),
+                                StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_DEFAULT
+                            ),
+                        fieldName
+                    )
+                );
             }
             Metric docCountMetric = new Metric(DocCountFieldMapper.NAME, List.of(MetricStat.DOC_COUNT));
             metrics.add(docCountMetric);
@@ -318,11 +375,11 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         }
 
         private static boolean isBuilderAllowedForDimension(Mapper.Builder builder) {
-            return ALLOWED_DIMENSION_MAPPER_BUILDERS.stream().anyMatch(allowedType -> allowedType.isInstance(builder));
+            return builder.getSupportedDataCubeDimensionType().isPresent();
         }
 
         private static boolean isBuilderAllowedForMetric(Mapper.Builder builder) {
-            return ALLOWED_METRIC_MAPPER_BUILDERS.stream().anyMatch(allowedType -> allowedType.isInstance(builder));
+            return builder.isDataCubeMetricSupported();
         }
 
         private Optional<Mapper.Builder> findMapperBuilderByName(String field, List<Mapper.Builder> mappersBuilders) {
