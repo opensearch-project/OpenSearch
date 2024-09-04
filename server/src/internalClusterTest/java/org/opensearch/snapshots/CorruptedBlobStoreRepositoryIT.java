@@ -458,7 +458,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         // not break subsequent repository operations
         logger.info("--> move shard level metadata to new generation");
         final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
+        final Path shardPath = repoPath.resolve(resolvePath(indexId, "0"));
         final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
         assertFileExists(initialShardMetaPath);
         Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "1"));
@@ -487,8 +487,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> move shard level metadata to new generation and make RepositoryData point at an older generation");
         final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
+        final Path shardPath = repoPath.resolve(resolvePath(indexId, "0"));
         final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
+
         assertFileExists(initialShardMetaPath);
         Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + randomIntBetween(1, 1000)));
 
