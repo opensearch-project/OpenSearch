@@ -106,11 +106,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static ScriptQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         Script script = null;

@@ -25,4 +25,10 @@ public class ClusterManagerThrottlingException extends OpenSearchException {
     public ClusterManagerThrottlingException(StreamInput in) throws IOException {
         super(in);
     }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        // This is on the hot path; stack traces are expensive to compute and not very useful for this exception, so don't fill it.
+        return this;
+    }
 }
