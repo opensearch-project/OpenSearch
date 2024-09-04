@@ -335,11 +335,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     private IndexFieldData.XFieldComparatorSource fieldComparatorSource(QueryShardContext context) throws IOException {
         MultiValueMode valueMode = null;
         if (sortMode != null) {

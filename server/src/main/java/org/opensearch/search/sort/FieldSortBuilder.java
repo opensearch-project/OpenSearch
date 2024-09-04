@@ -559,11 +559,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
     }
 
-    @Override
-    public String fieldName() {
-        return fieldName;
-    }
-
     private MappedFieldType resolveUnmappedType(QueryShardContext context) {
         if (unmappedType == null) {
             throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
