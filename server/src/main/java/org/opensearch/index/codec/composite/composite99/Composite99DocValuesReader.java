@@ -164,7 +164,7 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
 
                             // adding metric fields
                             for (Metric metric : starTreeMetadata.getMetrics()) {
-                                for (MetricStat metricStat : metric.getMetrics()) {
+                                for (MetricStat metricStat : metric.getBaseMetrics()) {
                                     fields.add(
                                         fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                                             compositeFieldName,

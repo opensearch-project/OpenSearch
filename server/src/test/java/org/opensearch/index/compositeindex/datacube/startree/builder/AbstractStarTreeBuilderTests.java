@@ -205,9 +205,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
 
         int numMetrics = 0;
         for (Metric metric : metrics) {
-            for (MetricStat metricStat : metric.getMetrics()) {
-                numMetrics++;
-            }
+            numMetrics += metric.getBaseMetrics().size();
         }
 
         FieldInfo[] fields = new FieldInfo[dimensionFields.size() + numMetrics];
@@ -237,7 +235,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         }
 
         for (Metric metric : metrics) {
-            for (MetricStat metricStat : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
                 fields[i] = new FieldInfo(
                     fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                         compositeField.getName(),
@@ -2047,7 +2045,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             VERSION_CURRENT,
             builder.numStarTreeNodes,
             List.of("field1", "field3"),
-            List.of(new Metric("field2", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT))),
+            List.of(new Metric("field2", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT, MetricStat.AVG))),
             6,
             builder.numStarTreeDocs,
             1000,
@@ -2138,7 +2136,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             VERSION_CURRENT,
             builder.numStarTreeNodes,
             List.of("field1", "field3"),
-            List.of(new Metric("field2", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT))),
+            List.of(new Metric("field2", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT, MetricStat.AVG))),
             6,
             builder.numStarTreeDocs,
             1000,
@@ -2270,8 +2268,9 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         Dimension d2 = new NumericDimension("field3");
         Metric m1 = new Metric("field2", List.of(MetricStat.SUM));
         Metric m2 = new Metric("field2", List.of(MetricStat.VALUE_COUNT));
+        Metric m3 = new Metric("field2", List.of(MetricStat.AVG));
         List<Dimension> dims = List.of(d1, d2);
-        List<Metric> metrics = List.of(m1, m2);
+        List<Metric> metrics = List.of(m1, m2, m3);
         StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(1000, new HashSet<>(), getBuildMode());
         return new StarTreeField("sf", dims, metrics, c);
     }
@@ -4069,12 +4068,19 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             metricsWithField.add(i);
         }
 
+        List<Long> metricsListValueCount = new ArrayList<>(1000);
+        List<Integer> metricsWithFieldValueCount = new ArrayList<>(1000);
+        for (int i = 0; i < 1000; i++) {
+            metricsListValueCount.add((long) i);
+            metricsWithFieldValueCount.add(i);
+        }
+
         Dimension d1 = new NumericDimension("field1");
         Dimension d2 = new NumericDimension("field3");
         Dimension d3 = new NumericDimension("field5");
         Dimension d4 = new NumericDimension("field8");
         // Dimension d5 = new NumericDimension("field5");
-        Metric m1 = new Metric("field2", List.of(MetricStat.SUM));
+        Metric m1 = new Metric("field2", List.of(MetricStat.SUM, MetricStat.AVG, MetricStat.VALUE_COUNT));
         Metric m2 = new Metric("_doc_count", List.of(MetricStat.DOC_COUNT));
         List<Dimension> dims = List.of(d1, d2, d3, d4);
         List<Metric> metrics = List.of(m1, m2);
@@ -4085,6 +4091,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues d3sndv = getSortedNumericMock(dimList3, docsWithField3);
         SortedNumericDocValues d4sndv = getSortedNumericMock(dimList4, docsWithField4);
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
+        SortedNumericDocValues valucountsndv = getSortedNumericMock(metricsListValueCount, metricsWithFieldValueCount);
         SortedNumericDocValues m2sndv = DocValues.emptySortedNumeric();
         Map<String, Supplier<DocIdSetIterator>> dimDocIdSetIterators = Map.of(
             "field1",
@@ -4100,6 +4107,8 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         Map<String, Supplier<DocIdSetIterator>> metricDocIdSetIterators = Map.of(
             "sf_field2_sum_metric",
             () -> m1sndv,
+            "sf_field2_value_count_metric",
+            () -> valucountsndv,
             "sf__doc_count_doc_count_metric",
             () -> m2sndv
         );
@@ -4118,6 +4127,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues f2d3sndv = getSortedNumericMock(dimList3, docsWithField3);
         SortedNumericDocValues f2d4sndv = getSortedNumericMock(dimList4, docsWithField4);
         SortedNumericDocValues f2m1sndv = getSortedNumericMock(metricsList, metricsWithField);
+        SortedNumericDocValues f2valucountsndv = getSortedNumericMock(metricsListValueCount, metricsWithFieldValueCount);
         SortedNumericDocValues f2m2sndv = DocValues.emptySortedNumeric();
         Map<String, Supplier<DocIdSetIterator>> f2dimDocIdSetIterators = Map.of(
             "field1",
@@ -4133,6 +4143,8 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         Map<String, Supplier<DocIdSetIterator>> f2metricDocIdSetIterators = Map.of(
             "sf_field2_sum_metric",
             () -> f2m1sndv,
+            "sf_field2_value_count_metric",
+            () -> f2valucountsndv,
             "sf__doc_count_doc_count_metric",
             () -> f2m2sndv
         );
