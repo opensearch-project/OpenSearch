@@ -221,6 +221,34 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertNull(TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(malformedMdFileName));
     }
 
+    public void testGetMinMaxPrimaryTermFromFilename() throws Exception {
+        // New format metadata file
+        String newFormatMetadataFile =
+            "metadata__9223372036854775800__9223372036854774799__9223370311919910393__node1__9223372036438563958__2__1";
+        Tuple<Long, Long> minMaxPrimaryterm = TranslogTransferMetadata.getMinMaxPrimaryTermFromFilename(newFormatMetadataFile);
+        Long minPrimaryTerm = 2L;
+        Long maxPrimaryTerm = 7L;
+        assertEquals(minPrimaryTerm, minMaxPrimaryterm.v1());
+        assertEquals(maxPrimaryTerm, minMaxPrimaryterm.v2());
+
+        // Old format metadata file
+        String oldFormatMdFilename = "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__1";
+        assertNull(TranslogTransferMetadata.getMinMaxPrimaryTermFromFilename(oldFormatMdFilename));
+
+        // Node id containing separator
+        String nodeIdWithSeparator =
+            "metadata__9223372036854775800__9223372036854774799__9223370311919910393__node__1__9223372036438563958__2__1";
+        minMaxPrimaryterm = TranslogTransferMetadata.getMinMaxPrimaryTermFromFilename(nodeIdWithSeparator);
+        minPrimaryTerm = 2L;
+        maxPrimaryTerm = 7L;
+        assertEquals(minPrimaryTerm, minMaxPrimaryterm.v1());
+        assertEquals(maxPrimaryTerm, minMaxPrimaryterm.v2());
+
+        // Malformed md filename
+        String malformedMdFileName = "metadata__9223372036854775800__9223372036854774799__9223370311919910393__node1__xyz__3qwe__1";
+        assertNull(TranslogTransferMetadata.getMinMaxPrimaryTermFromFilename(malformedMdFileName));
+    }
+
     public void testIndexDeletionWithNoPinnedTimestampNoRecentMdFiles() throws Exception {
         RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
         ArrayList<Translog.Operation> ops = new ArrayList<>();

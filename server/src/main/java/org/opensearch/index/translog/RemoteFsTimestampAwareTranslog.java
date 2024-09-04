@@ -10,7 +10,6 @@ package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -35,8 +34,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
@@ -430,26 +427,14 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         Logger logger
     ) {
         if (minPrimaryTermInRemote.get() == Long.MAX_VALUE) {
-            CountDownLatch latch = new CountDownLatch(1);
-            translogTransferManager.listPrimaryTermsInRemoteAsync(new LatchedActionListener<>(new ActionListener<>() {
-                @Override
-                public void onResponse(Set<Long> primaryTermsInRemote) {
+            try {
+                Set<Long> primaryTermsInRemote = translogTransferManager.listPrimaryTermsInRemote();
+                if (primaryTermsInRemote.isEmpty() == false) {
                     Optional<Long> minPrimaryTerm = primaryTermsInRemote.stream().min(Long::compareTo);
                     minPrimaryTerm.ifPresent(minPrimaryTermInRemote::set);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Exception while fetching min primary term from remote translog", e);
-                }
-            }, latch));
-
-            try {
-                if (latch.await(5, TimeUnit.MINUTES) == false) {
-                    logger.error("Timeout while fetching min primary term from remote translog");
-                }
-            } catch (InterruptedException e) {
-                logger.error("Exception while fetching min primary term from remote translog", e);
+            } catch (IOException e) {
+                logger.error("Exception while listing primary terms in remote translog", e);
             }
         }
         return minPrimaryTermInRemote.get();

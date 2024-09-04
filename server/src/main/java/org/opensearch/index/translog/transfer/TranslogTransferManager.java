@@ -520,23 +520,6 @@ public class TranslogTransferManager {
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
         logger.info("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
-        listPrimaryTermsInRemoteAsync(new ActionListener<>() {
-            @Override
-            public void onResponse(Set<Long> primaryTermsInRemote) {
-                Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
-                    .filter(term -> term < minPrimaryTermToKeep)
-                    .collect(Collectors.toSet());
-                primaryTermsToDelete.forEach(term -> deletePrimaryTermAsync(term));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Exception occurred while deleting primary terms from remote store", e);
-            }
-        });
-    }
-
-    public void listPrimaryTermsInRemoteAsync(ActionListener<Set<Long>> listener) {
         transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteDataTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> folders) {
@@ -549,15 +532,25 @@ public class TranslogTransferManager {
                     }
                     return false;
                 }).map(Long::parseLong).collect(Collectors.toSet());
-                listener.onResponse(primaryTermsInRemote);
+                Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
+                    .filter(term -> term < minPrimaryTermToKeep)
+                    .collect(Collectors.toSet());
+                primaryTermsToDelete.forEach(term -> deletePrimaryTermAsync(term));
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.error("Exception occurred while getting primary terms from remote store", e);
-                listener.onFailure(e);
             }
         });
+    }
+
+    public Set<Long> listPrimaryTermsInRemote() throws IOException {
+        Set<String> primaryTermsStr = transferService.listFolders(remoteDataTransferPath);
+        if (primaryTermsStr != null) {
+            return primaryTermsStr.stream().map(Long::parseLong).collect(Collectors.toSet());
+        }
+        return new HashSet<>();
     }
 
     /**

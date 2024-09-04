@@ -2219,7 +2219,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager);
         } catch (IOException e) {
-            //
+            logger.error("Exception while cleaning up remote translog for shard: " + shardId, e);
         }
     }
 
