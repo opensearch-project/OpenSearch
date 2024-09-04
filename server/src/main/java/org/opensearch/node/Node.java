@@ -270,6 +270,8 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.QueryGroupService;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
+import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
 import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
 
@@ -1023,8 +1025,21 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
-            final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
-                                                                                 // queryGroupService
+            QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
+                taskResourceTrackingService,
+                System::nanoTime
+            );
+            WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(
+                settings,
+                settingsModule.getClusterSettings()
+            );
+            final QueryGroupService queryGroupService = new QueryGroupService(
+                queryGroupResourceUsageTrackerService,
+                clusterService,
+                threadPool,
+                workloadManagementSettings
+            );
+
             final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
                 queryGroupService,
                 threadPool
@@ -1090,7 +1105,7 @@ public class Node implements Closeable {
 
             WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
                 threadPool,
-                new QueryGroupService() // We will need to replace this with actual implementation
+                queryGroupService
             );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)

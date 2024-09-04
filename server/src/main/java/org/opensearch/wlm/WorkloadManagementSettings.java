@@ -11,6 +11,7 @@ package org.opensearch.wlm;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * Main class to declare Workload Management related settings
@@ -20,15 +21,51 @@ public class WorkloadManagementSettings {
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = 0.9;
     private static final Double DEFAULT_NODE_LEVEL_CPU_REJECTION_THRESHOLD = 0.8;
     private static final Double DEFAULT_NODE_LEVEL_CPU_CANCELLATION_THRESHOLD = 0.9;
+    private static final Long DEFAULT_QUERYGROUP_SERVICE_RUN_INTERVAL_MILLIS = 1000L;
     public static final double NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
     public static final double NODE_LEVEL_MEMORY_REJECTION_THRESHOLD_MAX_VALUE = 0.9;
     public static final double NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
     public static final double NODE_LEVEL_CPU_REJECTION_THRESHOLD_MAX_VALUE = 0.9;
+    public static final String DEFAULT_WLM_MODE = "monitor_only";
 
     private Double nodeLevelMemoryCancellationThreshold;
     private Double nodeLevelMemoryRejectionThreshold;
     private Double nodeLevelCpuCancellationThreshold;
     private Double nodeLevelCpuRejectionThreshold;
+
+    /**
+     * Setting name for Query Group Service run interval
+     */
+    public static final String QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING_NAME = "wlm.query_group.service.run_interval";
+
+    private TimeValue queryGroupServiceRunInterval;
+    /**
+     * Setting to control the run interval of Query Group Service
+     */
+    public static final Setting<Long> QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING = Setting.longSetting(
+        QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING_NAME,
+        DEFAULT_QUERYGROUP_SERVICE_RUN_INTERVAL_MILLIS,
+        1000,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * WLM mode setting name
+     */
+    public static final String WLM_MODE_SETTING_NAME = "wlm.query_group.mode";
+
+    private volatile WlmMode wlmMode;
+
+    /**
+     * WLM mode setting, which determines which mode WLM is operating in
+     */
+    public static final Setting<WlmMode> WLM_MODE_SETTING = new Setting<WlmMode>(
+        WLM_MODE_SETTING_NAME,
+        DEFAULT_WLM_MODE,
+        WlmMode::fromName,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Setting name for node level memory based rejection threshold for QueryGroup service
@@ -89,10 +126,12 @@ public class WorkloadManagementSettings {
      * @param clusterSettings - QueryGroup cluster settings
      */
     public WorkloadManagementSettings(Settings settings, ClusterSettings clusterSettings) {
+        this.wlmMode = WLM_MODE_SETTING.get(settings);
         nodeLevelMemoryCancellationThreshold = NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelMemoryRejectionThreshold = NODE_LEVEL_MEMORY_REJECTION_THRESHOLD.get(settings);
         nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelCpuRejectionThreshold = NODE_LEVEL_CPU_REJECTION_THRESHOLD.get(settings);
+        this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING.get(settings));
 
         ensureRejectionThresholdIsLessThanCancellation(
             nodeLevelMemoryRejectionThreshold,
@@ -111,6 +150,40 @@ public class WorkloadManagementSettings {
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_MEMORY_REJECTION_THRESHOLD, this::setNodeLevelMemoryRejectionThreshold);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_CANCELLATION_THRESHOLD, this::setNodeLevelCpuCancellationThreshold);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_REJECTION_THRESHOLD, this::setNodeLevelCpuRejectionThreshold);
+        clusterSettings.addSettingsUpdateConsumer(WLM_MODE_SETTING, this::setWlmMode);
+        clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING, this::setQueryGroupServiceRunInterval);
+    }
+
+    /**
+     * queryGroupServiceRunInterval setter
+     * @param newIntervalInMillis new value
+     */
+    public void setQueryGroupServiceRunInterval(long newIntervalInMillis) {
+        this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(newIntervalInMillis);
+    }
+
+    /**
+     * queryGroupServiceRunInterval getter
+     * @return current queryGroupServiceRunInterval value
+     */
+    public TimeValue getQueryGroupServiceRunInterval() {
+        return this.queryGroupServiceRunInterval;
+    }
+
+    /**
+     * WlmMode setter
+     * @param mode new mode value
+     */
+    public void setWlmMode(final WlmMode mode) {
+        this.wlmMode = mode;
+    }
+
+    /**
+     * WlmMode getter
+     * @return the current wlmMode
+     */
+    public WlmMode getWlmMode() {
+        return this.wlmMode;
     }
 
     /**
