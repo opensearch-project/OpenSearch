@@ -55,7 +55,7 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
     }
 
     public void testFilterAllocationSettingNotRegistered() {
-        expectThrows(SettingsException.class, () -> {
+        expectThrows(IllegalArgumentException.class, () -> {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
