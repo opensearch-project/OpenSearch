@@ -1184,7 +1184,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
                 Integer.MAX_VALUE
             )
         ).thenReturn(metadataFiles);
-        when(remoteMetadataDirectory.getBlobStream(metadataPrefix + RemoteStoreUtils.invertLong(1000))).thenReturn(
+        when(remoteMetadataDirectory.getBlobStream(metadataPrefix + RemoteStoreUtils.invertLong(1000) + "__1")).thenReturn(
             createMetadataFileBytes(metadata, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
         );
 
