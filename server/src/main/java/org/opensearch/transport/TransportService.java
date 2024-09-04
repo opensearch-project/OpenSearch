@@ -487,6 +487,14 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.markPendingDisconnects(nodesDelta.removedNodes());
     }
 
+    public Set<DiscoveryNode> getPendingDisconnections() {
+        return connectionManager.getPendingDisconnections();
+    }
+
+    public void markDisconnectAsCompleted(Set<DiscoveryNode> nodes) {
+        connectionManager.markDisconnectAsCompleted(nodes);
+    }
+
     public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToExtensionNode(node, null, listener);
     }

@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.opensearch.common.settings.Setting.Property;
 import static org.opensearch.common.settings.Setting.positiveTimeSetting;
@@ -170,10 +171,23 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             for (final DiscoveryNode discoveryNode : discoveryNodes) {
                 nodesToDisconnect.remove(discoveryNode);
             }
+            logger.info(" targetsByNode is {}", targetsByNode.keySet());
+            logger.info(" nodes to disconnect set is [{}]", nodesToDisconnect);
 
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
                 runnables.add(targetsByNode.get(discoveryNode).disconnect());
             }
+
+            // There might be some stale nodes that are in pendingDisconnect set from before but are not connected anymore
+            // This code block clears the pending disconnect for these nodes to avoid permanently blocking node joins
+            // This situation should ideally not happen
+            transportService.markDisconnectAsCompleted(
+                transportService.getPendingDisconnections()
+                    .stream()
+                    .filter(discoveryNode -> !discoveryNodes.nodeExists(discoveryNode))
+                    .collect(Collectors.toSet())
+            );
+
         }
         runnables.forEach(Runnable::run);
     }
@@ -511,6 +525,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
                     if (completedActivityType.equals(ActivityType.DISCONNECTING)) {
                         final ConnectionTarget removedTarget = targetsByNode.remove(discoveryNode);
+                        // if we remove from targetsByNode, we also remove from underlying pendingDisconnects for consistency
+                        // transportService.markDisconnectAsCompleted(new HashSet<>(Collections.singleton(discoveryNode)));
                         assert removedTarget == this : removedTarget + " vs " + this;
                     }
                 } else {

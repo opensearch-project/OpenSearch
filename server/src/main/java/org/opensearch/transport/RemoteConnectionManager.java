@@ -124,6 +124,16 @@ public class RemoteConnectionManager implements ConnectionManager {
         delegate.markPendingDisconnects(nodes);
     }
 
+    @Override
+    public Set<DiscoveryNode> getPendingDisconnections() {
+        return delegate.getPendingDisconnections();
+    }
+
+    @Override
+    public void markDisconnectAsCompleted(Set<DiscoveryNode> nodes) {
+        delegate.markDisconnectAsCompleted(nodes);
+    }
+
     public Transport.Connection getAnyRemoteConnection() {
         List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;

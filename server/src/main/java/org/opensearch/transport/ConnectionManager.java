@@ -53,6 +53,10 @@ public interface ConnectionManager extends Closeable {
 
     void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener);
 
+    Set<DiscoveryNode> getPendingDisconnections();
+
+    void markDisconnectAsCompleted(Set<DiscoveryNode> nodes);
+
     void connectToNode(
         DiscoveryNode node,
         ConnectionProfile connectionProfile,

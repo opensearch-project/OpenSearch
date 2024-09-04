@@ -124,6 +124,17 @@ public class ClusterConnectionManager implements ConnectionManager {
         pendingDisconnections.addAll(nodes);
     }
 
+    @Override
+    public Set<DiscoveryNode> getPendingDisconnections() {
+        return pendingDisconnections;
+    }
+
+    @Override
+    public void markDisconnectAsCompleted(Set<DiscoveryNode> nodes) {
+        logger.info("marking disconnect as completed for nodes: [{}]");
+        pendingDisconnections.removeAll(nodes);
+    }
+
     /**
      * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
      * Once a successful is established, it can be validated before being exposed.
