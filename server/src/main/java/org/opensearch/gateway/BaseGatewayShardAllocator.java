@@ -47,7 +47,6 @@ import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -82,22 +81,28 @@ public abstract class BaseGatewayShardAllocator {
         executeDecision(shardRouting, allocateUnassignedDecision, allocation, unassignedAllocationHandler);
     }
 
-    protected void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation, boolean primary) {
-        Set<ShardId> shardIdsFromBatch = new HashSet<>();
-        for (ShardRouting shardRouting : shardRoutings) {
-            ShardId shardId = shardRouting.shardId();
-            shardIdsFromBatch.add(shardId);
+    protected void allocateUnassignedBatchOnTimeout(Set<ShardId> shardIds, RoutingAllocation allocation, boolean primary) {
+        if (shardIds.isEmpty()) {
+            return;
         }
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
-            if (unassignedShard.primary() == primary && shardIdsFromBatch.contains(unassignedShard.shardId())) {
+            if (unassignedShard.primary() == primary && shardIds.contains(unassignedShard.shardId())) {
+                if (isResponsibleFor(unassignedShard) == false) {
+                    continue;
+                }
                 allocationDecision = AllocateUnassignedDecision.throttle(null);
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }
         }
     }
+
+    /**
+     * Is the allocator responsible for allocating the given {@link ShardRouting}?
+     */
+    protected abstract boolean isResponsibleFor(ShardRouting shardRouting);
 
     protected void executeDecision(
         ShardRouting shardRouting,
