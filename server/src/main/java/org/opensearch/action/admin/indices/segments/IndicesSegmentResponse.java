@@ -45,13 +45,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Transport response for retrieving indices segment information
@@ -86,21 +85,24 @@ public class IndicesSegmentResponse extends BroadcastResponse {
             return indicesSegments;
         }
         Map<String, IndexSegments> indicesSegments = new HashMap<>();
-
-        Set<String> indices = new HashSet<>();
-        for (ShardSegments shard : shards) {
-            indices.add(shard.getShardRouting().getIndexName());
+        if (shards.length == 0) {
+            this.indicesSegments = indicesSegments;
+            return indicesSegments;
         }
 
-        for (String indexName : indices) {
-            List<ShardSegments> shards = new ArrayList<>();
-            for (ShardSegments shard : this.shards) {
-                if (shard.getShardRouting().getIndexName().equals(indexName)) {
-                    shards.add(shard);
-                }
+        Arrays.sort(shards, Comparator.comparing(shardSegment -> shardSegment.getShardRouting().getIndexName()));
+        int startIndexPos = 0;
+        String startIndexName = shards[startIndexPos].getShardRouting().getIndexName();
+        for (int i = 0; i < shards.length; i++) {
+            if (!shards[i].getShardRouting().getIndexName().equals(startIndexName)) {
+                indicesSegments.put(startIndexName, new IndexSegments(startIndexName, Arrays.copyOfRange(shards, startIndexPos, i)));
+                startIndexPos = i;
+                startIndexName = shards[startIndexPos].getShardRouting().getIndexName();
             }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
         }
+        // Add the last shardSegment from shards list which would have got missed in the loop above
+        indicesSegments.put(startIndexName, new IndexSegments(startIndexName, Arrays.copyOfRange(shards, startIndexPos, shards.length)));
+
         this.indicesSegments = indicesSegments;
         return indicesSegments;
     }
