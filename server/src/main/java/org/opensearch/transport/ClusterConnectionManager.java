@@ -159,7 +159,6 @@ public class ClusterConnectionManager implements ConnectionManager {
         }
 
         if (connectedNodes.containsKey(node)) {
-            logger.info("connectedNodes already has key for node [{}]", node);
             connectingRefCounter.decRef();
             listener.onResponse(null);
             return;
