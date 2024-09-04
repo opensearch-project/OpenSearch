@@ -111,11 +111,6 @@ public final class RepositoryData {
      * The indices found in the repository across all snapshots, as a name to {@link IndexId} mapping
      */
     private final Map<String, IndexId> indices;
-
-    public Map<IndexId, List<SnapshotId>> getIndexSnapshots() {
-        return indexSnapshots;
-    }
-
     /**
      * The snapshots that each index belongs to.
      */
