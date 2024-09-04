@@ -476,8 +476,6 @@ public class ClusterModule extends AbstractModule {
     }
 
     public void setRerouteServiceForAllocator(RerouteService rerouteService) {
-        if (shardsAllocator instanceof BalancedShardsAllocator) {
-            shardsAllocator.setRerouteService(rerouteService);
-        }
+        shardsAllocator.setRerouteService(rerouteService);
     }
 }
