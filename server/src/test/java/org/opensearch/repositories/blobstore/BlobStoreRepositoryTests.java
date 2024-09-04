@@ -54,6 +54,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -74,6 +75,7 @@ import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -459,11 +461,18 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         foundIndices.put("stale-index", staleIndexContainer);
         foundIndices.put("current-index", currentIndexContainer);
 
+        List<SnapshotId> snapshotIds = new ArrayList<>();
+        snapshotIds.add(new SnapshotId("snap1", UUIDs.randomBase64UUID()));
+        snapshotIds.add(new SnapshotId("snap2", UUIDs.randomBase64UUID()));
+
         Set<String> survivingIndexIds = new HashSet<>();
         survivingIndexIds.add("current-index");
 
+        RepositoryData repositoryData = generateRandomRepoData();
+
         // Create a mock RemoteStoreLockManagerFactory
         RemoteStoreLockManagerFactory mockRemoteStoreLockManagerFactory = mock(RemoteStoreLockManagerFactory.class);
+        RemoteSegmentStoreDirectoryFactory mockRemoteSegmentStoreDirectoryFactory = mock(RemoteSegmentStoreDirectoryFactory.class);
         RemoteStoreLockManager mockLockManager = mock(RemoteStoreLockManager.class);
         when(mockRemoteStoreLockManagerFactory.newLockManager(anyString(), anyString(), anyString(), any())).thenReturn(mockLockManager);
 
@@ -479,9 +488,9 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // Mock the cleanupStaleIndices method to call our test implementation
         doAnswer(invocation -> {
-            Map<String, BlobContainer> indices = invocation.getArgument(0);
-            Set<String> surviving = invocation.getArgument(1);
-            GroupedActionListener<DeleteResult> listener = invocation.getArgument(3);
+            Map<String, BlobContainer> indices = invocation.getArgument(1);
+            Set<String> surviving = invocation.getArgument(2);
+            GroupedActionListener<DeleteResult> listener = invocation.getArgument(6);
 
             // Simulate the cleanup process
             DeleteResult result = DeleteResult.ZERO;
@@ -494,7 +503,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
             listener.onResponse(result);
             return null;
-        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), anyMap());
+        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), any(), any(), any(), anyMap());
 
         AtomicReference<Collection<DeleteResult>> resultReference = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -509,9 +518,12 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // Call the method we're testing
         repository.cleanupStaleIndices(
+            snapshotIds,
             foundIndices,
             survivingIndexIds,
             mockRemoteStoreLockManagerFactory,
+            null,
+            repositoryData,
             listener,
             mockSnapshotShardPaths,
             Collections.emptyMap()
