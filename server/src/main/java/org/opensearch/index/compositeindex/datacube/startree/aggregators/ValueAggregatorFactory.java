@@ -8,7 +8,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 /**
  * Value aggregator factory for a given aggregation type
@@ -22,20 +22,20 @@ public class ValueAggregatorFactory {
      * Returns a new instance of value aggregator for the given aggregation type.
      *
      * @param aggregationType     Aggregation type
-     * @param starTreeNumericType Numeric type associated with star tree field ( as specified in index mapping )
+     * @param fieldValueConverter Numeric type converter associated with star tree field ( as specified in index mapping )
      * @return Value aggregator
      */
-    public static ValueAggregator getValueAggregator(MetricStat aggregationType, StarTreeNumericType starTreeNumericType) {
+    public static ValueAggregator getValueAggregator(MetricStat aggregationType, FieldValueConverter fieldValueConverter) {
         switch (aggregationType) {
             // avg aggregator will be covered in the part of query (using count and sum)
             case SUM:
-                return new SumValueAggregator(starTreeNumericType);
+                return new SumValueAggregator(fieldValueConverter);
             case VALUE_COUNT:
                 return new CountValueAggregator();
             case MIN:
-                return new MinValueAggregator(starTreeNumericType);
+                return new MinValueAggregator(fieldValueConverter);
             case MAX:
-                return new MaxValueAggregator(starTreeNumericType);
+                return new MaxValueAggregator(fieldValueConverter);
             case DOC_COUNT:
                 return new DocCountAggregator();
             default:
