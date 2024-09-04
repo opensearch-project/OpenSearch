@@ -86,7 +86,7 @@ public abstract class QueryGroupResourceUsage {
      * @param tasks list of tasks in the query group
      * @param timeSupplier nano time supplier
      */
-    public abstract double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier);
+    protected abstract double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier);
 
     /**
      * class to store cpu usage for the query group
@@ -98,7 +98,7 @@ public abstract class QueryGroupResourceUsage {
         }
 
         @Override
-        public double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier) {
+        protected double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier) {
             double usage = tasks.stream().mapToDouble(task -> {
                 return TaskResourceUsageCalculator.from(ResourceType.CPU).calculateFor(task, timeSupplier);
             }).sum();
@@ -118,12 +118,11 @@ public abstract class QueryGroupResourceUsage {
         }
 
         @Override
-        public double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier) {
+        protected double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier) {
             double usage = tasks.stream().mapToDouble(task -> {
                 return TaskResourceUsageCalculator.from(ResourceType.MEMORY).calculateFor(task, timeSupplier);
             }).sum();
             return usage;
         }
     }
-
 }

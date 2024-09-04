@@ -8,55 +8,57 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.action.search.SearchAction;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerServiceTests;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.wlm.cancellation.DefaultTaskCancellation.MIN_VALUE;
+import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTests.createMockTaskWithResourceStats;
+import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.HEAP_SIZE_BYTES;
+
 public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
-    Map<ResourceType, Long> resourceUsage;
+    Map<ResourceType, QueryGroupResourceUsage> resourceUsage;
     List<QueryGroupTask> activeTasks;
+    QueryGroupResourceUsageTrackerServiceTests.TestClock clock;
 
-    // public void setUp() throws Exception {
-    // super.setUp();
-    // resourceUsage = Map.of(ResourceType.fromName("memory"), 34L, ResourceType.fromName("cpu"), 12L);
-    // activeTasks = List.of(getRandomTask(4321));
-    // }
-    //
-    // public void testGetResourceUsageData() {
-    // QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
-    // resourceUsage,
-    // activeTasks
-    // );
-    // Map<ResourceType, Long> resourceUsageData = queryGroupLevelResourceUsageView.getResourceUsageData();
-    // assertTrue(assertResourceUsageData(resourceUsageData));
-    // }
+    public void setUp() throws Exception {
+        super.setUp();
+        QueryGroupResourceUsage.QueryGroupCpuUsage cpuUsage = new QueryGroupResourceUsage.QueryGroupCpuUsage();
+        QueryGroupResourceUsage.QueryGroupMemoryUsage memoryUsage = new QueryGroupResourceUsage.QueryGroupMemoryUsage();
+        clock = new QueryGroupResourceUsageTrackerServiceTests.TestClock();
+        activeTasks = List.of(createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 1));
+        clock.fastForwardBy(300);
 
-    // public void testGetActiveTasks() {
-    // QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
-    // resourceUsage,
-    // activeTasks
-    // );
-    // List<QueryGroupTask> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
-    // assertEquals(1, activeTasks.size());
-    // assertEquals(4321, activeTasks.get(0).getId());
-    // }
+        cpuUsage.initialise(activeTasks, clock::getTime);
+        memoryUsage.initialise(activeTasks, clock::getTime);
 
-    private boolean assertResourceUsageData(Map<ResourceType, Long> resourceUsageData) {
-        return resourceUsageData.get(ResourceType.fromName("memory")) == 34L && resourceUsageData.get(ResourceType.fromName("cpu")) == 12L;
+        resourceUsage = Map.of(ResourceType.MEMORY, memoryUsage, ResourceType.CPU, memoryUsage);
     }
 
-    private QueryGroupTask getRandomTask(long id) {
-        return new QueryGroupTask(
-            id,
-            "transport",
-            SearchAction.NAME,
-            "test description",
-            new TaskId(randomLong() + ":" + randomLong()),
-            Collections.emptyMap()
+    public void testGetResourceUsageData() {
+        QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
+            resourceUsage,
+            activeTasks
         );
+        Map<ResourceType, QueryGroupResourceUsage> resourceUsageData = queryGroupLevelResourceUsageView.getResourceUsageData();
+        assertTrue(assertResourceUsageData(resourceUsageData));
+    }
+
+    public void testGetActiveTasks() {
+        QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
+            resourceUsage,
+            activeTasks
+        );
+        List<QueryGroupTask> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
+        assertEquals(1, activeTasks.size());
+        assertEquals(1, activeTasks.get(0).getId());
+    }
+
+    private boolean assertResourceUsageData(Map<ResourceType, QueryGroupResourceUsage> resourceUsageData) {
+        return (resourceUsageData.get(ResourceType.MEMORY).getCurrentUsage() - 200.0 / HEAP_SIZE_BYTES) <= MIN_VALUE
+            && (resourceUsageData.get(ResourceType.CPU).getCurrentUsage() - 100.0 / (300)) < MIN_VALUE;
     }
 }
