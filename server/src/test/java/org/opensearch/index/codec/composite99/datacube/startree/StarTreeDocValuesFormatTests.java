@@ -188,15 +188,15 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 StarTreeDocument[] starTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
                     List.of(starTreeValues),
                     List.of(
-                        StarTreeNumericType.DOUBLE,
-                        StarTreeNumericType.LONG,
-                        StarTreeNumericType.DOUBLE,
-                        StarTreeNumericType.DOUBLE,
-                        StarTreeNumericType.DOUBLE,
-                        StarTreeNumericType.LONG,
-                        StarTreeNumericType.DOUBLE,
-                        StarTreeNumericType.DOUBLE,
-                        StarTreeNumericType.LONG
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG
                     ),
                     reader.maxDoc()
                 );
