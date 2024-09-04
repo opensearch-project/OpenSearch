@@ -551,7 +551,7 @@ public final class RepositoryData {
 
     // Visible for testing only
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
-        return snapshotsToXContent(builder, repoMetaVersion, Version.CURRENT);
+        return snapshotsToXContent(builder, repoMetaVersion, Version.V_2_17_0);
     }
 
     /**
@@ -589,7 +589,7 @@ public final class RepositoryData {
         for (final IndexId indexId : getIndices().values()) {
             builder.startObject(indexId.getName());
             builder.field(INDEX_ID, indexId.getId());
-            if (minNodeVersion.onOrAfter(Version.CURRENT)) {
+            if (minNodeVersion.onOrAfter(Version.V_2_17_0)) {
                 builder.field(IndexId.SHARD_PATH_TYPE, indexId.getShardPathType());
             }
             builder.startArray(SNAPSHOTS);
