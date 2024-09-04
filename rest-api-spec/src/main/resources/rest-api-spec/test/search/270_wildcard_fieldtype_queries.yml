@@ -227,3 +227,13 @@ setup:
               my_field:
                 value: ".*"
   - match: { hits.total.value: 5 }
+---
+"terms query on wildcard field matches":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            terms: { my_field: ["AbCd"] }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
