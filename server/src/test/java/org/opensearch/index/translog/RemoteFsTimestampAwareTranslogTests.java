@@ -211,13 +211,13 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
         // Node id containing separator
         String nodeIdWithSeparator =
-            "metadata__9223372036438563903__9223372036854774799__9223370311919910393__node__1__9223372036438563958__1";
+            "metadata__9223372036438563903__9223372036854774799__9223370311919910393__node__1__9223372036438563958__2__1";
         Tuple<Long, Long> minMaxGen = TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(nodeIdWithSeparator);
         Long minGen = Long.MAX_VALUE - 9223372036438563958L;
         assertEquals(minGen, minMaxGen.v1());
 
         // Malformed md filename
-        String malformedMdFileName = "metadata__9223372036438563903__9223372036854774799__9223370311919910393__node1__xyz__1";
+        String malformedMdFileName = "metadata__9223372036438563903__9223372036854774799__9223370311919910393__node1__xyz__3__1";
         assertNull(TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(malformedMdFileName));
     }
 
@@ -604,20 +604,20 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         List<String> metadataFilesNotToBeDeleted = new ArrayList<>();
         List<String> metadataFilesToBeDeleted = List.of(
             // 4 to 7
-            "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__1",
+            "metadata__9223372036854775806__9223372036854775800__9223370311919910398__31__9223372036854775803__1__1",
             // 17 to 37
-            "metadata__9223372036438563903__9223372036854775770__9223370311919910398__31__9223372036854775790__1",
+            "metadata__9223372036854775806__9223372036854775770__9223370311919910398__31__9223372036854775790__1__1",
             // 27 to 42
-            "metadata__9223372036438563903__9223372036854775765__9223370311919910403__31__9223372036854775780__1"
+            "metadata__9223372036854775806__9223372036854775765__9223370311919910403__31__9223372036854775780__1__1"
         );
-        Set<Long> generations = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
-            metadataFilesNotToBeDeleted,
-            metadataFilesToBeDeleted,
-            true
-        );
+        Map<Long, Set<Long>> generationsToBeDeletedToPrimaryTermRangeMap = ((RemoteFsTimestampAwareTranslog) translog)
+            .getGenerationsToBeDeleted(metadataFilesNotToBeDeleted, metadataFilesToBeDeleted, true);
         Set<Long> md1Generations = LongStream.rangeClosed(4, 7).boxed().collect(Collectors.toSet());
         Set<Long> md2Generations = LongStream.rangeClosed(17, 37).boxed().collect(Collectors.toSet());
         Set<Long> md3Generations = LongStream.rangeClosed(27, 42).boxed().collect(Collectors.toSet());
+
+        Set<Long> generations = generationsToBeDeletedToPrimaryTermRangeMap.keySet();
+
         assertTrue(generations.containsAll(md1Generations));
         assertTrue(generations.containsAll(md2Generations));
         assertTrue(generations.containsAll(md3Generations));
@@ -631,28 +631,28 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
     public void testGetGenerationsToBeDeleted() throws IOException {
         List<String> metadataFilesNotToBeDeleted = List.of(
             // 1 to 4
-            "metadata__9223372036438563903__9223372036854775803__9223370311919910398__31__9223372036854775806__1",
+            "metadata__9223372036854775806__9223372036854775803__9223370311919910398__31__9223372036854775806__1__1",
             // 26 to 30
-            "metadata__9223372036438563903__9223372036854775777__9223370311919910398__31__9223372036854775781__1",
+            "metadata__9223372036854775806__9223372036854775777__9223370311919910398__31__9223372036854775781__1__1",
             // 42 to 100
-            "metadata__9223372036438563903__9223372036854775707__9223370311919910403__31__9223372036854775765__1"
+            "metadata__9223372036854775806__9223372036854775707__9223370311919910403__31__9223372036854775765__1__1"
         );
         List<String> metadataFilesToBeDeleted = List.of(
             // 4 to 7
-            "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__1",
+            "metadata__9223372036854775806__9223372036854775800__9223370311919910398__31__9223372036854775803__1__1",
             // 17 to 37
-            "metadata__9223372036438563903__9223372036854775770__9223370311919910398__31__9223372036854775790__1",
+            "metadata__9223372036854775806__9223372036854775770__9223370311919910398__31__9223372036854775790__1__1",
             // 27 to 42
-            "metadata__9223372036438563903__9223372036854775765__9223370311919910403__31__9223372036854775780__1"
+            "metadata__9223372036854775806__9223372036854775765__9223370311919910403__31__9223372036854775780__1__1"
         );
-        Set<Long> generations = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
-            metadataFilesNotToBeDeleted,
-            metadataFilesToBeDeleted,
-            true
-        );
+        Map<Long, Set<Long>> generationsToBeDeletedToPrimaryTermRangeMap = ((RemoteFsTimestampAwareTranslog) translog)
+            .getGenerationsToBeDeleted(metadataFilesNotToBeDeleted, metadataFilesToBeDeleted, true);
         Set<Long> md1Generations = LongStream.rangeClosed(5, 7).boxed().collect(Collectors.toSet());
         Set<Long> md2Generations = LongStream.rangeClosed(17, 25).boxed().collect(Collectors.toSet());
         Set<Long> md3Generations = LongStream.rangeClosed(31, 41).boxed().collect(Collectors.toSet());
+
+        Set<Long> generations = generationsToBeDeletedToPrimaryTermRangeMap.keySet();
+
         assertTrue(generations.containsAll(md1Generations));
         assertTrue(generations.containsAll(md2Generations));
         assertTrue(generations.containsAll(md3Generations));
@@ -783,49 +783,49 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertEquals(
             new Tuple<>(701L, 1008L),
             translog.getMinMaxTranslogGenerationFromMetadataFile(
-                "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1",
+                "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1__1",
                 translogTransferManager
             )
         );
         assertEquals(
             new Tuple<>(4L, 7L),
             translog.getMinMaxTranslogGenerationFromMetadataFile(
-                "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__1",
+                "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__2__1",
                 translogTransferManager
             )
         );
         assertEquals(
             new Tuple<>(106L, 106L),
             translog.getMinMaxTranslogGenerationFromMetadataFile(
-                "metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__1",
+                "metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__3__1",
                 translogTransferManager
             )
         );
         assertEquals(
             new Tuple<>(4573L, 99964L),
             translog.getMinMaxTranslogGenerationFromMetadataFile(
-                "metadata__9223372036438563903__9223372036854675843__9223370311919910408__31__9223372036854771234__1",
+                "metadata__9223372036438563903__9223372036854675843__9223370311919910408__31__9223372036854771234__4__1",
                 translogTransferManager
             )
         );
         assertEquals(
             new Tuple<>(1L, 4L),
             translog.getMinMaxTranslogGenerationFromMetadataFile(
-                "metadata__9223372036438563903__9223372036854775803__9223370311919910413__31__9223372036854775806__1",
+                "metadata__9223372036438563903__9223372036854775803__9223370311919910413__31__9223372036854775806__5__1",
                 translogTransferManager
             )
         );
         assertEquals(
             new Tuple<>(2474L, 3462L),
             translog.getMinMaxTranslogGenerationFromMetadataFile(
-                "metadata__9223372036438563903__9223372036854772345__9223370311919910429__31__9223372036854773333__1",
+                "metadata__9223372036438563903__9223372036854772345__9223370311919910429__31__9223372036854773333__6__1",
                 translogTransferManager
             )
         );
         assertEquals(
             new Tuple<>(5807L, 7917L),
             translog.getMinMaxTranslogGenerationFromMetadataFile(
-                "metadata__9223372036438563903__9223372036854767890__9223370311919910434__31__9223372036854770000__1",
+                "metadata__9223372036438563903__9223372036854767890__9223370311919910434__31__9223372036854770000__7__1",
                 translogTransferManager
             )
         );
