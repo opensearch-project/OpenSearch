@@ -63,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
@@ -325,7 +326,18 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
+        return stateWithAssignedPrimariesAndReplicas(indices, numberOfShards, numberOfReplicas, 0);
+    }
 
+    /**
+     * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas,
+        int numberOfSearchReplicas
+    ) {
         int numberOfDataNodes = numberOfReplicas + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfDataNodes + 1; i++) {
@@ -347,6 +359,7 @@ public class ClusterStateCreationUtils {
                         .put(SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                         .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                        .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, numberOfSearchReplicas)
                         .put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
                 .build();
@@ -361,6 +374,19 @@ public class ClusterStateCreationUtils {
                 for (int replica = 0; replica < numberOfReplicas; replica++) {
                     indexShardRoutingBuilder.addShard(
                         TestShardRouting.newShardRouting(index, i, newNode(replica + 1).getId(), null, false, ShardRoutingState.STARTED)
+                    );
+                }
+                for (int replica = numberOfReplicas; replica < numberOfSearchReplicas + numberOfReplicas; replica++) {
+                    indexShardRoutingBuilder.addShard(
+                        TestShardRouting.newShardRouting(
+                            new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, i),
+                            newNode(replica + 1).getId(),
+                            null,
+                            false,
+                            true,
+                            ShardRoutingState.STARTED,
+                            null
+                        )
                     );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
