@@ -31,6 +31,7 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -39,7 +40,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
@@ -101,20 +101,22 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
             .setWaitForCompletion(true)
             .get();
-        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
-        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
+        SnapshotInfo sourceSnapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(sourceSnapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(sourceSnapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(sourceSnapshotInfo.successfulShards(), equalTo(sourceSnapshotInfo.totalShards()));
+        assertThat(sourceSnapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
 
         // Validate that the snapshot was created
-        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
+        final BlobStoreRepository repository = (BlobStoreRepository) internalCluster().getCurrentClusterManagerNodeInstance(
+            RepositoriesService.class
+        ).repository(snapshotRepoName);
         PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
         repository.getRepositoryData(repositoryDataPlainActionFuture);
 
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
 
-        assertTrue(repositoryData.getSnapshotIds().contains(snapshotInfo.snapshotId()));
+        assertTrue(repositoryData.getSnapshotIds().contains(sourceSnapshotInfo.snapshotId()));
 
         createIndex(indexName3, getRemoteStoreBackedIndexSettings());
         indexRandomDocs(indexName3, 10);
@@ -129,19 +131,30 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         awaitClusterManagerFinishRepoOperations();
 
         // Validate that snapshot is present in repository data
-        repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
+
         PlainActionFuture<RepositoryData> repositoryDataPlainActionFutureClone = new PlainActionFuture<>();
         repository.getRepositoryData(repositoryDataPlainActionFutureClone);
 
         repositoryData = repositoryDataPlainActionFutureClone.get();
         assertEquals(repositoryData.getSnapshotIds().size(), 2);
         boolean foundCloneInRepoData = false;
+        SnapshotId cloneSnapshotId = null;
         for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
             if (snapshotId.getName().equals("test_clone_snapshot1")) {
                 foundCloneInRepoData = true;
+                cloneSnapshotId = snapshotId;
             }
         }
+        final SnapshotId cloneSnapshotIdFinal = cloneSnapshotId;
+        SnapshotInfo cloneSnapshotInfo = PlainActionFuture.get(
+            f -> repository.threadPool().generic().execute(ActionRunnable.supply(f, () -> repository.getSnapshotInfo(cloneSnapshotIdFinal)))
+        );
+
         assertTrue(foundCloneInRepoData);
+
+        assertThat(cloneSnapshotInfo.getPinnedTimestamp(), equalTo(sourceSnapshotInfo.getPinnedTimestamp()));
+        assertThat(cloneSnapshotInfo.indices(), equalTo(sourceSnapshotInfo.indices()));
+        assertThat(cloneSnapshotInfo.totalShards(), equalTo(sourceSnapshotInfo.totalShards()));
 
     }
 
