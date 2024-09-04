@@ -18,6 +18,7 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -27,7 +28,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
@@ -70,6 +71,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -89,9 +91,12 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.opensearch.cluster.ClusterState.CUSTOM_VALUE_SERIALIZER;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTE;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
@@ -137,6 +142,49 @@ public class RemoteClusterStateService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<RemoteClusterStateValidationMode> REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING = new Setting<>(
+        "cluster.remote_store.state.checksum_validation.mode",
+        RemoteClusterStateValidationMode.NONE.name(),
+        RemoteClusterStateValidationMode::parseString,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Validation mode for cluster state checksum.
+     *  None: Validation will be disabled.
+     *  Debug: Validation enabled but only matches checksum and logs failing entities.
+     *  Trace: Matches checksum and downloads full cluster state to find diff in failing entities. Only logs failures.
+     *  Failure: Throws exception on failing validation.
+     */
+    public enum RemoteClusterStateValidationMode {
+        DEBUG("debug"),
+        TRACE("trace"),
+        FAILURE("failure"),
+        NONE("none");
+
+        public final String mode;
+
+        RemoteClusterStateValidationMode(String mode) {
+            this.mode = mode;
+        }
+
+        public static RemoteClusterStateValidationMode parseString(String mode) {
+            try {
+                return RemoteClusterStateValidationMode.valueOf(mode.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "["
+                        + mode
+                        + "] mode is not supported. "
+                        + "supported modes are ["
+                        + Arrays.toString(RemoteClusterStateValidationMode.values())
+                        + "]"
+                );
+            }
+        }
+    }
+
     private TimeValue remoteStateReadTimeout;
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -148,6 +196,7 @@ public class RemoteClusterStateService implements Closeable {
     private BlobStoreTransferService blobStoreTransferService;
     private RemoteRoutingTableService remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
+    private RemoteClusterStateValidationMode remoteClusterStateValidationMode;
 
     private final RemotePersistenceStats remoteStateStats;
     private RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
@@ -194,6 +243,9 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         this.remoteStateReadTimeout = clusterSettings.get(REMOTE_STATE_READ_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_STATE_READ_TIMEOUT_SETTING, this::setRemoteStateReadTimeout);
+        this.remoteClusterStateValidationMode = REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING, this::setChecksumValidationMode);
+
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
@@ -245,6 +297,7 @@ public class RemoteClusterStateService implements Closeable {
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
             ClusterState.EMPTY_STATE,
+            MANIFEST_CURRENT_CODEC_VERSION,
             null,
             null
         );
@@ -253,13 +306,14 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousClusterUUID,
             clusterStateDiffManifest,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
             false,
             codecVersion
         );
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateSucceeded();
-        remoteStateStats.stateTook(durationMillis);
+        remoteStateStats.stateUploadSucceeded();
+        remoteStateStats.stateUploadTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
@@ -344,12 +398,18 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         final List<IndexRoutingTable> indicesRoutingToUpload = new ArrayList<>();
-        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff =
-            remoteRoutingTableService.getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
-
-        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiffs = routingTableIncrementalDiff.getDiffs();
-        routingTableIncrementalDiff.getDiffs().forEach((k, v) -> indicesRoutingToUpload.add(clusterState.getRoutingTable().index(k)));
-        routingTableIncrementalDiff.getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
+        final List<String> deletedIndicesRouting = new ArrayList<>();
+        final StringKeyDiffProvider<IndexRoutingTable> routingTableDiff = remoteRoutingTableService.getIndicesRoutingMapDiff(
+            previousClusterState.getRoutingTable(),
+            clusterState.getRoutingTable()
+        );
+        if (routingTableDiff != null && routingTableDiff.provideDiff() != null) {
+            routingTableDiff.provideDiff()
+                .getDiffs()
+                .forEach((k, v) -> indicesRoutingToUpload.add(clusterState.getRoutingTable().index(k)));
+            routingTableDiff.provideDiff().getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
+            deletedIndicesRouting.addAll(routingTableDiff.provideDiff().getDeletes());
+        }
 
         UploadedMetadataResults uploadedMetadataResults;
         // For migration case from codec V0 or V1 to V2, we have added null check on metadata attribute files,
@@ -386,7 +446,7 @@ public class RemoteClusterStateService implements Closeable {
             clusterStateCustomsDiff.getUpserts(),
             updateHashesOfConsistentSettings,
             indicesRoutingToUpload,
-            indexRoutingTableDiffs
+            routingTableDiff
         );
 
         // update the map if the metadata was uploaded
@@ -428,13 +488,14 @@ public class RemoteClusterStateService implements Closeable {
         uploadedMetadataResults.uploadedIndicesRoutingMetadata = remoteRoutingTableService.getAllUploadedIndicesRouting(
             previousManifest,
             uploadedMetadataResults.uploadedIndicesRoutingMetadata,
-            routingTableIncrementalDiff.getDeletes()
+            deletedIndicesRouting
         );
 
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
             previousClusterState,
-            routingTableIncrementalDiff,
+            MANIFEST_CURRENT_CODEC_VERSION,
+            routingTableDiff,
             uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
                 ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
                 : null
@@ -445,13 +506,14 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             clusterStateDiffManifest,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
             false,
             previousManifest.getCodecVersion()
         );
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateSucceeded();
-        remoteStateStats.stateTook(durationMillis);
+        remoteStateStats.stateUploadSucceeded();
+        remoteStateStats.stateUploadTook(durationMillis);
         ParameterizedMessage clusterStateUploadTimeMessage = new ParameterizedMessage(
             CLUSTER_STATE_UPLOAD_TIME_LOG_STRING,
             manifestDetails.getClusterMetadataManifest().getStateVersion(),
@@ -516,14 +578,18 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, ClusterState.Custom> clusterStateCustomToUpload,
         boolean uploadHashesOfConsistentSettings,
         List<IndexRoutingTable> indicesRoutingToUpload,
-        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff
+        StringKeyDiffProvider<IndexRoutingTable> routingTableDiff
     ) throws IOException {
         assert Objects.nonNull(indexMetadataUploadListeners) : "indexMetadataUploadListeners can not be null";
         int totalUploadTasks = indexToUpload.size() + indexMetadataUploadListeners.size() + customToUpload.size()
             + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0)
             + (uploadDiscoveryNodes ? 1 : 0) + (uploadClusterBlock ? 1 : 0) + (uploadTransientSettingMetadata ? 1 : 0)
             + clusterStateCustomToUpload.size() + (uploadHashesOfConsistentSettings ? 1 : 0) + indicesRoutingToUpload.size()
-            + (indexRoutingTableDiff != null && !indexRoutingTableDiff.isEmpty() ? 1 : 0);
+            + ((routingTableDiff != null
+                && routingTableDiff.provideDiff() != null
+                && (!routingTableDiff.provideDiff().getDiffs().isEmpty()
+                    || !routingTableDiff.provideDiff().getDeletes().isEmpty()
+                    || !routingTableDiff.provideDiff().getUpserts().isEmpty())) ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
         List<String> uploadTasks = Collections.synchronizedList(new ArrayList<>(totalUploadTasks));
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new ConcurrentHashMap<>(totalUploadTasks);
@@ -693,13 +759,17 @@ public class RemoteClusterStateService implements Closeable {
                 listener
             );
         });
-        if (indexRoutingTableDiff != null && !indexRoutingTableDiff.isEmpty()) {
+        if (routingTableDiff != null
+            && routingTableDiff.provideDiff() != null
+            && (!routingTableDiff.provideDiff().getDiffs().isEmpty()
+                || !routingTableDiff.provideDiff().getDeletes().isEmpty()
+                || !routingTableDiff.provideDiff().getUpserts().isEmpty())) {
             uploadTasks.add(RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE);
             remoteRoutingTableService.getAsyncIndexRoutingDiffWriteAction(
                 clusterState.metadata().clusterUUID(),
                 clusterState.term(),
                 clusterState.version(),
-                indexRoutingTableDiff,
+                routingTableDiff,
                 listener
             );
         }
@@ -881,6 +951,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
             true,
             previousManifest.getCodecVersion()
         );
@@ -966,6 +1037,10 @@ public class RemoteClusterStateService implements Closeable {
         this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
     }
 
+    private void setChecksumValidationMode(RemoteClusterStateValidationMode remoteClusterStateValidationMode) {
+        this.remoteClusterStateValidationMode = remoteClusterStateValidationMode;
+    }
+
     // Package private for unit test
     RemoteRoutingTableService getRemoteRoutingTableService() {
         return this.remoteRoutingTableService;
@@ -1023,7 +1098,7 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, UploadedMetadataAttribute> clusterStateCustomToRead,
         boolean readIndexRoutingTableDiff,
         boolean includeEphemeral
-    ) throws IOException {
+    ) {
         int totalReadTasks = indicesToRead.size() + customToRead.size() + (readCoordinationMetadata ? 1 : 0) + (readSettingsMetadata
             ? 1
             : 0) + (readTemplatesMetadata ? 1 : 0) + (readDiscoveryNodes ? 1 : 0) + (readClusterBlocks ? 1 : 0)
@@ -1032,7 +1107,7 @@ public class RemoteClusterStateService implements Closeable {
         CountDownLatch latch = new CountDownLatch(totalReadTasks);
         List<RemoteReadResult> readResults = Collections.synchronizedList(new ArrayList<>());
         List<IndexRoutingTable> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
-        AtomicReference<RoutingTableIncrementalDiff> readIndexRoutingTableDiffResults = new AtomicReference<>();
+        AtomicReference<Diff<RoutingTable>> readIndexRoutingTableDiffResults = new AtomicReference<>();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
 
         LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
@@ -1075,7 +1150,7 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
-        LatchedActionListener<RoutingTableIncrementalDiff> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
+        LatchedActionListener<Diff<RoutingTable>> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(response -> {
                 logger.debug("Successfully read routing table diff component from remote");
                 readIndexRoutingTableDiffResults.set(response);
@@ -1296,15 +1371,12 @@ public class RemoteClusterStateService implements Closeable {
         readIndexRoutingTableResults.forEach(
             indexRoutingTable -> indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable)
         );
-        RoutingTableIncrementalDiff routingTableDiff = readIndexRoutingTableDiffResults.get();
+        Diff<RoutingTable> routingTableDiff = readIndexRoutingTableDiffResults.get();
+        RoutingTable newRoutingTable = new RoutingTable(manifest.getRoutingTableVersion(), indicesRouting);
         if (routingTableDiff != null) {
-            routingTableDiff.getDiffs().forEach((key, diff) -> {
-                IndexRoutingTable previousIndexRoutingTable = indicesRouting.get(key);
-                IndexRoutingTable updatedTable = diff.apply(previousIndexRoutingTable);
-                indicesRouting.put(key, updatedTable);
-            });
+            newRoutingTable = routingTableDiff.apply(previousState.getRoutingTable());
         }
-        clusterStateBuilder.routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indicesRouting));
+        clusterStateBuilder.routingTable(newRoutingTable);
 
         return clusterStateBuilder.build();
     }
@@ -1315,8 +1387,10 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean includeEphemeral
     ) throws IOException {
+        final ClusterState clusterState;
+        final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
-            return readClusterStateInParallel(
+            clusterState = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
                 manifest,
                 manifest.getClusterUUID(),
@@ -1335,8 +1409,14 @@ public class RemoteClusterStateService implements Closeable {
                 false,
                 includeEphemeral
             );
+
+            if (includeEphemeral
+                && !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                && manifest.getClusterStateChecksum() != null) {
+                validateClusterStateFromChecksum(manifest, clusterState, clusterName, localNodeId, true);
+            }
         } else {
-            ClusterState clusterState = readClusterStateInParallel(
+            ClusterState state = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
                 manifest,
                 manifest.getClusterUUID(),
@@ -1357,15 +1437,19 @@ public class RemoteClusterStateService implements Closeable {
                 false
             );
             Metadata.Builder mb = Metadata.builder(remoteGlobalMetadataManager.getGlobalMetadata(manifest.getClusterUUID(), manifest));
-            mb.indices(clusterState.metadata().indices());
-            return ClusterState.builder(clusterState).metadata(mb).build();
+            mb.indices(state.metadata().indices());
+            clusterState = ClusterState.builder(state).metadata(mb).build();
         }
+        final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateFullDownloadSucceeded();
+        remoteStateStats.stateFullDownloadTook(durationMillis);
 
+        return clusterState;
     }
 
-    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
-        throws IOException {
+    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId) {
         assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
+        final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         ClusterStateDiffManifest diff = manifest.getDiffManifest();
         List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
             Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
@@ -1390,9 +1474,11 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         List<UploadedIndexMetadata> updatedIndexRouting = new ArrayList<>();
-        updatedIndexRouting.addAll(
-            remoteRoutingTableService.getUpdatedIndexRoutingTableMetadata(diff.getIndicesRoutingUpdated(), manifest.getIndicesRouting())
-        );
+        if (manifest.getCodecVersion() == CODEC_V2 || manifest.getCodecVersion() == CODEC_V3) {
+            updatedIndexRouting.addAll(
+                remoteRoutingTableService.getUpdatedIndexRoutingTableMetadata(diff.getIndicesRoutingUpdated(), manifest.getIndicesRouting())
+            );
+        }
 
         ClusterState updatedClusterState = readClusterStateInParallel(
             previousState,
@@ -1436,16 +1522,193 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         HashMap<String, IndexRoutingTable> indexRoutingTables = new HashMap<>(updatedClusterState.getRoutingTable().getIndicesRouting());
-
-        for (String indexName : diff.getIndicesRoutingDeleted()) {
-            indexRoutingTables.remove(indexName);
+        if (manifest.getCodecVersion() == CODEC_V2 || manifest.getCodecVersion() == CODEC_V3) {
+            for (String indexName : diff.getIndicesRoutingDeleted()) {
+                indexRoutingTables.remove(indexName);
+            }
         }
 
-        return clusterStateBuilder.stateUUID(manifest.getStateUUID())
+        ClusterState clusterState = clusterStateBuilder.stateUUID(manifest.getStateUUID())
             .version(manifest.getStateVersion())
             .metadata(metadataBuilder)
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
+
+        if (!remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) && manifest.getClusterStateChecksum() != null) {
+            validateClusterStateFromChecksum(manifest, clusterState, previousState.getClusterName().value(), localNodeId, false);
+        }
+        final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateDiffDownloadSucceeded();
+        remoteStateStats.stateDiffDownloadTook(durationMillis);
+
+        return clusterState;
+    }
+
+    void validateClusterStateFromChecksum(
+        ClusterMetadataManifest manifest,
+        ClusterState clusterState,
+        String clusterName,
+        String localNodeId,
+        boolean isFullStateDownload
+    ) {
+        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
+        List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(manifest.getClusterStateChecksum());
+        if (failedValidation.isEmpty()) {
+            return;
+        }
+        logger.error(
+            () -> new ParameterizedMessage(
+                "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}. Entities failing validation {}",
+                manifest.getClusterStateChecksum(),
+                newClusterStateChecksum,
+                failedValidation
+            )
+        );
+        if (isFullStateDownload && remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)) {
+            throw new IllegalStateException(
+                "Cluster state checksums do not match during full state read. Validation failed for " + failedValidation
+            );
+        }
+        if (remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)
+            || remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.TRACE)) {
+            // download full cluster state and match against state created for the failing entities
+            ClusterState fullClusterState = readClusterStateInParallel(
+                ClusterState.builder(new ClusterName(clusterName)).build(),
+                manifest,
+                manifest.getClusterUUID(),
+                localNodeId,
+                manifest.getIndices(),
+                manifest.getCustomMetadataMap(),
+                manifest.getCoordinationMetadata() != null,
+                manifest.getSettingsMetadata() != null,
+                manifest.getTransientSettingsMetadata() != null,
+                manifest.getTemplatesMetadata() != null,
+                manifest.getDiscoveryNodesMetadata() != null,
+                manifest.getClusterBlocksMetadata() != null,
+                manifest.getIndicesRouting(),
+                manifest.getHashesOfConsistentSettings() != null,
+                manifest.getClusterStateCustomMap(),
+                false,
+                true
+            );
+            for (String failedEntity : failedValidation) {
+                switch (failedEntity) {
+                    case ClusterStateChecksum.ROUTING_TABLE_CS:
+                        Diff<RoutingTable> routingTableDiff = fullClusterState.routingTable().diff(clusterState.routingTable());
+                        logger.error(() -> new ParameterizedMessage("Failing Diff in routing table {}", routingTableDiff));
+                        break;
+                    case ClusterStateChecksum.NODES_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in discovery nodes {}",
+                                fullClusterState.nodes().diff(clusterState.nodes())
+                            )
+                        );
+                        break;
+                    case ClusterStateChecksum.BLOCKS_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in cluster blocks {}",
+                                fullClusterState.blocks().diff(clusterState.blocks())
+                            )
+                        );
+                        break;
+                    case ClusterStateChecksum.CUSTOMS_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in cluster state customs {}",
+                                DiffableUtils.diff(
+                                    clusterState.customs(),
+                                    fullClusterState.customs(),
+                                    DiffableUtils.getStringKeySerializer(),
+                                    CUSTOM_VALUE_SERIALIZER
+                                )
+                            )
+                        );
+                        break;
+                    case ClusterStateChecksum.COORDINATION_MD_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in coordination md. current md {}, full state md {}",
+                                clusterState.metadata().coordinationMetadata(),
+                                fullClusterState.metadata().coordinationMetadata()
+                            )
+                        );
+                        break;
+                    case ClusterStateChecksum.TRANSIENT_SETTINGS_MD_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in transient settings md. current md {}, full state md {}",
+                                clusterState.metadata().transientSettings(),
+                                fullClusterState.metadata().transientSettings()
+                            )
+                        );
+
+                        break;
+                    case ClusterStateChecksum.SETTINGS_MD_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in settings md. current md {}, full state md {}",
+                                clusterState.metadata().settings(),
+                                fullClusterState.metadata().settings()
+                            )
+                        );
+
+                        break;
+                    case ClusterStateChecksum.HASHES_MD_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in hashes md {}",
+                                ((DiffableStringMap) fullClusterState.metadata().hashesOfConsistentSettings()).diff(
+                                    (DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()
+                                )
+                            )
+                        );
+                        break;
+                    case ClusterStateChecksum.TEMPLATES_MD_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in templates md{}",
+                                fullClusterState.metadata().templatesMetadata().diff(clusterState.metadata().templatesMetadata())
+                            )
+                        );
+                        break;
+                    case ClusterStateChecksum.CUSTOM_MD_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in customs md {}",
+                                DiffableUtils.diff(
+                                    clusterState.metadata().customs(),
+                                    fullClusterState.metadata().customs(),
+                                    DiffableUtils.getStringKeySerializer(),
+                                    Metadata.CUSTOM_VALUE_SERIALIZER
+                                )
+                            )
+                        );
+                        break;
+                    case ClusterStateChecksum.INDICES_CS:
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Failing Diff in index md {}",
+                                DiffableUtils.diff(
+                                    clusterState.metadata().indices(),
+                                    fullClusterState.metadata().indices(),
+                                    DiffableUtils.getStringKeySerializer()
+                                )
+                            )
+                        );
+                        break;
+                    default:
+                        logger.error(() -> new ParameterizedMessage("Unknown failed entity {}", failedEntity));
+                        break;
+                }
+            }
+        }
+        if (remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)) {
+            throw new IllegalStateException(
+                "Cluster state checksums do not match during diff read. Validation failed for " + failedValidation
+            );
+        }
     }
 
     /**
@@ -1641,10 +1904,30 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public void writeMetadataFailed() {
-        getStats().stateFailed();
+        remoteStateStats.stateUploadFailed();
     }
 
-    public RemotePersistenceStats getStats() {
+    public RemotePersistenceStats getRemoteStateStats() {
         return remoteStateStats;
+    }
+
+    public PersistedStateStats getUploadStats() {
+        return remoteStateStats.getUploadStats();
+    }
+
+    public PersistedStateStats getFullDownloadStats() {
+        return remoteStateStats.getRemoteFullDownloadStats();
+    }
+
+    public PersistedStateStats getDiffDownloadStats() {
+        return remoteStateStats.getRemoteDiffDownloadStats();
+    }
+
+    public void fullDownloadFailed() {
+        remoteStateStats.stateFullDownloadFailed();
+    }
+
+    public void diffDownloadFailed() {
+        remoteStateStats.stateDiffDownloadFailed();
     }
 }

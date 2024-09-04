@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Enum to hold the resource type
@@ -25,6 +26,8 @@ public enum ResourceType {
 
     private final String name;
     private final boolean statsEnabled;
+
+    private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
     ResourceType(String name, boolean statsEnabled) {
         this.name = name;
@@ -55,5 +58,9 @@ public enum ResourceType {
 
     public boolean hasStatsEnabled() {
         return statsEnabled;
+    }
+
+    public static List<ResourceType> getSortedValues() {
+        return sortedValues;
     }
 }

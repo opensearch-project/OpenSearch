@@ -111,6 +111,11 @@ public final class RepositoryData {
      * The indices found in the repository across all snapshots, as a name to {@link IndexId} mapping
      */
     private final Map<String, IndexId> indices;
+
+    public Map<IndexId, List<SnapshotId>> getIndexSnapshots() {
+        return indexSnapshots;
+    }
+
     /**
      * The snapshots that each index belongs to.
      */
@@ -517,7 +522,7 @@ public final class RepositoryData {
      * @param indicesToResolve names of indices to resolve
      * @param inFlightIds      name to index mapping for currently in-flight snapshots not yet in the repository data to fall back to
      */
-    public List<IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds) {
+    public List<IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds, int pathType) {
         List<IndexId> snapshotIndices = new ArrayList<>();
         for (String index : indicesToResolve) {
             IndexId indexId = indices.get(index);
@@ -525,7 +530,7 @@ public final class RepositoryData {
                 indexId = inFlightIds.get(index);
             }
             if (indexId == null) {
-                indexId = new IndexId(index, UUIDs.randomBase64UUID());
+                indexId = new IndexId(index, UUIDs.randomBase64UUID(), pathType);
             }
             snapshotIndices.add(indexId);
         }
@@ -544,10 +549,16 @@ public final class RepositoryData {
     private static final String VERSION = "version";
     private static final String MIN_VERSION = "min_version";
 
+    // Visible for testing only
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
+        return snapshotsToXContent(builder, repoMetaVersion, Version.CURRENT);
+    }
+
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion, final Version minNodeVersion)
+        throws IOException {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
@@ -578,6 +589,9 @@ public final class RepositoryData {
         for (final IndexId indexId : getIndices().values()) {
             builder.startObject(indexId.getName());
             builder.field(INDEX_ID, indexId.getId());
+            if (minNodeVersion.onOrAfter(Version.CURRENT)) {
+                builder.field(IndexId.SHARD_PATH_TYPE, indexId.getShardPathType());
+            }
             builder.startArray(SNAPSHOTS);
             List<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
             assert snapshotIds != null;
@@ -765,14 +779,20 @@ public final class RepositoryData {
             final List<SnapshotId> snapshotIds = new ArrayList<>();
             final List<String> gens = new ArrayList<>();
 
+            String id = null;
+            int pathType = IndexId.DEFAULT_SHARD_PATH_TYPE;
             IndexId indexId = null;
+
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 final String indexMetaFieldName = parser.currentName();
                 final XContentParser.Token currentToken = parser.nextToken();
                 switch (indexMetaFieldName) {
                     case INDEX_ID:
-                        indexId = new IndexId(indexName, parser.text());
+                        id = parser.text();
+                        break;
+                    case IndexId.SHARD_PATH_TYPE:
+                        pathType = parser.intValue();
                         break;
                     case SNAPSHOTS:
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
@@ -795,7 +815,7 @@ public final class RepositoryData {
                                 // different versions create or delete snapshot in the same repository.
                                 throw new OpenSearchParseException(
                                     "Detected a corrupted repository, index "
-                                        + indexId
+                                        + new IndexId(indexName, id, pathType)
                                         + " references an unknown snapshot uuid ["
                                         + uuid
                                         + "]"
@@ -812,9 +832,10 @@ public final class RepositoryData {
                         break;
                 }
             }
-            assert indexId != null;
+            assert id != null;
+            indexId = new IndexId(indexName, id, pathType);
             indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
-            indexLookup.put(indexId.getId(), indexId);
+            indexLookup.put(id, indexId);
             for (int i = 0; i < gens.size(); i++) {
                 String parsedGen = gens.get(i);
                 if (parsedGen != null) {

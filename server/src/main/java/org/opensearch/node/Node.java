@@ -178,6 +178,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.SegmentReplicator;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
@@ -234,6 +235,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.deciders.ConcurrentSearchDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
@@ -269,7 +271,7 @@ import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
-import org.opensearch.wlm.listeners.QueryGroupRequestRejectionOperationListener;
+import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
 
 import javax.net.ssl.SNIHostName;
 
@@ -790,6 +792,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
             );
+            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
             final RemoteClusterStateService remoteClusterStateService;
             final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
             final RemoteIndexPathUploader remoteIndexPathUploader;
@@ -798,7 +801,8 @@ public class Node implements Closeable {
                     threadPool,
                     settings,
                     repositoriesServiceReference::get,
-                    clusterService.getClusterSettings()
+                    clusterService.getClusterSettings(),
+                    remoteStoreSettings
                 );
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
@@ -870,12 +874,12 @@ public class Node implements Closeable {
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
-            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
             final CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(settings, settingsModule.getClusterSettings());
 
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
-                threadPool
+                threadPool,
+                remoteStoreSettings.getSegmentsPathFixedPrefix()
             );
 
             final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
@@ -1019,11 +1023,12 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
-            final QueryGroupRequestRejectionOperationListener queryGroupRequestRejectionListener =
-                new QueryGroupRequestRejectionOperationListener(
-                    new QueryGroupService(), // We will need to replace this with actual instance of the queryGroupService
-                    threadPool
-                );
+            final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
+                                                                                 // queryGroupService
+            final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
+                queryGroupService,
+                threadPool
+            );
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
@@ -1033,7 +1038,7 @@ public class Node implements Closeable {
                             searchRequestStats,
                             searchRequestSlowLog,
                             searchTaskRequestOperationsListener,
-                            queryGroupRequestRejectionListener
+                            queryGroupRequestOperationListener
                         ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
@@ -1207,7 +1212,8 @@ public class Node implements Closeable {
                 repositoryService,
                 transportService,
                 actionModule.getActionFilters(),
-                remoteStorePinnedTimestampService
+                remoteStorePinnedTimestampService,
+                remoteStoreSettings
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,
@@ -1334,7 +1340,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 circuitBreakerService,
                 searchModule.getIndexSearcherExecutor(threadPool),
-                taskResourceTrackingService
+                taskResourceTrackingService,
+                searchModule.getConcurrentSearchDeciders()
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -1417,6 +1424,7 @@ public class Node implements Closeable {
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
+                b.bind(RemoteStoreSettings.class).toInstance(remoteStoreSettings);
                 {
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
@@ -1430,7 +1438,8 @@ public class Node implements Closeable {
                                 transportService,
                                 new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                                 indicesService,
-                                clusterService
+                                clusterService,
+                                new SegmentReplicator(threadPool)
                             )
                         );
                     b.bind(SegmentReplicationSourceService.class)
@@ -1990,7 +1999,8 @@ public class Node implements Closeable {
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        Collection<ConcurrentSearchDecider> concurrentSearchDecidersList
     ) {
         return new SearchService(
             clusterService,
@@ -2003,7 +2013,8 @@ public class Node implements Closeable {
             responseCollectorService,
             circuitBreakerService,
             indexSearcherExecutor,
-            taskResourceTrackingService
+            taskResourceTrackingService,
+            concurrentSearchDecidersList
         );
     }
 
