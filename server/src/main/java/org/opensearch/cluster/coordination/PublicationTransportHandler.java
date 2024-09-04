@@ -502,21 +502,7 @@ public class PublicationTransportHandler {
             } else {
                 responseActionListener = listener;
             }
-<<<<<<< HEAD
             sendClusterState(destination, responseActionListener);
-=======
-            // TODO Decide to send remote state before starting publication by checking remote publication on all nodes
-            if (sendRemoteState && destination.isRemoteStatePublicationEnabled()) {
-                logger.trace("sending remote cluster state version [{}] to [{}]", newState.version(), destination);
-                sendRemoteClusterState(destination, publishRequest.getAcceptedState(), responseActionListener);
-            } else if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
-                logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
-                sendFullClusterState(destination, responseActionListener);
-            } else {
-                logger.trace("sending cluster state diff for version [{}] to [{}]", newState.version(), destination);
-                sendClusterStateDiff(destination, responseActionListener);
-            }
->>>>>>> f0cf40ce03f (cleanup unused code and remove added log lines)
         }
 
         public void sendApplyCommit(
