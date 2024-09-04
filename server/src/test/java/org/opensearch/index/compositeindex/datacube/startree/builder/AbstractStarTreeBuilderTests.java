@@ -47,7 +47,6 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -56,6 +55,7 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDoc
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.FieldValueConverter;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
@@ -1895,13 +1895,13 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
 
         StarTreeValues starTreeValues = new StarTreeValues(expectedStarTreeMetadata, dataIn, compositeDocValuesProducer, readState);
         assertEquals(expectedStarTreeMetadata.getStarTreeDocCount(), starTreeValues.getStarTreeDocumentCount());
-        List<StarTreeNumericType> starTreeNumericTypes = new ArrayList<>();
+        List<FieldValueConverter> fieldValueConverters = new ArrayList<>();
         builder.metricAggregatorInfos.forEach(
-            metricAggregatorInfo -> starTreeNumericTypes.add(metricAggregatorInfo.getValueAggregators().getAggregatedValueType())
+            metricAggregatorInfo -> fieldValueConverters.add(metricAggregatorInfo.getValueAggregators().getAggregatedValueType())
         );
         StarTreeDocument[] starTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
             List.of(starTreeValues),
-            starTreeNumericTypes,
+            fieldValueConverters,
             readState.segmentInfo.maxDoc()
         );
 
