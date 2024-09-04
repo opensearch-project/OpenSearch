@@ -705,7 +705,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 snapshotInfoListener.whenComplete(sourceSnapshotInfo -> {
                     if (sourceSnapshotInfo.getPinnedTimestamp() > 0) {
-                        if (!hasWildCardPatterForCloneSnapshotV2(request.indices())) {
+                        if (hasWildCardPatterForCloneSnapshotV2(request.indices()) == false) {
                             throw new SnapshotException(
                                 repositoryName,
                                 snapshotName,
@@ -781,16 +781,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
                 final List<String> matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
-                if (matchingIndices.isEmpty()) {
-                    throw new SnapshotException(
-                        new Snapshot(repositoryName, sourceSnapshotId),
-                        "No indices in the source snapshot ["
-                            + sourceSnapshotId
-                            + "] matched requested pattern ["
-                            + Strings.arrayToCommaDelimitedString(request.indices())
-                            + "]"
-                    );
-                }
                 SnapshotsInProgress.Entry newEntry = SnapshotsInProgress.startClone(
                     snapshot,
                     sourceSnapshotId,
