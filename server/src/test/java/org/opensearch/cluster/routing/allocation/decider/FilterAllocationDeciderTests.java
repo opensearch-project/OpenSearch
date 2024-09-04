@@ -323,7 +323,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         return createInitialClusterState(service, indexSettings, Settings.EMPTY);
     }
 
-    private ClusterState createInitialClusterState(AllocationService service, Settings idxSettings, Settings clusterSettings) {
+    static ClusterState createInitialClusterState(AllocationService service, Settings idxSettings, Settings clusterSettings) {
         Metadata.Builder metadata = Metadata.builder();
         metadata.persistentSettings(clusterSettings);
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(idxSettings);
