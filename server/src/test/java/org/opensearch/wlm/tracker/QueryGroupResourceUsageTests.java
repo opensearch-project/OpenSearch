@@ -11,6 +11,8 @@ package org.opensearch.wlm.tracker;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.MutableQueryGroupFragment;
+import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
@@ -44,8 +46,7 @@ public class QueryGroupResourceUsageTests extends OpenSearchTestCase {
         clock.fastForwardBy(fastForwardTime);
         QueryGroup queryGroup = new QueryGroup(
             "testQG",
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(ResourceType.CPU, 0.5 / PROCESSOR_COUNT)
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5 / PROCESSOR_COUNT))
         );
 
         sut.initialise(List.of(createMockTaskWithResourceStats(QueryGroupTask.class, fastForwardTime, 200, 0, 123)), clock::getTime);
@@ -66,8 +67,7 @@ public class QueryGroupResourceUsageTests extends OpenSearchTestCase {
         TestClock clock = new TestClock();
         QueryGroup queryGroup = new QueryGroup(
             "testQG",
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(ResourceType.MEMORY, 500.0 / HEAP_SIZE_BYTES)
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 500.0 / HEAP_SIZE_BYTES))
         );
 
         sut.initialise(List.of(createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 123)), clock::getTime);

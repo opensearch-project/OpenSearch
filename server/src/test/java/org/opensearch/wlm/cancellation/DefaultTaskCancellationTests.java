@@ -14,6 +14,8 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.MutableQueryGroupFragment;
+import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
@@ -97,8 +99,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
         clock.fastForwardBy(1000);
@@ -134,8 +135,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
         when(memoryUsage.isBreachingThresholdFor(any(), any())).thenReturn(false);
@@ -162,8 +162,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
         when(memoryUsage.getCurrentUsage()).thenReturn(0.15);
@@ -178,7 +177,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -192,8 +191,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
         when(memoryUsage.getCurrentUsage()).thenReturn(0.0);
@@ -220,8 +218,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
@@ -238,7 +235,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             () -> false
         );
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.SOFT);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT);
         assertEquals(0, cancellableTasksFrom.size());
     }
 
@@ -252,8 +249,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
@@ -279,7 +275,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             () -> false
         );
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -300,16 +296,14 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup activeQueryGroup = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         QueryGroup deletedQueryGroup = new QueryGroup(
             "testQueryGroup",
             queryGroupId2,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
@@ -353,7 +347,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             () -> true
         );
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -385,16 +379,14 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup activeQueryGroup = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         QueryGroup deletedQueryGroup = new QueryGroup(
             "testQueryGroup",
             queryGroupId2,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
@@ -436,7 +428,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             () -> false
         );
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -467,16 +459,14 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         QueryGroup queryGroup2 = new QueryGroup(
             "testQueryGroup",
             queryGroupId2,
-            QueryGroup.ResiliencyMode.SOFT,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.SOFT, Map.of(resourceType, threshold)),
             1L
         );
 
@@ -508,12 +498,12 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
             () -> true
         );
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
-        List<TaskCancellation> cancellableTasksFrom1 = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.SOFT);
+        List<TaskCancellation> cancellableTasksFrom1 = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT);
         assertEquals(2, cancellableTasksFrom1.size());
         assertEquals(5678, cancellableTasksFrom1.get(0).getTask().getId());
         assertEquals(8765, cancellableTasksFrom1.get(1).getTask().getId());
@@ -534,8 +524,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
         when(queryGroupCpuUsage.isBreachingThresholdFor(any(), any())).thenReturn(false);
@@ -549,7 +538,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
-        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
         assertTrue(allCancellableTasks.isEmpty());
     }
 
@@ -562,8 +551,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
         when(queryGroupCpuUsage.isBreachingThresholdFor(any(), any())).thenReturn(true);
@@ -578,7 +566,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         queryGroupLevelViews.put(queryGroupId1, mockView);
         activeQueryGroups.add(queryGroup1);
 
-        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
         assertEquals(2, allCancellableTasks.size());
         assertEquals(1234, allCancellableTasks.get(0).getTask().getId());
         assertEquals(4321, allCancellableTasks.get(1).getTask().getId());
@@ -592,15 +580,13 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup1",
             queryGroupId1,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
         QueryGroup queryGroup2 = new QueryGroup(
             "testQueryGroup2",
             queryGroupId2,
-            QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(resourceType, threshold),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 

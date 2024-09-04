@@ -11,6 +11,7 @@ package org.opensearch.wlm.cancellation;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancellation;
+import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
@@ -76,7 +77,7 @@ public class DefaultTaskCancellation {
      */
     public final void cancelTasks() {
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
-        cancelTasks(QueryGroup.ResiliencyMode.ENFORCED);
+        cancelTasks(ResiliencyMode.ENFORCED);
         // if the node is in duress, cancel tasks accordingly.
         handleNodeDuress();
     }
@@ -86,10 +87,7 @@ public class DefaultTaskCancellation {
             return;
         }
         // List of tasks to be executed in order if the node is in duress
-        List<Consumer<Void>> duressActions = List.of(
-            v -> cancelTasksFromDeletedQueryGroups(),
-            v -> cancelTasks(QueryGroup.ResiliencyMode.SOFT)
-        );
+        List<Consumer<Void>> duressActions = List.of(v -> cancelTasksFromDeletedQueryGroups(), v -> cancelTasks(ResiliencyMode.SOFT));
 
         for (Consumer<Void> duressAction : duressActions) {
             if (!isNodeInDuress.getAsBoolean()) {
@@ -108,7 +106,7 @@ public class DefaultTaskCancellation {
      *
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getAllCancellableTasks(QueryGroup.ResiliencyMode resiliencyMode) {
+    protected List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode) {
         return getAllCancellableTasks(getQueryGroupsToCancelFrom(resiliencyMode));
     }
 
@@ -126,7 +124,7 @@ public class DefaultTaskCancellation {
      *
      * @return List of QueryGroups
      */
-    private List<QueryGroup> getQueryGroupsToCancelFrom(QueryGroup.ResiliencyMode resiliencyMode) {
+    private List<QueryGroup> getQueryGroupsToCancelFrom(ResiliencyMode resiliencyMode) {
         final List<QueryGroup> queryGroupsToCancelFrom = new ArrayList<>();
 
         for (QueryGroup queryGroup : this.activeQueryGroups) {
@@ -151,7 +149,7 @@ public class DefaultTaskCancellation {
         return queryGroupsToCancelFrom;
     }
 
-    private void cancelTasks(QueryGroup.ResiliencyMode resiliencyMode) {
+    private void cancelTasks(ResiliencyMode resiliencyMode) {
         cancelTasks(getAllCancellableTasks(resiliencyMode));
     }
 
