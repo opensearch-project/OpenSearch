@@ -12,7 +12,6 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -21,6 +20,7 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -44,7 +44,7 @@ public class StarTreeTestUtils {
 
     public static StarTreeDocument[] getSegmentsStarTreeDocuments(
         List<StarTreeValues> starTreeValuesSubs,
-        List<StarTreeNumericType> starTreeNumericTypes,
+        List<FieldValueConverter> fieldValueConverters,
         int numDocs
     ) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
@@ -75,7 +75,7 @@ public class StarTreeTestUtils {
             }
             int currentDocId = 0;
             while (currentDocId < numDocs) {
-                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, starTreeNumericTypes));
+                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, fieldValueConverters));
                 currentDocId++;
             }
         }
@@ -87,7 +87,7 @@ public class StarTreeTestUtils {
         int currentDocId,
         SequentialDocValuesIterator[] dimensionReaders,
         List<SequentialDocValuesIterator> metricReaders,
-        List<StarTreeNumericType> starTreeNumericTypes
+        List<FieldValueConverter> fieldValueConverters
     ) throws IOException {
         Long[] dims = new Long[dimensionReaders.length];
         int i = 0;
@@ -101,15 +101,15 @@ public class StarTreeTestUtils {
         Object[] metrics = new Object[metricReaders.size()];
         for (SequentialDocValuesIterator metricDocValuesIterator : metricReaders) {
             metricDocValuesIterator.nextDoc(currentDocId);
-            metrics[i] = toStarTreeNumericTypeValue(metricDocValuesIterator.value(currentDocId), starTreeNumericTypes.get(i));
+            metrics[i] = toAggregatorValueType(metricDocValuesIterator.value(currentDocId), fieldValueConverters.get(i));
             i++;
         }
         return new StarTreeDocument(dims, metrics);
     }
 
-    public static Double toStarTreeNumericTypeValue(Long value, StarTreeNumericType starTreeNumericType) {
+    public static Double toAggregatorValueType(Long value, FieldValueConverter fieldValueConverter) {
         try {
-            return starTreeNumericType.getDoubleValue(value);
+            return fieldValueConverter.toDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }

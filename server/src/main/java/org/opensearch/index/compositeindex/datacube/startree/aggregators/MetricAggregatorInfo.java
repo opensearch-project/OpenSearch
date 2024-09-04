@@ -8,8 +8,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
-import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 import java.util.Comparator;
 import java.util.Objects;
@@ -27,15 +26,15 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
     private final MetricStat metricStat;
     private final String field;
     private final ValueAggregator valueAggregators;
-    private final StarTreeNumericType starTreeNumericType;
+    private final FieldValueConverter fieldValueConverter;
 
     /**
      * Constructor for MetricAggregatorInfo
      */
-    public MetricAggregatorInfo(MetricStat metricStat, String field, String starFieldName, IndexNumericFieldData.NumericType numericType) {
+    public MetricAggregatorInfo(MetricStat metricStat, String field, String starFieldName, FieldValueConverter fieldValueConverter) {
         this.metricStat = metricStat;
-        this.starTreeNumericType = StarTreeNumericType.fromNumericType(numericType);
-        this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat, this.starTreeNumericType);
+        this.fieldValueConverter = fieldValueConverter;
+        this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat, this.fieldValueConverter);
         this.field = field;
         this.starFieldName = starFieldName;
         this.metric = toFieldName();
@@ -72,8 +71,8 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
     /**
      * @return star tree aggregated value type
      */
-    public StarTreeNumericType getAggregatedValueType() {
-        return starTreeNumericType;
+    public FieldValueConverter getNumericFieldConverter() {
+        return fieldValueConverter;
     }
 
     /**
