@@ -106,6 +106,7 @@ public class CoordinationState {
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
         this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
+        // ToDo: revisit this check while making the setting dynamic
         this.isRemotePublicationEnabled = isRemoteStateEnabled
             && FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
             && localNode.isRemoteStatePublicationEnabled();
@@ -461,7 +462,6 @@ public class CoordinationState {
             clusterState.term()
         );
         persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(clusterState);
-
         if (shouldUpdateRemotePersistedState(publishRequest)) {
             updateRemotePersistedStateOnPublishRequest(publishRequest);
         }
@@ -626,32 +626,28 @@ public class CoordinationState {
     }
 
     private boolean shouldUpdateRemotePersistedState(PublishRequest publishRequest) {
-        return isRemotePublicationEnabled
-            && localNode.isClusterManagerNode()
+        return persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null
             && publishRequest.getAcceptedState().getNodes().isLocalNodeElectedClusterManager() == false;
     }
 
     private void updateRemotePersistedStateOnPublishRequest(PublishRequest publishRequest) {
-        if (publishRequest.hasManifest()) {
-            assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null;
+        if (publishRequest instanceof RemoteStatePublishRequest) {
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(publishRequest.getAcceptedState());
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE)
-                .setLastAcceptedManifest(publishRequest.getAcceptedManifest().get());
+                .setLastAcceptedManifest(((RemoteStatePublishRequest) publishRequest).getAcceptedManifest());
         } else {
-            // We will end up here if PublishRequest was sent not using Remote Store even with remotePublication enabled on this node
+            // We will end up here if PublishRequest was sent not using Remote Store even with remote persisted state on this node
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(null);
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedManifest(null);
         }
     }
 
     private boolean shouldCommitRemotePersistedState() {
-        return isRemotePublicationEnabled
-            && localNode.isClusterManagerNode()
+        return persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null
             && persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL)
                 .getLastAcceptedState()
                 .getNodes()
                 .isLocalNodeElectedClusterManager() == false
-            && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null
             && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState() != null
             && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest() != null;
     }

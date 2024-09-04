@@ -959,7 +959,7 @@ public class RemoteClusterStateService implements Closeable {
                 emptyMap(),
                 false,
                 emptyList(),
-                emptyMap()
+                null
             ).uploadedCoordinationMetadata;
         }
         UploadedMetadataResults uploadedMetadataResults = new UploadedMetadataResults(

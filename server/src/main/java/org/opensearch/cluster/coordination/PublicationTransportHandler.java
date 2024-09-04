@@ -325,7 +325,7 @@ public class PublicationTransportHandler {
             }
         }
         if (manifest != null) {
-            return handlePublishRequest.apply(new PublishRequest(incomingState, manifest));
+            return handlePublishRequest.apply(new RemoteStatePublishRequest(incomingState, manifest));
         }
         return handlePublishRequest.apply(new PublishRequest(incomingState));
     }
@@ -542,7 +542,7 @@ public class PublicationTransportHandler {
         }
 
         public void sendClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            logger.info("sending cluster state over transport to node: {}", destination.getName());
+            logger.debug("sending cluster state over transport to node: {}", destination.getName());
             if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);
@@ -642,7 +642,7 @@ public class PublicationTransportHandler {
         @Override
         public void sendClusterState(final DiscoveryNode destination, final ActionListener<PublishWithJoinResponse> listener) {
             try {
-                logger.info("sending remote cluster state to node: {}", destination.getName());
+                logger.debug("sending remote cluster state to node: {}", destination.getName());
                 final String manifestFileName = ((RemotePersistedState) persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE))
                     .getLastUploadedManifestFile();
                 final RemotePublishRequest remotePublishRequest = new RemotePublishRequest(

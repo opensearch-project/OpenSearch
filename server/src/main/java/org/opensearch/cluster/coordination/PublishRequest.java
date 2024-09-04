@@ -32,10 +32,8 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Request which is used by the cluster-manager node to publish cluster state changes.
@@ -46,28 +44,13 @@ import java.util.Optional;
 public class PublishRequest {
 
     private final ClusterState acceptedState;
-    private final ClusterMetadataManifest acceptedManifest;
 
     public PublishRequest(ClusterState acceptedState) {
         this.acceptedState = acceptedState;
-        this.acceptedManifest = null;
-    }
-
-    public PublishRequest(ClusterState acceptedState, ClusterMetadataManifest acceptedManifest) {
-        this.acceptedState = acceptedState;
-        this.acceptedManifest = acceptedManifest;
     }
 
     public ClusterState getAcceptedState() {
         return acceptedState;
-    }
-
-    public boolean hasManifest() {
-        return acceptedManifest != null;
-    }
-
-    public Optional<ClusterMetadataManifest> getAcceptedManifest() {
-        return Optional.ofNullable(acceptedManifest);
     }
 
     @Override
@@ -77,26 +60,16 @@ public class PublishRequest {
 
         PublishRequest that = (PublishRequest) o;
 
-        return acceptedState.term() == that.acceptedState.term()
-            && acceptedState.version() == that.acceptedState.version()
-            && Objects.equals(acceptedManifest, that.acceptedManifest);
+        return acceptedState.term() == that.acceptedState.term() && acceptedState.version() == that.acceptedState.version();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(acceptedState.term(), acceptedState.version(), acceptedManifest);
+        return Objects.hash(acceptedState.term(), acceptedState.version());
     }
 
     @Override
     public String toString() {
-        return "PublishRequest{term="
-            + acceptedState.term()
-            + ", version="
-            + acceptedState.version()
-            + ", state="
-            + acceptedState
-            + ", manifest="
-            + acceptedManifest
-            + '}';
+        return "PublishRequest{term=" + acceptedState.term() + ", version=" + acceptedState.version() + ", state=" + acceptedState + '}';
     }
 }

@@ -1066,7 +1066,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .clusterUUIDCommitted(true)
             .build();
 
-        PublishResponse publishResponse = coordinationState.handlePublishRequest(new PublishRequest(state2, manifest));
+        PublishResponse publishResponse = coordinationState.handlePublishRequest(new RemoteStatePublishRequest(state2, manifest));
         assertEquals(state2.term(), publishResponse.getTerm());
         assertEquals(state2.version(), publishResponse.getVersion());
         verifyNoInteractions(remoteClusterStateService);
@@ -1141,7 +1141,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .build();
 
         PublishRequest publishRequest = coordinationState.handleClientValue(state2);
-        coordinationState.handlePublishRequest(new PublishRequest(publishRequest.getAcceptedState(), manifest));
+        coordinationState.handlePublishRequest(new RemoteStatePublishRequest(publishRequest.getAcceptedState(), manifest));
         ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(node2, state2.term(), state2.version());
         coordinationState.handleCommit(applyCommitRequest);
         verifyNoInteractions(remoteClusterStateService);
