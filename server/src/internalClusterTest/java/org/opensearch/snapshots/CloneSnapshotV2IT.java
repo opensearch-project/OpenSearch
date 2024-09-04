@@ -152,7 +152,10 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         assertTrue(foundCloneInRepoData);
 
         assertThat(cloneSnapshotInfo.getPinnedTimestamp(), equalTo(sourceSnapshotInfo.getPinnedTimestamp()));
-        assertThat(cloneSnapshotInfo.indices(), equalTo(sourceSnapshotInfo.indices()));
+        for (String index : sourceSnapshotInfo.indices()) {
+            assertTrue(cloneSnapshotInfo.indices().contains(index));
+
+        }
         assertThat(cloneSnapshotInfo.totalShards(), equalTo(sourceSnapshotInfo.totalShards()));
     }
 

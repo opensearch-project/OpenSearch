@@ -712,7 +712,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 "Aborting clone for Snapshot-v2, only wildcard pattern '*' is supported for indices"
                             );
                         }
-                        cloneSnapshotV2(request, snapshot, repositoryName, repository, listener);
+                        cloneSnapshotV3(request, snapshot, repositoryName, repository, listener);
                     } else {
                         cloneSnapshot(request, snapshot, repositoryName, repository, listener);
                     }
@@ -872,6 +872,159 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             listener.onFailure(e);
         }
 
+    }
+
+    public void cloneSnapshotV3(
+        CloneSnapshotRequest request,
+        Snapshot snapshot,
+        String repositoryName,
+        Repository repository,
+        ActionListener<Void> listener
+    ) {
+
+        long startTime = System.currentTimeMillis();
+        ClusterState currentState = clusterService.state();
+        String snapshotName = snapshot.getSnapshotId().getName();
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
+            private SnapshotsInProgress.Entry newEntry;
+            private SnapshotId sourceSnapshotId;
+            private List<String> matchingIndices;
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
+
+                sourceSnapshotId = repositoryData.getSnapshotIds()
+                    .stream()
+                    .filter(src -> src.getName().equals(request.source()))
+                    .findAny()
+                    .orElseThrow(() -> new SnapshotMissingException(repositoryName, request.source()));
+
+                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
+                    SnapshotDeletionsInProgress.TYPE,
+                    SnapshotDeletionsInProgress.EMPTY
+                );
+                if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(sourceSnapshotId))) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repositoryName,
+                        sourceSnapshotId.getName(),
+                        "cannot clone from snapshot that is being deleted"
+                    );
+                }
+                final List<String> indicesForSnapshot = new ArrayList<>();
+                for (IndexId indexId : repositoryData.getIndices().values()) {
+                    if (repositoryData.getSnapshots(indexId).contains(sourceSnapshotId)) {
+                        indicesForSnapshot.add(indexId.getName());
+                    }
+                }
+                matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
+
+                newEntry = SnapshotsInProgress.startClone(
+                    snapshot,
+                    sourceSnapshotId,
+                    repositoryData.resolveIndices(matchingIndices),
+                    threadPool.absoluteTimeInMillis(),
+                    repositoryData.getGenId(),
+                    minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null)
+                );
+                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
+                newEntries.add(newEntry);
+                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(newEntries)).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to clone snapshot", repositoryName, snapshotName), e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                logger.info("snapshot clone [{}] started", snapshot);
+                //addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
+                final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
+                final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+                executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
+                final ShardGenerations shardGenerations = repositoryData.shardGenerations();
+                snapshotInfoListener.whenComplete(snapshotInfo -> {
+                    final SnapshotInfo cloneSnapshotInfo = new SnapshotInfo(
+                        snapshot.getSnapshotId(),
+                        matchingIndices,
+                        newEntry.dataStreams(),
+                        startTime,
+                        null,
+                        System.currentTimeMillis(),
+                        shardGenerations.totalShards(),
+                        Collections.emptyList(),
+                        newEntry.includeGlobalState(),
+                        newEntry.userMetadata(),
+                        true,
+                        snapshotInfo.getPinnedTimestamp()
+                    );
+                    if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                        throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
+                    }
+                    final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
+                    pinnedTimestampListener.whenComplete(repoData -> { listener.onResponse(null); }, listener::onFailure);
+                    repository.finalizeSnapshot(
+                        shardGenerations,
+                        repositoryData.getGenId(),
+                        metadataForSnapshot(
+                            currentState.metadata(),
+                            newEntry.includeGlobalState(),
+                            false,
+                            newEntry.dataStreams(),
+                            newEntry.indices()
+                        ),
+                        cloneSnapshotInfo,
+                        repositoryData.getVersion(sourceSnapshotId),
+                        state -> stateWithoutSnapshot(newState, snapshot),
+                        Priority.IMMEDIATE,
+                        new ActionListener<RepositoryData>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                                    failSnapshotCompletionListeners(
+                                        snapshot,
+                                        new SnapshotException(snapshot, "Aborting Snapshot, no longer cluster manager")
+                                    );
+                                    listener.onFailure(
+                                        new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager")
+                                    );
+                                    return;
+                                }
+                                cloneSnapshotPinnedTimestamp(
+                                    repositoryData,
+                                    sourceSnapshotId,
+                                    snapshot,
+                                    snapshotInfo.getPinnedTimestamp(),
+                                    pinnedTimestampListener
+                                );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error(
+                                    "Failed to upload files to snapshot repo {} for clone snapshot {} ",
+                                    repositoryName,
+                                    snapshotName
+                                );
+                                listener.onFailure(e);
+                            }
+                        }
+                    );
+
+                },listener::onFailure);
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return request.clusterManagerNodeTimeout();
+            }
+        }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
 
     // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
