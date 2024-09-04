@@ -119,23 +119,23 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         Document doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedNumericDocValuesField("dv", 1));
-        doc.add(new SortedNumericDocValuesField("field", 1));
+        doc.add(new SortedNumericDocValuesField("field", -1));
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedNumericDocValuesField("dv", 1));
-        doc.add(new SortedNumericDocValuesField("field", 1));
+        doc.add(new SortedNumericDocValuesField("field", -1));
         iw.addDocument(doc);
         doc = new Document();
         iw.forceMerge(1);
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedNumericDocValuesField("dv", 2));
-        doc.add(new SortedNumericDocValuesField("field", 2));
+        doc.add(new SortedNumericDocValuesField("field", -2));
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedNumericDocValuesField("dv", 2));
-        doc.add(new SortedNumericDocValuesField("field", 2));
+        doc.add(new SortedNumericDocValuesField("field", -2));
         iw.addDocument(doc);
         iw.forceMerge(1);
         iw.close();
@@ -144,11 +144,39 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         TestUtil.checkReader(ir);
         assertEquals(1, ir.leaves().size());
 
+        // Segment documents
+        /**
+         * sndv dv field
+         * [1,  1,   -1]
+         * [1,  1,   -1]
+         * [2,  2,   -2]
+         * [2,  2,   -2]
+         */
+        // Star tree docuements
+        /**
+         * sndv dv | [ sum, value_count, min, max[field]] , [ sum, value_count, min, max[sndv]], doc_count
+         * [1, 1] | [-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0]
+         * [2, 2] | [-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0]
+         * [null, 1] | [-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0]
+         * [null, 2] | [-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0]
+         */
         StarTreeDocument[] expectedStarTreeDocuments = new StarTreeDocument[4];
-        expectedStarTreeDocuments[0] = new StarTreeDocument(new Long[] { 1L, 1L }, new Double[] { 2.0, 2.0, 2.0 });
-        expectedStarTreeDocuments[1] = new StarTreeDocument(new Long[] { 2L, 2L }, new Double[] { 4.0, 2.0, 4.0 });
-        expectedStarTreeDocuments[2] = new StarTreeDocument(new Long[] { null, 1L }, new Double[] { 2.0, 2.0, 2.0 });
-        expectedStarTreeDocuments[3] = new StarTreeDocument(new Long[] { null, 2L }, new Double[] { 4.0, 2.0, 4.0 });
+        expectedStarTreeDocuments[0] = new StarTreeDocument(
+            new Long[] { 1L, 1L },
+            new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+        );
+        expectedStarTreeDocuments[1] = new StarTreeDocument(
+            new Long[] { 2L, 2L },
+            new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+        );
+        expectedStarTreeDocuments[2] = new StarTreeDocument(
+            new Long[] { null, 1L },
+            new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+        );
+        expectedStarTreeDocuments[3] = new StarTreeDocument(
+            new Long[] { null, 2L },
+            new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+        );
 
         for (LeafReaderContext context : ir.leaves()) {
             SegmentReader reader = Lucene.segmentReader(context.reader());
@@ -159,7 +187,17 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 StarTreeValues starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(compositeIndexFieldInfo);
                 StarTreeDocument[] starTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
                     List.of(starTreeValues),
-                    List.of(StarTreeNumericType.DOUBLE, StarTreeNumericType.LONG, StarTreeNumericType.LONG),
+                    List.of(
+                        StarTreeNumericType.DOUBLE,
+                        StarTreeNumericType.LONG,
+                        StarTreeNumericType.DOUBLE,
+                        StarTreeNumericType.DOUBLE,
+                        StarTreeNumericType.DOUBLE,
+                        StarTreeNumericType.LONG,
+                        StarTreeNumericType.DOUBLE,
+                        StarTreeNumericType.DOUBLE,
+                        StarTreeNumericType.LONG
+                    ),
                     reader.maxDoc()
                 );
                 assertStarTreeDocuments(starTreeDocuments, expectedStarTreeDocuments);
@@ -190,6 +228,19 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             b.startArray("stats");
             b.value("sum");
             b.value("value_count");
+            b.value("avg");
+            b.value("min");
+            b.value("max");
+            b.endArray();
+            b.endObject();
+            b.startObject();
+            b.field("name", "sndv");
+            b.startArray("stats");
+            b.value("sum");
+            b.value("value_count");
+            b.value("avg");
+            b.value("min");
+            b.value("max");
             b.endArray();
             b.endObject();
             b.endArray();
