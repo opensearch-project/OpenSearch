@@ -32,7 +32,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SegmentReplicatorTest extends IndexShardTestCase {
+public class SegmentReplicatorTests extends IndexShardTestCase {
 
     public void testStartReplicationWithoutSourceFactory() {
         ThreadPool threadpool = mock(ThreadPool.class);
