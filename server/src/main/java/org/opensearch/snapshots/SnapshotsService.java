@@ -803,13 +803,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to clone snapshot", repositoryName, snapshotName), e);
+                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to clone snapshot-v2", repositoryName, snapshotName), e);
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-                logger.info("snapshot clone [{}] started", snapshot);
+                logger.info("snapshot-v2 clone [{}] started", snapshot);
                 // addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
                 final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
                 final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -833,10 +833,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         snapshotInfo.getPinnedTimestamp()
                     );
                     if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
-                        throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
+                        throw new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2 clone, no longer cluster manager");
                     }
                     final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                    pinnedTimestampListener.whenComplete(repoData -> { listener.onResponse(null); }, listener::onFailure);
+                    pinnedTimestampListener.whenComplete(repoData -> {
+                        logger.info("snapshot-v2 clone [{}] completed successfully", snapshot);
+                        listener.onResponse(null);
+                    }, listener::onFailure);
                     repository.finalizeSnapshot(
                         shardGenerations,
                         repositoryData.getGenId(),
@@ -857,10 +860,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
                                     failSnapshotCompletionListeners(
                                         snapshot,
-                                        new SnapshotException(snapshot, "Aborting Snapshot, no longer cluster manager")
+                                        new SnapshotException(snapshot, "Aborting Snapshot-v2 clone, no longer cluster manager")
                                     );
                                     listener.onFailure(
-                                        new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager")
+                                        new SnapshotException(
+                                            repositoryName,
+                                            snapshotName,
+                                            "Aborting Snapshot-v2 clone, no longer cluster manager"
+                                        )
                                     );
                                     return;
                                 }
@@ -876,7 +883,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             @Override
                             public void onFailure(Exception e) {
                                 logger.error(
-                                    "Failed to upload files to snapshot repo {} for clone snapshot {} ",
+                                    "Failed to upload files to snapshot repo {} for clone snapshot-v2 {} ",
                                     repositoryName,
                                     snapshotName
                                 );
@@ -892,7 +899,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public TimeValue timeout() {
                 return request.clusterManagerNodeTimeout();
             }
-        }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
+        }, "clone_snapshot_v2 [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
 
     // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
