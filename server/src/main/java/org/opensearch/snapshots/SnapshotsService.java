@@ -755,7 +755,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
             private SnapshotId sourceSnapshotId;
-            private List<String> matchingIndices;
+            private List<String> indicesForSnapshot;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -780,18 +780,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "cannot clone from snapshot that is being deleted"
                     );
                 }
-                final List<String> indicesForSnapshot = new ArrayList<>();
+                indicesForSnapshot = new ArrayList<>();
                 for (IndexId indexId : repositoryData.getIndices().values()) {
                     if (repositoryData.getSnapshots(indexId).contains(sourceSnapshotId)) {
                         indicesForSnapshot.add(indexId.getName());
                     }
                 }
-                matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
 
                 newEntry = SnapshotsInProgress.startClone(
                     snapshot,
                     sourceSnapshotId,
-                    repositoryData.resolveIndices(matchingIndices),
+                    repositoryData.resolveIndices(indicesForSnapshot),
                     threadPool.absoluteTimeInMillis(),
                     repositoryData.getGenId(),
                     minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null)
@@ -810,7 +809,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
                 logger.info("snapshot-v2 clone [{}] started", snapshot);
-                // addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
                 final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
                 final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
@@ -820,7 +818,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 snapshotInfoListener.whenComplete(snapshotInfo -> {
                     final SnapshotInfo cloneSnapshotInfo = new SnapshotInfo(
                         snapshot.getSnapshotId(),
-                        matchingIndices,
+                        indicesForSnapshot,
                         newEntry.dataStreams(),
                         startTime,
                         null,

@@ -64,7 +64,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
