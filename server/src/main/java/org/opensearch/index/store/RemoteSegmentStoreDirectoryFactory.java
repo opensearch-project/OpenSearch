@@ -116,4 +116,8 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         }
     }
 
+    public Supplier<RepositoriesService> getRepositoriesService() {
+        return this.repositoriesService;
+    }
+
 }

@@ -637,7 +637,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         String metadataPrefix = "metadata__1__2__3__4__5__";
         Map<Long, String> metadataFiles = new HashMap<>();
         for (Long metadataFileTimestamp : metadataFileTimestamps) {
-            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp));
+            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp) + "__1");
         }
         return new Tuple<>(
             metadataFiles,
@@ -662,7 +662,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             String primaryTerm = RemoteStoreUtils.invertLong(metadataFileTimestampPrimaryTerm.getValue());
             String metadataPrefix = "metadata__" + primaryTerm + "__2__3__4__5__";
             long metadataFileTimestamp = metadataFileTimestampPrimaryTerm.getKey();
-            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp));
+            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp) + "__1");
         }
         return new Tuple<>(
             metadataFiles,
