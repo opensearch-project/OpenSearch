@@ -48,6 +48,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -407,6 +408,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeLong(version);
+        out.writeMapValues(indicesRouting, (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
+    }
+
     private static class RoutingTableDiff implements Diff<RoutingTable>, StringKeyDiffProvider<IndexRoutingTable> {
 
         private final long version;
@@ -424,6 +430,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         RoutingTableDiff(StreamInput in) throws IOException {
             version = in.readLong();
             indicesRouting = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DIFF_VALUE_READER);
+        }
+
+        @Override
+        public String toString() {
+            return "RoutingTableDiff{" + "version=" + version + ", indicesRouting=" + indicesRouting + '}';
         }
 
         @Override

@@ -14,6 +14,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,6 +66,10 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
         }
     }
 
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeMapValues(templates, (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -78,6 +83,11 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
     @Override
     public int hashCode() {
         return templates != null ? templates.hashCode() : 0;
+    }
+
+    @Override
+    public String toString() {
+        return "TemplatesMetadata{" + "templates=" + templates + '}';
     }
 
     /**
