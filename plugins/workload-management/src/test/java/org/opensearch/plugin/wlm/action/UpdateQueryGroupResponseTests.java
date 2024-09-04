@@ -22,36 +22,37 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 import static org.mockito.Mockito.mock;
 
-public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
+public class UpdateQueryGroupResponseTests extends OpenSearchTestCase {
 
     /**
-     * Test case to verify serialization and deserialization of CreateQueryGroupResponse.
+     * Test case to verify the serialization and deserialization of UpdateQueryGroupResponse.
      */
     public void testSerialization() throws IOException {
-        CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
+        UpdateQueryGroupResponse response = new UpdateQueryGroupResponse(queryGroupOne, RestStatus.OK);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        CreateQueryGroupResponse otherResponse = new CreateQueryGroupResponse(streamInput);
+        UpdateQueryGroupResponse otherResponse = new UpdateQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         QueryGroup responseGroup = response.getQueryGroup();
         QueryGroup otherResponseGroup = otherResponse.getQueryGroup();
-        List<QueryGroup> listOne = new ArrayList<>();
-        List<QueryGroup> listTwo = new ArrayList<>();
-        listOne.add(responseGroup);
-        listTwo.add(otherResponseGroup);
-        QueryGroupTestUtils.assertEqualQueryGroups(listOne, listTwo, false);
+        List<QueryGroup> list1 = new ArrayList<>();
+        List<QueryGroup> list2 = new ArrayList<>();
+        list1.add(responseGroup);
+        list2.add(otherResponseGroup);
+        QueryGroupTestUtils.assertEqualQueryGroups(list1, list2, false);
     }
 
     /**
-     * Test case to validate the toXContent method of CreateQueryGroupResponse.
+     * Test case to verify the toXContent method of UpdateQueryGroupResponse.
      */
-    public void testToXContentCreateQueryGroup() throws IOException {
+    public void testToXContentUpdateSingleQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
-        String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
+        UpdateQueryGroupResponse otherResponse = new UpdateQueryGroupResponse(queryGroupOne, RestStatus.OK);
+        String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
             + "  \"name\" : \"query_group_one\",\n"
