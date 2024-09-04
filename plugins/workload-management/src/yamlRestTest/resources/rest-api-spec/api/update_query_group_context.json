@@ -1,0 +1,23 @@
+{
+  "update_query_group_context": {
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_wlm/query_group/{name}",
+          "methods": ["PUT", "POST"],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "QueryGroup name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The updated QueryGroup schema"
+    }
+  }
+}

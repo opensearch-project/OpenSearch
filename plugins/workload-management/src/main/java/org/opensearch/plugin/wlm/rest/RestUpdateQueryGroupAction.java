@@ -11,9 +11,10 @@ package org.opensearch.plugin.wlm.rest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.plugin.wlm.action.GetQueryGroupAction;
-import org.opensearch.plugin.wlm.action.GetQueryGroupRequest;
-import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.plugin.wlm.action.UpdateQueryGroupAction;
+import org.opensearch.plugin.wlm.action.UpdateQueryGroupRequest;
+import org.opensearch.plugin.wlm.action.UpdateQueryGroupResponse;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -24,23 +25,24 @@ import org.opensearch.rest.action.RestResponseListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
- * Rest action to get a QueryGroup
+ * Rest action to update a QueryGroup
  *
  * @opensearch.experimental
  */
-public class RestGetQueryGroupAction extends BaseRestHandler {
+public class RestUpdateQueryGroupAction extends BaseRestHandler {
 
     /**
-     * Constructor for RestGetQueryGroupAction
+     * Constructor for RestUpdateQueryGroupAction
      */
-    public RestGetQueryGroupAction() {}
+    public RestUpdateQueryGroupAction() {}
 
     @Override
     public String getName() {
-        return "get_query_group";
+        return "update_query_group";
     }
 
     /**
@@ -48,19 +50,21 @@ public class RestGetQueryGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "_wlm/query_group/{name}"), new Route(GET, "_wlm/query_group/"));
+        return List.of(new Route(POST, "_wlm/query_group/{name}"), new Route(PUT, "_wlm/query_group/{name}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final GetQueryGroupRequest getQueryGroupRequest = new GetQueryGroupRequest(request.param("name"));
-        return channel -> client.execute(GetQueryGroupAction.INSTANCE, getQueryGroupRequest, getQueryGroupResponse(channel));
+        try (XContentParser parser = request.contentParser()) {
+            UpdateQueryGroupRequest updateQueryGroupRequest = UpdateQueryGroupRequest.fromXContent(parser, request.param("name"));
+            return channel -> client.execute(UpdateQueryGroupAction.INSTANCE, updateQueryGroupRequest, updateQueryGroupResponse(channel));
+        }
     }
 
-    private RestResponseListener<GetQueryGroupResponse> getQueryGroupResponse(final RestChannel channel) {
+    private RestResponseListener<UpdateQueryGroupResponse> updateQueryGroupResponse(final RestChannel channel) {
         return new RestResponseListener<>(channel) {
             @Override
-            public RestResponse buildResponse(final GetQueryGroupResponse response) throws Exception {
+            public RestResponse buildResponse(final UpdateQueryGroupResponse response) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, response.toXContent(channel.newBuilder(), ToXContent.EMPTY_PARAMS));
             }
         };
