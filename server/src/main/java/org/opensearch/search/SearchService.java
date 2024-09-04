@@ -338,6 +338,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> KEYWORD_INDEX_OR_DOC_VALUES_ENABLED = Setting.boolSetting(
+        "search.keyword_index_or_doc_values_enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -1174,6 +1181,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
             );
             context.setDerivedFieldResolver(derivedFieldResolver);
+            context.setKeywordFieldIndexOrDocValuesEnabled(searchContext.keywordIndexOrDocValuesEnabled());
             searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
             Rewriteable.rewrite(request.getRewriteable(), context, true);
             assert searchContext.getQueryShardContext().isCacheable();
