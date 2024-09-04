@@ -8,10 +8,15 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -43,6 +48,7 @@ public class StarTreeQueryHelper {
      */
     public static boolean isStarTreeSupported(SearchContext context, boolean trackTotalHits) {
         boolean canUseStarTree = context.aggregations() != null
+//            && context.size() == 0
             && context.mapperService().isCompositeIndexPresent()
             && context.parsedPostFilter() == null
             && context.innerHits().getInnerHits().isEmpty()
@@ -97,6 +103,9 @@ public class StarTreeQueryHelper {
                 .map(Dimension::getField)
                 .collect(Collectors.toList());
             queryMap = getStarTreePredicates(queryBuilder, supportedDimensions);
+            if (queryMap == null) {
+                return null;
+            }
         } else {
             return null;
         }
@@ -113,7 +122,7 @@ public class StarTreeQueryHelper {
         TermQueryBuilder tq = (TermQueryBuilder) queryBuilder;
         String field = tq.fieldName();
         if (!supportedDimensions.contains(field)) {
-            throw new IllegalArgumentException("unsupported field in star-tree");
+            return null;
         }
         long inputQueryVal = Long.parseLong(tq.value().toString());
 
@@ -139,5 +148,21 @@ public class StarTreeQueryHelper {
         } else {
             return false;
         }
+    }
+
+    public static CompositeIndexFieldInfo getSupportedStarTree(SearchContext context) {
+        if (context.query() instanceof StarTreeQuery) {
+            return ((StarTreeQuery) context.query()).getStarTree();
+        }
+        return null;
+    }
+
+    public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
+        SegmentReader reader = Lucene.segmentReader(context.reader());
+        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {
+            return null;
+        }
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+        return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
     }
 }

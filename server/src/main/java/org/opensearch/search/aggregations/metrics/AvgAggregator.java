@@ -34,13 +34,13 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericTypeConverters;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
@@ -55,6 +55,9 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into an average
@@ -99,7 +102,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree();
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
             return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }
@@ -153,6 +156,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.SUM.getTypeName()
         );
+        assert starTreeValues != null;
         SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(sumMetricName);
 
         String countMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
@@ -180,7 +184,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                     kahanSummation.reset(sum, compensation);
 
                     for (int i = 0; i < valueCount; i++) {
-                        double value = NumericUtils.sortableLongToDouble(values.nextValue());
+                        double value = StarTreeNumericTypeConverters.sortableLongtoDouble(values.nextValue());
                         kahanSummation.add(value);
                     }
 

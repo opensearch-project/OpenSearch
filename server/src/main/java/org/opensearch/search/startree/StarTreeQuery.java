@@ -100,12 +100,7 @@ public class StarTreeQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                try {
-                    return getStarTreeValues(ctx).getStarTreeDocumentCount() < ctx.reader().maxDoc();
-                } catch (Exception suppressed) {
-                    assert false : "Not able to check cacheable criteria";
-                    return false;
-                }
+                return false;
             }
 
             private StarTreeValues getStarTreeValues(LeafReaderContext ctx) throws IOException {

@@ -31,17 +31,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentReader;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.Comparators;
-import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
-import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.search.startree.StarTreeQuery;
 
 import java.io.IOException;
 import java.util.Map;
@@ -85,13 +78,6 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
             }
             return (lhs, rhs) -> Comparators.compareDiscardNaN(metric(lhs), metric(rhs), order == SortOrder.ASC);
         }
-
-        public CompositeIndexFieldInfo getSupportedStarTree() {
-            if (context.query() instanceof StarTreeQuery) {
-                return ((StarTreeQuery) context.query()).getStarTree();
-            }
-            return null;
-        }
     }
 
     /**
@@ -120,15 +106,5 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
             // TODO it'd be faster replace hasMetric and metric with something that returned a function from long to double.
             return (lhs, rhs) -> Comparators.compareDiscardNaN(metric(key, lhs), metric(key, rhs), order == SortOrder.ASC);
         }
-    }
-
-    protected StarTreeValues getStarTreeValues(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        SegmentReader reader = Lucene.segmentReader(ctx.reader());
-        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {
-            return null;
-        }
-        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
-        StarTreeValues values = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
-        return values;
     }
 }

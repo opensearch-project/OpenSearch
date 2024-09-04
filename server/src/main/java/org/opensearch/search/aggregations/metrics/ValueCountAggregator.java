@@ -54,6 +54,9 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
+
 /**
  * A field data based aggregator that counts the number of values a specific field has within the aggregation context.
  * <p>
@@ -93,7 +96,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
         if (valuesSource instanceof ValuesSource.Numeric) {
 
-            CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree();
+            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
             if (supportedStarTree != null) {
                 return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
             }
@@ -146,6 +149,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.VALUE_COUNT.getTypeName()
         );
+        assert starTreeValues != null;
         SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
         final BigArrays bigArrays = context.bigArrays();
 
