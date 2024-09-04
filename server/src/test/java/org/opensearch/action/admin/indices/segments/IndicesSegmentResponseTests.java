@@ -43,6 +43,7 @@ import org.opensearch.index.engine.Segment;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +96,7 @@ public class IndicesSegmentResponseTests extends OpenSearchTestCase {
                 shardSegmentsList.add(new ShardSegments(shardRouting, segmentList));
             }
         }
+        Collections.shuffle(shardSegmentsList);
 
         // Prepare the IndicesSegmentResponse object and get the indicesSegments map
         IndicesSegmentResponse response = new IndicesSegmentResponse(
@@ -112,6 +114,10 @@ public class IndicesSegmentResponseTests extends OpenSearchTestCase {
             for (IndexShardSegments indexShardSegment : indexSegmentEntry.getValue().getShards().values()) {
                 for (ShardSegments shardSegment : indexShardSegment.getShards()) {
                     assertEquals(segmentsPerShard, shardSegment.getSegments().size());
+                    for (int i = 0; i < segmentsPerShard; i++) {
+                        String segmentName = indexSegmentEntry.getKey() + shardSegment.getShardRouting().getId() + i;
+                        assertEquals(segmentName, shardSegment.getSegments().get(i).getName());
+                    }
                 }
             }
         }
