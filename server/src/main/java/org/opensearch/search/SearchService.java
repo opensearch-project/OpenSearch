@@ -77,12 +77,10 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
-import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -101,7 +99,6 @@ import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.AggregationInitializationException;
 import org.opensearch.search.aggregations.AggregatorFactories;
-import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
@@ -142,6 +139,7 @@ import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.startree.OriginalOrStarTreeQuery;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -1364,12 +1362,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.evaluateRequestShouldUseConcurrentSearch();
             return;
         }
-        // Can be marked false for majority cases for which star-tree cannot be used
-        // As we increment the cases where star-tree can be used, this can be set back to true
-        boolean canUseStarTree = source.aggregations() != null
-            && includeAggregations
-            && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
-            && context.mapperService().isCompositeIndexPresent();
 
         SearchShardTarget shardTarget = context.shardTarget();
         QueryShardContext queryShardContext = context.getQueryShardContext();
@@ -1381,12 +1373,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.parsedQuery(queryShardContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
-            canUseStarTree = false;
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
             context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
         }
         if (!innerHitBuilders.isEmpty()) {
-            canUseStarTree = false;
             for (Map.Entry<String, InnerHitContextBuilder> entry : innerHitBuilders.entrySet()) {
                 try {
                     entry.getValue().build(context, context.innerHits());
@@ -1396,7 +1386,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.sorts() != null) {
-            canUseStarTree = false;
             try {
                 Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());
                 optionalSort.ifPresent(context::sort);
@@ -1413,12 +1402,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.trackTotalHitsUpTo() != null) {
             context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
-            if (source.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
-                canUseStarTree = false;
-            }
         }
         if (source.minScore() != null) {
-            canUseStarTree = false;
             context.minimumScore(source.minScore());
         }
         if (source.timeout() != null) {
@@ -1559,41 +1544,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
         }
 
-        if (canUseStarTree) {
+        if (this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
+            && StarTreeQueryHelper.isStarTreeSupported(context, source.trackTotalHitsUpTo() != null)) {
             try {
-                if (setStarTreeQuery(context, queryShardContext, source)) {
+                OriginalOrStarTreeQuery parsedQuery = StarTreeQueryHelper.getOriginalOrStarTreeQuery(context, source);
+                if (parsedQuery != null) {
+                    context.parsedQuery(new ParsedQuery(parsedQuery));
                     logger.debug("can use star tree");
                 } else {
                     logger.debug("cannot use star tree");
                 }
             } catch (IOException ignored) {}
         }
-    }
-
-    private boolean setStarTreeQuery(SearchContext context, QueryShardContext queryShardContext, SearchSourceBuilder source)
-        throws IOException {
-        // Current implementation assumes only single star-tree is supported
-        CompositeDataCubeFieldType compositeMappedFieldType = (StarTreeMapper.StarTreeFieldType) context.mapperService()
-            .getCompositeFieldTypes()
-            .iterator()
-            .next();
-        CompositeIndexFieldInfo starTree = new CompositeIndexFieldInfo(
-            compositeMappedFieldType.name(),
-            compositeMappedFieldType.getCompositeIndexType()
-        );
-
-        ParsedQuery newParsedQuery = queryShardContext.toStarTreeQuery(starTree, compositeMappedFieldType, source.query(), context.query());
-        if (newParsedQuery == null) {
-            return false;
-        }
-
-        for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
-            if (queryShardContext.validateStarTreeMetricSuport(compositeMappedFieldType, aggregatorFactory) == false) {
-                return false;
-            }
-        }
-        context.parsedQuery(newParsedQuery);
-        return true;
     }
 
     /**
