@@ -151,11 +151,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static BoostingQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder positiveQuery = null;
         boolean positiveQueryFound = false;

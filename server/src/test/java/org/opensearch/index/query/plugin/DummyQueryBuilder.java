@@ -62,11 +62,6 @@ public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
         builder.startObject(NAME).endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static DummyQueryBuilder fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         assert token == XContentParser.Token.END_OBJECT;
