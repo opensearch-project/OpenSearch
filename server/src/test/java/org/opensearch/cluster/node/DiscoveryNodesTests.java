@@ -38,9 +38,9 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
