@@ -9,11 +9,11 @@
 package org.opensearch.wlm.cancellation;
 
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.wlm.QueryGroupTask;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
+import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
 
@@ -173,7 +173,13 @@ public class DefaultTaskCancellation {
     }
 
     private boolean shouldCancelTasks(QueryGroup queryGroup, ResourceType resourceType) {
-        return getReduceBy(queryGroup, resourceType) > MIN_VALUE;
+        if (queryGroup == null || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
+            return false;
+        }
+        QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
+        return queryGroupResourceUsageView.getResourceUsageData()
+            .get(resourceType)
+            .isBreachingThresholdFor(queryGroup, workloadManagementSettings);
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
@@ -225,7 +231,8 @@ public class DefaultTaskCancellation {
     }
 
     private double getReduceBy(QueryGroup queryGroup, ResourceType resourceType) {
-        if (queryGroup.getResourceLimits().get(resourceType) == null || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
+        if (queryGroup.getResourceLimits().get(resourceType) == null
+            || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
             return 0;
         }
         final QueryGroupLevelResourceUsageView queryGroupLevelResourceUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());

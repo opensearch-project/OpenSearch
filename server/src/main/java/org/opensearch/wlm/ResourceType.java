@@ -10,11 +10,8 @@ package org.opensearch.wlm;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.tasks.Task;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 /**
  * Enum to hold the resource type

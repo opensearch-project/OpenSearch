@@ -14,12 +14,12 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
-import org.opensearch.wlm.QueryGroupTask;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.wlm.tracker.TaskResourceUsageCalculator;
+import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerServiceTests.TestClock;
+import org.opensearch.wlm.tracker.TaskResourceUsageCalculator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +30,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.H
 
 public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
     private TestClock clock;
+
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
         clock = new TestClock();
         DefaultTaskSelectionStrategy testDefaultTaskSelectionStrategy = new DefaultTaskSelectionStrategy(clock::getTime);
@@ -70,7 +71,7 @@ public class DefaultTaskSelectionStrategyTests extends OpenSearchTestCase {
         double memory = 0;
         for (Task task : selectedTasks) {
             memory += TaskResourceUsageCalculator.from(ResourceType.MEMORY).calculateFor(task, clock::getTime);
-            if ((memory - threshold) > MIN_VALUE ) {
+            if ((memory - threshold) > MIN_VALUE) {
                 return true;
             }
         }

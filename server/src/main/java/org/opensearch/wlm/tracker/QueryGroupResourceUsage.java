@@ -24,7 +24,6 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.P
 public abstract class QueryGroupResourceUsage {
     private double currentUsage;
 
-
     /**
      * getter for value field
      * @return resource usage value
@@ -43,9 +42,8 @@ public abstract class QueryGroupResourceUsage {
         } else if (resourceType == ResourceType.MEMORY) {
             return new QueryGroupMemoryUsage();
         }
-        throw new IllegalArgumentException("Invalid resource type: " + resourceType.getName() + ". It is currently not supported in wlm");
+        throw new IllegalArgumentException("Invalid resource type: " + resourceType + ". It is currently not supported in wlm");
     }
-
 
     /**
      * Determines whether {@link QueryGroup} is breaching its threshold for the resource

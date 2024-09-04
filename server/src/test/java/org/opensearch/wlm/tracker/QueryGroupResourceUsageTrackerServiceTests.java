@@ -31,13 +31,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.wlm.QueryGroupTask.QUERY_GROUP_ID_HEADER;
+import static org.opensearch.wlm.cancellation.DefaultTaskCancellation.MIN_VALUE;
+import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.HEAP_SIZE_BYTES;
+import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.PROCESSOR_COUNT;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.wlm.cancellation.DefaultTaskCancellation.MIN_VALUE;
-import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.HEAP_SIZE_BYTES;
-import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.PROCESSOR_COUNT;
 
 public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCase {
     TestThreadPool threadPool;
@@ -83,7 +83,10 @@ public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCa
         for (String queryGroupId : queryGroupIds) {
             assertEquals(
                 (400 * 1.0f) / HEAP_SIZE_BYTES,
-                stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.MEMORY).getCurrentUsage(),
+                stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId)
+                    .getResourceUsageData()
+                    .get(ResourceType.MEMORY)
+                    .getCurrentUsage(),
                 MIN_VALUE
             );
             assertEquals(
@@ -110,8 +113,16 @@ public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCa
         Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = queryGroupResourceUsageTrackerService
             .constructQueryGroupLevelUsageViews();
 
-        assertEquals((double)600 / HEAP_SIZE_BYTES,  queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.MEMORY).getCurrentUsage(), MIN_VALUE);
-        assertEquals(((double)300) / (PROCESSOR_COUNT * 2000),  queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.CPU).getCurrentUsage(), MIN_VALUE);
+        assertEquals(
+            (double) 600 / HEAP_SIZE_BYTES,
+            queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.MEMORY).getCurrentUsage(),
+            MIN_VALUE
+        );
+        assertEquals(
+            ((double) 300) / (PROCESSOR_COUNT * 2000),
+            queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.CPU).getCurrentUsage(),
+            MIN_VALUE
+        );
         assertEquals(2, queryGroupViews.get("queryGroup1").getActiveTasks().size());
     }
 

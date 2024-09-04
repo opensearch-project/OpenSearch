@@ -8,13 +8,7 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.tasks.CancellableTask;
 import org.opensearch.test.OpenSearchTestCase;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ResourceTypeTests extends OpenSearchTestCase {
 

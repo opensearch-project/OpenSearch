@@ -8,7 +8,6 @@
 
 package org.opensearch.wlm;
 
-
 import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
 
 import java.util.List;

@@ -8,9 +8,7 @@
 
 package org.opensearch.wlm.tracker;
 
-import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.monitor.jvm.JvmStats;
-import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
@@ -39,8 +37,7 @@ public class QueryGroupResourceUsageTrackerService {
      *
      * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
-    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService,
-                                                 Supplier<Long> nanoTimeSupplier) {
+    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService, Supplier<Long> nanoTimeSupplier) {
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.nanoTimeSupplier = nanoTimeSupplier;
     }
@@ -58,17 +55,14 @@ public class QueryGroupResourceUsageTrackerService {
         for (Map.Entry<String, List<QueryGroupTask>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
             // Compute the QueryGroup resource usage
             final Map<ResourceType, QueryGroupResourceUsage> resourceUsage = new HashMap<>();
-            for (ResourceType resourceType: TRACKED_RESOURCES) {
+            for (ResourceType resourceType : TRACKED_RESOURCES) {
                 final QueryGroupResourceUsage queryGroupResourceUsage = QueryGroupResourceUsage.from(resourceType);
                 queryGroupResourceUsage.initialise(queryGroupEntry.getValue(), nanoTimeSupplier);
                 resourceUsage.put(resourceType, queryGroupResourceUsage);
             }
 
             // Add to the QueryGroup View
-            queryGroupViews.put(
-                queryGroupEntry.getKey(),
-                new QueryGroupLevelResourceUsageView(resourceUsage, queryGroupEntry.getValue())
-            );
+            queryGroupViews.put(queryGroupEntry.getKey(), new QueryGroupLevelResourceUsageView(resourceUsage, queryGroupEntry.getValue()));
         }
         return queryGroupViews;
     }
