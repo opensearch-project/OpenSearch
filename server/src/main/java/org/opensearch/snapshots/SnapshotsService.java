@@ -838,8 +838,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         ),
                         cloneSnapshotInfo,
                         repositoryData.getVersion(sourceSnapshotId),
-                        state -> stateWithoutSnapshot(state, snapshot),
-                        Priority.NORMAL,
+                        state -> state,
+                        Priority.IMMEDIATE,
                         new ActionListener<RepositoryData>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {

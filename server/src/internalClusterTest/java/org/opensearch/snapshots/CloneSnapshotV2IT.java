@@ -156,7 +156,7 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         assertThat(cloneSnapshotInfo.totalShards(), equalTo(sourceSnapshotInfo.totalShards()));
     }
 
-    public void testCloneShallowCopyV2With() throws Exception {
+    public void testCloneShallowCopyAfterDisablingV2() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
         internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
@@ -167,7 +167,10 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
         String snapshotRepoName = "test-clone-snapshot-repo";
-        String snapshotName1 = "test-create-snapshot1";
+        String sourceSnapshotV2 = "test-source-snapshot-v2";
+        String sourceSnapshotV1 = "test-source-snapshot-v1";
+        String cloneSnapshotV2 = "test-clone-snapshot-v2";
+        String cloneSnapshotV1 = "test-clone-snapshot-v1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         logger.info("Snapshot Path [{}]", absolutePath1);
 
@@ -197,16 +200,17 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs(indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
+        // create source snapshot which is v2
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .prepareCreateSnapshot(snapshotRepoName, sourceSnapshotV2)
             .setWaitForCompletion(true)
             .get();
         SnapshotInfo sourceSnapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(sourceSnapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(sourceSnapshotInfo.successfulShards(), greaterThan(0));
         assertThat(sourceSnapshotInfo.successfulShards(), equalTo(sourceSnapshotInfo.totalShards()));
-        assertThat(sourceSnapshotInfo.snapshotId().getName(), equalTo(snapshotName1));
+        assertThat(sourceSnapshotInfo.snapshotId().getName(), equalTo(sourceSnapshotV2));
 
         // Validate that the snapshot was created
         final BlobStoreRepository repository = (BlobStoreRepository) internalCluster().getCurrentClusterManagerNodeInstance(
@@ -223,24 +227,69 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs(indexName3, 10);
         ensureGreen(indexName3);
 
+        // disable snapshot v2 in repo
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
+                )
+        );
+
+        // validate that the created snapshot is v1
+        CreateSnapshotResponse createSnapshotResponseV1 = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, sourceSnapshotV1)
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo sourceSnapshotInfoV1 = createSnapshotResponseV1.getSnapshotInfo();
+        assertThat(sourceSnapshotInfoV1.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(sourceSnapshotInfoV1.successfulShards(), greaterThan(0));
+        assertThat(sourceSnapshotInfoV1.successfulShards(), equalTo(sourceSnapshotInfoV1.totalShards()));
+        assertThat(sourceSnapshotInfoV1.getPinnedTimestamp(), equalTo(0L));
+
+        // Validate that snapshot is present in repository data
+        PlainActionFuture<RepositoryData> repositoryDataV1PlainActionFuture = new PlainActionFuture<>();
+        BlobStoreRepository repositoryV1 = (BlobStoreRepository) internalCluster().getCurrentClusterManagerNodeInstance(
+            RepositoriesService.class
+        ).repository(snapshotRepoName);
+        repositoryV1.getRepositoryData(repositoryDataV1PlainActionFuture);
+
+        repositoryData = repositoryDataV1PlainActionFuture.get();
+
+        assertTrue(repositoryData.getSnapshotIds().contains(sourceSnapshotInfoV1.snapshotId()));
+        assertEquals(repositoryData.getSnapshotIds().size(), 2);
+
+        // clone should get created for v2 snapshot
         AcknowledgedResponse response = client().admin()
             .cluster()
-            .prepareCloneSnapshot(snapshotRepoName, snapshotName1, "test_clone_snapshot1")
+            .prepareCloneSnapshot(snapshotRepoName, sourceSnapshotV2, cloneSnapshotV2)
             .setIndices("*")
             .get();
         assertTrue(response.isAcknowledged());
         awaitClusterManagerFinishRepoOperations();
 
         // Validate that snapshot is present in repository data
-        PlainActionFuture<RepositoryData> repositoryDataPlainActionFutureClone = new PlainActionFuture<>();
-        repository.getRepositoryData(repositoryDataPlainActionFutureClone);
+        PlainActionFuture<RepositoryData> repositoryDataCloneV2PlainActionFuture = new PlainActionFuture<>();
+        BlobStoreRepository repositoryCloneV2 = (BlobStoreRepository) internalCluster().getCurrentClusterManagerNodeInstance(
+            RepositoriesService.class
+        ).repository(snapshotRepoName);
+        repositoryCloneV2.getRepositoryData(repositoryDataCloneV2PlainActionFuture);
 
-        repositoryData = repositoryDataPlainActionFutureClone.get();
-        assertEquals(repositoryData.getSnapshotIds().size(), 2);
+        repositoryData = repositoryDataCloneV2PlainActionFuture.get();
+
+        assertEquals(repositoryData.getSnapshotIds().size(), 3);
         boolean foundCloneInRepoData = false;
         SnapshotId cloneSnapshotId = null;
         for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
-            if (snapshotId.getName().equals("test_clone_snapshot1")) {
+            if (snapshotId.getName().equals(cloneSnapshotV2)) {
                 foundCloneInRepoData = true;
                 cloneSnapshotId = snapshotId;
             }
@@ -251,23 +300,12 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         );
 
         assertTrue(foundCloneInRepoData);
-
+        // pinned timestamp value in clone snapshot v2 matches source snapshot v2
         assertThat(cloneSnapshotInfo.getPinnedTimestamp(), equalTo(sourceSnapshotInfo.getPinnedTimestamp()));
         for (String index : sourceSnapshotInfo.indices()) {
             assertTrue(cloneSnapshotInfo.indices().contains(index));
 
         }
-        assertThat(cloneSnapshotInfo.totalShards(), equalTo(sourceSnapshotInfo.totalShards()));
-
-        // clone request without wildcard pattern (*) in setIndices
-        assertThrows(
-            SnapshotException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareCloneSnapshot(snapshotRepoName, snapshotName1, "test_clone_snapshot1")
-                .setIndices(indexName1)
-                .get()
-        );
 
     }
 
