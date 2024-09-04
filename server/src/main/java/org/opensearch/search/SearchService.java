@@ -1367,6 +1367,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // Can be marked false for majority cases for which star-tree cannot be used
         // As we increment the cases where star-tree can be used, this can be set back to true
         boolean canUseStarTree = source.aggregations() != null
+            && includeAggregations
             && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
             && context.mapperService().isCompositeIndexPresent();
 

@@ -8,6 +8,8 @@
 
 package org.opensearch.search.aggregations.startree;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
@@ -99,7 +101,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
 
-        Random random = new Random();
+        Random random = RandomizedTest.getRandom();
         int totalDocs = 100;
         final String SNDV = "sndv";
         final String DV = "dv";

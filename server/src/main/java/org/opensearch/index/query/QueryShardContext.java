@@ -35,6 +35,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
@@ -599,7 +600,7 @@ public class QueryShardContext extends QueryRewriteContext {
         Query query
     ) {
         Map<String, Long> queryMap;
-        if (queryBuilder == null) {
+        if (queryBuilder == null || query instanceof MatchAllDocsQuery) {
             queryMap = null;
         } else if (queryBuilder instanceof TermQueryBuilder) {
             List<String> supportedDimensions = compositeIndexFieldInfo.getDimensions()
