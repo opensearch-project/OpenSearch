@@ -71,11 +71,6 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static MatchNoneQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
