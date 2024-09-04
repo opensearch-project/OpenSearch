@@ -45,7 +45,6 @@ import org.opensearch.search.startree.StarTreeQuery;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Base class to aggregate all docs into a single numeric metric value.
@@ -89,7 +88,6 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
 
         public CompositeIndexFieldInfo getSupportedStarTree(LeafReaderContext ctx) {
             if (context.query() instanceof StarTreeQuery) {
-                // StarTreeQuery starTreeQuery = ((StarTreeQuery) context.query()).getStarTreeQuery();
                 return ((StarTreeQuery) context.query()).getStarTree();
             }
             return null;
@@ -131,8 +129,6 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         }
         CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
         StarTreeValues values = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
-        final AtomicReference<StarTreeValues> aggrVal = new AtomicReference<>(null);
-
         return values;
     }
 }

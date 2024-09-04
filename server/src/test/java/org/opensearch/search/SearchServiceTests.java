@@ -68,8 +68,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -122,7 +120,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.search.startree.OriginalOrStarTreeQuery;
+import org.opensearch.search.startree.StarTreeQuery;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -2272,15 +2270,16 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testParseQueryToOriginalOrStarTreeQuery() throws IOException {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-
-        Settings enableStarTree = Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), true).build();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(enableStarTree).execute();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), true).build())
+            .execute();
 
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
             .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
@@ -2308,31 +2307,76 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             null
         );
         try (ReaderContext reader = searchService.createOrGetReaderContext(request, randomBoolean())) {
-            SearchContext context = searchService.createContext(reader, request, null, randomBoolean());
-            assertFalse(context.query() instanceof OriginalOrStarTreeQuery);
+            SearchContext context = searchService.createContext(reader, request, null, false);
+            assertFalse(context.query() instanceof StarTreeQuery);
+            searchService.doStop();
         }
 
-        // Case 2: Query present but no aggregations, should not use star tree
+        // Case 2: MatchAllQuery present but no aggregations, should not use star tree
+        searchService = getInstanceFromNode(SearchService.class);
+        sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.query(new MatchAllQueryBuilder());
         request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, randomBoolean())) {
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
             SearchContext context = searchService.createContext(reader, request, null, randomBoolean());
             assertThat(context.query(), instanceOf(MatchAllDocsQuery.class));
+            searchService.doStop();
         }
 
-        // Case 3: Query and aggregations present, should use star tree if possible
+        // Case 3: MatchAllQuery and aggregations present, should use star tree if possible
+        searchService = getInstanceFromNode(SearchService.class);
+        sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(new MatchAllQueryBuilder());
         sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
         request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, randomBoolean())) {
-            SearchContext context = searchService.createContext(reader, request, null, randomBoolean());
-            if (context.query() instanceof OriginalOrStarTreeQuery) {
-                // Star tree query was set
-                assertThat(context.query(), instanceOf(OriginalOrStarTreeQuery.class));
-            } else {
-                // Star tree query was not set (e.g., no star tree index present)
-                assertThat(context.query(), instanceOf(MatchAllQueryBuilder.class));
-            }
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
+            SearchContext context = searchService.createContext(reader, request, null, true);
+            assertThat(context.query(), instanceOf(StarTreeQuery.class));
+            searchService.doStop();
         }
-    }
 
+        // Case 4: MatchAllQuery and aggregations present, but trackTotalHitsUpTo specified, should not use star tree
+        searchService = getInstanceFromNode(SearchService.class);
+        sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(new MatchAllQueryBuilder());
+        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field")).trackTotalHitsUpTo(1000);
+        request.source(sourceBuilder);
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
+            SearchContext context = searchService.createContext(reader, request, null, true);
+            assertThat(context.query(), instanceOf(MatchAllDocsQuery.class));
+        }
+        searchService.doStop();
+
+        // Case 5: TermQuery and aggregations present, should use star tree
+        searchService = getInstanceFromNode(SearchService.class);
+        sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(new TermQueryBuilder("sndv", 1));
+        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
+        request.source(sourceBuilder);
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
+            SearchContext context = searchService.createContext(reader, request, null, true);
+            assertThat(context.query(), instanceOf(StarTreeQuery.class));
+        }
+        searchService.doStop();
+
+        // Case 6: No query, metric aggregations present, should use star tree
+        searchService = getInstanceFromNode(SearchService.class);
+        sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
+        request.source(sourceBuilder);
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
+            SearchContext context = searchService.createContext(reader, request, null, true);
+            assertThat(context.query(), instanceOf(StarTreeQuery.class));
+        }
+        searchService.doStop();
+
+        searchService.doClose();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), (String) null).build()
+            )
+            .execute();
+    }
 }
