@@ -752,7 +752,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         long startTime = System.currentTimeMillis();
         ClusterState currentState = clusterService.state();
         String snapshotName = snapshot.getSnapshotId().getName();
-        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
             private SnapshotId sourceSnapshotId;
             private List<String> matchingIndices;
