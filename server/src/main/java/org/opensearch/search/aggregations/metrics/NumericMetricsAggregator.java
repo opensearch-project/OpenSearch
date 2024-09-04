@@ -41,7 +41,6 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.search.startree.OriginalOrStarTreeQuery;
 import org.opensearch.search.startree.StarTreeQuery;
 
 import java.io.IOException;
@@ -89,9 +88,9 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         }
 
         public CompositeIndexFieldInfo getSupportedStarTree(LeafReaderContext ctx) {
-            if (context.query() instanceof OriginalOrStarTreeQuery && ((OriginalOrStarTreeQuery) context.query()).isStarTreeUsed()) {
-                StarTreeQuery starTreeQuery = ((OriginalOrStarTreeQuery) context.query()).getStarTreeQuery();
-                return starTreeQuery.getStarTree();
+            if (context.query() instanceof StarTreeQuery) {
+                // StarTreeQuery starTreeQuery = ((StarTreeQuery) context.query()).getStarTreeQuery();
+                return ((StarTreeQuery) context.query()).getStarTree();
             }
             return null;
         }

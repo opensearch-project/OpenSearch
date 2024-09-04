@@ -661,6 +661,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean hasNested,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        query = query.rewrite(searcher);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -692,7 +693,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(query, ScoreMode.COMPLETE, 1f);
 
-//                assertTrue(weight.getQuery() instanceof StarTreeQuery);
                 subSearcher.search(weight, a);
                 a.postCollection();
                 aggs.add(a.buildTopLevel());
