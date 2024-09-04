@@ -385,7 +385,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
      * <br>
      * This will also delete all stale translog metadata files from remote except the latest basis the metadata file comparator.
      */
-    private static void deleteStaleRemotePrimaryTerms(
+    protected static void deleteStaleRemotePrimaryTerms(
         List<String> metadataFiles,
         TranslogTransferManager translogTransferManager,
         Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap,
@@ -496,16 +496,15 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     staticLogger.debug(() -> "metadataFilesNotToBeDeleted = " + metadataFilesNotToBeDeleted);
 
                     // Delete stale metadata files
-                    translogTransferManager.deleteMetadataFilesAsync(
-                        metadataFilesToBeDeleted,
-                        // Delete stale primary terms
-                        () -> deleteStaleRemotePrimaryTerms(
-                            metadataFilesNotToBeDeleted,
-                            translogTransferManager,
-                            new HashMap<>(),
-                            new AtomicLong(Long.MAX_VALUE),
-                            staticLogger
-                        )
+                    translogTransferManager.deleteMetadataFilesAsync(metadataFilesToBeDeleted, () -> {});
+
+                    // Delete stale primary terms
+                    deleteStaleRemotePrimaryTerms(
+                        metadataFilesNotToBeDeleted,
+                        translogTransferManager,
+                        new HashMap<>(),
+                        new AtomicLong(Long.MAX_VALUE),
+                        staticLogger
                     );
                 } catch (Exception e) {
                     staticLogger.error("Exception while cleaning up metadata and primary terms", e);
