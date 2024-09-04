@@ -336,6 +336,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
         }
+
     }
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
