@@ -7,7 +7,7 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 /**
  * Max value aggregator for star tree
@@ -16,8 +16,8 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  */
 class MaxValueAggregator extends StatelessDoubleValueAggregator {
 
-    public MaxValueAggregator(StarTreeNumericType starTreeNumericType) {
-        super(starTreeNumericType, null);
+    public MaxValueAggregator(FieldValueConverter fieldValueConverter) {
+        super(fieldValueConverter, null);
     }
 
     @Override

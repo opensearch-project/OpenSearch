@@ -46,9 +46,9 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.IndicesModule;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -159,7 +159,7 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 StarTreeValues starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(compositeIndexFieldInfo);
                 StarTreeDocument[] starTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
                     List.of(starTreeValues),
-                    List.of(StarTreeNumericType.DOUBLE, StarTreeNumericType.LONG, StarTreeNumericType.LONG),
+                    List.of(NumberFieldMapper.NumberType.DOUBLE, NumberFieldMapper.NumberType.LONG, NumberFieldMapper.NumberType.LONG),
                     reader.maxDoc()
                 );
                 assertStarTreeDocuments(starTreeDocuments, expectedStarTreeDocuments);
