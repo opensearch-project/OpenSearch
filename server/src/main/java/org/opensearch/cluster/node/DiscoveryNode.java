@@ -360,7 +360,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             writeToUtil(out, false);
         } else {
             writeToUtil(out, true);
