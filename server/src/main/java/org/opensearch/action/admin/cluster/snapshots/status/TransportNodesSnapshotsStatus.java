@@ -161,7 +161,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
 
         public Request(String[] nodesIds) {
-            super(nodesIds);
+            super(false, nodesIds);
         }
 
         public Request snapshots(Snapshot[] snapshots) {
