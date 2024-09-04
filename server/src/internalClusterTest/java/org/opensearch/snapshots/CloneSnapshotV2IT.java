@@ -32,12 +32,16 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
@@ -310,6 +314,104 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         }
         assertThat(cloneSnapshotInfo.totalShards(), equalTo(sourceSnapshotInfo.totalShards()));
 
+    }
+
+    public void testRestoreFromClone() throws Exception {
+        disableRepoConsistencyCheck("Remote store repository is being used in the test");
+        final Path remoteStoreRepoPath = randomRepoPath();
+
+        internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+
+        String snapshotRepoName = "test-clone-snapshot-repo";
+        String sourceSnapshot = "test-source-snapshot";
+        String cloneSnapshot = "test-clone-snapshot";
+
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        String restoredIndexName1 = indexName1 + "-restored";
+
+        Client client = client();
+
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository(snapshotRepoName)
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+                        .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true)
+                )
+        );
+
+        createIndex(indexName1, getRemoteStoreBackedIndexSettings());
+        createIndex(indexName2, getRemoteStoreBackedIndexSettings());
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexRandomDocs(indexName1, numDocsInIndex1);
+        indexRandomDocs(indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        logger.info("--> create source snapshot");
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, sourceSnapshot)
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo sourceSnapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(sourceSnapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(sourceSnapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(sourceSnapshotInfo.successfulShards(), equalTo(sourceSnapshotInfo.totalShards()));
+        assertThat(sourceSnapshotInfo.snapshotId().getName(), equalTo(sourceSnapshot));
+
+        AcknowledgedResponse response = client().admin()
+            .cluster()
+            .prepareCloneSnapshot(snapshotRepoName, sourceSnapshot, cloneSnapshot)
+            .setIndices("*")
+            .get();
+        assertTrue(response.isAcknowledged());
+
+        DeleteResponse deleteResponse = client().prepareDelete(indexName1, "0").execute().actionGet();
+        assertEquals(deleteResponse.getResult(), DocWriteResponse.Result.DELETED);
+        ensureGreen(indexName1);
+
+        deleteResponse = client().prepareDelete(indexName1, "1").execute().actionGet();
+        assertEquals(deleteResponse.getResult(), DocWriteResponse.Result.DELETED);
+        ensureGreen(indexName1);
+
+        // restore from clone
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, cloneSnapshot)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .get();
+
+        assertEquals(restoreSnapshotResponse1.status(), RestStatus.OK);
+        ensureGreen(restoredIndexName1, indexName2);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+        assertDocsPresentInIndex(client, indexName2, numDocsInIndex2);
+    }
+
+    private void assertDocsPresentInIndex(Client client, String indexName, int numOfDocs) {
+        for (int i = 0; i < numOfDocs; i++) {
+            String id = Integer.toString(i);
+            logger.info("checking for index " + indexName + " with docId" + id);
+            assertTrue("doc with id" + id + " is not present for index " + indexName, client.prepareGet(indexName, id).get().isExists());
+        }
     }
 
     private Settings snapshotV2Settings(Path remoteStoreRepoPath) {
