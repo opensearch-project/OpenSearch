@@ -63,6 +63,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -84,6 +85,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -172,6 +174,22 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+
+            // unsigned long is not supported as dimension for star tree
+            if (type.numericType.equals(NumericType.UNSIGNED_LONG)) {
+                return Optional.empty();
+            }
+
+            return Optional.of(DimensionType.NUMERIC);
+        }
+
+        @Override
+        public boolean isDataCubeMetricSupported() {
+            return true;
+        }
     }
 
     /**
@@ -179,7 +197,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public enum NumberType implements NumericPointEncoder {
+    public enum NumberType implements NumericPointEncoder, FieldValueConverter {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
@@ -207,6 +225,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[HalfFloatPoint.BYTES];
                 HalfFloatPoint.encodeDimension(value.floatValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return HalfFloatPoint.sortableShortToHalfFloat((short) value);
             }
 
             @Override
@@ -354,6 +377,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public double toDoubleValue(long value) {
+                return NumericUtils.sortableIntToFloat((int) value);
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -484,6 +512,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Double.BYTES];
                 DoublePoint.encodeDimension(value.doubleValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return NumericUtils.sortableLongToDouble(value);
             }
 
             @Override
@@ -619,6 +652,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public double toDoubleValue(long value) {
+                byte[] bytes = new byte[8];
+                NumericUtils.longToSortableBytes(value, bytes, 0);
+                return NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, 0));
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -698,6 +738,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public double toDoubleValue(long value) {
+                return (double) value;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
@@ -770,6 +815,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Integer.BYTES];
                 IntPoint.encodeDimension(value.intValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return (double) value;
             }
 
             @Override
@@ -944,6 +994,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public double toDoubleValue(long value) {
+                return (double) value;
+            }
+
+            @Override
             public Long parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.longValue(coerce);
             }
@@ -1071,6 +1126,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public double toDoubleValue(long value) {
+                return Numbers.unsignedLongToDouble(value);
+            }
+
+            @Override
             public BigInteger parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.bigIntegerValue(coerce);
             }
@@ -1182,12 +1242,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             this.parser = new TypeParser((n, c) -> new Builder(n, this, c.getSettings()));
         }
 
-        /** Get the associated type name. */
+        /**
+         * Get the associated type name.
+         */
         public final String typeName() {
             return name;
         }
 
-        /** Get the associated numeric type */
+        /**
+         * Get the associated numeric type
+         */
         public final NumericType numericType() {
             return numericType;
         }
@@ -1486,7 +1550,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static class NumberFieldType extends SimpleMappedFieldType implements NumericPointEncoder {
+    public static class NumberFieldType extends SimpleMappedFieldType implements NumericPointEncoder, FieldValueConverter {
 
         private final NumberType type;
         private final boolean coerce;
@@ -1651,6 +1715,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public byte[] encodePoint(Number value) {
             return type.encodePoint(value);
+        }
+
+        @Override
+        public double toDoubleValue(long value) {
+            return type.toDoubleValue(value);
         }
     }
 

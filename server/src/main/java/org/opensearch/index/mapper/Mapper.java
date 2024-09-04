@@ -100,7 +100,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public abstract static class Builder<T extends Builder> {
+    public abstract static class Builder<T extends Builder> implements MapperBuilderProperties {
 
         public String name;
 
