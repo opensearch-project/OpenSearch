@@ -86,6 +86,35 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @param shardSizes a shardkey to size in bytes mapping per shard.
      * @param routingToDataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
+     * @see #shardIdentifierFromRouting
+     */
+    public ClusterInfo(
+        final Map<String, DiskUsage> leastAvailableSpaceUsage,
+        final Map<String, DiskUsage> mostAvailableSpaceUsage,
+        final Map<String, Long> shardSizes,
+        final Map<ShardRouting, String> routingToDataPath,
+        final Map<NodeAndPath, ReservedSpace> reservedSpace,
+        final Map<String, FileCacheStats> nodeFileCacheStats
+    ) {
+        this(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            routingToDataPath,
+            reservedSpace,
+            nodeFileCacheStats,
+            0L
+        );
+    }
+
+    /**
+     * Creates a new ClusterInfo instance.
+     *
+     * @param leastAvailableSpaceUsage a node id to disk usage mapping for the path that has the least available space on the node.
+     * @param mostAvailableSpaceUsage  a node id to disk usage mapping for the path that has the most available space on the node.
+     * @param shardSizes a shardkey to size in bytes mapping per shard.
+     * @param routingToDataPath the shard routing to datapath mapping
+     * @param reservedSpace reserved space per shard broken down by node and data path
      * @param primaryStoreSize total size in bytes for all the primary shards
      * @see #shardIdentifierFromRouting
      */

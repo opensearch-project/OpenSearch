@@ -340,11 +340,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private final List<SnapshotShardFailure> shardFailures;
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state) {
-        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null, 0, 0L);
+        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null, 0L, 0L);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state, Version version) {
-        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null, 0, 0L);
+        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null, 0L, 0L);
     }
 
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
@@ -396,7 +396,42 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             includeGlobalState,
             userMetadata,
             remoteStoreIndexShallowCopy,
-            0
+            0L,
+            0L
+        );
+    }
+
+    public SnapshotInfo(
+        SnapshotId snapshotId,
+        List<String> indices,
+        List<String> dataStreams,
+        long startTime,
+        String reason,
+        long endTime,
+        int totalShards,
+        List<SnapshotShardFailure> shardFailures,
+        Boolean includeGlobalState,
+        Map<String, Object> userMetadata,
+        Boolean remoteStoreIndexShallowCopy,
+        long pinnedTimestamp
+    ) {
+        this(
+            snapshotId,
+            indices,
+            dataStreams,
+            snapshotState(reason, shardFailures),
+            reason,
+            Version.CURRENT,
+            startTime,
+            endTime,
+            totalShards,
+            totalShards - shardFailures.size(),
+            shardFailures,
+            includeGlobalState,
+            userMetadata,
+            remoteStoreIndexShallowCopy,
+            pinnedTimestamp,
+            0L
         );
     }
 
@@ -725,6 +760,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         if (pinnedTimestamp != 0) {
             builder.field(PINNED_TIMESTAMP, pinnedTimestamp);
+        }
+        if (snapshotSizeInBytes != 0) {
+            builder.field(SNAPSHOT_SIZE_IN_BYTES, snapshotSizeInBytes);
         }
 
         builder.startArray(INDICES);
