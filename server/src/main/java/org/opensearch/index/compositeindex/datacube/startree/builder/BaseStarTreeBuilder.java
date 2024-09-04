@@ -150,10 +150,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 metricAggregatorInfos.add(metricAggregatorInfo);
                 continue;
             }
-            for (MetricStat metricStat : metric.getMetrics()) {
-                if (metricStat.isDerivedMetric()) {
-                    continue;
-                }
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
                 FieldValueConverter fieldValueConverter;
                 Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(metric.getField());
                 if (fieldMapper instanceof FieldMapper && ((FieldMapper) fieldMapper).fieldType() instanceof FieldValueConverter) {
@@ -185,7 +182,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
         for (Metric metric : this.starTreeField.getMetrics()) {
-            for (MetricStat metricStat : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
                 SequentialDocValuesIterator metricReader;
                 FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
                 if (metricStat.equals(MetricStat.DOC_COUNT)) {

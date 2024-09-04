@@ -144,7 +144,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
             // get doc id set iterators for metrics
             for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
-                for (MetricStat metricStat : metric.getMetrics()) {
+                for (MetricStat metricStat : metric.getBaseMetrics()) {
                     String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                         starTreeValues.getStarTreeField().getName(),
                         metric.getField(),
