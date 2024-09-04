@@ -36,8 +36,9 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * Filter operator for star tree data structure.
  *
  *  @opensearch.experimental
+ *  @opensearch.internal
  */
-public class StarTreeFilter {
+class StarTreeFilter {
     private static final Logger logger = LogManager.getLogger(StarTreeFilter.class);
 
     // private final StarTreeNode starTreeRoot;

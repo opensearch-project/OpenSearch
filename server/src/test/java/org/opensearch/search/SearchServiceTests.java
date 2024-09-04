@@ -35,10 +35,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.DeletePitResponse;
@@ -54,16 +56,20 @@ import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -73,6 +79,9 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.composite99.datacube.startree.StarTreeDocValuesFormatTests;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.query.AbstractQueryBuilder;
@@ -113,6 +122,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.startree.OriginalOrStarTreeQuery;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -2259,4 +2269,70 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         primarySort.order(SortOrder.DESC);
         assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000), true);
     }
+
+    public void testParseQueryToOriginalOrStarTreeQuery() throws IOException {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+
+        Settings enableStarTree = Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), true).build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(enableStarTree).execute();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .build();
+        CreateIndexRequestBuilder builder = client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(settings)
+            .setMapping(StarTreeDocValuesFormatTests.getExpandedMapping());
+        createIndex("test", builder);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+
+        // Case 1: No query or aggregations, should not use star tree
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, randomBoolean())) {
+            SearchContext context = searchService.createContext(reader, request, null, randomBoolean());
+            assertFalse(context.query() instanceof OriginalOrStarTreeQuery);
+        }
+
+        // Case 2: Query present but no aggregations, should not use star tree
+        sourceBuilder.query(new MatchAllQueryBuilder());
+        request.source(sourceBuilder);
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, randomBoolean())) {
+            SearchContext context = searchService.createContext(reader, request, null, randomBoolean());
+            assertThat(context.query(), instanceOf(MatchAllDocsQuery.class));
+        }
+
+        // Case 3: Query and aggregations present, should use star tree if possible
+        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
+        request.source(sourceBuilder);
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, randomBoolean())) {
+            SearchContext context = searchService.createContext(reader, request, null, randomBoolean());
+            if (context.query() instanceof OriginalOrStarTreeQuery) {
+                // Star tree query was set
+                assertThat(context.query(), instanceOf(OriginalOrStarTreeQuery.class));
+            } else {
+                // Star tree query was not set (e.g., no star tree index present)
+                assertThat(context.query(), instanceOf(MatchAllQueryBuilder.class));
+            }
+        }
+    }
+
 }

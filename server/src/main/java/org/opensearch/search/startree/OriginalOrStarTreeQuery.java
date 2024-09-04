@@ -11,8 +11,6 @@ package org.opensearch.search.startree;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,12 +25,10 @@ public class OriginalOrStarTreeQuery extends Query {
 
     private final StarTreeQuery starTreeQuery;
     private final Query originalQuery;
-    private boolean starTreeQueryUsed;
 
     public OriginalOrStarTreeQuery(StarTreeQuery starTreeQuery, Query originalQuery) {
         this.starTreeQuery = starTreeQuery;
         this.originalQuery = originalQuery;
-        this.starTreeQueryUsed = false;
     }
 
     @Override
@@ -57,20 +53,11 @@ public class OriginalOrStarTreeQuery extends Query {
         return Objects.hash(classHash(), starTreeQuery, originalQuery, starTreeQuery);
     }
 
-    public boolean isStarTreeUsed() {
-        return starTreeQueryUsed;
-    }
-
-    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        if (searcher.getIndexReader().hasDeletions() == false) {
-            this.starTreeQueryUsed = true;
-            return this.starTreeQuery.createWeight(searcher, scoreMode, boost);
-        } else {
-            return this.originalQuery.createWeight(searcher, scoreMode, boost);
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (indexSearcher.getIndexReader().hasDeletions()) {
+            return originalQuery;
         }
-    }
-
-    public StarTreeQuery getStarTreeQuery() {
         return starTreeQuery;
     }
 }

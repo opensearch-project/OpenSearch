@@ -40,13 +40,13 @@ public class StarTreeQuery extends Query {
      * Star tree field info
      * This is used to get the star tree data structure
      */
-    CompositeIndexFieldInfo starTree;
+    private final CompositeIndexFieldInfo starTree;
 
     /**
      * Map of field name to a value to be queried for that field
      * This is used to filter the data based on the query
      */
-    Map<String, Long> queryMap;
+    private final Map<String, Long> queryMap;
 
     public StarTreeQuery(CompositeIndexFieldInfo starTree, Map<String, Long> queryMap) {
         this.starTree = starTree;
@@ -72,8 +72,16 @@ public class StarTreeQuery extends Query {
 
     @Override
     public String toString(String field) {
-        // Does not implement a user-readable toString
-        return null;
+        StringBuilder sb = new StringBuilder();
+        sb.append(getClass().getSimpleName());
+        sb.append("(");
+        sb.append(this.starTree);
+        if (queryMap != null) {
+            sb.append(", ");
+            sb.append(queryMap);
+            sb.append(")");
+        }
+        return sb.toString();
     }
 
     @Override
