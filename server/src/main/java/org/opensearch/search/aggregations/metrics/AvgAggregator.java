@@ -99,7 +99,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree(ctx);
+        CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree();
         if (supportedStarTree != null) {
             return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }
