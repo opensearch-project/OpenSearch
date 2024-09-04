@@ -56,6 +56,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     private final Map<Long, String> metadataFilePinnedTimestampMap;
     // For metadata files, with no min generation in the name, we cache generation data to avoid multiple reads.
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFileGenerationMap;
+    private final Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap;
 
     public RemoteFsTimestampAwareTranslog(
         TranslogConfig config,
@@ -86,6 +87,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         logger = Loggers.getLogger(getClass(), shardId);
         this.metadataFilePinnedTimestampMap = new HashMap<>();
         this.oldFormatMetadataFileGenerationMap = new HashMap<>();
+        this.oldFormatMetadataFilePrimaryTermMap = new HashMap<>();
     }
 
     @Override
@@ -184,35 +186,41 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     metadataFilesNotToBeDeleted.removeAll(metadataFilesToBeDeleted);
 
                     logger.debug(() -> "metadataFilesNotToBeDeleted = " + metadataFilesNotToBeDeleted);
-                    Set<Long> generationsToBeDeleted = getGenerationsToBeDeleted(
+                    Map<Long, Set<Long>> generationsToBeDeletedToPrimaryTermRangeMap = getGenerationsToBeDeleted(
                         metadataFilesNotToBeDeleted,
                         metadataFilesToBeDeleted,
                         indexDeleted
                     );
 
-                    logger.debug(() -> "generationsToBeDeleted = " + generationsToBeDeleted);
-                    if (generationsToBeDeleted.isEmpty() == false) {
+                    logger.debug(() -> "generationsToBeDeletedToPrimaryTermRangeMap = " + generationsToBeDeletedToPrimaryTermRangeMap);
+                    if (generationsToBeDeletedToPrimaryTermRangeMap.isEmpty() == false) {
                         // Delete stale generations
+                        Map<Long, Set<Long>> primaryTermToGenerationsMap = getPrimaryTermToGenerationsMap(
+                            generationsToBeDeletedToPrimaryTermRangeMap
+                        );
                         translogTransferManager.deleteGenerationAsync(
-                            primaryTermSupplier.getAsLong(),
-                            generationsToBeDeleted,
+                            primaryTermToGenerationsMap,
                             remoteGenerationDeletionPermits::release
                         );
+                    } else {
+                        remoteGenerationDeletionPermits.release();
+                    }
 
+                    if (metadataFilesToBeDeleted.isEmpty() == false) {
                         // Delete stale metadata files
                         translogTransferManager.deleteMetadataFilesAsync(
                             metadataFilesToBeDeleted,
                             remoteGenerationDeletionPermits::release
                         );
-
-                        // Update cache to keep only those metadata files that are not getting deleted
-                        oldFormatMetadataFileGenerationMap.keySet().retainAll(metadataFilesNotToBeDeleted);
-
-                        // Delete stale primary terms
-                        deleteStaleRemotePrimaryTerms(metadataFiles);
                     } else {
-                        remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                        remoteGenerationDeletionPermits.release();
                     }
+
+                    // Update cache to keep only those metadata files that are not getting deleted
+                    oldFormatMetadataFileGenerationMap.keySet().retainAll(metadataFilesNotToBeDeleted);
+
+                    // Delete stale primary terms
+                    deleteStaleRemotePrimaryTerms(metadataFiles);
                 } catch (Exception e) {
                     remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
                 }
@@ -227,8 +235,21 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         translogTransferManager.listTranslogMetadataFilesAsync(listMetadataFilesListener);
     }
 
+    protected Map<Long, Set<Long>> getPrimaryTermToGenerationsMap(Map<Long, Set<Long>> generationsToBeDeletedToPrimaryTermRangeMap) {
+        Map<Long, Set<Long>> primaryTermToGenerationsMap = new HashMap<>();
+        for (Map.Entry<Long, Set<Long>> entry : generationsToBeDeletedToPrimaryTermRangeMap.entrySet()) {
+            for (Long primaryTerm : entry.getValue()) {
+                if (primaryTermToGenerationsMap.containsKey(primaryTerm) == false) {
+                    primaryTermToGenerationsMap.put(primaryTerm, new HashSet<>());
+                }
+                primaryTermToGenerationsMap.get(primaryTerm).add(entry.getKey());
+            }
+        }
+        return primaryTermToGenerationsMap;
+    }
+
     // Visible for testing
-    protected Set<Long> getGenerationsToBeDeleted(
+    protected Map<Long, Set<Long>> getGenerationsToBeDeleted(
         List<String> metadataFilesNotToBeDeleted,
         List<String> metadataFilesToBeDeleted,
         boolean indexDeleted
@@ -239,24 +260,56 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             maxGenerationToBeDeleted = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep();
         }
 
-        Set<Long> generationsFromMetadataFilesToBeDeleted = new HashSet<>();
+        Map<Long, Set<String>> generationsFromMetadataFilesToBeDeleted = new HashMap<>();
         for (String mdFile : metadataFilesToBeDeleted) {
             Tuple<Long, Long> minMaxGen = getMinMaxTranslogGenerationFromMetadataFile(mdFile, translogTransferManager);
-            generationsFromMetadataFilesToBeDeleted.addAll(
-                LongStream.rangeClosed(minMaxGen.v1(), minMaxGen.v2()).boxed().collect(Collectors.toList())
-            );
+            List<Long> generations = LongStream.rangeClosed(minMaxGen.v1(), minMaxGen.v2()).boxed().collect(Collectors.toList());
+            for (Long generation : generations) {
+                if (generationsFromMetadataFilesToBeDeleted.containsKey(generation) == false) {
+                    generationsFromMetadataFilesToBeDeleted.put(generation, new HashSet<>());
+                }
+                generationsFromMetadataFilesToBeDeleted.get(generation).add(mdFile);
+            }
+        }
+
+        for (String mdFile : metadataFilesNotToBeDeleted) {
+            Tuple<Long, Long> minMaxGen = getMinMaxTranslogGenerationFromMetadataFile(mdFile, translogTransferManager);
+            List<Long> generations = LongStream.rangeClosed(minMaxGen.v1(), minMaxGen.v2()).boxed().collect(Collectors.toList());
+            for (Long generation : generations) {
+                if (generationsFromMetadataFilesToBeDeleted.containsKey(generation)) {
+                    generationsFromMetadataFilesToBeDeleted.get(generation).add(mdFile);
+                }
+            }
         }
 
         Map<String, Tuple<Long, Long>> metadataFileNotToBeDeletedGenerationMap = getGenerationForMetadataFiles(metadataFilesNotToBeDeleted);
         TreeSet<Tuple<Long, Long>> pinnedGenerations = getOrderedPinnedMetadataGenerations(metadataFileNotToBeDeletedGenerationMap);
-        Set<Long> generationsToBeDeleted = new HashSet<>();
-        for (long generation : generationsFromMetadataFilesToBeDeleted) {
+        Map<Long, Set<Long>> generationsToBeDeletedToPrimaryTermRangeMap = new HashMap<>();
+        for (long generation : generationsFromMetadataFilesToBeDeleted.keySet()) {
             // Check if the generation is not referred by metadata file matching pinned timestamps
             if (generation <= maxGenerationToBeDeleted && isGenerationPinned(generation, pinnedGenerations) == false) {
-                generationsToBeDeleted.add(generation);
+                generationsToBeDeletedToPrimaryTermRangeMap.put(
+                    generation,
+                    getPrimaryTermRange(generationsFromMetadataFilesToBeDeleted.get(generation), translogTransferManager)
+                );
             }
         }
-        return generationsToBeDeleted;
+        return generationsToBeDeletedToPrimaryTermRangeMap;
+    }
+
+    protected Set<Long> getPrimaryTermRange(Set<String> metadataFiles, TranslogTransferManager translogTransferManager) throws IOException {
+        Tuple<Long, Long> primaryTermRange = new Tuple<>(Long.MIN_VALUE, Long.MAX_VALUE);
+        for (String metadataFile : metadataFiles) {
+            Tuple<Long, Long> primaryTermRangeForMdFile = getMinMaxPrimaryTermFromMetadataFile(metadataFile, translogTransferManager);
+            primaryTermRange = new Tuple<>(
+                Math.max(primaryTermRange.v1(), primaryTermRangeForMdFile.v1()),
+                Math.min(primaryTermRange.v2(), primaryTermRangeForMdFile.v2())
+            );
+            if (primaryTermRange.v1().equals(primaryTermRange.v2())) {
+                break;
+            }
+        }
+        return LongStream.rangeClosed(primaryTermRange.v1(), primaryTermRange.v2()).boxed().collect(Collectors.toSet());
     }
 
     // Visible for testing
@@ -347,6 +400,36 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                 Tuple<Long, Long> minMaxGenTuple = new Tuple<>(metadata.getMinTranslogGeneration(), metadata.getGeneration());
                 oldFormatMetadataFileGenerationMap.put(metadataFile, minMaxGenTuple);
                 return minMaxGenTuple;
+            }
+        }
+    }
+
+    protected Tuple<Long, Long> getMinMaxPrimaryTermFromMetadataFile(String metadataFile, TranslogTransferManager translogTransferManager)
+        throws IOException {
+        Tuple<Long, Long> minMaxPrimaryTermFromFileName = TranslogTransferMetadata.getMinMaxPrimaryTermFromFilename(metadataFile);
+        if (minMaxPrimaryTermFromFileName != null) {
+            return minMaxPrimaryTermFromFileName;
+        } else {
+            if (oldFormatMetadataFilePrimaryTermMap.containsKey(metadataFile)) {
+                return oldFormatMetadataFilePrimaryTermMap.get(metadataFile);
+            } else {
+                TranslogTransferMetadata metadata = translogTransferManager.readMetadata(metadataFile);
+                long maxPrimaryTem = TranslogTransferMetadata.getPrimaryTermFromFileName(metadataFile);
+                long minPrimaryTem = -1;
+                if (metadata.getGenerationToPrimaryTermMapper() != null
+                    && metadata.getGenerationToPrimaryTermMapper().values().isEmpty() == false) {
+                    Optional<Long> primaryTerm = metadata.getGenerationToPrimaryTermMapper()
+                        .values()
+                        .stream()
+                        .map(s -> Long.parseLong(s))
+                        .min(Long::compareTo);
+                    if (primaryTerm.isPresent()) {
+                        minPrimaryTem = primaryTerm.get();
+                    }
+                }
+                Tuple<Long, Long> minMaxPrimaryTermTuple = new Tuple<>(minPrimaryTem, maxPrimaryTem);
+                oldFormatMetadataFilePrimaryTermMap.put(metadataFile, minMaxPrimaryTermTuple);
+                return minMaxPrimaryTermTuple;
             }
         }
     }
