@@ -299,7 +299,6 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectionProfile connectionProfile,
         ActionListener<Transport.Connection> listener
     ) {
-        logger.info("calling transport.openConnection");
         transport.openConnection(node, connectionProfile, ActionListener.map(listener, connection -> {
             assert Transports.assertNotTransportThread("internalOpenConnection success");
             try {
