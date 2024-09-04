@@ -226,6 +226,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
+    /**
+     * Setting to specify the maximum number of shards that can be included in the result for the snapshot status
+     * API call. Note that it does not apply to V2-shallow snapshots.
+     */
+    public static final Setting<Integer> MAX_SHARDS_ALLOWED_IN_STATUS_API = Setting.intSetting(
+        "snapshot.max_shards_allowed_in_status_api",
+        200000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
     private volatile int maxConcurrentOperations;
 
@@ -516,7 +528,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
-                int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)
+                int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_2_17_0)
                     ? SHARD_PATH_TYPE.get(repository.getMetadata().settings()).getCode()
                     : IndexId.DEFAULT_SHARD_PATH_TYPE;
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
@@ -1342,7 +1354,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     assert entry.shards().isEmpty();
                                     hadAbortedInitializations = true;
                                 } else {
-                                    int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)
+                                    int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_2_17_0)
                                         ? SHARD_PATH_TYPE.get(repository.getMetadata().settings()).getCode()
                                         : IndexId.DEFAULT_SHARD_PATH_TYPE;
                                     final List<IndexId> indexIds = repositoryData.resolveNewIndices(
