@@ -14,6 +14,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
 import org.opensearch.index.remote.RemoteStoreEnums.DataType;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
+import org.opensearch.index.remote.RemoteStorePathStrategy.SnapshotShardPathInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -595,6 +596,47 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/KeYDIk0mJXI/k2ijhe877d7yuhx7/10/segments/lock_files/";
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
+    }
+
+    public void testGeneratePathForSnapshotShardPathInput() {
+        BlobPath blobPath = BlobPath.cleanPath().add("xjsdhj").add("ddjsha").add("yudy7sd").add("32hdhua7").add("89jdij");
+        String indexUUID = "dsdkjsu8832njn";
+        String shardId = "10";
+        SnapshotShardPathInput pathInput = SnapshotShardPathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .build();
+
+        // FIXED PATH
+        BlobPath result = FIXED.path(pathInput, null);
+        String expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/indices/dsdkjsu8832njn/10/";
+        String actual = result.buildAsString();
+        assertEquals(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual, expected);
+
+        // HASHED_PREFIX - FNV_1A_COMPOSITE_1
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE_1);
+        expected = "_11001000010110/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/indices/dsdkjsu8832njn/10/";
+        actual = result.buildAsString();
+        assertEquals(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual, expected);
+
+        // HASHED_PREFIX - FNV_1A_BASE64
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
+        expected = "_yFiSl_VGGM/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/indices/dsdkjsu8832njn/10/";
+        actual = result.buildAsString();
+        assertEquals(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual, expected);
+
+        // HASHED_INFIX - FNV_1A_COMPOSITE_1
+        result = HASHED_INFIX.path(pathInput, FNV_1A_COMPOSITE_1);
+        expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/_11001000010110/indices/dsdkjsu8832njn/10/";
+        actual = result.buildAsString();
+        assertEquals(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual, expected);
+
+        // HASHED_INFIX - FNV_1A_BASE64
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
+        expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/_yFiSl_VGGM/indices/dsdkjsu8832njn/10/";
+        actual = result.buildAsString();
+        assertEquals(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual, expected);
     }
 
     private String derivePath(String basePath, PathInput pathInput) {
