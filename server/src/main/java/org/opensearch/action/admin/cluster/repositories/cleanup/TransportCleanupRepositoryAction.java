@@ -54,6 +54,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
@@ -101,6 +102,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
 
     private final RemoteStoreLockManagerFactory remoteStoreLockManagerFactory;
 
+    private final RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory;
+
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
@@ -128,6 +131,11 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         );
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
+        this.remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            () -> repositoriesService,
+            threadPool,
+            remoteStoreSettings.getSegmentsPathFixedPrefix()
+        );
         this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(
             () -> repositoriesService,
             remoteStoreSettings.getSegmentsPathFixedPrefix()
@@ -291,6 +299,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
                                         repositoryStateId,
                                         snapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
                                         remoteStoreLockManagerFactory,
+                                        remoteSegmentStoreDirectoryFactory,
                                         ActionListener.wrap(result -> after(null, result), e -> after(e, null))
                                     )
                                 )
