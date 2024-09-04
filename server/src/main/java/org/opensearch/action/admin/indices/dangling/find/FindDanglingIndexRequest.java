@@ -53,7 +53,7 @@ public class FindDanglingIndexRequest extends BaseNodesRequest<FindDanglingIndex
     }
 
     public FindDanglingIndexRequest(String indexUUID) {
-        super(Strings.EMPTY_ARRAY);
+        super(false, Strings.EMPTY_ARRAY);
         this.indexUUID = indexUUID;
     }
 
