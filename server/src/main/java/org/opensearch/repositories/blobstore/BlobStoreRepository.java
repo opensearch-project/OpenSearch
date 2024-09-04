@@ -341,7 +341,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Controls the fixed prefix for the snapshot shard blob path.
      */
-    public static final Setting<String> SNAPSHOT_SHARD_PATH_PREFIX = Setting.simpleString(
+    public static final Setting<String> SNAPSHOT_SHARD_PATH_PREFIX_SETTING = Setting.simpleString(
         "cluster.snapshot.shard.path.prefix",
         "",
         Setting.Property.NodeScope,
@@ -492,7 +492,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
-        this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX.get(clusterService.getSettings());
+        this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX_SETTING.get(clusterService.getSettings());
     }
 
     @Override
