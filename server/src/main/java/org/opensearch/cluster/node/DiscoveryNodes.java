@@ -45,6 +45,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -701,16 +702,66 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeToUtil((output, value) -> value.writeTo(output), out);
+    }
+
+    public void writeToWithAttribute(StreamOutput out) throws IOException {
+        writeToUtil((output, value) -> value.writeToWithAttribute(output), out);
+    }
+
+    private void writeToUtil(final Writer<DiscoveryNode> writer, StreamOutput out) throws IOException {
+        writeClusterManager(out);
+        out.writeVInt(nodes.size());
+        for (DiscoveryNode node : this) {
+            writer.write(out, node);
+        }
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        writeClusterManager(out);
+        out.writeMapValues(nodes, (stream, val) -> val.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
+    }
+
+    private void writeClusterManager(StreamOutput out) throws IOException {
         if (clusterManagerNodeId == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             out.writeString(clusterManagerNodeId);
         }
-        out.writeVInt(nodes.size());
-        for (DiscoveryNode node : this) {
-            node.writeTo(out);
-        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DiscoveryNodes that = (DiscoveryNodes) o;
+        return Objects.equals(nodes, that.nodes)
+            && Objects.equals(dataNodes, that.dataNodes)
+            && Objects.equals(clusterManagerNodes, that.clusterManagerNodes)
+            && Objects.equals(ingestNodes, that.ingestNodes)
+            && Objects.equals(clusterManagerNodeId, that.clusterManagerNodeId)
+            && Objects.equals(localNodeId, that.localNodeId)
+            && Objects.equals(minNonClientNodeVersion, that.minNonClientNodeVersion)
+            && Objects.equals(maxNonClientNodeVersion, that.maxNonClientNodeVersion)
+            && Objects.equals(maxNodeVersion, that.maxNodeVersion)
+            && Objects.equals(minNodeVersion, that.minNodeVersion);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            nodes,
+            dataNodes,
+            clusterManagerNodes,
+            ingestNodes,
+            clusterManagerNodeId,
+            localNodeId,
+            minNonClientNodeVersion,
+            maxNonClientNodeVersion,
+            maxNodeVersion,
+            minNodeVersion
+        );
     }
 
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {

@@ -92,6 +92,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             ClusterStateRequest::new,
             indexNameExpressionResolver
         );
+        this.localExecuteSupported = true;
     }
 
     @Override
@@ -232,10 +233,5 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         }
 
         return new ClusterStateResponse(currentState.getClusterName(), builder.build(), false);
-    }
-
-    @Override
-    protected boolean localExecuteSupportedByAction() {
-        return true;
     }
 }

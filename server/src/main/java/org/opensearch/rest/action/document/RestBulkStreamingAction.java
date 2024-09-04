@@ -8,6 +8,7 @@
 
 package org.opensearch.rest.action.document;
 
+import com.google.protobuf.ExperimentalApi;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -26,6 +27,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -34,9 +36,11 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -57,6 +61,7 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  *
  * @opensearch.api
  */
+@ExperimentalApi
 public class RestBulkStreamingAction extends BaseRestHandler {
     private static final BulkResponse EMPTY = new BulkResponse(new BulkItemResponse[0], 0L);
     private final boolean allowExplicitIndex;
@@ -91,46 +96,68 @@ public class RestBulkStreamingAction extends BaseRestHandler {
         final Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
         final TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
         final String refresh = request.param("refresh");
+        final TimeValue batchInterval = request.paramAsTime("batch_interval", null);
+        final int batchSize = request.paramAsInt("batch_size", 1); /* by default, batch size of 1 */
+        final boolean hasBatchSize = request.hasParam("batch_size"); /* is batch_size explicitly specified or default is used */
+
+        if (batchInterval != null && batchInterval.duration() <= 0) {
+            throw new IllegalArgumentException("The batch_interval value should be non-negative [" + batchInterval.millis() + "ms].");
+        }
+
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("The batch_size value should be non-negative [" + batchSize + "].");
+        }
 
         final StreamingRestChannelConsumer consumer = (channel) -> {
             final MediaType mediaType = request.getMediaType();
 
+            // We prepare (and more importantly, validate) the templated BulkRequest instance: in case the parameters
+            // are incorrect, we are going to fail the request immediately, instead of producing a possibly large amount
+            // of failed chunks.
+            FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+            BulkRequest prepareBulkRequest = Requests.bulkRequest();
+            if (waitForActiveShards != null) {
+                prepareBulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+            }
+
+            prepareBulkRequest.timeout(timeout);
+            prepareBulkRequest.setRefreshPolicy(refresh);
+
             // Set the content type and the status code before sending the response stream over
             channel.prepareResponse(RestStatus.OK, Map.of("Content-Type", List.of(mediaType.mediaTypeWithoutParameters())));
 
-            // This is initial implementation at the moment which transforms each single request stream chunk into
-            // individual bulk request and streams each response back. Another source of inefficiency comes from converting
-            // bulk response from raw (json/yaml/...) to model and back to raw (json/yaml/...).
-
             // TODOs:
-            // - add batching (by interval and/or count)
             // - eliminate serialization inefficiencies
-            Flux.from(channel).map(chunk -> {
-                FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+            createBufferedFlux(batchInterval, batchSize, hasBatchSize, channel).zipWith(Flux.fromStream(Stream.generate(() -> {
                 BulkRequest bulkRequest = Requests.bulkRequest();
-                if (waitForActiveShards != null) {
-                    bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+                bulkRequest.waitForActiveShards(prepareBulkRequest.waitForActiveShards());
+                bulkRequest.timeout(prepareBulkRequest.timeout());
+                bulkRequest.setRefreshPolicy(prepareBulkRequest.getRefreshPolicy());
+                return bulkRequest;
+            }))).map(t -> {
+                boolean isLast = false;
+                final List<HttpChunk> chunks = t.getT1();
+                final BulkRequest bulkRequest = t.getT2();
+
+                for (final HttpChunk chunk : chunks) {
+                    isLast |= chunk.isLast();
+                    try (chunk) {
+                        bulkRequest.add(
+                            chunk.content(),
+                            defaultIndex,
+                            defaultRouting,
+                            defaultFetchSourceContext,
+                            defaultPipeline,
+                            defaultRequireAlias,
+                            allowExplicitIndex,
+                            request.getMediaType()
+                        );
+                    } catch (final IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
                 }
 
-                bulkRequest.timeout(timeout);
-                bulkRequest.setRefreshPolicy(refresh);
-
-                try {
-                    bulkRequest.add(
-                        chunk.content(),
-                        defaultIndex,
-                        defaultRouting,
-                        defaultFetchSourceContext,
-                        defaultPipeline,
-                        defaultRequireAlias,
-                        allowExplicitIndex,
-                        request.getMediaType()
-                    );
-                } catch (final IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
-
-                return Tuple.tuple(chunk.isLast(), bulkRequest);
+                return Tuple.tuple(isLast, bulkRequest);
             }).flatMap(tuple -> {
                 final CompletableFuture<BulkResponse> f = new CompletableFuture<>();
 
@@ -168,7 +195,17 @@ public class RestBulkStreamingAction extends BaseRestHandler {
                 } catch (IOException ex) {
                     throw new UncheckedIOException(ex);
                 }
-            })).subscribe();
+            })).onErrorComplete(ex -> {
+                if (ex instanceof Error) {
+                    return false;
+                }
+                try {
+                    channel.sendResponse(new BytesRestResponse(channel, (Exception) ex));
+                    return true;
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).subscribe();
         };
 
         return channel -> {
@@ -195,5 +232,23 @@ public class RestBulkStreamingAction extends BaseRestHandler {
     @Override
     public boolean allowsUnsafeBuffers() {
         return true;
+    }
+
+    private Flux<List<HttpChunk>> createBufferedFlux(
+        final TimeValue batchInterval,
+        final int batchSize,
+        final boolean hasBatchSize,
+        StreamingRestChannel channel
+    ) {
+        if (batchInterval != null) {
+            // If non-default batch size is specified, buffer by interval and batch
+            if (hasBatchSize) {
+                return Flux.from(channel).bufferTimeout(batchSize, Duration.ofMillis(batchInterval.millis()));
+            } else {
+                return Flux.from(channel).buffer(Duration.ofMillis(batchInterval.millis()));
+            }
+        } else {
+            return Flux.from(channel).buffer(batchSize);
+        }
     }
 }

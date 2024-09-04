@@ -49,6 +49,8 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.Translog;
@@ -77,6 +79,10 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOC
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -677,6 +683,14 @@ public final class IndexSettings {
         Property.InternalIndex
     );
 
+    public static final Setting<PathType> SEARCHABLE_SNAPSHOT_SHARD_PATH_TYPE = new Setting<>(
+        "index.searchable_snapshot.shard_path_type",
+        PathType.FIXED.toString(),
+        PathType::parseString,
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
     public static final Setting<String> DEFAULT_SEARCH_PIPELINE = new Setting<>(
         "index.search.default_pipeline",
         SearchPipelineService.NOOP_PIPELINE_ID,
@@ -689,7 +703,34 @@ public final class IndexSettings {
         "index.search.concurrent_segment_search.enabled",
         false,
         Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.Deprecated
+    );
+
+    public static final Setting<String> INDEX_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
+        "index.search.concurrent_segment_search.mode",
+        CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
+                case CONCURRENT_SEGMENT_SEARCH_MODE_NONE:
+                case CONCURRENT_SEGMENT_SEARCH_MODE_AUTO:
+                    // valid setting
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [all, none, auto]");
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Integer> INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT = Setting.intSetting(
+        "index.search.concurrent.max_slice_count",
+        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
+        Property.Dynamic,
+        Property.IndexScope
     );
 
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
@@ -726,6 +767,22 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Long> INDEX_CONTEXT_CREATED_VERSION = Setting.longSetting(
+        "index.context.created_version",
+        0,
+        0,
+        Property.PrivateIndex,
+        Property.IndexScope
+    );
+
+    public static final Setting<Long> INDEX_CONTEXT_CURRENT_VERSION = Setting.longSetting(
+        "index.context.current_version",
+        0,
+        0,
+        Property.PrivateIndex,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -733,11 +790,11 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final ReplicationType replicationType;
-    private final boolean isRemoteStoreEnabled;
+    private volatile boolean isRemoteStoreEnabled;
     private final boolean isStoreLocalityPartial;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
-    private final String remoteStoreTranslogRepository;
-    private final String remoteStoreRepository;
+    private volatile String remoteStoreTranslogRepository;
+    private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
     private Version extendedCompatibilitySnapshotVersion;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -854,6 +911,8 @@ public final class IndexSettings {
      * False positive probability to use while creating fuzzy set.
      */
     private volatile double docIdFuzzySetFalsePositiveProbability;
+
+    private final boolean isCompositeIndex;
 
     /**
      * Returns the default search fields for this index.
@@ -1017,7 +1076,7 @@ public final class IndexSettings {
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
-
+        isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1131,6 +1190,15 @@ public final class IndexSettings {
             this::setDocIdFuzzySetFalsePositiveProbability
         );
         scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
+            this::setRemoteStoreRepository
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            this::setRemoteStoreTranslogRepository
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1251,6 +1319,10 @@ public final class IndexSettings {
      */
     public int getNumberOfReplicas() {
         return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null);
+    }
+
+    public boolean isCompositeIndex() {
+        return isCompositeIndex;
     }
 
     /**
@@ -1949,5 +2021,17 @@ public final class IndexSettings {
 
     public boolean isTranslogMetadataEnabled() {
         return isTranslogMetadataEnabled;
+    }
+
+    public void setRemoteStoreEnabled(boolean isRemoteStoreEnabled) {
+        this.isRemoteStoreEnabled = isRemoteStoreEnabled;
+    }
+
+    public void setRemoteStoreRepository(String remoteStoreRepository) {
+        this.remoteStoreRepository = remoteStoreRepository;
+    }
+
+    public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
+        this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
     }
 }

@@ -902,6 +902,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 stats.add(persistedStateRegistry.getPersistedState(stateType).getStats());
             }
         });
+        if (coordinationState.get().isRemotePublicationEnabled()) {
+            stats.add(publicationHandler.getFullDownloadStats());
+            stats.add(publicationHandler.getDiffDownloadStats());
+        }
         clusterStateStats.setPersistenceStats(stats);
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
     }
@@ -1338,6 +1342,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     coordinationState.get().isRemotePublicationEnabled(),
                     persistedStateRegistry
                 );
+                logger.debug("initialized PublicationContext using class: {}", publicationContext.getClass().toString());
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final CoordinatorPublication publication = new CoordinatorPublication(

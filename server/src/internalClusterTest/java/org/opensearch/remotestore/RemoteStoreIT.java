@@ -47,6 +47,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +66,6 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.test.OpenSearchTestCase.getShardLevelBlobPath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -131,6 +131,21 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+    }
+
+    public void testRemoteStoreIndexCreationAndDeletionWithReferencedStore() throws InterruptedException, ExecutionException {
+        String dataNode = internalCluster().startNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+
+        // Simulating a condition where store is already in use by increasing ref count, this helps in testing index
+        // deletion when refresh is in-progress.
+        indexShard.store().incRef();
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+        indexShard.store().decRef();
     }
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataFlush() throws Exception {
@@ -203,10 +218,15 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             } else {
                 // As delete is async its possible that the file gets created before the deletion or after
                 // deletion.
-                MatcherAssert.assertThat(
-                    actualFileCount,
-                    is(oneOf(lastNMetadataFilesToKeep - 1, lastNMetadataFilesToKeep, lastNMetadataFilesToKeep + 1))
-                );
+                if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+                    // With pinned timestamp, we also keep md files since last successful fetch
+                    assertTrue(actualFileCount >= lastNMetadataFilesToKeep);
+                } else {
+                    MatcherAssert.assertThat(
+                        actualFileCount,
+                        is(oneOf(lastNMetadataFilesToKeep - 1, lastNMetadataFilesToKeep, lastNMetadataFilesToKeep + 1))
+                    );
+                }
             }
         }, 30, TimeUnit.SECONDS);
     }
@@ -235,7 +255,12 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
-        MatcherAssert.assertThat(actualFileCount, is(oneOf(4)));
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+            // With pinned timestamp, we also keep md files since last successful fetch
+            assertTrue(actualFileCount >= 4);
+        } else {
+            assertEquals(4, actualFileCount);
+        }
     }
 
     public void testStaleCommitDeletionWithMinSegmentFiles_Disabled() throws Exception {
@@ -486,9 +511,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
 
         Path absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository("test-repo").setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
+        createRepository("test-repo", "fs", Settings.builder().put("location", absolutePath));
 
         logger.info("--> Create index and ingest 50 docs");
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
@@ -907,5 +930,39 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
             assertEquals(totalFiles, 501L);
         }
+    }
+
+    public void testAsyncTranslogDurabilityRestrictionsThroughIdxTemplates() throws Exception {
+        logger.info("Starting up cluster manager with cluster.remote_store.index.restrict.async-durability set to true");
+        String cm1 = internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build()
+        );
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> internalCluster().client()
+                .admin()
+                .indices()
+                .preparePutTemplate("test")
+                .setPatterns(Arrays.asList("test*"))
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                .get()
+        );
+        logger.info("Starting up another cluster manager with cluster.remote_store.index.restrict.async-durability set to false");
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), false).build()
+        );
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(cm1));
+        ensureStableCluster(2);
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .preparePutTemplate("test")
+                .setPatterns(Arrays.asList("test*"))
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                .get()
+        );
     }
 }

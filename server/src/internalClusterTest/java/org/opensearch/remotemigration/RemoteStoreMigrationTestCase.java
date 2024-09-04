@@ -17,6 +17,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -115,15 +116,10 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
         logger.info("Create shallow snapshot setting enabled repo");
         String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
         Path shallowSnapshotRepoPath = randomRepoPath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(shallowSnapshotRepoName)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", shallowSnapshotRepoPath)
-                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", shallowSnapshotRepoPath)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
+        createRepository(shallowSnapshotRepoName, "fs", settings);
 
         logger.info("Verify shallow snapshot creation");
         final String snapshot1 = "snapshot1";
@@ -215,5 +211,13 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
                 .get(),
             asyncIndexingService.getIndexedDocs()
         );
+    }
+
+    public void testRemoteSettingPropagatedToIndexShardAfterMigration() throws Exception {
+        testEndToEndRemoteMigration();
+        IndexShard indexShard = getIndexShard(primaryNodeName("test"), "test");
+        assertTrue(indexShard.indexSettings().isRemoteStoreEnabled());
+        assertEquals(MigrationBaseTestCase.REPOSITORY_NAME, indexShard.indexSettings().getRemoteStoreRepository());
+        assertEquals(MigrationBaseTestCase.REPOSITORY_2_NAME, indexShard.indexSettings().getRemoteStoreTranslogRepository());
     }
 }

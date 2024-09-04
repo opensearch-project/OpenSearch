@@ -44,6 +44,7 @@ import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
@@ -62,10 +63,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
+    static final Setting<List<String>> PROCESSORS_ALLOWLIST_SETTING = Setting.listSetting(
+        "ingest.geoip.processors.allowed",
+        List.of(),
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
     public static final Setting<Long> CACHE_SIZE = Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
 
     static String[] DEFAULT_DATABASE_FILENAMES = new String[] { "GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb" };
@@ -74,7 +83,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(CACHE_SIZE);
+        return Arrays.asList(CACHE_SIZE, PROCESSORS_ALLOWLIST_SETTING);
     }
 
     @Override
@@ -90,7 +99,10 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(cacheSize)));
+        return filterForAllowlistSetting(
+            parameters.env.settings(),
+            Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(cacheSize)))
+        );
     }
 
     /*
@@ -173,6 +185,30 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
         if (databaseReaders != null) {
             IOUtils.close(databaseReaders.values());
         }
+    }
+
+    private Map<String, Processor.Factory> filterForAllowlistSetting(Settings settings, Map<String, Processor.Factory> map) {
+        if (PROCESSORS_ALLOWLIST_SETTING.exists(settings) == false) {
+            return Map.copyOf(map);
+        }
+        final Set<String> allowlist = Set.copyOf(PROCESSORS_ALLOWLIST_SETTING.get(settings));
+        // Assert that no unknown processors are defined in the allowlist
+        final Set<String> unknownAllowlistProcessors = allowlist.stream()
+            .filter(p -> map.containsKey(p) == false)
+            .collect(Collectors.toUnmodifiableSet());
+        if (unknownAllowlistProcessors.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "Processor(s) "
+                    + unknownAllowlistProcessors
+                    + " were defined in ["
+                    + PROCESSORS_ALLOWLIST_SETTING.getKey()
+                    + "] but do not exist"
+            );
+        }
+        return map.entrySet()
+            .stream()
+            .filter(e -> allowlist.contains(e.getKey()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**

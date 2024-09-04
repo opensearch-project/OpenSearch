@@ -35,8 +35,20 @@ package org.opensearch.ingest.geoip;
 import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.TestEnvironment;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.StreamsUtils;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 
@@ -76,5 +88,88 @@ public class IngestGeoIpPluginTests extends OpenSearchTestCase {
     public void testInvalidInit() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new GeoIpCache(-1));
         assertEquals("geoip max cache size must be 0 or greater", ex.getMessage());
+    }
+
+    public void testAllowList() throws IOException {
+        runAllowListTest(List.of());
+        runAllowListTest(List.of("geoip"));
+    }
+
+    public void testInvalidAllowList() throws IOException {
+        List<String> invalidAllowList = List.of("set");
+        Settings.Builder settingsBuilder = Settings.builder()
+            .putList(IngestGeoIpPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), invalidAllowList);
+        createDb(settingsBuilder);
+        try (IngestGeoIpPlugin plugin = new IngestGeoIpPlugin()) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> plugin.getProcessors(createParameters(settingsBuilder.build()))
+            );
+            assertEquals(
+                "Processor(s) "
+                    + invalidAllowList
+                    + " were defined in ["
+                    + IngestGeoIpPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey()
+                    + "] but do not exist",
+                e.getMessage()
+            );
+        }
+    }
+
+    public void testAllowListNotSpecified() throws IOException {
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.remove(IngestGeoIpPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey());
+        createDb(settingsBuilder);
+        try (IngestGeoIpPlugin plugin = new IngestGeoIpPlugin()) {
+            final Set<String> expected = Set.of("geoip");
+            assertEquals(expected, plugin.getProcessors(createParameters(settingsBuilder.build())).keySet());
+        }
+    }
+
+    private void runAllowListTest(List<String> allowList) throws IOException {
+        Settings.Builder settingsBuilder = Settings.builder();
+        createDb(settingsBuilder);
+        final Settings settings = settingsBuilder.putList(IngestGeoIpPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), allowList).build();
+        try (IngestGeoIpPlugin plugin = new IngestGeoIpPlugin()) {
+            assertEquals(Set.copyOf(allowList), plugin.getProcessors(createParameters(settings)).keySet());
+        }
+    }
+
+    private void createDb(Settings.Builder settingsBuilder) throws IOException {
+        Path configDir = createTempDir();
+        Path userAgentConfigDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(userAgentConfigDir);
+        settingsBuilder.put("ingest.geoip.database_path", configDir).put("path.home", configDir);
+        try {
+            Files.copy(
+                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
+                configDir.resolve("GeoLite2-City.mmdb")
+            );
+            Files.copy(
+                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
+                configDir.resolve("GeoLite2-Country.mmdb")
+            );
+            Files.copy(
+                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
+                configDir.resolve("GeoLite2-ASN.mmdb")
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static Processor.Parameters createParameters(Settings settings) {
+        return new Processor.Parameters(
+            TestEnvironment.newEnvironment(settings),
+            null,
+            null,
+            null,
+            () -> 0L,
+            (a, b) -> null,
+            null,
+            null,
+            $ -> {},
+            null
+        );
     }
 }

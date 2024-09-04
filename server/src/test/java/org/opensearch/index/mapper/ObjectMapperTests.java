@@ -33,9 +33,15 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.ObjectMapper.Dynamic;
 import org.opensearch.plugins.Plugin;
@@ -46,6 +52,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.util.Collection;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 
 public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
@@ -485,6 +492,80 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         mapper = documentMapper.root().getMapper("field_name");
         assertNotNull(mapper);
         assertEquals("date", mapper.typeName());
+    }
+
+    public void testCompositeFields() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("tweet")
+            .startObject("composite")
+            .startObject("startree")
+            .field("type", "star_tree")
+            .startObject("config")
+            .startArray("ordered_dimensions")
+            .startObject()
+            .field("name", "node")
+            .endObject()
+            .startObject()
+            .field("name", "status")
+            .endObject()
+            .endArray()
+            .startArray("metrics")
+            .startObject()
+            .field("name", "status")
+            .endObject()
+            .startObject()
+            .field("name", "metric_field")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("properties")
+            .startObject("node")
+            .field("type", "integer")
+            .endObject()
+            .startObject("status")
+            .field("type", "integer")
+            .endObject()
+            .startObject("metric_field")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("invalid").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping))
+        );
+        assertEquals(
+            "star tree index is under an experimental feature and can be activated only by enabling opensearch.experimental.feature.composite_index.star_tree.enabled feature flag in the JVM options",
+            ex.getMessage()
+        );
+
+        final Settings starTreeEnabledSettings = Settings.builder().put(STAR_TREE_INDEX, "true").build();
+        FeatureFlags.initializeFeatureFlags(starTreeEnabledSettings);
+
+        Settings settings = Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .build();
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService()
+            .documentMapperParser()
+            .parse("tweet", new CompressedXContent(mapping));
+
+        Mapper mapper = documentMapper.root().getMapper("startree");
+        assertTrue(mapper instanceof StarTreeMapper);
+        StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
+        assertEquals("star_tree", starTreeMapper.fieldType().typeName());
+        // Check that field in properties was parsed correctly as well
+        mapper = documentMapper.root().getMapper("node");
+        assertNotNull(mapper);
+        assertEquals("integer", mapper.typeName());
+
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     @Override

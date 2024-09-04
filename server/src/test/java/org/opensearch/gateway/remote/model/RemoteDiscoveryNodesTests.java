@@ -143,7 +143,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
     public void testExceptionDuringSerialization() throws IOException {
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
-        doThrow(new IOException("mock-exception")).when(nodes).writeTo(any());
+        doThrow(new IOException("mock-exception")).when(nodes).writeToWithAttribute(any());
         IOException iea = assertThrows(IOException.class, remoteObjectForUpload::serialize);
     }
 

@@ -217,9 +217,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus,
             nodeInfo,
             nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()])
+            shardsStats.toArray(new ShardStats[0]),
+            nodeRequest.request.useAggregatedNodeLevelResponses()
         );
-
     }
 
     /**
@@ -229,7 +229,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
      */
     public static class ClusterStatsNodeRequest extends BaseNodeRequest {
 
-        ClusterStatsRequest request;
+        protected ClusterStatsRequest request;
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);

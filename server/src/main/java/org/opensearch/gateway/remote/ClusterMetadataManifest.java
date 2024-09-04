@@ -23,6 +23,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +44,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     public static final int CODEC_V2 = 2; // In Codec V2, there are separate metadata files rather than a single global metadata file,
     // also we introduce index routing-metadata, diff and other attributes as part of manifest
     // required for state publication
+    public static final int CODEC_V3 = 3; // In Codec V3, we have introduced new diff field in diff-manifest's routing_table_diff
+    public static final int CODEC_V4 = 4; // In Codec V4, we have removed upserts and delete field for routing table in diff manifest and
+                                          // added checksum of cluster state.
 
+    public static final int[] CODEC_VERSIONS = { CODEC_V0, CODEC_V1, CODEC_V2, CODEC_V3, CODEC_V4 };
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
     private static final ParseField CLUSTER_UUID_FIELD = new ParseField("cluster_uuid");
@@ -71,6 +76,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     );
     private static final ParseField UPLOADED_CLUSTER_STATE_CUSTOM_METADATA = new ParseField("uploaded_cluster_state_custom_metadata");
     private static final ParseField DIFF_MANIFEST = new ParseField("diff_manifest");
+    private static final ParseField CHECKSUM = new ParseField("checksum");
 
     private static ClusterMetadataManifest.Builder manifestV0Builder(Object[] fields) {
         return ClusterMetadataManifest.builder()
@@ -106,6 +112,14 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             .transientSettingsMetadata(transientSettingsMetadata(fields))
             .hashesOfConsistentSettings(hashesOfConsistentSettings(fields))
             .clusterStateCustomMetadataMap(clusterStateCustomMetadata(fields));
+    }
+
+    private static ClusterMetadataManifest.Builder manifestV3Builder(Object[] fields) {
+        return manifestV2Builder(fields);
+    }
+
+    private static ClusterMetadataManifest.Builder manifestV4Builder(Object[] fields) {
+        return manifestV3Builder(fields).checksum(checksum(fields));
     }
 
     private static long term(Object[] fields) {
@@ -210,6 +224,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return (ClusterStateDiffManifest) fields[23];
     }
 
+    private static ClusterStateChecksum checksum(Object[] fields) {
+        return (ClusterStateChecksum) fields[24];
+    }
+
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V0 = new ConstructingObjectParser<>(
         "cluster_metadata_manifest",
         fields -> manifestV0Builder(fields).build()
@@ -225,12 +243,49 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         fields -> manifestV2Builder(fields).build()
     );
 
-    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V2;
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V3 = new ConstructingObjectParser<>(
+        "cluster_metadata_manifest",
+        fields -> manifestV3Builder(fields).build()
+    );
+
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V4 = new ConstructingObjectParser<>(
+        "cluster_metadata_manifest",
+        fields -> manifestV4Builder(fields).build()
+    );
+
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V4;
+
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = CODEC_V4;
+
+    private static final Map<Version, Integer> VERSION_TO_CODEC_MAPPING;
 
     static {
         declareParser(PARSER_V0, CODEC_V0);
         declareParser(PARSER_V1, CODEC_V1);
         declareParser(PARSER_V2, CODEC_V2);
+        declareParser(PARSER_V3, CODEC_V3);
+        declareParser(PARSER_V4, CODEC_V4);
+
+        assert Arrays.stream(CODEC_VERSIONS).max().getAsInt() == MANIFEST_CURRENT_CODEC_VERSION;
+        Map<Version, Integer> versionToCodecMapping = new HashMap<>();
+        for (Version version : Version.getDeclaredVersions(Version.class)) {
+            if (version.onOrAfter(Version.V_2_10_0) && version.before(Version.V_2_12_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V0);
+            } else if (version.onOrAfter(Version.V_2_12_0) && version.before(Version.V_2_15_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V1);
+            } else if (version.onOrAfter(Version.V_2_15_0) && version.before(Version.V_2_16_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V2);
+            } else if (version.onOrAfter(Version.V_2_16_0) && version.before(Version.V_2_17_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V3);
+            } else if (version.onOrAfter(Version.V_2_17_0)) {
+                versionToCodecMapping.put(version, ClusterMetadataManifest.CODEC_V4);
+            }
+        }
+        VERSION_TO_CODEC_MAPPING = Collections.unmodifiableMap(versionToCodecMapping);
+    }
+
+    public static int getCodecForVersion(Version version) {
+        return VERSION_TO_CODEC_MAPPING.getOrDefault(version, -1);
     }
 
     private static void declareParser(ConstructingObjectParser<ClusterMetadataManifest, Void> parser, long codec_version) {
@@ -243,7 +298,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), COMMITTED_FIELD);
         parser.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> UploadedIndexMetadata.fromXContent(p),
+            (p, c) -> UploadedIndexMetadata.fromXContent(p, codec_version),
             INDICES_FIELD
         );
         parser.declareString(ConstructingObjectParser.constructorArg(), PREVIOUS_CLUSTER_UUID);
@@ -277,7 +332,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             parser.declareLong(ConstructingObjectParser.constructorArg(), ROUTING_TABLE_VERSION_FIELD);
             parser.declareObjectArray(
                 ConstructingObjectParser.constructorArg(),
-                (p, c) -> UploadedIndexMetadata.fromXContent(p),
+                (p, c) -> UploadedIndexMetadata.fromXContent(p, codec_version),
                 INDICES_ROUTING_FIELD
             );
             parser.declareNamedObject(
@@ -308,8 +363,15 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             );
             parser.declareObject(
                 ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ClusterStateDiffManifest.fromXContent(p),
+                (p, c) -> ClusterStateDiffManifest.fromXContent(p, codec_version),
                 DIFF_MANIFEST
+            );
+        }
+        if (codec_version >= CODEC_V4) {
+            parser.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ClusterStateChecksum.fromXContent(p),
+                CHECKSUM
             );
         }
     }
@@ -339,6 +401,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     private final UploadedMetadataAttribute uploadedHashesOfConsistentSettings;
     private final Map<String, UploadedMetadataAttribute> uploadedClusterStateCustomMap;
     private final ClusterStateDiffManifest diffManifest;
+    private ClusterStateChecksum clusterStateChecksum;
 
     public List<UploadedIndexMetadata> getIndices() {
         return indices;
@@ -447,6 +510,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return indicesRouting;
     }
 
+    public ClusterStateChecksum getClusterStateChecksum() {
+        return clusterStateChecksum;
+    }
+
     public ClusterMetadataManifest(
         long clusterTerm,
         long version,
@@ -472,7 +539,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         UploadedMetadataAttribute uploadedTransientSettingsMetadata,
         UploadedMetadataAttribute uploadedHashesOfConsistentSettings,
         Map<String, UploadedMetadataAttribute> uploadedClusterStateCustomMap,
-        ClusterStateDiffManifest diffManifest
+        ClusterStateDiffManifest diffManifest,
+        ClusterStateChecksum clusterStateChecksum
     ) {
         this.clusterTerm = clusterTerm;
         this.stateVersion = version;
@@ -503,6 +571,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.uploadedClusterStateCustomMap = Collections.unmodifiableMap(
             uploadedClusterStateCustomMap != null ? uploadedClusterStateCustomMap : new HashMap<>()
         );
+        this.clusterStateChecksum = clusterStateChecksum;
     }
 
     public ClusterMetadataManifest(StreamInput in) throws IOException {
@@ -516,6 +585,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.indices = Collections.unmodifiableList(in.readList(UploadedIndexMetadata::new));
         this.previousClusterUUID = in.readString();
         this.clusterUUIDCommitted = in.readBoolean();
+        clusterStateChecksum = null;
         if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
             this.codecVersion = in.readInt();
             this.uploadedCoordinationMetadata = new UploadedMetadataAttribute(in);
@@ -577,6 +647,9 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.uploadedTransientSettingsMetadata = null;
             this.uploadedHashesOfConsistentSettings = null;
             this.uploadedClusterStateCustomMap = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_17_0) && in.readBoolean()) {
+            clusterStateChecksum = new ClusterStateChecksum(in);
         }
     }
 
@@ -675,6 +748,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             builder.field(CODEC_VERSION_FIELD.getPreferredName(), getCodecVersion());
             builder.field(GLOBAL_METADATA_FIELD.getPreferredName(), getGlobalMetadataFileName());
         }
+        if (onOrAfterCodecVersion(CODEC_V4)) {
+            if (getClusterStateChecksum() != null) {
+                builder.startObject(CHECKSUM.getPreferredName());
+                getClusterStateChecksum().toXContent(builder, params);
+                builder.endObject();
+            }
+        }
         return builder;
     }
 
@@ -734,6 +814,14 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             out.writeInt(codecVersion);
             out.writeString(globalMetadataFileName);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            if (clusterStateChecksum != null) {
+                out.writeBoolean(true);
+                clusterStateChecksum.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -769,7 +857,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             && Objects.equals(uploadedTransientSettingsMetadata, that.uploadedTransientSettingsMetadata)
             && Objects.equals(uploadedHashesOfConsistentSettings, that.uploadedHashesOfConsistentSettings)
             && Objects.equals(uploadedClusterStateCustomMap, that.uploadedClusterStateCustomMap)
-            && Objects.equals(diffManifest, that.diffManifest);
+            && Objects.equals(diffManifest, that.diffManifest)
+            && Objects.equals(clusterStateChecksum, that.clusterStateChecksum);
     }
 
     @Override
@@ -799,7 +888,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             uploadedTransientSettingsMetadata,
             uploadedHashesOfConsistentSettings,
             uploadedClusterStateCustomMap,
-            diffManifest
+            diffManifest,
+            clusterStateChecksum
         );
     }
 
@@ -822,6 +912,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
     public static ClusterMetadataManifest fromXContentV2(XContentParser parser) throws IOException {
         return PARSER_V2.parse(parser, null);
+    }
+
+    public static ClusterMetadataManifest fromXContentV3(XContentParser parser) throws IOException {
+        return PARSER_V3.parse(parser, null);
     }
 
     public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
@@ -860,6 +954,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         private UploadedMetadataAttribute hashesOfConsistentSettings;
         private Map<String, UploadedMetadataAttribute> clusterStateCustomMetadataMap;
         private ClusterStateDiffManifest diffManifest;
+        private ClusterStateChecksum checksum;
 
         public Builder indices(List<UploadedIndexMetadata> indices) {
             this.indices = indices;
@@ -999,6 +1094,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder checksum(ClusterStateChecksum checksum) {
+            this.checksum = checksum;
+            return this;
+        }
+
         public Builder() {
             indices = new ArrayList<>();
             customMetadataMap = new HashMap<>();
@@ -1031,6 +1131,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.diffManifest = manifest.diffManifest;
             this.hashesOfConsistentSettings = manifest.uploadedHashesOfConsistentSettings;
             this.clusterStateCustomMetadataMap = manifest.uploadedClusterStateCustomMap;
+            this.checksum = manifest.clusterStateChecksum;
         }
 
         public ClusterMetadataManifest build() {
@@ -1059,7 +1160,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 transientSettingsMetadata,
                 hashesOfConsistentSettings,
                 clusterStateCustomMetadataMap,
-                diffManifest
+                diffManifest,
+                checksum
             );
         }
 
@@ -1112,16 +1214,30 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return (String) fields[3];
         }
 
-        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER_V0 = new ConstructingObjectParser<>(
+            "uploaded_index_metadata",
+            fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields))
+        );
+
+        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER_V2 = new ConstructingObjectParser<>(
             "uploaded_index_metadata",
             fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields), componentPrefix(fields))
         );
 
+        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> CURRENT_PARSER = PARSER_V2;
+
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_NAME_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_UUID_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), UPLOADED_FILENAME_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), COMPONENT_PREFIX_FIELD);
+            declareParser(PARSER_V0, CODEC_V0);
+            declareParser(PARSER_V2, CODEC_V2);
+        }
+
+        private static void declareParser(ConstructingObjectParser<UploadedIndexMetadata, Void> parser, long codec_version) {
+            parser.declareString(ConstructingObjectParser.constructorArg(), INDEX_NAME_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), INDEX_UUID_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), UPLOADED_FILENAME_FIELD);
+            if (codec_version >= CODEC_V2) {
+                parser.declareString(ConstructingObjectParser.constructorArg(), COMPONENT_PREFIX_FIELD);
+            }
         }
 
         static final String COMPONENT_PREFIX = "index--";
@@ -1130,15 +1246,32 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         private final String indexUUID;
         private final String uploadedFilename;
 
+        private long codecVersion = CODEC_V2;
+
         public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName) {
-            this(indexName, indexUUID, uploadedFileName, COMPONENT_PREFIX);
+            this(indexName, indexUUID, uploadedFileName, CODEC_V2);
+        }
+
+        public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName, long codecVersion) {
+            this(indexName, indexUUID, uploadedFileName, COMPONENT_PREFIX, codecVersion);
         }
 
         public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName, String componentPrefix) {
+            this(indexName, indexUUID, uploadedFileName, componentPrefix, CODEC_V2);
+        }
+
+        public UploadedIndexMetadata(
+            String indexName,
+            String indexUUID,
+            String uploadedFileName,
+            String componentPrefix,
+            long codecVersion
+        ) {
             this.componentPrefix = componentPrefix;
             this.indexName = indexName;
             this.indexUUID = indexUUID;
             this.uploadedFilename = uploadedFileName;
+            this.codecVersion = codecVersion;
         }
 
         public UploadedIndexMetadata(StreamInput in) throws IOException {
@@ -1175,10 +1308,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
+            builder.field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
                 .field(INDEX_UUID_FIELD.getPreferredName(), getIndexUUID())
-                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath())
-                .field(COMPONENT_PREFIX_FIELD.getPreferredName(), getComponentPrefix());
+                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath());
+            if (codecVersion >= CODEC_V2) {
+                builder.field(COMPONENT_PREFIX_FIELD.getPreferredName(), getComponentPrefix());
+            }
+            return builder;
         }
 
         @Override
@@ -1214,9 +1350,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
-        public static UploadedIndexMetadata fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
+        public static UploadedIndexMetadata fromXContent(XContentParser parser, long codecVersion) throws IOException {
+            if (codecVersion >= CODEC_V2) {
+                return CURRENT_PARSER.parse(parser, null);
+            }
+            return PARSER_V0.parse(parser, null);
         }
+
     }
 
     /**

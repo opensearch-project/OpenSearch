@@ -62,6 +62,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -107,6 +108,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static final String INGEST_ORIGIN = "ingest";
 
+    /**
+     * Defines the limit for the number of processors which can run on a given document during ingestion.
+     */
+    public static final Setting<Integer> MAX_NUMBER_OF_INGEST_PROCESSORS = Setting.intSetting(
+        "cluster.ingest.max_number_processors",
+        Integer.MAX_VALUE,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(IngestService.class);
 
     private final ClusterService clusterService;
@@ -123,6 +136,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ClusterManagerTaskThrottler.ThrottlingKey putPipelineTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey deletePipelineTaskKey;
     private volatile ClusterState state;
+    private volatile int maxIngestProcessorCount;
 
     public IngestService(
         ClusterService clusterService,
@@ -156,6 +170,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_PIPELINE_KEY, true);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_NUMBER_OF_INGEST_PROCESSORS, this::setMaxIngestProcessorCount);
+        setMaxIngestProcessorCount(clusterService.getClusterSettings().get(MAX_NUMBER_OF_INGEST_PROCESSORS));
+    }
+
+    private void setMaxIngestProcessorCount(Integer maxIngestProcessorCount) {
+        this.maxIngestProcessorCount = maxIngestProcessorCount;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -494,6 +514,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
+
+        validateProcessorCountForIngestPipeline(pipeline);
+
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
@@ -505,6 +528,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    public void validateProcessorCountForIngestPipeline(Pipeline pipeline) {
+        List<Processor> processors = pipeline.flattenAllProcessors();
+
+        if (processors.size() > maxIngestProcessorCount) {
+            throw new IllegalStateException(
+                "Cannot use more than the maximum processors allowed. Number of processors being configured is ["
+                    + processors.size()
+                    + "] which exceeds the maximum allowed configuration of ["
+                    + maxIngestProcessorCount
+                    + "] processors."
+            );
+        }
     }
 
     public void executeBulkRequest(
@@ -525,61 +562,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected void doRun() {
-                int batchSize = originalBulkRequest.batchSize();
-                if (shouldExecuteBulkRequestInBatch(originalBulkRequest.requests().size(), batchSize)) {
-                    runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
-                    return;
-                }
-
-                final Thread originalThread = Thread.currentThread();
-                final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
-                int i = 0;
-                for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                    if (indexRequest == null) {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
-                        i++;
-                        continue;
-                    }
-                    final String pipelineId = indexRequest.getPipeline();
-                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                    final String finalPipelineId = indexRequest.getFinalPipeline();
-                    indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-                    boolean hasFinalPipeline = true;
-                    final List<String> pipelines;
-                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                        && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = Arrays.asList(pipelineId, finalPipelineId);
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        pipelines = Collections.singletonList(pipelineId);
-                        hasFinalPipeline = false;
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = Collections.singletonList(finalPipelineId);
-                    } else {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
-                        i++;
-                        continue;
-                    }
-
-                    executePipelines(
-                        i,
-                        pipelines.iterator(),
-                        hasFinalPipeline,
-                        indexRequest,
-                        onDropped,
-                        onFailure,
-                        counter,
-                        onCompletion,
-                        originalThread
-                    );
-                    i++;
-                }
+                runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
             }
         });
     }
@@ -635,7 +618,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             i++;
         }
 
-        int batchSize = originalBulkRequest.batchSize();
+        int batchSize = Math.min(numberOfActionRequests, originalBulkRequest.batchSize());
         List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
 
@@ -652,10 +635,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 originalThread
             );
         }
-    }
-
-    private boolean shouldExecuteBulkRequestInBatch(int documentSize, int batchSize) {
-        return documentSize > 1 && batchSize > 1;
     }
 
     /**
@@ -685,7 +664,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         List<List<IndexRequestWrapper>> batchedIndexRequests = new ArrayList<>();
         for (Map.Entry<Integer, List<IndexRequestWrapper>> indexRequestsPerKey : indexRequestsPerIndexAndPipelines.entrySet()) {
-            for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += batchSize) {
+            for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += Math.min(indexRequestsPerKey.getValue().size(), batchSize)) {
                 batchedIndexRequests.add(
                     new ArrayList<>(
                         indexRequestsPerKey.getValue().subList(i, i + Math.min(batchSize, indexRequestsPerKey.getValue().size() - i))
@@ -1055,7 +1034,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Consumer<List<IngestDocumentWrapper>> handler
     ) {
         if (pipeline.getProcessors().isEmpty()) {
-            handler.accept(null);
+            handler.accept(toIngestDocumentWrappers(slots, indexRequests));
             return;
         }
 
@@ -1327,6 +1306,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private static IngestDocumentWrapper toIngestDocumentWrapper(int slot, IndexRequest indexRequest) {
         return new IngestDocumentWrapper(slot, toIngestDocument(indexRequest), null);
+    }
+
+    private static List<IngestDocumentWrapper> toIngestDocumentWrappers(List<Integer> slots, List<IndexRequest> indexRequests) {
+        List<IngestDocumentWrapper> ingestDocumentWrappers = new ArrayList<>();
+        for (int i = 0; i < slots.size(); ++i) {
+            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), indexRequests.get(i)));
+        }
+        return ingestDocumentWrappers;
     }
 
     private static Map<Integer, IndexRequest> createSlotIndexRequestMap(List<Integer> slots, List<IndexRequest> indexRequests) {

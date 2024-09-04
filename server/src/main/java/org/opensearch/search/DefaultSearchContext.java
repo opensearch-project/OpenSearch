@@ -32,6 +32,8 @@
 
 package org.opensearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -70,6 +72,9 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
+import org.opensearch.search.deciders.ConcurrentSearchDecider;
+import org.opensearch.search.deciders.ConcurrentSearchDecision;
+import org.opensearch.search.deciders.ConcurrentSearchVisitor;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSearchResult;
@@ -98,16 +103,23 @@ import org.opensearch.search.suggest.SuggestionSearchContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 
 /**
@@ -117,11 +129,14 @@ import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTER
  */
 final class DefaultSearchContext extends SearchContext {
 
+    private static final Logger logger = LogManager.getLogger(DefaultSearchContext.class);
+
     private final ReaderContext readerContext;
     private final Engine.Searcher engineSearcher;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
+    private final Collection<ConcurrentSearchDecider> concurrentSearchDeciders;
     private SearchType searchType;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
@@ -187,7 +202,7 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
-    private final boolean concurrentSearchSettingsEnabled;
+    private final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
     private final int cardinalityAggregationPruningThreshold;
@@ -205,7 +220,8 @@ final class DefaultSearchContext extends SearchContext {
         Version minNodeVersion,
         boolean validate,
         Executor executor,
-        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+        Collection<ConcurrentSearchDecider> concurrentSearchDeciders
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -221,14 +237,15 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
         this.engineSearcher = readerContext.acquireSearcher("search");
-        this.concurrentSearchSettingsEnabled = evaluateConcurrentSegmentSearchSettings(executor);
+        this.concurrentSearchMode = evaluateConcurrentSearchMode(executor);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
-            concurrentSearchSettingsEnabled ? executor : null,
+            concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
+                || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL) ? executor : null,
             this
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -247,6 +264,7 @@ final class DefaultSearchContext extends SearchContext {
 
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
+        this.concurrentSearchDeciders = concurrentSearchDeciders;
     }
 
     @Override
@@ -902,11 +920,68 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public boolean shouldUseConcurrentSearch() {
         assert requestShouldUseConcurrentSearch.get() != null : "requestShouldUseConcurrentSearch must be set";
-        return concurrentSearchSettingsEnabled && Boolean.TRUE.equals(requestShouldUseConcurrentSearch.get());
+        assert concurrentSearchMode != null : "concurrentSearchMode must be set";
+        return (concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
+            || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL))
+            && Boolean.TRUE.equals(requestShouldUseConcurrentSearch.get());
+    }
+
+    private boolean evaluateAutoMode() {
+
+        // filter out deciders that want to opt-out of decision-making
+        final Set<ConcurrentSearchDecider> filteredDeciders = concurrentSearchDeciders.stream()
+            .filter(concurrentSearchDecider -> concurrentSearchDecider.canEvaluateForIndex(indexService.getIndexSettings()))
+            .collect(Collectors.toSet());
+        // evaluate based on concurrent search query visitor
+        if (filteredDeciders.size() > 0) {
+            ConcurrentSearchVisitor concurrentSearchVisitor = new ConcurrentSearchVisitor(
+                filteredDeciders,
+                indexService.getIndexSettings()
+            );
+            if (request().source() != null && request().source().query() != null) {
+                QueryBuilder queryBuilder = request().source().query();
+                queryBuilder.visit(concurrentSearchVisitor);
+            }
+        }
+
+        final List<ConcurrentSearchDecision> decisions = new ArrayList<>();
+        for (ConcurrentSearchDecider decider : filteredDeciders) {
+            ConcurrentSearchDecision decision = decider.getConcurrentSearchDecision();
+            if (decision != null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("concurrent search decision from plugin decider [{}]", decision.toString());
+                }
+                decisions.add(decision);
+            }
+        }
+
+        final ConcurrentSearchDecision pluginDecision = ConcurrentSearchDecision.getCompositeDecision(decisions);
+        if (pluginDecision.getDecisionStatus().equals(ConcurrentSearchDecision.DecisionStatus.NO_OP)) {
+            // plugins don't have preference, decide based on whether request has aggregations or not.
+            if (aggregations() != null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("request has supported aggregations, using concurrent search");
+                }
+                return true;
+
+            } else {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("request does not have aggregations, not using concurrent search");
+                }
+                return false;
+            }
+
+        } else {
+            if (logger.isDebugEnabled()) {
+                logger.debug("concurrent search decision from plugins [{}]", pluginDecision.toString());
+            }
+            return pluginDecision.getDecisionStatus() == ConcurrentSearchDecision.DecisionStatus.YES;
+        }
+
     }
 
     /**
-     * Evaluate if parsed request supports concurrent segment search
+     * Evaluate if request should use concurrent search based on request and concurrent search deciders
      */
     public void evaluateRequestShouldUseConcurrentSearch() {
         if (sort != null && sort.isSortOnTimeSeriesField()) {
@@ -917,6 +992,8 @@ final class DefaultSearchContext extends SearchContext {
                 requestShouldUseConcurrentSearch.set(false);
             } else if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
                 requestShouldUseConcurrentSearch.set(false);
+            } else if (concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)) {
+                requestShouldUseConcurrentSearch.set(evaluateAutoMode());
             } else {
                 requestShouldUseConcurrentSearch.set(true);
             }
@@ -964,26 +1041,40 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Evaluate based on cluster and index settings if concurrent segment search should be used for this request context
-     * @return true: use concurrent search
-     *         false: otherwise
+     * Evaluate the concurrentSearchMode based on cluster and index settings if concurrent segment search
+     * should be used for this request context
+     * If the cluster.search.concurrent_segment_search.mode setting
+     * is not explicitly set, the evaluation falls back to the
+     * cluster.search.concurrent_segment_search.enabled boolean setting
+     * which will evaluate to true or false. This is then evaluated to "all" or "none" respectively
+     * @return one of "none", "auto", "all"
      */
-    private boolean evaluateConcurrentSegmentSearchSettings(Executor concurrentSearchExecutor) {
+    private String evaluateConcurrentSearchMode(Executor concurrentSearchExecutor) {
         // Do not use concurrent segment search for system indices or throttled requests. See:
         // https://github.com/opensearch-project/OpenSearch/issues/12951
         if (indexShard.isSystem() || indexShard.indexSettings().isSearchThrottled()) {
-            return false;
+            return CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
         }
+        if ((clusterService != null) && concurrentSearchExecutor != null) {
+            String concurrentSearchMode = indexService.getIndexSettings()
+                .getSettings()
+                .get(
+                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(),
+                    clusterService.getClusterSettings().getOrNull(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE)
+                );
+            if (concurrentSearchMode != null) {
+                return concurrentSearchMode;
+            }
 
-        if ((clusterService != null) && (concurrentSearchExecutor != null)) {
+            // mode setting not set, fallback to concurrent_segment_search.enabled setting
             return indexService.getIndexSettings()
                 .getSettings()
                 .getAsBoolean(
                     IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
                     clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-                );
+                ) ? CONCURRENT_SEGMENT_SEARCH_MODE_ALL : CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
         }
-        return false;
+        return CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
     }
 
     @Override
@@ -999,7 +1090,14 @@ final class DefaultSearchContext extends SearchContext {
         if (shouldUseConcurrentSearch() == false) {
             throw new IllegalStateException("Target slice count should not be used when concurrent search is disabled");
         }
-        return clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING);
+
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsInt(
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT.getKey(),
+                clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING)
+            );
+
     }
 
     @Override

@@ -60,6 +60,7 @@ import org.apache.http.entity.HttpEntityWrapper;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
@@ -75,6 +76,7 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -90,12 +92,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
+
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSink;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
@@ -292,6 +300,23 @@ public class RestClient implements Closeable {
     }
 
     /**
+     * Sends a streaming request to the OpenSearch cluster that the client points to and returns streaming response. <strong>This is an experimental API</strong>.
+     * @param request streaming request
+     * @return streaming response
+     * @throws IOException IOException
+     */
+    public StreamingResponse<ByteBuffer> streamRequest(StreamingRequest<ByteBuffer> request) throws IOException {
+        final InternalStreamingRequest internalRequest = new InternalStreamingRequest(request);
+
+        final StreamingResponse<ByteBuffer> response = new StreamingResponse<>(
+            internalRequest.httpRequest.getRequestLine(),
+            streamRequest(nextNodes(), internalRequest)
+        );
+
+        return response;
+    }
+
+    /**
      * Sends a request to the OpenSearch cluster that the client points to.
      * Blocks until the request is completed and returns its response or fails
      * by throwing an exception. Selects a host out of the provided ones in a
@@ -323,13 +348,13 @@ public class RestClient implements Closeable {
 
     private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple, final InternalRequest request, Exception previousException)
         throws IOException {
-        RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+        RequestContext<HttpResponse> context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
         HttpResponse httpResponse;
         try {
-            httpResponse = client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, null).get();
+            httpResponse = client.execute(context.requestProducer(), context.asyncResponseConsumer(), context.context(), null).get();
         } catch (Exception e) {
-            RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, e);
-            onFailure(context.node);
+            RequestLogger.logFailedRequest(logger, request.httpRequest, context.node(), e);
+            onFailure(context.node());
             Exception cause = extractAndWrapCause(e);
             addSuppressedException(previousException, cause);
             if (nodeTuple.nodes.hasNext()) {
@@ -343,7 +368,7 @@ public class RestClient implements Closeable {
             }
             throw new IllegalStateException("unexpected exception type: must be either RuntimeException or IOException", cause);
         }
-        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node(), httpResponse);
         if (responseOrResponseException.responseException == null) {
             return responseOrResponseException.response;
         }
@@ -352,6 +377,84 @@ public class RestClient implements Closeable {
             return performRequest(nodeTuple, request, responseOrResponseException.responseException);
         }
         throw responseOrResponseException.responseException;
+    }
+
+    private Publisher<Message<HttpResponse, Publisher<ByteBuffer>>> streamRequest(
+        final NodeTuple<Iterator<Node>> nodeTuple,
+        final InternalStreamingRequest request
+    ) throws IOException {
+        return request.cancellable.callIfNotCancelled(() -> {
+            final Node node = nodeTuple.nodes.next();
+
+            final Mono<Message<HttpResponse, Publisher<ByteBuffer>>> publisher = Mono.create(emitter -> {
+                final RequestContext<HttpResponse> context = request.createContextForNextAttempt(node, nodeTuple.authCache, emitter);
+                client.execute(context.requestProducer(), context.asyncResponseConsumer(), context.context(), null);
+            });
+
+            return publisher.flatMap(message -> {
+                try {
+                    final ResponseOrResponseException responseOrResponseException = convertResponse(request, node, message);
+                    if (responseOrResponseException.responseException == null) {
+                        return Mono.just(
+                            new Message<>(
+                                message.getHead(),
+                                Flux.from(message.getBody()).flatMapSequential(b -> Flux.fromIterable(frame(b)))
+                            )
+                        );
+                    } else {
+                        if (nodeTuple.nodes.hasNext()) {
+                            return Mono.from(streamRequest(nodeTuple, request));
+                        } else {
+                            return Mono.error(responseOrResponseException.responseException);
+                        }
+                    }
+                } catch (final Exception ex) {
+                    return Mono.error(ex);
+                }
+            });
+        });
+    }
+
+    /**
+     * Frame the {@link ByteBuffer} into individual chunks that are separated by '\r\n' sequence.
+     * @param b {@link ByteBuffer} to split
+     * @return individual chunks
+     */
+    private static Collection<ByteBuffer> frame(ByteBuffer b) {
+        final Collection<ByteBuffer> buffers = new ArrayList<>();
+
+        int position = b.position();
+        while (b.hasRemaining()) {
+            // Skip the chunk separator when it comes right at the beginning
+            if (b.get() == '\r' && b.hasRemaining() && b.position() > 1) {
+                if (b.get() == '\n') {
+                    final byte[] chunk = new byte[b.position() - position];
+
+                    b.position(position);
+                    b.get(chunk);
+
+                    // Do not copy the '\r\n' sequence
+                    buffers.add(ByteBuffer.wrap(chunk, 0, chunk.length - 2));
+                    position = b.position();
+                }
+            }
+        }
+
+        if (buffers.isEmpty()) {
+            return Collections.singleton(b);
+        }
+
+        // Copy last chunk
+        if (position != b.position()) {
+            final byte[] chunk = new byte[b.position() - position];
+
+            b.position(position);
+            b.get(chunk);
+
+            buffers.add(ByteBuffer.wrap(chunk, 0, chunk.length));
+        }
+
+        return buffers;
     }
 
     private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
@@ -366,6 +469,37 @@ public class RestClient implements Closeable {
             .ifPresent(httpResponse::setEntity);
 
         Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
+        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
+            onResponse(node);
+            if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+                throw new WarningFailureException(response);
+            }
+            return new ResponseOrResponseException(response);
+        }
+        ResponseException responseException = new ResponseException(response);
+        if (isRetryStatus(statusCode)) {
+            // mark host dead and retry against next one
+            onFailure(node);
+            return new ResponseOrResponseException(responseException);
+        }
+        // mark host alive and don't retry, as the error should be a request problem
+        onResponse(node);
+        throw responseException;
+    }
+
+    private ResponseOrResponseException convertResponse(
+        InternalStreamingRequest request,
+        Node node,
+        Message<HttpResponse, Publisher<ByteBuffer>> message
+    ) throws IOException {
+
+        // Streaming Response could accumulate a lot of data so we may not be able to fully consume it.
+        final HttpResponse httpResponse = new BasicHttpResponse(message.getHead().getStatusLine());
+        final Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
+
+        RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
+        int statusCode = httpResponse.getStatusLine().getStatusCode();
+
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
             onResponse(node);
             if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
@@ -418,48 +552,57 @@ public class RestClient implements Closeable {
         final FailureTrackingResponseListener listener
     ) {
         request.cancellable.runIfNotCancelled(() -> {
-            final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
-            client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
-                @Override
-                public void completed(HttpResponse httpResponse) {
-                    try {
-                        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
-                        if (responseOrResponseException.responseException == null) {
-                            listener.onSuccess(responseOrResponseException.response);
-                        } else {
+            final RequestContext<HttpResponse> context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+            client.execute(
+                context.requestProducer(),
+                context.asyncResponseConsumer(),
+                context.context(),
+                new FutureCallback<HttpResponse>() {
+                    @Override
+                    public void completed(HttpResponse httpResponse) {
+                        try {
+                            ResponseOrResponseException responseOrResponseException = convertResponse(
+                                request,
+                                context.node(),
+                                httpResponse
+                            );
+                            if (responseOrResponseException.responseException == null) {
+                                listener.onSuccess(responseOrResponseException.response);
+                            } else {
+                                if (nodeTuple.nodes.hasNext()) {
+                                    listener.trackFailure(responseOrResponseException.responseException);
+                                    performRequestAsync(nodeTuple, request, listener);
+                                } else {
+                                    listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                                }
+                            }
+                        } catch (Exception e) {
+                            listener.onDefinitiveFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void failed(Exception failure) {
+                        try {
+                            RequestLogger.logFailedRequest(logger, request.httpRequest, context.node(), failure);
+                            onFailure(context.node());
                             if (nodeTuple.nodes.hasNext()) {
-                                listener.trackFailure(responseOrResponseException.responseException);
+                                listener.trackFailure(failure);
                                 performRequestAsync(nodeTuple, request, listener);
                             } else {
-                                listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                                listener.onDefinitiveFailure(failure);
                             }
+                        } catch (Exception e) {
+                            listener.onDefinitiveFailure(e);
                         }
-                    } catch (Exception e) {
-                        listener.onDefinitiveFailure(e);
+                    }
+
+                    @Override
+                    public void cancelled() {
+                        listener.onDefinitiveFailure(Cancellable.newCancellationException());
                     }
                 }
-
-                @Override
-                public void failed(Exception failure) {
-                    try {
-                        RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
-                        onFailure(context.node);
-                        if (nodeTuple.nodes.hasNext()) {
-                            listener.trackFailure(failure);
-                            performRequestAsync(nodeTuple, request, listener);
-                        } else {
-                            listener.onDefinitiveFailure(failure);
-                        }
-                    } catch (Exception e) {
-                        listener.onDefinitiveFailure(e);
-                    }
-                }
-
-                @Override
-                public void cancelled() {
-                    listener.onDefinitiveFailure(Cancellable.newCancellationException());
-                }
-            });
+            );
         });
     }
 
@@ -800,6 +943,66 @@ public class RestClient implements Closeable {
         }
     }
 
+    private class InternalStreamingRequest {
+        private final StreamingRequest<ByteBuffer> request;
+        private final Set<Integer> ignoreErrorCodes;
+        private final HttpRequestBase httpRequest;
+        private final Cancellable cancellable;
+        private final WarningsHandler warningsHandler;
+
+        InternalStreamingRequest(StreamingRequest<ByteBuffer> request) {
+            this.request = request;
+            Map<String, String> params = new HashMap<>(request.getParameters());
+            // ignore is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = params.remove("ignore");
+            this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
+            URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, null);
+            this.cancellable = Cancellable.fromRequest(httpRequest);
+            setHeaders(httpRequest, request.getOptions().getHeaders());
+            setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
+            this.warningsHandler = request.getOptions().getWarningsHandler() == null
+                ? RestClient.this.warningsHandler
+                : request.getOptions().getWarningsHandler();
+        }
+
+        private void setHeaders(HttpRequest httpRequest, Collection<Header> requestHeaders) {
+            // request headers override default headers, so we don't add default headers if they exist as request headers
+            final Set<String> requestNames = new HashSet<>(requestHeaders.size());
+            for (Header requestHeader : requestHeaders) {
+                httpRequest.addHeader(requestHeader);
+                requestNames.add(requestHeader.getName());
+            }
+            for (Header defaultHeader : defaultHeaders) {
+                if (requestNames.contains(defaultHeader.getName()) == false) {
+                    httpRequest.addHeader(defaultHeader);
+                }
+            }
+            if (compressionEnabled) {
+                httpRequest.addHeader("Accept-Encoding", "gzip");
+            }
+        }
+
+        private void setRequestConfig(HttpRequestBase httpRequest, RequestConfig requestConfig) {
+            if (requestConfig != null) {
+                httpRequest.setConfig(requestConfig);
+            }
+        }
+
+        public Publisher<ByteBuffer> getPublisher() {
+            return request.getBody();
+        }
+
+        RequestContext<HttpResponse> createContextForNextAttempt(
+            Node node,
+            AuthCache authCache,
+            MonoSink<Message<HttpResponse, Publisher<ByteBuffer>>> emitter
+        ) {
+            this.httpRequest.reset();
+            return new ReactiveRequestContext(this, node, authCache, emitter);
+        }
+    }
+
     private class InternalRequest {
         private final Request request;
         private final Set<Integer> ignoreErrorCodes;
@@ -846,19 +1049,89 @@ public class RestClient implements Closeable {
             }
         }
 
-        RequestContext createContextForNextAttempt(Node node, AuthCache authCache) {
+        RequestContext<HttpResponse> createContextForNextAttempt(Node node, AuthCache authCache) {
             this.httpRequest.reset();
-            return new RequestContext(this, node, authCache);
+            return new AsyncRequestContext(this, node, authCache);
         }
     }
 
-    private static class RequestContext {
+    private interface RequestContext<T> {
+        Node node();
+
+        HttpAsyncRequestProducer requestProducer();
+
+        HttpAsyncResponseConsumer<T> asyncResponseConsumer();
+
+        HttpClientContext context();
+    }
+
+    private static class ReactiveRequestContext implements RequestContext<HttpResponse> {
         private final Node node;
         private final HttpAsyncRequestProducer requestProducer;
         private final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer;
         private final HttpClientContext context;
 
-        RequestContext(InternalRequest request, Node node, AuthCache authCache) {
+        ReactiveRequestContext(
+            InternalStreamingRequest request,
+            Node node,
+            AuthCache authCache,
+            MonoSink<Message<HttpResponse, Publisher<ByteBuffer>>> emitter
+        ) {
+            this.node = node;
+            // we stream the request body if the entity allows for it
+            this.requestProducer = new ReactiveRequestProducer(request.httpRequest, node.getHost(), request.getPublisher());
+            this.asyncResponseConsumer = new ReactiveResponseConsumer(new FutureCallback<Message<HttpResponse, Publisher<ByteBuffer>>>() {
+                @Override
+                public void failed(Exception ex) {
+                    emitter.error(ex);
+                }
+
+                @Override
+                public void completed(Message<HttpResponse, Publisher<ByteBuffer>> result) {
+                    if (result == null) {
+                        emitter.success();
+                    } else {
+                        emitter.success(result);
+                    }
+                }
+
+                @Override
+                public void cancelled() {
+                    failed(new CancellationException("Future cancelled"));
+                }
+            });
+            this.context = HttpClientContext.create();
+            context.setAuthCache(authCache);
+        }
+
+        @Override
+        public HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer() {
+            return asyncResponseConsumer;
+        }
+
+        @Override
+        public HttpClientContext context() {
+            return context;
+        }
+
+        @Override
+        public Node node() {
+            return node;
+        }
+
+        @Override
+        public HttpAsyncRequestProducer requestProducer() {
+            return requestProducer;
+        }
+    }
+
+    private static class AsyncRequestContext implements RequestContext<HttpResponse> {
+        private final Node node;
+        private final HttpAsyncRequestProducer requestProducer;
+        private final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer;
+        private final HttpClientContext context;
+
+        AsyncRequestContext(InternalRequest request, Node node, AuthCache authCache) {
             this.node = node;
             // we stream the request body if the entity allows for it
             this.requestProducer = HttpAsyncMethods.create(node.getHost(), request.httpRequest);
@@ -867,6 +1140,26 @@ public class RestClient implements Closeable {
                 .createHttpAsyncResponseConsumer();
             this.context = HttpClientContext.create();
             context.setAuthCache(authCache);
+        }
+
+        @Override
+        public HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer() {
+            return asyncResponseConsumer;
+        }
+
+        @Override
+        public HttpClientContext context() {
+            return context;
+        }
+
+        @Override
+        public Node node() {
+            return node;
+        }
+
+        @Override
+        public HttpAsyncRequestProducer requestProducer() {
+            return requestProducer;
         }
     }
 

@@ -125,6 +125,9 @@ dependencies {
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
 
+  // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
+  implementation 'org.roaringbitmap:RoaringBitmap:1.2.1'
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'

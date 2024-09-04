@@ -54,7 +54,9 @@ import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -91,8 +93,10 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
@@ -139,6 +143,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
@@ -1307,17 +1313,40 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
      * index and cluster settings.
      */
     public void testConcurrentSegmentSearchSearchContext() throws IOException {
-        Boolean[][] scenarios = {
-            // cluster setting, index setting, concurrent search enabled?
-            { null, null, false },
-            { null, false, false },
-            { null, true, true },
-            { true, null, true },
-            { true, false, false },
-            { true, true, true },
-            { false, null, false },
-            { false, false, false },
-            { false, true, true } };
+        Object[][] scenarios = {
+            // cluster setting, index setting, cluster mode setting, concurrent search enabled?, concurrent search executor null?
+            { null, null, null, false, true },
+            { null, false, null, false, true },
+            { null, true, null, true, false },
+            { true, null, null, true, false },
+            { true, false, null, false, true },
+            { true, true, null, true, false },
+            { false, null, null, false, true },
+            { false, false, null, false, true },
+            { false, true, null, true, false },
+
+            // Adding cases with mode set to "none"
+            { null, null, "none", false, true },
+            { true, true, "none", false, true },
+            { false, false, "none", false, true },
+            { true, false, "none", false, true },
+            { false, true, "none", false, true },
+
+            // Adding cases with mode set to "all"
+            { null, null, "all", true, false },
+            { true, true, "all", true, false },
+            { false, false, "all", true, false },
+            { true, false, "all", true, false },
+            { false, true, "all", true, false },
+
+            // Adding cases with mode set to "auto"
+            // auto mode concurrent search is false since request has no aggregation
+            // however concurrentSearchExecutor will not be null
+            { null, null, "auto", false, false },
+            { true, true, "auto", false, false },
+            { false, false, "auto", false, false },
+            { true, false, "auto", false, false },
+            { false, true, "auto", false, false } };
 
         String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         IndexService indexService = createIndex(index);
@@ -1339,10 +1368,12 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             Strings.EMPTY_ARRAY
         );
 
-        for (Boolean[] scenario : scenarios) {
-            Boolean clusterSetting = scenario[0];
-            Boolean indexSetting = scenario[1];
-            Boolean concurrentSearchEnabled = scenario[2];
+        for (Object[] scenario : scenarios) {
+            Boolean clusterSetting = (Boolean) scenario[0];
+            Boolean indexSetting = (Boolean) scenario[1];
+            String mode = (String) scenario[2];
+            Boolean concurrentSearchEnabled = (Boolean) scenario[3];
+            Boolean concurrentSearchExecutorNull = (Boolean) scenario[4];
 
             if (clusterSetting == null) {
                 client().admin()
@@ -1374,6 +1405,21 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                     .get();
             }
 
+            // update mode
+            if (mode == null) {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
+                    .get();
+            } else {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), mode))
+                    .get();
+            }
+
             try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
                 assertEquals(
                     clusterSetting,
@@ -1394,10 +1440,22 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         .get()
                         .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
                 );
+
+                assertEquals(
+                    mode,
+                    client().admin()
+                        .cluster()
+                        .prepareState()
+                        .get()
+                        .getState()
+                        .getMetadata()
+                        .transientSettings()
+                        .get(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), null)
+                );
                 searchContext.evaluateRequestShouldUseConcurrentSearch();
                 assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
-                // verify executor nullability with concurrent search enabled/disabled
-                if (concurrentSearchEnabled) {
+                // verify executor nullability
+                if (!concurrentSearchExecutorNull) {
                     assertNotNull(searchContext.searcher().getExecutor());
                 } else {
                     assertNull(searchContext.searcher().getExecutor());
@@ -1408,7 +1466,232 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()))
+            .setTransientSettings(
+                Settings.builder()
+                    .putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
+                    .putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
+            )
+            .get();
+        assertSettingDeprecationsAndWarnings(new Setting[] { IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING });
+    }
+
+    public void testConcurrentSegmentSearchWithRandomizedModeSettings() throws IOException {
+
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
+
+        String[] modeSettings = { "all", "auto", "none", null };
+
+        // Randomize both index and cluster settings
+        String clusterMode = randomFrom(modeSettings);
+        String indexMode = randomFrom(modeSettings);
+
+        // default to false in case mode setting is not set
+        boolean concurrentSearchEnabled = false;
+        boolean nullExecutor = true;
+
+        boolean aggregationSupportsConcurrent = randomBoolean();
+
+        if (indexMode != null) {
+            concurrentSearchEnabled = !indexMode.equals("none") && aggregationSupportsConcurrent;
+            nullExecutor = indexMode.equals("none");
+        } else if (clusterMode != null) {
+            concurrentSearchEnabled = !clusterMode.equals("none") && aggregationSupportsConcurrent;
+            nullExecutor = clusterMode.equals("none");
+        }
+
+        // Set the cluster setting for mode
+        if (clusterMode == null) {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
+                .get();
+        } else {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), clusterMode))
+                .get();
+        }
+
+        // Set the index setting for mode
+        if (indexMode == null) {
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().putNull(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
+                .get();
+        } else {
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), indexMode))
+                .get();
+        }
+
+        try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+            assertEquals(
+                clusterMode,
+                client().admin()
+                    .cluster()
+                    .prepareState()
+                    .get()
+                    .getState()
+                    .getMetadata()
+                    .transientSettings()
+                    .get(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
+            );
+            assertEquals(
+                indexMode,
+                client().admin()
+                    .indices()
+                    .prepareGetSettings(index)
+                    .get()
+                    .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
+            );
+            SearchContextAggregations mockAggregations = mock(SearchContextAggregations.class);
+            when(mockAggregations.factories()).thenReturn(mock(AggregatorFactories.class));
+            when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(aggregationSupportsConcurrent);
+
+            // set the aggregations for context
+            searchContext.aggregations(mockAggregations);
+
+            searchContext.evaluateRequestShouldUseConcurrentSearch();
+            // check concurrentSearchenabled based on mode and supportedAggregation is computed correctly
+            assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
+
+            // Verify executor nullability based on mode
+            if (!nullExecutor) {
+                assertNotNull(searchContext.searcher().getExecutor());
+            } else {
+                assertNull(searchContext.searcher().getExecutor());
+            }
+        }
+
+        // Cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
+            .get();
+
+    }
+
+    /**
+     * Tests that the slice count is calculated correctly when concurrent search is enabled
+     *  If concurrent search enabled -
+     *       pick index level slice count setting if index level setting is set
+     *       else pick default cluster level slice count setting
+     * @throws IOException
+     */
+    public void testConcurrentSegmentSearchSliceCount() throws IOException {
+
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
+        // enable concurrent search
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true))
+            .get();
+
+        Integer[][] scenarios = {
+            // cluster setting, index setting, expected slice count
+            // expected value null will pick up default value from settings
+            { null, null, clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING) },
+            { 4, null, 4 },
+            { null, 3, 3 },
+            { 4, 3, 3 }, };
+
+        for (Integer[] sliceCounts : scenarios) {
+            Integer clusterSliceCount = sliceCounts[0];
+            Integer indexSliceCount = sliceCounts[1];
+            Integer targetSliceCount = sliceCounts[2];
+
+            if (clusterSliceCount != null) {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder()
+                            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), clusterSliceCount)
+                    )
+                    .get();
+            } else {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().putNull(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey())
+                    )
+                    .get();
+            }
+            if (indexSliceCount != null) {
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(index)
+                    .setSettings(
+                        Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT.getKey(), indexSliceCount)
+                    )
+                    .get();
+            } else {
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(index)
+                    .setSettings(Settings.builder().putNull(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT.getKey()))
+                    .get();
+            }
+
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(targetSliceCount.intValue(), searchContext.getTargetMaxSliceCount());
+            }
+        }
+        // cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
+                    .putNull(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey())
+            )
             .get();
     }
 
