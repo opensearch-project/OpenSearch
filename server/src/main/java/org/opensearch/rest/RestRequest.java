@@ -51,6 +51,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
+import org.opensearch.rest.pagination.PaginatedQueryRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -67,6 +68,9 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.opensearch.rest.pagination.PaginatedQueryRequest.PAGINATED_QUERY_PARAM_NEXT_TOKEN_KEY;
+import static org.opensearch.rest.pagination.PaginatedQueryRequest.PAGINATED_QUERY_PARAM_SIZE_KEY;
+import static org.opensearch.rest.pagination.PaginatedQueryRequest.PAGINATED_QUERY_PARAM_SORT_KEY;
 
 /**
  * REST Request
@@ -589,6 +593,14 @@ public class RestRequest implements ToXContent.Params {
             }
         }
         throw new IllegalArgumentException("empty Content-Type header");
+    }
+
+    public PaginatedQueryRequest parsePaginatedQueryParams(String defaultSortOrder, int defaultPageSize) {
+        return new PaginatedQueryRequest(
+            param(PAGINATED_QUERY_PARAM_NEXT_TOKEN_KEY),
+            param(PAGINATED_QUERY_PARAM_SORT_KEY, defaultSortOrder),
+            paramAsInt(PAGINATED_QUERY_PARAM_SIZE_KEY, defaultPageSize)
+        );
     }
 
     /**

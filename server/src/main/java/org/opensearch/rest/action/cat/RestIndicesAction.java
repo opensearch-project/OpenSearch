@@ -62,6 +62,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.pagination.IndexBasedPaginationStrategy;
+import org.opensearch.rest.pagination.PaginatedQueryResponse;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -152,17 +153,14 @@ public class RestIndicesAction extends AbstractCatAction {
                     @Override
                     public void onResponse(final ClusterStateResponse clusterStateResponse) {
                         IndexBasedPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
-                        Table.PaginationMetadata paginationMetadata = getTablePaginationMetadata(paginationStrategy);
-                        final String[] indicesToBeQueried = isActionPaginated()
-                            ? paginationStrategy.getElementsFromRequestedToken().toArray(new String[0])
-                            : indices;
+                        final String[] indicesToBeQueried = getIndicesToBeQueried(indices, paginationStrategy);
 
                         final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
                             request,
                             4,
                             listener,
                             indicesToBeQueried,
-                            paginationMetadata
+                            getPaginatedQueryResponse(paginationStrategy)
                         );
                         groupedListener.onResponse(clusterStateResponse);
 
@@ -172,20 +170,19 @@ public class RestIndicesAction extends AbstractCatAction {
                         // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
                         final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
 
-                        // Indices that were successfully resolved during the get settings request might be deleted when the subsequent
-                        // cluster
-                        // state, cluster health and indices stats requests execute. We have to distinguish two cases:
+                        // Indices that were successfully resolved during the cluster state request might be deleted when the subsequent
+                        // get settings, cluster health and indices stats requests execute. We have to distinguish two cases:
                         // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
                         // subsequent requests to fail.
                         // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests
                         // not to
                         // fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
-                        // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve
+                        // This behavior can be ensured by letting the get settings, cluster health and indices stats requests re-resolve
                         // the
                         // index names with the same indices options that we used for the initial cluster state request (strictExpand).
                         sendGetSettingsRequest(
                             indicesToBeQueried,
-                            subRequestIndicesOptions,
+                            indicesOptions,
                             local,
                             clusterManagerNodeTimeout,
                             client,
@@ -301,7 +298,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final int size,
         final ActionListener<Table> listener,
         final String[] indicesToBeQueried,
-        final Table.PaginationMetadata paginationMetadata
+        final PaginatedQueryResponse paginatedQueryResponse
     ) {
         return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
             @Override
@@ -332,7 +329,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indicesStats,
                         indicesStates,
                         indicesToBeQueried,
-                        paginationMetadata
+                        paginatedQueryResponse
                     );
                     listener.onResponse(responseTable);
                 } catch (Exception e) {
@@ -365,8 +362,8 @@ public class RestIndicesAction extends AbstractCatAction {
         return getTableWithHeader(request, null);
     }
 
-    protected Table getTableWithHeader(final RestRequest request, final Table.PaginationMetadata paginationMetadata) {
-        Table table = new Table(paginationMetadata);
+    protected Table getTableWithHeader(final RestRequest request, final PaginatedQueryResponse paginatedQueryResponse) {
+        Table table = new Table(paginatedQueryResponse);
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");
@@ -737,11 +734,11 @@ public class RestIndicesAction extends AbstractCatAction {
         final Map<String, IndexStats> indicesStats,
         final Map<String, IndexMetadata> indicesMetadatas,
         final String[] indicesToBeQueried,
-        final Table.PaginationMetadata paginationMetadata
+        final PaginatedQueryResponse paginatedQueryResponse
     ) {
 
         final String healthParam = request.param("health");
-        final Table table = getTableWithHeader(request, paginationMetadata);
+        final Table table = getTableWithHeader(request, paginatedQueryResponse);
 
         if (isActionPaginated() && indicesToBeQueried.length == 0) {
             // to handle cases where paginationStrategy couldn't find any indices that should be queried
@@ -1030,8 +1027,12 @@ public class RestIndicesAction extends AbstractCatAction {
         return null;
     }
 
-    protected Table.PaginationMetadata getTablePaginationMetadata(IndexBasedPaginationStrategy paginationStrategy) {
+    protected PaginatedQueryResponse getPaginatedQueryResponse(IndexBasedPaginationStrategy paginationStrategy) {
         return null;
+    }
+
+    protected String[] getIndicesToBeQueried(String[] indices, IndexBasedPaginationStrategy paginationStrategy) {
+        return indices;
     }
 
 }

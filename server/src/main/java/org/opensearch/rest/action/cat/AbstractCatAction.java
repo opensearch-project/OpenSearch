@@ -40,13 +40,12 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.pagination.PageToken;
+import org.opensearch.rest.pagination.PaginatedQueryRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -60,7 +59,7 @@ import static org.opensearch.rest.action.cat.RestTable.pad;
  */
 public abstract class AbstractCatAction extends BaseRestHandler {
 
-    protected PaginationQueryMetadata paginationQueryMetadata;
+    protected PaginatedQueryRequest paginatedQueryRequest;
 
     protected abstract RestChannelConsumer doCatRequest(RestRequest request, NodeClient client);
 
@@ -91,8 +90,8 @@ public abstract class AbstractCatAction extends BaseRestHandler {
             };
         } else {
             if (isActionPaginated()) {
-                this.paginationQueryMetadata = validateAndGetPaginationMetadata(request);
-                assert Objects.nonNull(paginationQueryMetadata) : "paginationQueryMetadata can not be null for paginated queries";
+                this.paginatedQueryRequest = validateAndGetPaginationMetadata(request);
+                assert Objects.nonNull(paginatedQueryRequest) : "paginatedQueryRequest can not be null for paginated queries";
             }
             return doCatRequest(request, client);
         }
@@ -120,34 +119,10 @@ public abstract class AbstractCatAction extends BaseRestHandler {
      *
      * @return Metadata that can be extracted out from the rest request. Each paginated action to override and provide
      * its own implementation. Query params supported by the action specific to pagination along with the respective validations,
-     * should be added here. The actions would also use the {@param restRequest} to initialise a {@link PageToken}.
+     * should be added here.
      */
-    protected PaginationQueryMetadata validateAndGetPaginationMetadata(RestRequest restRequest) {
+    protected PaginatedQueryRequest validateAndGetPaginationMetadata(RestRequest restRequest) {
         return null;
-    }
-
-    /**
-     * A pagination helper class which would contain requested page token and
-     * a map of query params required by a paginated API.
-     *
-     * @opensearch.internal
-     */
-    public static class PaginationQueryMetadata {
-        private final Map<String, Object> paginationQueryParams;
-        private final PageToken requestedPageToken;
-
-        public PaginationQueryMetadata(final Map<String, Object> paginationQueryParams, PageToken requestedPageToken) {
-            this.paginationQueryParams = paginationQueryParams;
-            this.requestedPageToken = requestedPageToken;
-        }
-
-        public Map<String, Object> getPaginationQueryParams() {
-            return paginationQueryParams;
-        }
-
-        public PageToken getRequestedPageToken() {
-            return requestedPageToken;
-        }
     }
 
 }

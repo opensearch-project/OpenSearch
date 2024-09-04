@@ -34,6 +34,7 @@ package org.opensearch.common;
 
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.common.Strings;
+import org.opensearch.rest.pagination.PaginatedQueryResponse;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -42,8 +43,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
-import reactor.util.annotation.NonNull;
 
 import static java.util.Collections.emptyMap;
 
@@ -61,16 +60,17 @@ public class Table {
     private List<Cell> currentCells;
     private boolean inHeaders = false;
     private boolean withTime = false;
-    private PaginationMetadata paginationMetadata = new PaginationMetadata(false, null, null);
+    /**
+     * paginatedQueryResponse if null will imply the Table response is not paginated.
+     */
+    private PaginatedQueryResponse paginatedQueryResponse;
     public static final String EPOCH = "epoch";
     public static final String TIMESTAMP = "timestamp";
 
     public Table() {}
 
-    public Table(@Nullable PaginationMetadata paginationMetadata) {
-        if (paginationMetadata != null) {
-            this.paginationMetadata = paginationMetadata;
-        }
+    public Table(@Nullable PaginatedQueryResponse paginatedQueryResponse) {
+        this.paginatedQueryResponse = paginatedQueryResponse;
     }
 
     public Table startHeaders() {
@@ -241,16 +241,8 @@ public class Table {
         return headerAliasMap;
     }
 
-    public boolean isPaginated() {
-        return paginationMetadata.isResponsePaginated;
-    }
-
-    public String getPaginatedElement() {
-        return paginationMetadata.paginatedElement;
-    }
-
-    public String getNextToken() {
-        return paginationMetadata.nextToken;
+    public PaginatedQueryResponse getPaginatedQueryResponse() {
+        return paginatedQueryResponse;
     }
 
     /**
@@ -275,36 +267,6 @@ public class Table {
         public Cell(Object value, Map<String, String> attr) {
             this.value = value;
             this.attr = attr;
-        }
-    }
-
-    /**
-     * Pagination metadata for a table.
-     *
-     * @opensearch.internal
-     */
-    public static class PaginationMetadata {
-
-        /**
-         * boolean denoting whether the table is paginated or not.
-         */
-        public final boolean isResponsePaginated;
-
-        /**
-         * String denoting the element which is being paginated (for e.g. shards, indices..).
-         */
-        public final String paginatedElement;
-
-        /**
-         * String denoting the next_token of paginated response, which will be used to fetch next page (if any).
-         */
-        public final String nextToken;
-
-        public PaginationMetadata(@NonNull boolean isResponsePaginated, @Nullable String paginatedElement, @Nullable String nextToken) {
-            this.isResponsePaginated = isResponsePaginated;
-            assert !isResponsePaginated || paginatedElement != null : "paginatedElement must be specified for a table which is paginated";
-            this.paginatedElement = paginatedElement;
-            this.nextToken = nextToken;
         }
     }
 }

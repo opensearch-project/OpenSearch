@@ -8,10 +8,15 @@
 
 package org.opensearch.rest.pagination;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;
 
+import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Interface to be implemented by any strategy getting used for paginating rest responses.
@@ -21,12 +26,14 @@ import java.util.stream.Collectors;
 public interface PaginationStrategy<T> {
 
     String DESCENDING_SORT_PARAM_VALUE = "descending";
+    String INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE =
+        "Parameter [next_token] has been tainted and is incorrect. Please provide a valid [next_token].";
 
     /**
      *
      * @return Base64 encoded string, which can be used to fetch next page of response.
      */
-    PageToken getNextToken();
+    PaginatedQueryResponse getPaginatedQueryResponse();
 
     /**
      *
@@ -62,5 +69,23 @@ public interface PaginationStrategy<T> {
                     : Long.compare(index1CreationTimeStamp, index2CreationTimeStamp);
             })
             .collect(Collectors.toList());
+    }
+
+    static String encryptStringToken(String tokenString) {
+        if (Objects.isNull(tokenString)) {
+            return null;
+        }
+        return Base64.getEncoder().encodeToString(tokenString.getBytes(UTF_8));
+    }
+
+    static String decryptStringToken(String encTokenString) {
+        if (Objects.isNull(encTokenString)) {
+            return null;
+        }
+        try {
+            return new String(Base64.getDecoder().decode(encTokenString), UTF_8);
+        } catch (IllegalArgumentException exception) {
+            throw new OpenSearchParseException(INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE);
+        }
     }
 }

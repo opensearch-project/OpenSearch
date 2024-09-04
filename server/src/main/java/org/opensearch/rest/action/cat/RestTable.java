@@ -58,7 +58,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+
+import static org.opensearch.rest.pagination.PaginatedQueryResponse.PAGINATED_RESPONSE_NEXT_TOKEN_KEY;
 
 /**
  * a REST table
@@ -88,11 +91,12 @@ public class RestTable {
         XContentBuilder builder = channel.newBuilder();
         List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
-        if (table.isPaginated()) {
-            assert table.getPaginatedElement() != null : "Paginated element is required in-case nextToken is not null";
+        if (Objects.nonNull(table.getPaginatedQueryResponse())) {
+            assert Objects.nonNull(table.getPaginatedQueryResponse().getPaginatedElement())
+                : "Paginated element is required in-case of paginated responses";
             builder.startObject();
-            builder.field("next_token", table.getNextToken());
-            builder.startArray(table.getPaginatedElement());
+            builder.field(PAGINATED_RESPONSE_NEXT_TOKEN_KEY, table.getPaginatedQueryResponse().getNextToken());
+            builder.startArray(table.getPaginatedQueryResponse().getPaginatedElement());
         } else {
             builder.startArray();
         }
@@ -105,7 +109,7 @@ public class RestTable {
             builder.endObject();
         }
         builder.endArray();
-        if (table.isPaginated()) {
+        if (Objects.nonNull(table.getPaginatedQueryResponse())) {
             builder.endObject();
         }
         return new BytesRestResponse(RestStatus.OK, builder);
@@ -147,8 +151,8 @@ public class RestTable {
             out.append("\n");
         }
         // Adding a new row for next_token, in the response if the table is paginated.
-        if (table.isPaginated()) {
-            out.append("next_token" + " " + table.getNextToken());
+        if (Objects.nonNull(table.getPaginatedQueryResponse())) {
+            out.append("next_token" + " " + table.getPaginatedQueryResponse().getNextToken());
             out.append("\n");
         }
         out.close();

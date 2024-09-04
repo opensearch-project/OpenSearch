@@ -9,14 +9,13 @@
 package org.opensearch.rest.action.list;
 
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.common.Table;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.rest.pagination.IndexBasedPaginationStrategy;
+import org.opensearch.rest.pagination.PaginatedQueryRequest;
+import org.opensearch.rest.pagination.PaginatedQueryResponse;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
@@ -56,49 +55,41 @@ public class RestIndicesListAction extends RestIndicesAction {
     }
 
     @Override
-    protected PaginationQueryMetadata validateAndGetPaginationMetadata(RestRequest restRequest) {
-        Map<String, Object> paginatedQueryParams = new HashMap<>();
-        final String requestedTokenStr = restRequest.param("next_token");
-        final String sortOrder = restRequest.param("sort", "ascending");
-        final int pageSize = restRequest.paramAsInt("size", DEFAULT_LIST_INDICES_PAGE_SIZE_STRING);
+    protected PaginatedQueryRequest validateAndGetPaginationMetadata(RestRequest restRequest) {
+        PaginatedQueryRequest paginatedQueryRequest = restRequest.parsePaginatedQueryParams(
+            "ascending",
+            DEFAULT_LIST_INDICES_PAGE_SIZE_STRING
+        );
         // validating pageSize
-        if (pageSize <= 0) {
+        if (paginatedQueryRequest.getSize() <= 0) {
             throw new IllegalArgumentException("size must be greater than zero");
-        } else if (pageSize > MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE_STRING) {
+        } else if (paginatedQueryRequest.getSize() > MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE_STRING) {
             throw new IllegalArgumentException("size should be less than [" + MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE_STRING + "]");
         }
         // Validating sort order
-        if (!Objects.equals(sortOrder, "ascending") && !Objects.equals(sortOrder, "descending")) {
+        if (!Objects.equals(paginatedQueryRequest.getSort(), "ascending")
+            && !Objects.equals(paginatedQueryRequest.getSort(), "descending")) {
             throw new IllegalArgumentException("value of sort can either be ascending or descending");
         }
-        // Next Token in the request will be validated by the IndexStrategyPageToken itself.
-        IndexBasedPaginationStrategy.IndexStrategyPageToken requestedPageToken = requestedTokenStr == null
-            ? null
-            : new IndexBasedPaginationStrategy.IndexStrategyPageToken(requestedTokenStr);
-        paginatedQueryParams.put("next_token", requestedTokenStr);
-        paginatedQueryParams.put("size", pageSize);
-        paginatedQueryParams.put("sort", sortOrder);
-        return new PaginationQueryMetadata(paginatedQueryParams, requestedPageToken);
+        // Next Token in the request will be validated by the IndexStrategyTokenParser itself.
+        if (Objects.nonNull(paginatedQueryRequest.getRequestedTokenStr())) {
+            IndexBasedPaginationStrategy.IndexStrategyTokenParser.validateIndexStrategyToken(paginatedQueryRequest.getRequestedTokenStr());
+        }
+
+        return paginatedQueryRequest;
     }
 
     @Override
     protected IndexBasedPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
-        assert !Objects.nonNull(paginationQueryMetadata.getRequestedPageToken())
-            || paginationQueryMetadata.getRequestedPageToken() instanceof IndexBasedPaginationStrategy.IndexStrategyPageToken;
-        return new IndexBasedPaginationStrategy(
-            (IndexBasedPaginationStrategy.IndexStrategyPageToken) paginationQueryMetadata.getRequestedPageToken(),
-            (int) paginationQueryMetadata.getPaginationQueryParams().get("size"),
-            (String) paginationQueryMetadata.getPaginationQueryParams().get("sort"),
-            clusterStateResponse.getState()
-        );
+        return new IndexBasedPaginationStrategy(paginatedQueryRequest, PAGINATED_LIST_INDICES_ELEMENT_KEY, clusterStateResponse.getState());
     }
 
     @Override
-    protected Table.PaginationMetadata getTablePaginationMetadata(IndexBasedPaginationStrategy paginationStrategy) {
-        return new Table.PaginationMetadata(
-            true,
-            PAGINATED_LIST_INDICES_ELEMENT_KEY,
-            paginationStrategy.getNextToken() == null ? null : paginationStrategy.getNextToken().generateEncryptedToken()
-        );
+    protected PaginatedQueryResponse getPaginatedQueryResponse(IndexBasedPaginationStrategy paginationStrategy) {
+        return paginationStrategy.getPaginatedQueryResponse();
+    }
+
+    protected String[] getIndicesToBeQueried(String[] indices, IndexBasedPaginationStrategy paginationStrategy) {
+        return paginationStrategy.getElementsFromRequestedToken().toArray(new String[0]);
     }
 }
