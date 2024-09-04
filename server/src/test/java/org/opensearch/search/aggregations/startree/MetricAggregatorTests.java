@@ -185,7 +185,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    private <T extends AggregationBuilder, V extends InternalAggregation, R extends Number> void testCase(
+    private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
         IndexSearcher searcher,
         Query defaultQuery,
         StarTreeQuery starTreeQuery,
