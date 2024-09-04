@@ -10,6 +10,7 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.ClusterInfo;
@@ -437,7 +438,11 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
         final CountDownLatch rerouteLatch = new CountDownLatch(2);
         final RerouteService rerouteService = (reason, priority, listener) -> {
-            listener.onResponse(clusterService.state());
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
             assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
             assertEquals("reroute after existing shards allocator timed out", reason);
             assertEquals(Priority.HIGH, priority);
@@ -454,7 +459,7 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
         executor.run();
         assertEquals(timedOutShardsLatch.getCount(), 0);
-        assertEquals(0, rerouteLatch.getCount());
+        assertEquals(0, rerouteLatch.getCount()); // even with failure it doesn't leak any listeners
         final boolean terminated = terminate(threadPool);
         assert terminated;
         clusterService.close();
