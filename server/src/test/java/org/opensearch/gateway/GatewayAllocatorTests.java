@@ -444,7 +444,7 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             rerouteLatch.countDown();
         };
         CountDownLatch timedOutShardsLatch = new CountDownLatch(20);
-        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(timedOutShardsLatch, rerouteService);
+        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(timedOutShardsLatch, 1000, rerouteService);
         testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
         testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
         BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);

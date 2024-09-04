@@ -40,13 +40,13 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
 
     }
 
-    public TestShardBatchGatewayAllocator(CountDownLatch latch, RerouteService rerouteService) {
-        super(rerouteService);
+    public TestShardBatchGatewayAllocator(CountDownLatch latch, long maxBatchSize, RerouteService rerouteService) {
+        super(maxBatchSize, rerouteService);
         this.latch = latch;
     }
 
     public TestShardBatchGatewayAllocator(long maxBatchSize) {
-        super(maxBatchSize);
+        super(maxBatchSize, null);
     }
 
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();

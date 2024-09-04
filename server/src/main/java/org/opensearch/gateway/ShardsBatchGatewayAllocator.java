@@ -184,27 +184,16 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     // for tests
     protected ShardsBatchGatewayAllocator() {
-        this(DEFAULT_SHARD_BATCH_SIZE);
+        this(DEFAULT_SHARD_BATCH_SIZE, null);
     }
 
-    protected ShardsBatchGatewayAllocator(long batchSize) {
-        this.rerouteService = null;
-        this.batchStartedAction = null;
-        this.primaryShardBatchAllocator = null;
-        this.batchStoreAction = null;
-        this.replicaShardBatchAllocator = null;
-        this.maxBatchSize = batchSize;
-        this.primaryShardsBatchGatewayAllocatorTimeout = null;
-        this.replicaShardsBatchGatewayAllocatorTimeout = null;
-    }
-
-    protected ShardsBatchGatewayAllocator(RerouteService rerouteService) {
+    protected ShardsBatchGatewayAllocator(long batchSize, RerouteService rerouteService) {
         this.rerouteService = rerouteService;
         this.batchStartedAction = null;
         this.primaryShardBatchAllocator = null;
         this.batchStoreAction = null;
         this.replicaShardBatchAllocator = null;
-        this.maxBatchSize = DEFAULT_SHARD_BATCH_SIZE;
+        this.maxBatchSize = batchSize;
         this.primaryShardsBatchGatewayAllocatorTimeout = null;
         this.replicaShardsBatchGatewayAllocatorTimeout = null;
     }
