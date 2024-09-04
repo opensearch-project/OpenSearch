@@ -102,6 +102,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -1639,6 +1640,7 @@ public class MetadataIndexTemplateService {
 
             // validate index refresh interval and translog durability settings
             validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
+            validateTranslogFlushIntervalSettingsForCompositeIndex(settings, clusterService.getClusterSettings());
             validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
         }
 
