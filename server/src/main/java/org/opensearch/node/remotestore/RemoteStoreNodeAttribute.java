@@ -55,6 +55,11 @@ public class RemoteStoreNodeAttribute {
         REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
     );
 
+    public static List<String> REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES = List.of(
+        REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+        REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY
+    );
+
     /**
      * Creates a new {@link RemoteStoreNodeAttribute}
      */
@@ -259,6 +264,14 @@ public class RemoteStoreNodeAttribute {
 
         RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
         return this.getRepositoriesMetadata().equalsIgnoreGenerationsWithRepoSkip(that.getRepositoriesMetadata(), reposToSkip);
+    }
+
+    public boolean equalsForRepositories(Object otherNode, List<String> repositoryToValidate) {
+        if (this == otherNode) return true;
+        if (otherNode == null || getClass() != otherNode.getClass()) return false;
+
+        RemoteStoreNodeAttribute other = (RemoteStoreNodeAttribute) otherNode;
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsForRepo(other.repositoriesMetadata, repositoryToValidate);
     }
 
     @Override
