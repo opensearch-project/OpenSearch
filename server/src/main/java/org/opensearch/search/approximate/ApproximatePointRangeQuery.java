@@ -146,10 +146,11 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                     public void visit(int docID) {
                         // it is possible that size < 1024 and docCount < size but we will continue to count through all the 1024 docs
                         // and collect less, but it won't hurt performance
-                        if (docCount[0] < size) {
-                            adder.add(docID);
-                            docCount[0]++;
+                        if (docCount[0] >= size) {
+                            return;
                         }
+                        adder.add(docID);
+                        docCount[0]++;
                     }
 
                     @Override
@@ -231,7 +232,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
-                if (docCount[0] > size) {
+                if (docCount[0] >= size) {
                     return;
                 }
                 switch (r) {
@@ -279,7 +280,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
             public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
-                if (docCount[0] > size) {
+                if (docCount[0] >= size) {
                     return;
                 }
                 switch (r) {
@@ -434,6 +435,10 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
         }
         if (!(context.query() instanceof ApproximateIndexOrDocValuesQuery)) {
             return false;
+        }
+        // size 0 could be set for caching
+        if (context.from() + context.size() == 0) {
+            this.setSize(10_000);
         }
         this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
         if (context.request() != null && context.request().source() != null) {
