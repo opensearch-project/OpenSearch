@@ -44,6 +44,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -397,12 +398,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     public void writeToUtil(StreamOutput out, boolean includeAllAttributes) throws IOException {
-        out.writeString(nodeName);
-        out.writeString(nodeId);
-        out.writeString(ephemeralId);
-        out.writeString(hostName);
-        out.writeString(hostAddress);
-        address.writeTo(out);
+        writeNodeDetails(out);
         if (includeAllAttributes) {
             out.writeVInt(attributes.size());
             for (Map.Entry<String, String> entry : attributes.entrySet()) {
@@ -412,7 +408,25 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         } else {
             out.writeVInt(0);
         }
+        writeRolesAndVersion(out);
+    }
 
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        writeNodeDetails(out);
+        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        writeRolesAndVersion(out);
+    }
+
+    private void writeNodeDetails(StreamOutput out) throws IOException {
+        out.writeString(nodeName);
+        out.writeString(nodeId);
+        out.writeString(ephemeralId);
+        out.writeString(hostName);
+        out.writeString(hostAddress);
+        address.writeTo(out);
+    }
+
+    private void writeRolesAndVersion(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             out.writeVInt(roles.size());
             for (final DiscoveryNodeRole role : roles) {

@@ -365,13 +365,8 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         final String dataNodeName = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("repo")
-                .setType(FsRepository.TYPE)
-                .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
-        );
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        createRepository("repo", FsRepository.TYPE, settings);
 
         final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster()
             .getCurrentClusterManagerNodeInstance(ClusterInfoService.class);

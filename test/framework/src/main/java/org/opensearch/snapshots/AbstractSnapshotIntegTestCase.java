@@ -104,7 +104,6 @@ import java.util.function.Predicate;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -380,16 +379,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     public void unblockNode(final String repository, final String node) {
         logger.info("--> unblocking [{}] on node [{}]", repository, node);
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
-    }
-
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
-    }
-
-    protected void updateRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> updating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
     }
 
     protected void createRepository(String repoName, String type, Path location) {

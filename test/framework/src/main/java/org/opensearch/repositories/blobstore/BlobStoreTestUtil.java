@@ -142,7 +142,7 @@ public final class BlobStoreTestUtil {
                 }
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
-                assertShardIndexGenerations(blobContainer, repositoryData);
+                assertShardIndexGenerations(repository, repositoryData);
                 return null;
             } catch (AssertionError e) {
                 return e;
@@ -166,14 +166,12 @@ public final class BlobStoreTestUtil {
         assertTrue(indexGenerations.length <= 2);
     }
 
-    private static void assertShardIndexGenerations(BlobContainer repoRoot, RepositoryData repositoryData) throws IOException {
+    private static void assertShardIndexGenerations(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-        final BlobContainer indicesContainer = repoRoot.children().get("indices");
         for (IndexId index : shardGenerations.indices()) {
             final List<String> gens = shardGenerations.getGens(index);
             if (gens.isEmpty() == false) {
-                final BlobContainer indexContainer = indicesContainer.children().get(index.getId());
-                final Map<String, BlobContainer> shardContainers = indexContainer.children();
+                final Map<String, BlobContainer> shardContainers = getShardContainers(index, repository, repositoryData);
                 for (int i = 0; i < gens.size(); i++) {
                     final String generation = gens.get(i);
                     assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
@@ -188,6 +186,20 @@ public final class BlobStoreTestUtil {
                 }
             }
         }
+    }
+
+    private static Map<String, BlobContainer> getShardContainers(
+        IndexId indexId,
+        BlobStoreRepository repository,
+        RepositoryData repositoryData
+    ) {
+        final Map<String, BlobContainer> shardContainers = new HashMap<>();
+        int shardCount = repositoryData.shardGenerations().getGens(indexId).size();
+        for (int i = 0; i < shardCount; i++) {
+            final BlobContainer shardContainer = repository.shardContainer(indexId, i);
+            shardContainers.put(String.valueOf(i), shardContainer);
+        }
+        return shardContainers;
     }
 
     private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {

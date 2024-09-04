@@ -42,6 +42,7 @@ import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -147,6 +148,10 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         lastCommittedConfiguration.writeTo(out);
         lastAcceptedConfiguration.writeTo(out);
         out.writeCollection(votingConfigExclusions);
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        writeTo(out);
     }
 
     @Override
@@ -272,7 +277,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static class VotingConfigExclusion implements Writeable, ToXContentFragment {
+    public static class VotingConfigExclusion implements Writeable, ToXContentFragment, Comparable<VotingConfigExclusion> {
         public static final String MISSING_VALUE_MARKER = "_absent_";
         private final String nodeId;
         private final String nodeName;
@@ -361,6 +366,10 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
             return sb.toString();
         }
 
+        @Override
+        public int compareTo(VotingConfigExclusion votingConfigExclusion) {
+            return votingConfigExclusion.getNodeId().compareTo(this.getNodeId());
+        }
     }
 
     /**

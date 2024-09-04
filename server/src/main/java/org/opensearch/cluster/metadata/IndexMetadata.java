@@ -69,6 +69,7 @@ import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
 
@@ -88,6 +89,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -1282,6 +1284,31 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeOptionalWriteable(context);
+        }
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeString(index.getName()); // uuid will come as part of settings
+        out.writeLong(version);
+        out.writeVLong(mappingVersion);
+        out.writeVLong(settingsVersion);
+        out.writeVLong(aliasesVersion);
+        out.writeInt(routingNumShards);
+        out.writeByte(state.id());
+        writeSettingsToStream(settings, out);
+        out.writeVLongArray(primaryTerms);
+        out.writeMapValues(mappings, (stream, val) -> val.writeTo(stream));
+        out.writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
+        out.writeMap(customData, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(
+            inSyncAllocationIds,
+            StreamOutput::writeVInt,
+            (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
+        );
+        out.writeMapValues(rolloverInfos, (stream, val) -> val.writeTo(stream));
+        out.writeBoolean(isSystem);
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalWriteable(context);
         }
