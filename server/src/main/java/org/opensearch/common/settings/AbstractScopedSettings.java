@@ -791,6 +791,36 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
+     * Returns the value for the given setting if it is explicitly set,
+     * otherwise will return null instead of default value
+     **/
+    public <T> T getOrNull(Setting<T> setting) {
+        if (setting.getProperties().contains(scope) == false) {
+            throw new SettingsException(
+                "settings scope doesn't match the setting scope [" + this.scope + "] not in [" + setting.getProperties() + "]"
+            );
+        }
+        if (get(setting.getKey()) == null) {
+            throw new SettingsException("setting " + setting.getKey() + " has not been registered");
+        }
+        if (setting.exists(lastSettingsApplied)) {
+            return setting.get(lastSettingsApplied);
+        }
+        if (setting.exists(settings)) {
+            return setting.get(settings);
+        }
+        if (setting.fallbackSetting != null) {
+            if (setting.fallbackSetting.exists(lastSettingsApplied)) {
+                return setting.fallbackSetting.get(lastSettingsApplied);
+            }
+            if (setting.fallbackSetting.exists(settings)) {
+                return setting.fallbackSetting.get(settings);
+            }
+        }
+        return null;
+    }
+
+    /**
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
      * <p>
      * Note: This method will only allow updates to dynamic settings. if a non-dynamic setting is updated an

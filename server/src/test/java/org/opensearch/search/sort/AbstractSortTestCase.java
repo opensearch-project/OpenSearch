@@ -55,7 +55,6 @@ import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ObjectMapper.Nested;
@@ -200,18 +199,10 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends Ope
     }
 
     protected final QueryShardContext createMockShardContext() {
-        return createMockShardContext(null, null);
+        return createMockShardContext(null);
     }
 
     protected final QueryShardContext createMockShardContext(IndexSearcher searcher) {
-        return createMockShardContext(searcher, null);
-    }
-
-    protected final QueryShardContext createMockShardContext(MapperService mockMapperService) {
-        return createMockShardContext(null, mockMapperService);
-    }
-
-    protected final QueryShardContext createMockShardContext(IndexSearcher searcher, MapperService mapperService) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
@@ -231,7 +222,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends Ope
             BigArrays.NON_RECYCLING_INSTANCE,
             bitsetFilterCache,
             indexFieldDataLookup,
-            mapperService,
+            null,
             null,
             scriptService,
             xContentRegistry(),
