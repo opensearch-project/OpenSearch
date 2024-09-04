@@ -534,6 +534,10 @@ public final class RepositoryData {
         return snapshotIndices;
     }
 
+    public List<IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds) {
+        return resolveNewIndices(indicesToResolve, inFlightIds, IndexId.DEFAULT_SHARD_PATH_TYPE);
+    }
+
     private static final String SHARD_GENERATIONS = "shard_generations";
     private static final String INDEX_METADATA_IDENTIFIERS = "index_metadata_identifiers";
     private static final String INDEX_METADATA_LOOKUP = "index_metadata_lookup";

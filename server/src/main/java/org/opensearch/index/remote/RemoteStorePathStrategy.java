@@ -287,6 +287,16 @@ public class RemoteStorePathStrategy {
             private DataCategory dataCategory;
             private DataType dataType;
 
+            public Builder basePath(BlobPath basePath) {
+                super.basePath = basePath;
+                return this;
+            }
+
+            public Builder indexUUID(String indexUUID) {
+                super.indexUUID = indexUUID;
+                return this;
+            }
+
             public Builder shardId(String shardId) {
                 this.shardId = shardId;
                 return this;
