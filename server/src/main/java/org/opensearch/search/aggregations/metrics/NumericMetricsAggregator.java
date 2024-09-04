@@ -86,7 +86,7 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
             return (lhs, rhs) -> Comparators.compareDiscardNaN(metric(lhs), metric(rhs), order == SortOrder.ASC);
         }
 
-        public CompositeIndexFieldInfo getSupportedStarTree(LeafReaderContext ctx) {
+        public CompositeIndexFieldInfo getSupportedStarTree() {
             if (context.query() instanceof StarTreeQuery) {
                 return ((StarTreeQuery) context.query()).getStarTree();
             }

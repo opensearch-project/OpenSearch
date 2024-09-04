@@ -96,7 +96,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree(ctx);
+        CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree();
         if (supportedStarTree != null) {
             return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }

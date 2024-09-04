@@ -93,7 +93,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
         if (valuesSource instanceof ValuesSource.Numeric) {
 
-            CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree(ctx);
+            CompositeIndexFieldInfo supportedStarTree = this.getSupportedStarTree();
             if (supportedStarTree != null) {
                 return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
             }
