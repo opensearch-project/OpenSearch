@@ -361,7 +361,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
-                int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)
+                int pathType = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_2_17_0)
                     ? SHARD_PATH_TYPE.get(repository.getMetadata().settings()).getCode()
                     : IndexId.DEFAULT_SHARD_PATH_TYPE;
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
