@@ -33,21 +33,27 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -230,5 +236,30 @@ public class CoordinationMetadataTests extends OpenSearchTestCase {
             final CoordinationMetadata fromXContentMeta = CoordinationMetadata.fromXContent(parser);
             assertThat(originalMeta, equalTo(fromXContentMeta));
         }
+    }
+
+    public void testWriteVerifiableTo() throws IOException {
+        VotingConfiguration votingConfiguration = randomVotingConfig();
+        Set<VotingConfigExclusion> votingTombstones = randomVotingTombstones();
+        CoordinationMetadata meta1 = new CoordinationMetadata(1, votingConfiguration, votingConfiguration, votingTombstones);
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        meta1.writeVerifiableTo(checksumOut);
+        StreamInput in = out.bytes().streamInput();
+        CoordinationMetadata result = new CoordinationMetadata(in);
+
+        assertEquals(meta1, result);
+
+        VotingConfiguration votingConfiguration2 = new VotingConfiguration(
+            (Set<String>) votingConfiguration.getNodeIds().stream().sorted().collect(Collectors.toCollection(LinkedHashSet::new))
+        );
+        Set<VotingConfigExclusion> votingTombstones2 = votingTombstones.stream()
+            .sorted(Comparator.comparing(VotingConfigExclusion::getNodeId))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        CoordinationMetadata meta2 = new CoordinationMetadata(1, votingConfiguration2, votingConfiguration2, votingTombstones2);
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        meta2.writeVerifiableTo(checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
     }
 }
