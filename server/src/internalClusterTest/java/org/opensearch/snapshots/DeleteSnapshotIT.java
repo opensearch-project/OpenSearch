@@ -285,6 +285,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == 0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9208")
     public void testRemoteStoreCleanupForDeletedIndex() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
@@ -323,13 +324,15 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(REMOTE_REPO_NAME);
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         BlobPath shardLevelBlobPath = getShardLevelBlobPath(
             client(),
             remoteStoreEnabledIndexName,
             remoteStoreRepository.basePath(),
             "0",
             SEGMENTS,
-            LOCK_FILES
+            LOCK_FILES,
+            segmentsPathFixedPrefix
         );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         String[] lockFiles;

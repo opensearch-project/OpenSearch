@@ -28,6 +28,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
@@ -45,10 +46,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
+import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 
 /**
  * The class responsible for orchestrating the transfer of a {@link TransferSnapshot} via a {@link TransferService}
@@ -337,35 +340,54 @@ public class TranslogTransferManager {
         }
     }
 
+    public TranslogTransferMetadata readMetadata(long pinnedTimestamp) throws IOException {
+        if (pinnedTimestamp <= 0) {
+            return readMetadata();
+        }
+        return readMetadata((blobMetadataList) -> {
+            List<String> metadataFiles = blobMetadataList.stream().map(BlobMetadata::name).collect(Collectors.toList());
+            Set<String> metadataFilesMatchingTimestamp = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+                metadataFiles,
+                Set.of(pinnedTimestamp),
+                file -> RemoteStoreUtils.invertLong(file.split(METADATA_SEPARATOR)[3]),
+                TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen,
+                true
+            );
+            if (metadataFilesMatchingTimestamp.isEmpty()) {
+                return null;
+            }
+            assert metadataFilesMatchingTimestamp.size() == 1 : "There should be only 1 metadata file matching given timestamp";
+            return metadataFilesMatchingTimestamp.stream().findFirst().get();
+        }, Integer.MAX_VALUE);
+    }
+
     public TranslogTransferMetadata readMetadata() throws IOException {
+        return readMetadata((blobMetadataList) -> {
+            RemoteStoreUtils.verifyNoMultipleWriters(
+                blobMetadataList.stream().map(BlobMetadata::name).collect(Collectors.toList()),
+                TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
+            );
+            return blobMetadataList.get(0).name();
+        }, METADATA_FILES_TO_FETCH);
+    }
+
+    private TranslogTransferMetadata readMetadata(Function<List<BlobMetadata>, String> getMetadataFileToRead, int numberOfFilesToFetch)
+        throws IOException {
         SetOnce<TranslogTransferMetadata> metadataSetOnce = new SetOnce<>();
         SetOnce<IOException> exceptionSetOnce = new SetOnce<>();
         final CountDownLatch latch = new CountDownLatch(1);
         LatchedActionListener<List<BlobMetadata>> latchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(blobMetadataList -> {
                 if (blobMetadataList.isEmpty()) return;
-                RemoteStoreUtils.verifyNoMultipleWriters(
-                    blobMetadataList.stream().map(BlobMetadata::name).collect(Collectors.toList()),
-                    TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
-                );
-                String filename = blobMetadataList.get(0).name();
-                boolean downloadStatus = false;
-                long downloadStartTime = System.nanoTime(), bytesToRead = 0;
-                try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
-                    // Capture number of bytes for stats before reading
-                    bytesToRead = inputStream.available();
-                    IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
-                    metadataSetOnce.set(metadataStreamWrapper.readStream(indexInput));
-                    downloadStatus = true;
+                String filename = getMetadataFileToRead.apply(blobMetadataList);
+                if (filename == null) {
+                    return;
+                }
+                try {
+                    metadataSetOnce.set(readMetadata(filename));
                 } catch (IOException e) {
                     logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
                     exceptionSetOnce.set(e);
-                } finally {
-                    remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-                    logger.debug("translogMetadataDownloadStatus={}", downloadStatus);
-                    if (downloadStatus) {
-                        remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
-                    }
                 }
             }, e -> {
                 if (e instanceof RuntimeException) {
@@ -381,12 +403,14 @@ public class TranslogTransferManager {
             transferService.listAllInSortedOrder(
                 remoteMetadataTransferPath,
                 TranslogTransferMetadata.METADATA_PREFIX,
-                METADATA_FILES_TO_FETCH,
+                numberOfFilesToFetch,
                 latchedActionListener
             );
-            latch.await();
+            if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
+                throw new RuntimeException("Timed out reading metadata file");
+            }
         } catch (InterruptedException e) {
-            throw new IOException("Exception while reading/downloading metadafile", e);
+            throw new IOException("Exception while reading/downloading metadata file", e);
         }
 
         if (exceptionSetOnce.get() != null) {
@@ -394,6 +418,26 @@ public class TranslogTransferManager {
         }
 
         return metadataSetOnce.get();
+    }
+
+    public TranslogTransferMetadata readMetadata(String metadataFilename) throws IOException {
+        boolean downloadStatus = false;
+        TranslogTransferMetadata translogTransferMetadata = null;
+        long downloadStartTime = System.nanoTime(), bytesToRead = 0;
+        try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, metadataFilename)) {
+            // Capture number of bytes for stats before reading
+            bytesToRead = inputStream.available();
+            IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
+            translogTransferMetadata = metadataStreamWrapper.readStream(indexInput);
+            downloadStatus = true;
+        } finally {
+            remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
+            logger.debug("translogMetadataDownloadStatus={}", downloadStatus);
+            if (downloadStatus) {
+                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
+            }
+        }
+        return translogTransferMetadata;
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
@@ -549,6 +593,16 @@ public class TranslogTransferManager {
         });
     }
 
+    public void listTranslogMetadataFilesAsync(ActionListener<List<BlobMetadata>> listener) {
+        transferService.listAllInSortedOrderAsync(
+            ThreadPool.Names.REMOTE_PURGE,
+            remoteMetadataTransferPath,
+            TranslogTransferMetadata.METADATA_PREFIX,
+            Integer.MAX_VALUE,
+            listener
+        );
+    }
+
     public void deleteStaleTranslogMetadataFilesAsync(Runnable onCompletion) {
         try {
             transferService.listAllInSortedOrderAsync(
@@ -635,7 +689,7 @@ public class TranslogTransferManager {
      * @param files list of metadata files to be deleted.
      * @param onCompletion runnable to run on completion of deletion regardless of success/failure.
      */
-    private void deleteMetadataFilesAsync(List<String> files, Runnable onCompletion) {
+    public void deleteMetadataFilesAsync(List<String> files, Runnable onCompletion) {
         try {
             transferService.deleteBlobsAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, files, new ActionListener<>() {
                 @Override
@@ -658,5 +712,24 @@ public class TranslogTransferManager {
 
     public int getMaxRemoteTranslogReadersSettings() {
         return this.remoteStoreSettings.getMaxRemoteTranslogReaders();
+    }
+
+    public void populateFileTrackerWithLocalState(List<TranslogReader> readers) {
+        if (readers == null) {
+            return;
+        }
+        for (TranslogReader reader : readers) {
+            long generation = reader.getGeneration();
+            String tlogFilename = Translog.getFilename(generation);
+            fileTransferTracker.add(tlogFilename, true);
+            if (isTranslogMetadataEnabled) {
+                String ckpFilename = Translog.getCommitCheckpointFileName(generation);
+                fileTransferTracker.add(ckpFilename, true);
+            }
+        }
+    }
+
+    protected FileTransferTracker getFileTransferTracker() {
+        return fileTransferTracker;
     }
 }

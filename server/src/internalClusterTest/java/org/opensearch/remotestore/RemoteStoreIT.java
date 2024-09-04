@@ -205,7 +205,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         ;
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
@@ -236,7 +245,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
@@ -247,11 +265,19 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Settings.Builder settings = Settings.builder()
             .put(RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "3");
         internalCluster().startNode(settings);
-
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
@@ -271,7 +297,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(12, 18);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         ;
         int actualFileCount = getFileCount(indexPath);
@@ -511,9 +546,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
 
         Path absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository("test-repo").setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
+        createRepository("test-repo", "fs", Settings.builder().put("location", absolutePath));
 
         logger.info("--> Create index and ingest 50 docs");
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
@@ -606,8 +639,10 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         indexBulk(INDEX_NAME, 50);
         flushAndRefresh(INDEX_NAME);
 
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         // 3. Delete data from remote segment store
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, DATA).buildAsString();
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, DATA, segmentsPathFixedPrefix)
+            .buildAsString();
         Path segmentDataPath = Path.of(segmentRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(segmentDataPath)) {
@@ -846,7 +881,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
 
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", TRANSLOG, METADATA).buildAsString();
+        String translogPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            TRANSLOG,
+            METADATA,
+            translogPathFixedPrefix
+        ).buildAsString();
         Path translogMetaDataPath = Path.of(translogRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(translogMetaDataPath)) {

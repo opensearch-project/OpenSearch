@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -30,6 +31,7 @@ import java.util.Set;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class StarTreeMetadata extends CompositeIndexMetadata {
     private static final Logger logger = LogManager.getLogger(StarTreeMetadata.class);
 
@@ -72,12 +74,12 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     /**
      * The total number of documents aggregated in this star-tree segment.
      */
-    private final Integer segmentAggregatedDocCount;
+    private final int segmentAggregatedDocCount;
 
     /**
      * The maximum number of documents allowed in a leaf node.
      */
-    private final Integer maxLeafDocs;
+    private final int maxLeafDocs;
 
     /**
      * Set of dimensions for which star node creation should be skipped.
@@ -98,6 +100,11 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * The length of the star-tree data in bytes, used for reading the correct amount of data from (.cid) file
      */
     private final long dataLength;
+
+    /**
+     * The number of star tree documents in the star tree.
+     */
+    private final int starTreeDocCount;
 
     /**
      * A star tree metadata constructor to initialize star tree metadata from the segment file (.cim) using index input.
@@ -124,6 +131,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
             this.dimensionFields = readStarTreeDimensions();
             this.metrics = readMetricEntries();
             this.segmentAggregatedDocCount = readSegmentAggregatedDocCount();
+            this.starTreeDocCount = readStarTreeDocCount();
             this.maxLeafDocs = readMaxLeafDocs();
             this.skipStarNodeCreationInDims = readSkipStarNodeCreationInDims();
             this.starTreeBuildMode = readBuildMode();
@@ -146,6 +154,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * @param dimensionFields            list of dimension fields
      * @param metrics              list of metric entries
      * @param segmentAggregatedDocCount  segment aggregated doc count
+     * @param starTreeDocCount        the total number of star tree documents for the segment
      * @param maxLeafDocs                max leaf docs
      * @param skipStarNodeCreationInDims set of dimensions to skip star node creation
      * @param starTreeBuildMode          star tree build mode
@@ -161,6 +170,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         List<String> dimensionFields,
         List<Metric> metrics,
         Integer segmentAggregatedDocCount,
+        Integer starTreeDocCount,
         Integer maxLeafDocs,
         Set<String> skipStarNodeCreationInDims,
         StarTreeFieldConfiguration.StarTreeBuildMode starTreeBuildMode,
@@ -176,6 +186,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         this.dimensionFields = dimensionFields;
         this.metrics = metrics;
         this.segmentAggregatedDocCount = segmentAggregatedDocCount;
+        this.starTreeDocCount = starTreeDocCount;
         this.maxLeafDocs = maxLeafDocs;
         this.skipStarNodeCreationInDims = skipStarNodeCreationInDims;
         this.starTreeBuildMode = starTreeBuildMode;
@@ -184,7 +195,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     }
 
     private int readNumberOfNodes() throws IOException {
-        return meta.readInt();
+        return meta.readVInt();
     }
 
     private int readDimensionsCount() throws IOException {
@@ -222,6 +233,10 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     }
 
     private int readSegmentAggregatedDocCount() throws IOException {
+        return meta.readVInt();
+    }
+
+    private Integer readStarTreeDocCount() throws IOException {
         return meta.readVInt();
     }
 
@@ -296,8 +311,17 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      *
      * @return the aggregated document count for the star-tree.
      */
-    public Integer getSegmentAggregatedDocCount() {
+    public int getSegmentAggregatedDocCount() {
         return segmentAggregatedDocCount;
+    }
+
+    /**
+     * Returns the total number of star tree documents in the segment
+     *
+     * @return the number of star tree documents in the segment
+     */
+    public int getStarTreeDocCount() {
+        return starTreeDocCount;
     }
 
     /**
@@ -305,7 +329,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      *
      * @return the max leaf docs.
      */
-    public Integer getMaxLeafDocs() {
+    public int getMaxLeafDocs() {
         return maxLeafDocs;
     }
 

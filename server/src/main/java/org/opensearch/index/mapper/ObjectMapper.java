@@ -440,6 +440,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         + " feature flag in the JVM options"
                 );
             }
+            if (StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(parserContext.getSettings()) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Set '%s' as true as part of index settings to use star tree index",
+                        StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey()
+                    )
+                );
+            }
             Iterator<Map.Entry<String, Object>> iterator = compositeNode.entrySet().iterator();
             if (compositeNode.size() > StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING.get(parserContext.getSettings())) {
                 throw new IllegalArgumentException(
