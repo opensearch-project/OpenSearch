@@ -545,6 +545,14 @@ public class TranslogTransferManager {
         });
     }
 
+    public Set<Long> listPrimaryTermsInRemote() throws IOException {
+        Set<String> primaryTermsStr = transferService.listFolders(remoteDataTransferPath);
+        if (primaryTermsStr != null) {
+            return primaryTermsStr.stream().map(Long::parseLong).collect(Collectors.toSet());
+        }
+        return new HashSet<>();
+    }
+
     /**
      * Handles deletion of all translog files associated with a primary term.
      *

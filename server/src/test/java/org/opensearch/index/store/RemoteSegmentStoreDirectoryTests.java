@@ -1170,9 +1170,9 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
     public void testInitializeToSpecificTimestampMatchingMdFile() throws IOException {
         String metadataPrefix = "metadata__1__2__3__4__5__";
         List<String> metadataFiles = new ArrayList<>();
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(1000));
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(2000));
-        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(3000));
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(1000) + "__1");
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(2000) + "__1");
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(3000) + "__1");
 
         Map<String, String> metadata = new HashMap<>();
         metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512::" + Version.LATEST.major);
@@ -1184,7 +1184,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
                 Integer.MAX_VALUE
             )
         ).thenReturn(metadataFiles);
-        when(remoteMetadataDirectory.getBlobStream(metadataPrefix + RemoteStoreUtils.invertLong(1000))).thenReturn(
+        when(remoteMetadataDirectory.getBlobStream(metadataPrefix + RemoteStoreUtils.invertLong(1000) + "__1")).thenReturn(
             createMetadataFileBytes(metadata, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
         );
 
