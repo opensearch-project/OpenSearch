@@ -389,7 +389,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         List<String> metadataFiles,
         TranslogTransferManager translogTransferManager,
         Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap,
-        AtomicLong minPrimaryTermInRemote,
+        AtomicLong minPrimaryTermInRemoteAtomicLong,
         Logger logger
     ) {
         // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
@@ -407,15 +407,14 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             }
         }).min(Long::compareTo);
         // First we delete all stale primary terms folders from remote store
-        long minimumReferencedPrimaryTerm = minPrimaryTermFromMetadataFiles.get() - 1;
-        Long minPrimaryTerm = getMinPrimaryTermInRemote(minPrimaryTermInRemote, translogTransferManager, logger);
-        if (minimumReferencedPrimaryTerm > minPrimaryTerm) {
-            translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
-            minPrimaryTermInRemote.set(minimumReferencedPrimaryTerm);
+        Long minPrimaryTermInRemote = getMinPrimaryTermInRemote(minPrimaryTermInRemoteAtomicLong, translogTransferManager, logger);
+        if (minPrimaryTermFromMetadataFiles.get() > minPrimaryTermInRemote) {
+            translogTransferManager.deletePrimaryTermsAsync(minPrimaryTermFromMetadataFiles.get());
+            minPrimaryTermInRemoteAtomicLong.set(minPrimaryTermFromMetadataFiles.get());
         } else {
             logger.debug(
                 "Skipping primary term cleanup. minimumReferencedPrimaryTerm = {}, minPrimaryTermInRemote = {}",
-                minimumReferencedPrimaryTerm,
+                minPrimaryTermFromMetadataFiles.get(),
                 minPrimaryTermInRemote
             );
         }
