@@ -58,7 +58,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         UNSET,
         DIRECT,
-        ORDINAL;
+        ORDINALS;
 
         ExecutionMode() {}
 
