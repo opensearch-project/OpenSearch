@@ -48,7 +48,7 @@ public class StarTreeQueryHelper {
      */
     public static boolean isStarTreeSupported(SearchContext context, boolean trackTotalHits) {
         boolean canUseStarTree = context.aggregations() != null
-//            && context.size() == 0
+            && context.size() == 0
             && context.mapperService().isCompositeIndexPresent()
             && context.parsedPostFilter() == null
             && context.innerHits().getInnerHits().isEmpty()
