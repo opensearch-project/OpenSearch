@@ -16,7 +16,8 @@ import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
+import org.opensearch.wlm.tracker.ResourceUsageUtil;
+import org.opensearch.wlm.tracker.ResourceUsageUtilFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,7 +31,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 
 /**
  * Manages the cancellation of tasks enforced by QueryGroup thresholds on resource usage criteria.
- * This class utilizes a strategy pattern through {@link DefaultTaskSelectionStrategy} to identify tasks that exceed
+ * This class utilizes a strategy pattern through {@link LongestTaskRunningFirstSelectionStrategy} to identify tasks that exceed
  * predefined resource usage limits and are therefore eligible for cancellation.
  *
  * <p>The cancellation process is initiated by evaluating the resource usage of each QueryGroup against its
@@ -41,35 +42,38 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * views, a set of active QueryGroups, and a task selection strategy. These components collectively facilitate the
  * identification and cancellation of tasks that threaten to breach QueryGroup resource limits.</p>
  *
- * @see DefaultTaskSelectionStrategy
+ * @see LongestTaskRunningFirstSelectionStrategy
  * @see QueryGroup
  * @see ResourceType
  */
-public class DefaultTaskCancellation {
+public class TaskCanceller {
     public static final double MIN_VALUE = 1e-9;
 
     protected final WorkloadManagementSettings workloadManagementSettings;
-    protected final DefaultTaskSelectionStrategy defaultTaskSelectionStrategy;
+    protected final TaskSelectionStrategy taskSelectionStrategy;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     protected final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
     protected final Collection<QueryGroup> activeQueryGroups;
     protected final Collection<QueryGroup> deletedQueryGroups;
     protected BooleanSupplier isNodeInDuress;
+    private final ResourceUsageUtilFactory resourceUsageUtilFactory;
 
-    public DefaultTaskCancellation(
+    public TaskCanceller(
         WorkloadManagementSettings workloadManagementSettings,
-        DefaultTaskSelectionStrategy defaultTaskSelectionStrategy,
+        LongestTaskRunningFirstSelectionStrategy taskSelectionStrategy,
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
         Collection<QueryGroup> activeQueryGroups,
         Collection<QueryGroup> deletedQueryGroups,
-        BooleanSupplier isNodeInDuress
+        BooleanSupplier isNodeInDuress,
+        ResourceUsageUtilFactory resourceUsageUtilFactory
     ) {
         this.workloadManagementSettings = workloadManagementSettings;
-        this.defaultTaskSelectionStrategy = defaultTaskSelectionStrategy;
+        this.taskSelectionStrategy = taskSelectionStrategy;
         this.queryGroupLevelResourceUsageViews = queryGroupLevelResourceUsageViews;
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
         this.isNodeInDuress = isNodeInDuress;
+        this.resourceUsageUtilFactory = resourceUsageUtilFactory;
     }
 
     /**
@@ -131,13 +135,14 @@ public class DefaultTaskCancellation {
             if (queryGroup.getResiliencyMode() != resiliencyMode) {
                 continue;
             }
-            Map<ResourceType, QueryGroupResourceUsage> queryGroupResourcesUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id())
+            Map<ResourceType, Double> queryGroupResourcesUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id())
                 .getResourceUsageData();
 
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 if (queryGroup.getResourceLimits().containsKey(resourceType)) {
-                    final QueryGroupResourceUsage queryGroupResourceUsage = queryGroupResourcesUsage.get(resourceType);
-                    if (queryGroupResourceUsage.isBreachingThresholdFor(queryGroup, workloadManagementSettings)) {
+                    final double currentUsage = queryGroupResourcesUsage.get(resourceType);
+                    final ResourceUsageUtil resourceUsageUtil = resourceUsageUtilFactory.getInstanceForResourceType(resourceType);
+                    if (resourceUsageUtil.isBreachingThresholdFor(queryGroup, currentUsage, workloadManagementSettings)) {
                         queryGroupsToCancelFrom.add(queryGroup);
                         break;
                     }
@@ -171,19 +176,13 @@ public class DefaultTaskCancellation {
     }
 
     private boolean shouldCancelTasks(QueryGroup queryGroup, ResourceType resourceType) {
-        if (queryGroup == null || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
-            return false;
-        }
-        QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
-        return queryGroupResourceUsageView.getResourceUsageData()
-            .get(resourceType)
-            .isBreachingThresholdFor(queryGroup, workloadManagementSettings);
+        return getExcessUsage(queryGroup, resourceType) > 0;
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
-        List<QueryGroupTask> selectedTasksToCancel = defaultTaskSelectionStrategy.selectTasksForCancellation(
+        List<QueryGroupTask> selectedTasksToCancel = taskSelectionStrategy.selectTasksForCancellation(
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
-            getReduceBy(queryGroup, resourceType),
+            getExcessUsage(queryGroup, resourceType),
             resourceType
         );
         List<TaskCancellation> taskCancellations = new ArrayList<>();
@@ -228,14 +227,17 @@ public class DefaultTaskCancellation {
         return taskCancellations;
     }
 
-    private double getReduceBy(QueryGroup queryGroup, ResourceType resourceType) {
+    private double getExcessUsage(QueryGroup queryGroup, ResourceType resourceType) {
         if (queryGroup.getResourceLimits().get(resourceType) == null
             || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
             return 0;
         }
-        final QueryGroupLevelResourceUsageView queryGroupLevelResourceUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
-        final QueryGroupResourceUsage queryGroupResourceUsage = queryGroupLevelResourceUsage.getResourceUsageData().get(resourceType);
-        return queryGroupResourceUsage.getReduceByFor(queryGroup, workloadManagementSettings);
+
+        final QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
+        final double currentUsage = queryGroupResourceUsageView.getResourceUsageData().get(resourceType);
+        final ResourceUsageUtil resourceUsageUtil = resourceUsageUtilFactory.getInstanceForResourceType(resourceType);
+
+        return resourceUsageUtil.getExcessUsage(queryGroup, currentUsage, workloadManagementSettings);
     }
 
     private void callbackOnCancel() {

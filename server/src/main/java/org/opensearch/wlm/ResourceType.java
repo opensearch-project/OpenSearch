@@ -26,7 +26,6 @@ public enum ResourceType {
 
     private final String name;
     private final boolean statsEnabled;
-
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
     ResourceType(String name, boolean statsEnabled) {

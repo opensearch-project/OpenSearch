@@ -9,33 +9,33 @@
 package org.opensearch.wlm;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerServiceTests;
+import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.wlm.cancellation.DefaultTaskCancellation.MIN_VALUE;
-import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTests.createMockTaskWithResourceStats;
-import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.HEAP_SIZE_BYTES;
+import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
+import static org.opensearch.wlm.tracker.CpuUsageCalculator.PROCESSOR_COUNT;
+import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
+import static org.opensearch.wlm.tracker.ResourceUsageCalculatorTests.createMockTaskWithResourceStats;
+import static org.mockito.Mockito.mock;
 
 public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
-    Map<ResourceType, QueryGroupResourceUsage> resourceUsage;
+    Map<ResourceType, Double> resourceUsage;
     List<QueryGroupTask> activeTasks;
-    QueryGroupResourceUsageTrackerServiceTests.TestClock clock;
+    ResourceUsageCalculatorTrackerServiceTests.TestClock clock;
+    WorkloadManagementSettings settings;
 
     public void setUp() throws Exception {
         super.setUp();
-        QueryGroupResourceUsage.QueryGroupCpuUsage cpuUsage = new QueryGroupResourceUsage.QueryGroupCpuUsage();
-        QueryGroupResourceUsage.QueryGroupMemoryUsage memoryUsage = new QueryGroupResourceUsage.QueryGroupMemoryUsage();
-        clock = new QueryGroupResourceUsageTrackerServiceTests.TestClock();
+        settings = mock(WorkloadManagementSettings.class);
+        clock = new ResourceUsageCalculatorTrackerServiceTests.TestClock();
         activeTasks = List.of(createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 1));
         clock.fastForwardBy(300);
+        double memoryUsage = 200.0 / HEAP_SIZE_BYTES;
+        double cpuUsage = 100.0 / (PROCESSOR_COUNT * 300.0);
 
-        cpuUsage.initialise(activeTasks, clock::getTime);
-        memoryUsage.initialise(activeTasks, clock::getTime);
-
-        resourceUsage = Map.of(ResourceType.MEMORY, memoryUsage, ResourceType.CPU, memoryUsage);
+        resourceUsage = Map.of(ResourceType.MEMORY, memoryUsage, ResourceType.CPU, cpuUsage);
     }
 
     public void testGetResourceUsageData() {
@@ -43,7 +43,7 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
             resourceUsage,
             activeTasks
         );
-        Map<ResourceType, QueryGroupResourceUsage> resourceUsageData = queryGroupLevelResourceUsageView.getResourceUsageData();
+        Map<ResourceType, Double> resourceUsageData = queryGroupLevelResourceUsageView.getResourceUsageData();
         assertTrue(assertResourceUsageData(resourceUsageData));
     }
 
@@ -57,8 +57,8 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
         assertEquals(1, activeTasks.get(0).getId());
     }
 
-    private boolean assertResourceUsageData(Map<ResourceType, QueryGroupResourceUsage> resourceUsageData) {
-        return (resourceUsageData.get(ResourceType.MEMORY).getCurrentUsage() - 200.0 / HEAP_SIZE_BYTES) <= MIN_VALUE
-            && (resourceUsageData.get(ResourceType.CPU).getCurrentUsage() - 100.0 / (300)) < MIN_VALUE;
+    private boolean assertResourceUsageData(Map<ResourceType, Double> resourceUsageData) {
+        return (resourceUsageData.get(ResourceType.MEMORY) - 200.0 / HEAP_SIZE_BYTES) <= MIN_VALUE
+            && (resourceUsageData.get(ResourceType.CPU) - 100.0 / (300)) < MIN_VALUE;
     }
 }

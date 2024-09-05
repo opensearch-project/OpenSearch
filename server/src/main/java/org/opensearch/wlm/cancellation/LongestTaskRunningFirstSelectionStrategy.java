@@ -10,7 +10,7 @@ package org.opensearch.wlm.cancellation;
 
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.tracker.TaskResourceUsageCalculator;
+import org.opensearch.wlm.tracker.ResourceUsageCalculatorFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,32 +19,35 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.wlm.cancellation.DefaultTaskCancellation.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
 
 /**
- * Represents an abstract task selection strategy.
- * This class implements the DefaultTaskSelectionStrategy interface and provides a method to select tasks for cancellation based on a sorting condition.
- * The specific sorting condition depends on the implementation.
+ * Represents the longest running task first selection strategy.
  */
-public class DefaultTaskSelectionStrategy {
+public class LongestTaskRunningFirstSelectionStrategy implements TaskSelectionStrategy {
 
     private final Supplier<Long> nanoTimeSupplier;
+    private final ResourceUsageCalculatorFactory resourceUsageCalculatorFactory;
 
-    public DefaultTaskSelectionStrategy() {
-        this(System::nanoTime);
+    public LongestTaskRunningFirstSelectionStrategy() {
+        this(System::nanoTime, ResourceUsageCalculatorFactory.getInstance());
     }
 
-    public DefaultTaskSelectionStrategy(Supplier<Long> nanoTimeSupplier) {
+    public LongestTaskRunningFirstSelectionStrategy(
+        Supplier<Long> nanoTimeSupplier,
+        ResourceUsageCalculatorFactory resourceUsageCalculatorFactory
+    ) {
         this.nanoTimeSupplier = nanoTimeSupplier;
+        this.resourceUsageCalculatorFactory = resourceUsageCalculatorFactory;
     }
 
     /**
      * Returns a comparator that defines the sorting condition for tasks.
-     * This is the default implementation since the longest running tasks are the ones that consume the most resources.
+     * This is the default implementation since the longest running tasks are the likely to regress the performance.
      *
      * @return The comparator
      */
-    public Comparator<QueryGroupTask> sortingCondition() {
+    protected Comparator<QueryGroupTask> sortingCondition() {
         return Comparator.comparingLong(QueryGroupTask::getStartTime);
     }
 
@@ -72,7 +75,8 @@ public class DefaultTaskSelectionStrategy {
         double accumulated = 0;
         for (QueryGroupTask task : sortedTasks) {
             selectedTasks.add(task);
-            accumulated += TaskResourceUsageCalculator.from(resourceType).calculateFor(task, nanoTimeSupplier);
+            accumulated += resourceUsageCalculatorFactory.getInstanceForResourceType(resourceType)
+                .calculateTaskResourceUsage(task, nanoTimeSupplier);
             if ((accumulated - limit) > MIN_VALUE) {
                 break;
             }
