@@ -61,6 +61,9 @@ public class StarTreeTestUtils {
             // get doc id set iterators for metrics
             for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
                 for (MetricStat metricStat : metric.getMetrics()) {
+                    if (metricStat.isDerivedMetric()) {
+                        continue;
+                    }
                     String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                         starTreeValues.getStarTreeField().getName(),
                         metric.getField(),
@@ -125,18 +128,18 @@ public class StarTreeTestUtils {
             assertNotNull(resultStarTreeDocument.dimensions);
             assertNotNull(resultStarTreeDocument.metrics);
 
-            assertEquals(resultStarTreeDocument.dimensions.length, expectedStarTreeDocument.dimensions.length);
-            assertEquals(resultStarTreeDocument.metrics.length, expectedStarTreeDocument.metrics.length);
+            assertEquals(expectedStarTreeDocument.dimensions.length, resultStarTreeDocument.dimensions.length);
+            assertEquals(expectedStarTreeDocument.metrics.length, resultStarTreeDocument.metrics.length);
 
             for (int di = 0; di < resultStarTreeDocument.dimensions.length; di++) {
-                assertEquals(resultStarTreeDocument.dimensions[di], expectedStarTreeDocument.dimensions[di]);
+                assertEquals(expectedStarTreeDocument.dimensions[di], resultStarTreeDocument.dimensions[di]);
             }
 
             for (int mi = 0; mi < resultStarTreeDocument.metrics.length; mi++) {
                 if (expectedStarTreeDocument.metrics[mi] instanceof Long) {
-                    assertEquals(resultStarTreeDocument.metrics[mi], ((Long) expectedStarTreeDocument.metrics[mi]).doubleValue());
+                    assertEquals(((Long) expectedStarTreeDocument.metrics[mi]).doubleValue(), resultStarTreeDocument.metrics[mi]);
                 } else {
-                    assertEquals(resultStarTreeDocument.metrics[mi], expectedStarTreeDocument.metrics[mi]);
+                    assertEquals(expectedStarTreeDocument.metrics[mi], resultStarTreeDocument.metrics[mi]);
                 }
             }
         }
@@ -267,9 +270,34 @@ public class StarTreeTestUtils {
             Metric expectedMetric = expectedStarTreeMetadata.getMetrics().get(i);
             Metric resultMetric = resultStarTreeMetadata.getMetrics().get(i);
             assertEquals(expectedMetric.getField(), resultMetric.getField());
+            List<MetricStat> metricStats = new ArrayList<>();
+            for (MetricStat metricStat : expectedMetric.getMetrics()) {
+                if (metricStat.isDerivedMetric()) {
+                    continue;
+                }
+                metricStats.add(metricStat);
+            }
+            Metric expectedMetricWithoutDerivedMetrics = new Metric(expectedMetric.getField(), metricStats);
+            metricStats = new ArrayList<>();
+            for (MetricStat metricStat : resultMetric.getMetrics()) {
+                if (metricStat.isDerivedMetric()) {
+                    continue;
+                }
+                metricStats.add(metricStat);
+            }
+            Metric resultantMetricWithoutDerivedMetrics = new Metric(resultMetric.getField(), metricStats);
 
+            // assert base metrics are in order in metadata
+            for (int j = 0; j < expectedMetricWithoutDerivedMetrics.getMetrics().size(); j++) {
+                assertEquals(
+                    expectedMetricWithoutDerivedMetrics.getMetrics().get(j),
+                    resultantMetricWithoutDerivedMetrics.getMetrics().get(j)
+                );
+            }
+
+            // assert all metrics ( including derived metrics are present )
             for (int j = 0; j < expectedMetric.getMetrics().size(); j++) {
-                assertEquals(expectedMetric.getMetrics().get(j), resultMetric.getMetrics().get(j));
+                assertTrue(resultMetric.getMetrics().contains(expectedMetric.getMetrics().get(j)));
             }
 
         }
