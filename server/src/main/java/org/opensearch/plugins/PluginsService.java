@@ -695,6 +695,68 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("removal")
+    static Plugin loadBundle(Bundle bundle, Settings settings, Path configPath, Path pluginPath) throws IOException {
+        String name = bundle.plugin.getName();
+
+        verifyCompatibility(bundle.plugin);
+
+        // create a child to load the plugin in this bundle
+        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(PluginsService.class.getClassLoader(), Collections.emptyList());
+        if (!Files.exists(pluginPath)) {
+            throw new IllegalStateException("Path should exist at this time");
+        }
+
+        List<Path> jarPaths = Files.list(pluginPath)
+            .filter((fileName) -> fileName.toString().toLowerCase(Locale.ROOT).endsWith(".jar"))
+            .collect(Collectors.toList());
+
+        if (jarPaths.isEmpty()) {
+            throw new IllegalStateException("No JAR files found");
+        }
+
+        URL[] urls = new URL[jarPaths.size()];
+        for (int i = 0; i < jarPaths.size(); i++) {
+            urls[i] = jarPaths.get(i).toUri().toURL();
+        }
+        URLClassLoader loader = new URLClassLoader(urls, parentLoader);
+
+        // reload SPI with any new services from the plugin
+        reloadLuceneSPI(loader);
+
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        try {
+            // Set context class loader to plugin's class loader so that plugins
+            // that have dependencies with their own SPI endpoints have a chance to load
+            // and initialize them appropriately.
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(loader);
+                return null;
+            });
+
+            logger.debug("Loading plugin [" + name + "]...");
+            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
+            if (loader != pluginClass.getClassLoader()) {
+                throw new IllegalStateException(
+                    "Plugin ["
+                        + name
+                        + "] must reference a class loader local Plugin class ["
+                        + bundle.plugin.getClassname()
+                        + "] (class loader ["
+                        + pluginClass.getClassLoader()
+                        + "])"
+                );
+            }
+            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            return plugin;
+        } finally {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(cl);
+                return null;
+            });
+        }
+    }
+
+    @SuppressWarnings("removal")
     private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
         String name = bundle.plugin.getName();
 
@@ -767,7 +829,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Codec.reloadCodecs(loader);
     }
 
-    private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
+    private static Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (Throwable t) {
@@ -775,7 +837,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+    private static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
         final Constructor<?>[] constructors = pluginClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
@@ -806,7 +868,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private String signatureMessage(final Class<? extends Plugin> clazz) {
+    private static String signatureMessage(final Class<? extends Plugin> clazz) {
         return String.format(
             Locale.ROOT,
             "no public constructor of correct signature for [%s]; must be [%s], [%s], or [%s]",

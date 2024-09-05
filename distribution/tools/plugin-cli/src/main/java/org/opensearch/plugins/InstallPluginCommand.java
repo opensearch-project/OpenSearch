@@ -60,6 +60,7 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 
@@ -893,6 +894,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             env.configDir().resolve(targetFolderName),
             deleteOnFailure
         );
+        final PluginsService.Bundle bundle = new PluginsService.Bundle(info, env.pluginsDir());
+        final Plugin plugin = PluginsService.loadBundle(bundle, Settings.EMPTY, env.configDir(), tmpRoot);
         movePlugin(tmpRoot, destination);
         return info;
     }
