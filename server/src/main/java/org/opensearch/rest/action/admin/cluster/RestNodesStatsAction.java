@@ -233,6 +233,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         String[] levels = Strings.splitStringByCommaToArray(request.param("level"));
         nodesStatsRequest.indices().setLevels(levels);
         nodesStatsRequest.setIncludeDiscoveryNodes(false);
+        nodesStatsRequest.indices().setIncludeIndicesStatsByLevel(true);
 
         return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
