@@ -34,12 +34,12 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericTypeConverters;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
@@ -164,7 +164,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
                     kahanSummation.reset(sum, compensation);
 
                     for (int i = 0; i < valuesCount; i++) {
-                        double value = StarTreeNumericTypeConverters.sortableLongtoDouble(values.nextValue());
+                        double value = NumericUtils.sortableLongToDouble(values.nextValue());
                         kahanSummation.add(value);
                     }
 
