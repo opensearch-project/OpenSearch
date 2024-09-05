@@ -18,9 +18,11 @@ jobs:
           distribution: temurin
       - name: Setup docker (missing on MacOS)
         if: runner.os == 'macos'
-        uses: douglascamata/setup-docker-macos-action@main
-        with:
-          upgrade-qemu: true
+        continue-on-error: true
+        run: |
+          brew install docker colima coreutils
+          gtimeout 15m colima start
+        shell: bash
       - name: Run Gradle (assemble)
         if: ${{ runner.os == 'Windows' }}
         run: |
@@ -28,4 +30,8 @@ jobs:
       - name: Run Gradle (assemble)
         if: ${{ runner.os != 'Windows' }}
         run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=${{ matrix.java }} 
+      - name: Run Gradle (assemble)
+        if: runner.os == 'macos' && steps.setup_docker.outcome == 'success'
+        run: |
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=${{ matrix.java }}
