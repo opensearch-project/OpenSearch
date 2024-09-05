@@ -44,6 +44,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -53,33 +54,23 @@ import java.util.Map;
  */
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static enum ExecutionMode {
+    public enum ExecutionMode {
 
-        UNSET(null),
-        DIRECT("direct"),
-        ORDINAL("ordinal");
+        UNSET,
+        DIRECT,
+        ORDINAL;
 
-        private final String hintString;
-
-        ExecutionMode(String hintString) {
-            this.hintString = hintString;
-        }
+        ExecutionMode() {}
 
         public static ExecutionMode fromString(String value) {
             if (value == null) {
                 return UNSET;
             }
-            switch(value) {
-                case "direct": return DIRECT;
-                case "ordinal": return ORDINAL;
-                default:
-                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [direct, ordinals]");
+            try {
+                return ExecutionMode.valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [direct, ordinals]");
             }
-        }
-
-        @Override
-        public String toString() {
-            return hintString;
         }
     }
 
