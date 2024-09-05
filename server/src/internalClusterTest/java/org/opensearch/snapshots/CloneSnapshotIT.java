@@ -679,7 +679,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartCloneWithSuccessfulShardClonePendingFinalization() throws Exception {
-        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
