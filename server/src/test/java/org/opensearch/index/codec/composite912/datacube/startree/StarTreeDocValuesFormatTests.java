@@ -117,8 +117,7 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         return codec;
     }
 
-    // TODO: Awaiting a fix in indexing - disabling test for meantime
-    private void testStarTreeDocValues() throws IOException {
+    public void testStarTreeDocValues() throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
         conf.setMergePolicy(newLogMergePolicy());
