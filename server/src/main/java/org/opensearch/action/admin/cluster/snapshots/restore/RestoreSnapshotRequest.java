@@ -167,7 +167,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             sourceRemoteStoreRepository = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             sourceRemoteTranslogRepository = in.readOptionalString();
         }
     }
@@ -203,7 +203,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalString(sourceRemoteStoreRepository);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalString(sourceRemoteTranslogRepository);
         }
     }
