@@ -372,6 +372,7 @@ public class RemoteFsTranslog extends Translog {
             .shardId(shardIdStr)
             .dataCategory(TRANSLOG)
             .dataType(DATA)
+            .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
             .build();
         BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
         RemoteStorePathStrategy.PathInput mdPathInput = RemoteStorePathStrategy.PathInput.builder()
@@ -380,6 +381,7 @@ public class RemoteFsTranslog extends Translog {
             .shardId(shardIdStr)
             .dataCategory(TRANSLOG)
             .dataType(METADATA)
+            .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
             .build();
         BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
         BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);

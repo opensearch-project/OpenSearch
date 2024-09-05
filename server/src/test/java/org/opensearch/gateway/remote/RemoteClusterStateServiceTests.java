@@ -62,6 +62,7 @@ import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
@@ -254,7 +255,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    settings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
             namedWriteableRegistry
         );
     }
@@ -291,7 +300,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 clusterService,
                 () -> 0L,
                 threadPool,
-                List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+                List.of(
+                    new RemoteIndexPathUploader(
+                        threadPool,
+                        settings,
+                        repositoriesServiceSupplier,
+                        clusterSettings,
+                        DefaultRemoteStoreSettings.INSTANCE
+                    )
+                ),
                 writableRegistry()
             )
         );
@@ -363,7 +380,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    settings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
             writableRegistry()
         );
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager())
@@ -733,7 +758,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    settings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
             writableRegistry()
         );
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
@@ -2376,7 +2409,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .coordinationMetadata(new ClusterMetadataManifest.UploadedMetadataAttribute(COORDINATION_METADATA, "mock-coordination-file"))
             .settingMetadata(new ClusterMetadataManifest.UploadedMetadataAttribute(SETTING_METADATA, "mock-setting-file"))
             .templatesMetadata(new ClusterMetadataManifest.UploadedMetadataAttribute(TEMPLATES_METADATA, "mock-templates-file"))
-            .put(IndexGraveyard.TYPE, new ClusterMetadataManifest.UploadedMetadataAttribute(IndexGraveyard.TYPE, "mock-custom-" +IndexGraveyard.TYPE+ "-file"))
+            .put(IndexGraveyard.TYPE, new ClusterMetadataManifest.UploadedMetadataAttribute(IndexGraveyard.TYPE, "mock-custom-" + IndexGraveyard.TYPE + "-file"))
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
@@ -2635,7 +2668,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    newSettings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
             writableRegistry()
         );
         assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
@@ -2906,7 +2947,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    newSettings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
             writableRegistry()
         );
     }
@@ -2929,7 +2978,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    newSettings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
             writableRegistry()
         );
     }
