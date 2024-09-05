@@ -403,6 +403,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static Boolean segmentsPathFixedPrefix;
 
+    private static Boolean snapshotShardPathFixedPrefix;
+
     private Path remoteStoreRepositoryPath;
 
     private ReplicationType randomReplicationType;
@@ -414,6 +416,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         prefixModeVerificationEnable = randomBoolean();
         translogPathFixedPrefix = randomBoolean();
         segmentsPathFixedPrefix = randomBoolean();
+        snapshotShardPathFixedPrefix = randomBoolean();
         testClusterRule.beforeClass();
     }
 
@@ -2901,6 +2904,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), randomBoolean());
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), translogPathFixedPrefix ? "a" : "");
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), segmentsPathFixedPrefix ? "b" : "");
+        settings.put(BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING.getKey(), segmentsPathFixedPrefix ? "c" : "");
         return settings.build();
     }
 
