@@ -120,6 +120,7 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 
 /**
@@ -206,6 +207,7 @@ final class DefaultSearchContext extends SearchContext {
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
     private final int cardinalityAggregationPruningThreshold;
+    private final boolean keywordIndexOrDocValuesEnabled;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -256,7 +258,8 @@ final class DefaultSearchContext extends SearchContext {
             this.searcher,
             request::nowInMillis,
             shardTarget.getClusterAlias(),
-            validate
+            validate,
+            evaluateKeywordIndexOrDocValuesEnabled()
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
@@ -265,6 +268,7 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
         this.concurrentSearchDeciders = concurrentSearchDeciders;
+        this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
     }
 
     @Override
@@ -1117,10 +1121,22 @@ final class DefaultSearchContext extends SearchContext {
         return cardinalityAggregationPruningThreshold;
     }
 
+    @Override
+    public boolean keywordIndexOrDocValuesEnabled() {
+        return keywordIndexOrDocValuesEnabled;
+    }
+
     private int evaluateCardinalityAggregationPruningThreshold() {
         if (clusterService != null) {
             return clusterService.getClusterSettings().get(CARDINALITY_AGGREGATION_PRUNING_THRESHOLD);
         }
         return 0;
+    }
+
+    public boolean evaluateKeywordIndexOrDocValuesEnabled() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(KEYWORD_INDEX_OR_DOC_VALUES_ENABLED);
+        }
+        return false;
     }
 }
