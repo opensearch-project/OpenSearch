@@ -1543,7 +1543,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
         }
 
-        if (this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
+        if (this.indicesService.getCompositeIndexSettings() != null
+            && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
             && StarTreeQueryHelper.isStarTreeSupported(context, source.trackTotalHitsUpTo() != null)) {
             try {
                 OriginalOrStarTreeQuery parsedQuery = StarTreeQueryHelper.getOriginalOrStarTreeQuery(context, source);
