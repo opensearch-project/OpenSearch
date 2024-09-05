@@ -682,7 +682,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             assertCacheState(client, index, expectedHits, expectedMisses);
         }
     }
-  
+
     public void testDeleteAndCreateSameIndexShardOnSameNode() throws Exception {
         String node_1 = internalCluster().startNode(Settings.builder().build());
         Client client = client(node_1);
