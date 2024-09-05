@@ -10,7 +10,8 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -21,27 +22,27 @@ import java.util.List;
 public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     private ValueAggregator aggregator;
-    protected StarTreeNumericType starTreeNumericType;
+    protected FieldValueConverter fieldValueConverter;
 
-    public AbstractValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
-        this.starTreeNumericType = starTreeNumericType;
+    public AbstractValueAggregatorTests(FieldValueConverter fieldValueConverter) {
+        this.fieldValueConverter = fieldValueConverter;
     }
 
     @Before
     public void setup() {
-        aggregator = getValueAggregator(starTreeNumericType);
+        aggregator = getValueAggregator(fieldValueConverter);
     }
 
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         List<Object[]> parameters = new ArrayList<>();
-        for (StarTreeNumericType starTreeNumericType : StarTreeNumericType.values()) {
-            parameters.add(new Object[] { starTreeNumericType });
+        for (FieldValueConverter fieldValueConverter : NumberFieldMapper.NumberType.values()) {
+            parameters.add(new Object[] { fieldValueConverter });
         }
         return parameters;
     }
 
-    public abstract ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType);
+    public abstract ValueAggregator getValueAggregator(FieldValueConverter fieldValueConverter);
 
     public void testGetInitialAggregatedValueForSegmentDocNullValue() {
         assertEquals(aggregator.getIdentityMetricValue(), aggregator.getInitialAggregatedValueForSegmentDocValue(null));
@@ -61,6 +62,10 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
         long randomLong = randomLong();
-        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
+        if (aggregator instanceof CountValueAggregator) {
+            assertEquals(CountValueAggregator.DEFAULT_INITIAL_VALUE, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong()));
+        } else {
+            assertEquals(fieldValueConverter.toDoubleValue(randomLong), aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
+        }
     }
 }
