@@ -695,7 +695,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("removal")
-    static Plugin loadBundle(Bundle bundle, Settings settings, Path configPath, Path pluginPath) throws IOException {
+    static IdentityAwarePlugin maybeLoadIdentityAwarePluginFromBundle(Bundle bundle, Settings settings, Path configPath, Path pluginPath)
+        throws IOException {
         String name = bundle.plugin.getName();
 
         verifyCompatibility(bundle.plugin);
@@ -746,8 +747,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                         + "])"
                 );
             }
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            return plugin;
+            if (!IdentityAwarePlugin.class.isAssignableFrom(pluginClass)) {
+                return null;
+            }
+            return (IdentityAwarePlugin) loadPlugin(pluginClass, settings, configPath);
         } finally {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 Thread.currentThread().setContextClassLoader(cl);

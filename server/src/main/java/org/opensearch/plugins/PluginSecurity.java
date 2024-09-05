@@ -51,6 +51,7 @@ import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -64,9 +65,15 @@ class PluginSecurity {
     /**
      * prints/confirms policy exceptions with the user
      */
-    static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
+    static void confirmPolicyExceptions(
+        Terminal terminal,
+        Set<String> permissions,
+        Set<String> requestedClusterActions,
+        Map<String, Set<String>> requestedIndexActions,
+        boolean batch
+    ) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
-        if (requested.isEmpty()) {
+        if (requested.isEmpty() && requestedClusterActions.isEmpty() && requestedIndexActions.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
         } else {
 
@@ -76,12 +83,52 @@ class PluginSecurity {
             terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
             terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            // print all permissions:
-            for (String permission : requested) {
-                terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+            if (!requested.isEmpty()) {
+                // print all permissions:
+                for (String permission : requested) {
+                    terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+                }
+                terminal.errorPrintln(
+                    Verbosity.NORMAL,
+                    "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
+                );
+                terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+                terminal.errorPrintln(Verbosity.NORMAL, "");
+                terminal.errorPrintln(Verbosity.NORMAL, "Plugin requests permission to perform the following transport actions. Any index");
+                terminal.errorPrintln(
+                    Verbosity.NORMAL,
+                    "pattern that appears below is a default value and may change depending on plugin settings."
+                );
             }
-            terminal.errorPrintln(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-            terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+            if (!requestedClusterActions.isEmpty() || !requestedIndexActions.isEmpty()) {
+                terminal.errorPrintln(Verbosity.NORMAL, "");
+                terminal.errorPrintln(Verbosity.NORMAL, "Cluster Actions");
+                terminal.errorPrintln(Verbosity.NORMAL, "---------------");
+                terminal.errorPrintln(Verbosity.NORMAL, "");
+                if (requestedClusterActions.isEmpty()) {
+                    terminal.errorPrintln(Verbosity.NORMAL, "None");
+                } else {
+                    for (String clusterAction : requestedClusterActions) {
+                        terminal.errorPrintln(Verbosity.NORMAL, "* " + clusterAction);
+                    }
+                }
+                terminal.errorPrintln(Verbosity.NORMAL, "");
+                terminal.errorPrintln(Verbosity.NORMAL, "Index Actions");
+                terminal.errorPrintln(Verbosity.NORMAL, "-------------");
+                terminal.errorPrintln(Verbosity.NORMAL, "");
+                if (requestedIndexActions.isEmpty()) {
+                    terminal.errorPrintln(Verbosity.NORMAL, "None");
+                } else {
+                    for (Map.Entry<String, Set<String>> entry : requestedIndexActions.entrySet()) {
+                        terminal.errorPrintln(Verbosity.NORMAL, "Index Pattern: " + entry.getKey());
+                        terminal.errorPrintln(Verbosity.NORMAL, "");
+                        for (String indexAction : entry.getValue()) {
+                            terminal.errorPrintln(Verbosity.NORMAL, "* " + indexAction);
+                        }
+                    }
+                }
+            }
+
             prompt(terminal, batch);
         }
     }

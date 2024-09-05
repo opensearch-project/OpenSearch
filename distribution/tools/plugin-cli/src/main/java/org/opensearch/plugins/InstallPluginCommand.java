@@ -881,7 +881,22 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         } else {
             permissions = Collections.emptySet();
         }
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
+        final PluginsService.Bundle bundle = new PluginsService.Bundle(info, env.pluginsDir());
+
+        final Set<String> requestedClusterActions = new HashSet<>();
+        final Map<String, Set<String>> requestedIndexActions = new HashMap<>();
+
+        final IdentityAwarePlugin plugin = PluginsService.maybeLoadIdentityAwarePluginFromBundle(
+            bundle,
+            Settings.EMPTY,
+            env.configDir(),
+            tmpRoot
+        );
+        if (plugin != null) {
+            requestedClusterActions.addAll(plugin.getClusterActions());
+            requestedIndexActions.putAll(plugin.getIndexActions());
+        }
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, requestedClusterActions, requestedIndexActions, isBatch);
 
         String targetFolderName = info.getTargetFolderName();
         final Path destination = env.pluginsDir().resolve(targetFolderName);
@@ -894,8 +909,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             env.configDir().resolve(targetFolderName),
             deleteOnFailure
         );
-        final PluginsService.Bundle bundle = new PluginsService.Bundle(info, env.pluginsDir());
-        final Plugin plugin = PluginsService.loadBundle(bundle, Settings.EMPTY, env.configDir(), tmpRoot);
         movePlugin(tmpRoot, destination);
         return info;
     }
