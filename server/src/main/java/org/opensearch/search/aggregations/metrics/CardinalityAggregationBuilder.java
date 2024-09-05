@@ -68,6 +68,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
 
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
+    public static final ParseField EXECUTION_HINT_FIELD = new ParseField(("execution_hint"));
 
     public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -76,6 +77,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
         PARSER.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
+        PARSER.declareString(CardinalityAggregationBuilder::executionHint, CardinalityAggregationBuilder.EXECUTION_HINT_FIELD);
         PARSER.declareLong((b, v) -> {/*ignore*/}, REHASH);
     }
 
@@ -84,6 +86,8 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     private Long precisionThreshold = null;
+
+    private String executionHint = null;
 
     public CardinalityAggregationBuilder(String name) {
         super(name);
@@ -96,6 +100,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     ) {
         super(clone, factoriesBuilder, metadata);
         this.precisionThreshold = clone.precisionThreshold;
+        this.executionHint = clone.executionHint;
     }
 
     @Override
@@ -111,6 +116,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
+        executionHint = in.readOptionalString();
     }
 
     @Override
@@ -125,6 +131,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (hasPrecisionThreshold) {
             out.writeLong(precisionThreshold);
         }
+        out.writeOptionalString(executionHint);
     }
 
     @Override
@@ -155,6 +162,13 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         return precisionThreshold;
     }
 
+    public CardinalityAggregationBuilder executionHint(String executionHint) {
+        this.executionHint = executionHint;
+        return this;
+    }
+
+    public String executionHint() { return executionHint; }
+
     @Override
     protected CardinalityAggregatorFactory innerBuild(
         QueryShardContext queryShardContext,
@@ -162,7 +176,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new CardinalityAggregatorFactory(name, config, precisionThreshold, executionHint, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -170,12 +184,15 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (precisionThreshold != null) {
             builder.field(PRECISION_THRESHOLD_FIELD.getPreferredName(), precisionThreshold);
         }
+        if (executionHint != null) {
+            builder.field(EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
+        }
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), precisionThreshold);
+        return Objects.hash(super.hashCode(), precisionThreshold, executionHint);
     }
 
     @Override
@@ -184,7 +201,8 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         CardinalityAggregationBuilder other = (CardinalityAggregationBuilder) obj;
-        return Objects.equals(precisionThreshold, other.precisionThreshold);
+        return Objects.equals(precisionThreshold, other.precisionThreshold)
+            && Objects.equals(executionHint, other.executionHint);
     }
 
     @Override
