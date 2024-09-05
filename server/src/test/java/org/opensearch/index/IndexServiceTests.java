@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -52,6 +53,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -589,6 +591,57 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
         }
+    }
+
+    public void testReplicationTask() throws Exception {
+        // create with docrep - task should not schedule
+        IndexService indexService = createIndex(
+            "docrep_index",
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()
+        );
+        final Index index = indexService.index();
+        ensureGreen(index.getName());
+        IndexService.AsyncReplicationTask task = indexService.getReplicationTask();
+        assertFalse(task.isScheduled());
+        assertFalse(task.mustReschedule());
+
+        // create for segrep - task should schedule
+        indexService = createIndex(
+            "segrep_index",
+            Settings.builder()
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "5s")
+                .build()
+        );
+        final Index srIndex = indexService.index();
+        ensureGreen(srIndex.getName());
+        task = indexService.getReplicationTask();
+        assertTrue(task.isScheduled());
+        assertTrue(task.mustReschedule());
+        assertEquals(5000, task.getInterval().millis());
+
+        // test we can update the interval
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s"))
+            .get();
+
+        IndexService.AsyncReplicationTask updatedTask = indexService.getReplicationTask();
+        assertNotSame(task, updatedTask);
+        assertFalse(task.isScheduled());
+        assertTrue(task.isClosed());
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertEquals(1000, updatedTask.getInterval().millis());
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
+            .build();
     }
 
     private static String createTestMapping(String type) {
