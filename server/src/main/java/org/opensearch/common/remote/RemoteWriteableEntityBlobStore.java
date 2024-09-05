@@ -102,7 +102,7 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         for (String token : obj.getBlobPathParameters().getPathTokens()) {
             blobPath = blobPath.add(token);
         }
-        return blobPath;
+        return obj.getPrefixedPath(blobPath);
     }
 
     public BlobPath getBlobPathForDownload(final RemoteWriteableBlobEntity<T> obj) {
