@@ -57,6 +57,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -525,8 +526,8 @@ final class StoreRecovery {
                     indexShard.postRecovery("post recovery from remote_store");
                     SegmentInfos committedSegmentInfos = indexShard.store().readLastCommittedSegmentsInfo();
                     try {
-                        indexShard.getEngine()
-                            .translogManager()
+                        assert indexShard.getEngine() instanceof InternalEngine;
+                        ((InternalEngine) indexShard.getEngine()).translogManager()
                             .setMinSeqNoToKeep(Long.parseLong(committedSegmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO)) + 1);
                     } catch (IllegalArgumentException e) {
                         logger.warn("MinSeqNoToKeep is already past the maxSeqNo from commited segment infos");
