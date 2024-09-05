@@ -92,6 +92,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
@@ -125,6 +126,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -181,6 +183,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final RemoteStoreLockManagerFactory remoteStoreLockManagerFactory;
 
+    private final RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory;
+
     private final ThreadPool threadPool;
 
     private final Map<Snapshot, List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>>> snapshotCompletionListeners =
@@ -227,6 +231,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
+    public static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
+
     /**
      * Setting to specify the maximum number of shards that can be included in the result for the snapshot status
      * API call. Note that it does not apply to V2-shallow snapshots.
@@ -239,7 +245,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    private static final String SNAPSHOT_PINNED_TIMESTAMP_DELIMITER = "__";
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -260,6 +265,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             remoteStoreSettings.getSegmentsPathFixedPrefix()
         );
         this.threadPool = transportService.getThreadPool();
+        this.remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            () -> repositoriesService,
+            threadPool,
+            remoteStoreSettings.getSegmentsPathFixedPrefix()
+        );
         this.transportService = transportService;
         this.remoteStorePinnedTimestampService = remoteStorePinnedTimestampService;
 
@@ -3053,18 +3063,67 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // the flag. This can be improved by having the info whether there ever were any shallow snapshot present in this repository
             // or not in RepositoryData.
             // SEE https://github.com/opensearch-project/OpenSearch/issues/8610
-            final boolean cleanupRemoteStoreLockFiles = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
-            if (cleanupRemoteStoreLockFiles) {
-                repository.deleteSnapshotsAndReleaseLockFiles(
-                    snapshotIds,
-                    repositoryData.getGenId(),
-                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    remoteStoreLockManagerFactory,
-                    ActionListener.wrap(updatedRepoData -> {
-                        logger.info("snapshots {} deleted", snapshotIds);
-                        removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
-                );
+            final boolean remoteStoreShallowCopyEnabled = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+            if (remoteStoreShallowCopyEnabled) {
+                Map<SnapshotId, Long> snapshotsWithPinnedTimestamp = new ConcurrentHashMap<>();
+                List<SnapshotId> snapshotsWithLockFiles = Collections.synchronizedList(new ArrayList<>());
+
+                CountDownLatch latch = new CountDownLatch(1);
+
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                    try {
+                        for (SnapshotId snapshotId : snapshotIds) {
+                            try {
+                                SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+                                if (snapshotInfo.getPinnedTimestamp() > 0) {
+                                    snapshotsWithPinnedTimestamp.put(snapshotId, snapshotInfo.getPinnedTimestamp());
+                                } else {
+                                    snapshotsWithLockFiles.add(snapshotId);
+                                }
+                            } catch (Exception e) {
+                                logger.warn("Failed to get snapshot info for {} with exception {}", snapshotId, e);
+                                removeSnapshotDeletionFromClusterState(deleteEntry, e, repositoryData);
+                            }
+                        }
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+                try {
+                    latch.await();
+                    if (snapshotsWithLockFiles.size() > 0) {
+                        repository.deleteSnapshotsAndReleaseLockFiles(
+                            snapshotsWithLockFiles,
+                            repositoryData.getGenId(),
+                            minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithLockFiles),
+                            remoteStoreLockManagerFactory,
+                            ActionListener.wrap(updatedRepoData -> {
+                                logger.info("snapshots {} deleted", snapshotsWithLockFiles);
+                                removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                            }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                        );
+                    }
+                    if (snapshotsWithPinnedTimestamp.size() > 0) {
+
+                        repository.deleteSnapshotsWithPinnedTimestamp(
+                            snapshotsWithPinnedTimestamp,
+                            repositoryData.getGenId(),
+                            minCompatibleVersion(minNodeVersion, repositoryData, snapshotsWithPinnedTimestamp.keySet()),
+                            remoteSegmentStoreDirectoryFactory,
+                            remoteStorePinnedTimestampService,
+                            ActionListener.wrap(updatedRepoData -> {
+                                logger.info("snapshots {} deleted", snapshotsWithPinnedTimestamp);
+                                removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                            }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                        );
+                    }
+
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted while waiting for snapshot info processing", e);
+                    Thread.currentThread().interrupt();
+                    removeSnapshotDeletionFromClusterState(deleteEntry, e, repositoryData);
+                }
+
             } else {
                 repository.deleteSnapshots(
                     snapshotIds,
