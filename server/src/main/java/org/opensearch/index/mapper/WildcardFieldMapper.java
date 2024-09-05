@@ -40,7 +40,6 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -486,9 +485,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 rawSequence = getNonWildcardSequence(value, 0);
                 currentSequence = performEscape(rawSequence);
                 if (currentSequence.length() == 1) {
-                    terms.add(new String(new char[]{0, currentSequence.charAt(0)}));
+                    terms.add(new String(new char[] { 0, currentSequence.charAt(0) }));
                 } else {
-                    terms.add(new String(new char[]{0, currentSequence.charAt(0), currentSequence.charAt(1)}));
+                    terms.add(new String(new char[] { 0, currentSequence.charAt(0), currentSequence.charAt(1) }));
                 }
             } else {
                 pos = findNonWildcardSequence(value, pos);
@@ -508,11 +507,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 if (isEndOfValue) {
                     // This is the end of the input. We can attach a suffix anchor.
                     if (currentSequence.length() == 1) {
-                        terms.add(new String(new char[]{currentSequence.charAt(0), 0}));
+                        terms.add(new String(new char[] { currentSequence.charAt(0), 0 }));
                     } else {
                         char a = currentSequence.charAt(currentSequence.length() - 2);
                         char b = currentSequence.charAt(currentSequence.length() - 1);
-                        terms.add(new String(new char[]{a, b, 0}));
+                        terms.add(new String(new char[] { a, b, 0 }));
                     }
                 }
                 pos = findNonWildcardSequence(value, pos + rawSequence.length());
@@ -524,8 +523,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         private static String getNonWildcardSequence(String value, int startFrom) {
             for (int i = startFrom; i < value.length(); i++) {
                 char c = value.charAt(i);
-                if ((c == '?' || c == '*') &&
-                    (i == 0 || value.charAt(i - 1) != '\\')) {
+                if ((c == '?' || c == '*') && (i == 0 || value.charAt(i - 1) != '\\')) {
                     return value.substring(startFrom, i);
                 }
             }
@@ -646,10 +644,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 query = builder.build();
             } else if ((regExp.kind == RegExp.Kind.REGEXP_REPEAT_MIN || regExp.kind == RegExp.Kind.REGEXP_REPEAT_MINMAX)
                 && regExp.min > 0) {
-                return regexpToQuery(fieldName, regExp.exp1);
-            } else {
-                return new MatchAllDocsQuery();
-            }
+                    return regexpToQuery(fieldName, regExp.exp1);
+                } else {
+                    return new MatchAllDocsQuery();
+                }
             if (query.clauses().size() == 1) {
                 return query.iterator().next().getQuery();
             } else if (query.clauses().size() == 0) {

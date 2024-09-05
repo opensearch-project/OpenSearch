@@ -104,20 +104,14 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
             ft.wildcardQuery("\\**\\*", null, null)
         );
 
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\*"),
-            ft.wildcardQuery("\\*", null, null)
-        );
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\*"), ft.wildcardQuery("\\*", null, null));
 
         expectedTerms.remove(suffixAnchored("*"));
         builder = new BooleanQuery.Builder();
         for (String term : expectedTerms) {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\**"),
-            ft.wildcardQuery("\\**", null, null)
-        );
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\**"), ft.wildcardQuery("\\**", null, null));
     }
 
     public void testMultipleWildcardsInQuery() {
