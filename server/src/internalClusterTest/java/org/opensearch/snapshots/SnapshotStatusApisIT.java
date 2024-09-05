@@ -51,6 +51,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexNotFoundException;
@@ -602,11 +603,11 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         // across a single snapshot
         assertBusy(() -> {
-            TooManyShardsInSnapshotsStatusException exception = expectThrows(
-                TooManyShardsInSnapshotsStatusException.class,
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
                 () -> client().admin().cluster().prepareSnapshotStatus(repositoryName).setSnapshots(snapshot1).execute().actionGet()
             );
-            assertEquals(exception.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
+            assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
             assertTrue(
                 exception.getMessage().endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request")
             );
@@ -614,8 +615,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         // across multiple snapshots
         assertBusy(() -> {
-            TooManyShardsInSnapshotsStatusException exception = expectThrows(
-                TooManyShardsInSnapshotsStatusException.class,
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareSnapshotStatus(repositoryName)
@@ -623,7 +624,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals(exception.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
+            assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
             assertTrue(
                 exception.getMessage().endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request")
             );
@@ -741,8 +742,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey(), 2));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-            TooManyShardsInSnapshotsStatusException ex = expectThrows(
-                TooManyShardsInSnapshotsStatusException.class,
+            CircuitBreakingException ex = expectThrows(
+                CircuitBreakingException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareSnapshotStatus(repositoryName)
@@ -751,7 +752,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals(ex.status(), RestStatus.REQUEST_ENTITY_TOO_LARGE);
+            assertEquals(ex.status(), RestStatus.TOO_MANY_REQUESTS);
             assertTrue(ex.getMessage().endsWith(" is more than the maximum allowed value of shard count [2] for snapshot status request"));
 
             logger.info("Reset MAX_SHARDS_ALLOWED_IN_STATUS_API to default value");
