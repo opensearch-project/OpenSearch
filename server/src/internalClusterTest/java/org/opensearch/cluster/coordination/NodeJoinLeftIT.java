@@ -129,11 +129,11 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                 }
             }
         });
-        AtomicBoolean bb = new AtomicBoolean();
+        AtomicBoolean succeedFollowerChecker = new AtomicBoolean();
 
         // Simulate followerchecker failure on 1 node when bb is false
         ConnectionDelay handlingBehavior = new ConnectionDelay(() -> {
-            if (bb.get()) {
+            if (succeedFollowerChecker.get()) {
                 return;
             }
             try {
@@ -151,14 +151,14 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
         // Loop runs 10 times to ensure race condition gets reproduced
         for (int i = 0; i < 10; i++) {
-            bb.set(false);
             // fail followerchecker by force to trigger node disconnect
             // now followerchecker should fail and trigger node left
+            succeedFollowerChecker.set(false);
             ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
             assertThat(response1.isTimedOut(), is(false));
 
             // once we know a node has left, we can re-enable followerchecker to work normally
-            bb.set(true);
+            succeedFollowerChecker.set(true);
             ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
             assertThat(response2.isTimedOut(), is(false));
 
@@ -167,7 +167,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             assertThat(response3.isTimedOut(), is(false));
         }
 
-        bb.set(true);
+        succeedFollowerChecker.set(true);
         response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }

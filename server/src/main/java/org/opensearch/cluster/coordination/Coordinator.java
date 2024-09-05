@@ -1361,7 +1361,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 // marking pending disconnects before publish
-                // if we try to joinRequest during pending disconnect, it should fail
+                // if a nodes tries to send a joinRequest while it is pending disconnect, it should fail
                 transportService.setPendingDisconnections(clusterChangedEvent.nodesDelta());
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
