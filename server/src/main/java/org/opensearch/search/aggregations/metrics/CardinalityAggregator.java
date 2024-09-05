@@ -132,7 +132,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     private Collector pickCollector(LeafReaderContext ctx) throws IOException {
-        logger.info("ValuesSource Type: " + valuesSource);
         if (valuesSource == null) {
             emptyCollectorsUsed++;
             return new EmptyCollector();
@@ -155,7 +154,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (maxOrd == 0) {
                 emptyCollectorsUsed++;
                 return new EmptyCollector();
-            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINAL) { // Force OrdinalsCollector
+            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINALS) { // Force OrdinalsCollector
                 ordinalsCollectorsUsed++;
                 collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
             } else {
@@ -268,7 +267,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         postCollectLastCollector();
 
         collector = pickCollector(ctx);
-        logger.info("Collector chosen: " + collector);
         return collector;
     }
 
