@@ -395,7 +395,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             recoverySettings,
             remoteStoreSettings,
             fileCache,
-            null
+            null,
+            (s) -> {}
         );
     }
 

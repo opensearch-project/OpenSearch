@@ -570,7 +570,8 @@ public class IndicesService extends AbstractLifecycleComponent
             cacheService,
             remoteStoreSettings,
             fileCache,
-            null
+            null,
+            (s) -> {}
         );
     }
 
