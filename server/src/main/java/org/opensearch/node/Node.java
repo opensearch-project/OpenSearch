@@ -235,7 +235,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
-import org.opensearch.search.deciders.ConcurrentSearchDecider;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
@@ -871,6 +871,7 @@ public class Node implements Closeable {
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
+            clusterModule.setRerouteServiceForAllocator(rerouteService);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
@@ -1343,7 +1344,7 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 searchModule.getIndexSearcherExecutor(threadPool),
                 taskResourceTrackingService,
-                searchModule.getConcurrentSearchDeciders()
+                searchModule.getConcurrentSearchRequestDeciderFactories()
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -2003,7 +2004,7 @@ public class Node implements Closeable {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchDecider> concurrentSearchDecidersList
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
     ) {
         return new SearchService(
             clusterService,
@@ -2017,7 +2018,7 @@ public class Node implements Closeable {
             circuitBreakerService,
             indexSearcherExecutor,
             taskResourceTrackingService,
-            concurrentSearchDecidersList
+            concurrentSearchDeciderFactories
         );
     }
 
