@@ -288,7 +288,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (remoteStoreIndexShallowCopy
             && isSnapshotV2
             && request.indices().length == 0
-            && clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)) {
+            && clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_2_17_0)) {
             createSnapshotV2(request, listener);
         } else {
             createSnapshot(
