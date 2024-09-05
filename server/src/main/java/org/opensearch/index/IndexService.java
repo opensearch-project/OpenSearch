@@ -867,7 +867,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
-        return newQueryShardContext(shardId, searcher, nowInMillis, clusterAlias, false);
+        return newQueryShardContext(shardId, searcher, nowInMillis, clusterAlias, false, false);
     }
 
     /**
@@ -881,7 +881,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         String clusterAlias,
-        boolean validate
+        boolean validate,
+        boolean keywordIndexOrDocValuesEnabled
     ) {
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
@@ -907,7 +908,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexNameMatcher,
             allowExpensiveQueries,
             valuesSourceRegistry,
-            validate
+            validate,
+            keywordIndexOrDocValuesEnabled
         );
     }
 
