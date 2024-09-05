@@ -106,7 +106,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -887,7 +886,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             S3AsyncClient s3AsyncClient = asyncClientReference.get().client();
 
             ListObjectsV2Request listRequest = ListObjectsV2Request.builder().bucket(blobStore.bucket()).prefix(keyPath).build();
-
             ListObjectsV2Publisher listPublisher = s3AsyncClient.listObjectsV2Paginator(listRequest);
 
             AtomicLong deletedBlobs = new AtomicLong();
@@ -922,8 +920,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         List<String> batchToDelete = new ArrayList<>(objectsToDelete.subList(0, itemsToDelete));
                         objectsToDelete.subList(0, itemsToDelete).clear();
 
-                        deletionChain = executeDeleteChain(
+                        deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
                             s3AsyncClient,
+                            blobStore,
                             batchToDelete,
                             deletionChain,
                             false,
@@ -942,9 +941,15 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 @Override
                 public void onComplete() {
                     if (!objectsToDelete.isEmpty()) {
-                        deletionChain = executeDeleteChain(s3AsyncClient, objectsToDelete, deletionChain, false, null);
+                        deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
+                            s3AsyncClient,
+                            blobStore,
+                            objectsToDelete,
+                            deletionChain,
+                            false,
+                            null
+                        );
                     }
-
                     deletionChain.whenComplete((v, throwable) -> {
                         if (throwable != null) {
                             listingFuture.completeExceptionally(throwable);
@@ -983,87 +988,22 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
             List<String> keysToDelete = blobNames.stream().map(this::buildKey).collect(Collectors.toList());
 
-            executeDeleteChain(s3AsyncClient, keysToDelete, CompletableFuture.completedFuture(null), true, null).whenComplete(
-                (v, throwable) -> {
-                    if (throwable != null) {
-                        completionListener.onFailure(new IOException("Failed to delete blobs", throwable));
-                    } else {
-                        completionListener.onResponse(null);
-                    }
+            S3AsyncDeleteHelper.executeDeleteChain(
+                s3AsyncClient,
+                blobStore,
+                keysToDelete,
+                CompletableFuture.completedFuture(null),
+                true,
+                null
+            ).whenComplete((v, throwable) -> {
+                if (throwable != null) {
+                    completionListener.onFailure(new IOException("Failed to delete blobs", throwable));
+                } else {
+                    completionListener.onResponse(null);
                 }
-            );
+            });
         } catch (Exception e) {
             completionListener.onFailure(new IOException("Failed to initiate async blob deletion", e));
         }
-    }
-
-    private CompletableFuture<Void> executeDeleteChain(
-        S3AsyncClient s3AsyncClient,
-        List<String> objectsToDelete,
-        CompletableFuture<Void> currentChain,
-        boolean ignoreIfNotExists,
-        Runnable afterDeleteAction
-    ) {
-        List<List<String>> batches = createDeleteBatches(objectsToDelete);
-        CompletableFuture<Void> newChain = currentChain.thenCompose(v -> executeDeleteBatches(s3AsyncClient, batches, ignoreIfNotExists));
-        if (afterDeleteAction != null) {
-            newChain = newChain.thenRun(afterDeleteAction);
-        }
-        return newChain;
-    }
-
-    private List<List<String>> createDeleteBatches(List<String> keys) {
-        int bulkDeleteSize = blobStore.getBulkDeletesSize();
-        List<List<String>> batches = new ArrayList<>();
-        for (int i = 0; i < keys.size(); i += bulkDeleteSize) {
-            batches.add(keys.subList(i, Math.min(keys.size(), i + bulkDeleteSize)));
-        }
-        return batches;
-    }
-
-    private CompletableFuture<Void> executeDeleteBatches(
-        S3AsyncClient s3AsyncClient,
-        List<List<String>> batches,
-        boolean ignoreIfNotExists
-    ) {
-        CompletableFuture<Void> allDeletesFuture = CompletableFuture.completedFuture(null);
-
-        for (List<String> batch : batches) {
-            allDeletesFuture = allDeletesFuture.thenCompose(v -> executeSingleDeleteBatch(s3AsyncClient, batch, ignoreIfNotExists));
-        }
-
-        return allDeletesFuture;
-    }
-
-    private CompletableFuture<Void> executeSingleDeleteBatch(S3AsyncClient s3AsyncClient, List<String> batch, boolean ignoreIfNotExists) {
-        DeleteObjectsRequest deleteRequest = bulkDelete(blobStore.bucket(), batch);
-        return s3AsyncClient.deleteObjects(deleteRequest)
-            .thenApply(response -> processDeleteResponse(response, ignoreIfNotExists))
-            .exceptionally(e -> {
-                if (!ignoreIfNotExists) {
-                    throw new CompletionException(e);
-                }
-                logger.warn("Error during batch deletion", e);
-                return null;
-            });
-    }
-
-    private Void processDeleteResponse(DeleteObjectsResponse deleteObjectsResponse, boolean ignoreIfNotExists) {
-        if (!deleteObjectsResponse.errors().isEmpty()) {
-            if (ignoreIfNotExists) {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "Failed to delete some blobs {}",
-                        deleteObjectsResponse.errors()
-                            .stream()
-                            .map(s3Error -> "[" + s3Error.key() + "][" + s3Error.code() + "][" + s3Error.message() + "]")
-                            .collect(Collectors.toList())
-                    )
-                );
-            } else {
-                throw new CompletionException(new IOException("Failed to delete some blobs: " + deleteObjectsResponse.errors()));
-            }
-        }
-        return null;
     }
 }
