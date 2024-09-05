@@ -653,9 +653,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public double toDoubleValue(long value) {
-                byte[] bytes = new byte[8];
-                NumericUtils.longToSortableBytes(value, bytes, 0);
-                return NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, 0));
+                return objectToDouble(value);
             }
 
             @Override
