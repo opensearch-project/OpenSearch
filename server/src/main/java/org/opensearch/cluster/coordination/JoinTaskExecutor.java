@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
@@ -511,10 +512,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .findFirst();
 
         if (remotePublicationNode.isPresent() && joiningNode.isRemoteStatePublicationEnabled()) {
-            List<String> reposToValidate = new ArrayList<>(2);
-            reposToValidate.add(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY);
-            reposToValidate.add(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
-            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), reposToValidate);
+            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES);
         }
     }
 

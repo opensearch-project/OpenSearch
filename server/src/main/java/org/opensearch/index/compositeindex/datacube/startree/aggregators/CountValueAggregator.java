@@ -7,25 +7,23 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
+import org.opensearch.index.mapper.NumberFieldMapper;
 
 /**
  * Count value aggregator for star tree
  *
  * @opensearch.experimental
  */
-class CountValueAggregator implements ValueAggregator<Long> {
+public class CountValueAggregator implements ValueAggregator<Long> {
 
     public static final long DEFAULT_INITIAL_VALUE = 1L;
-    private final StarTreeNumericType starTreeNumericType;
-    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
+    private static final FieldValueConverter VALUE_AGGREGATOR_TYPE = NumberFieldMapper.NumberType.LONG;
 
-    public CountValueAggregator(StarTreeNumericType starTreeNumericType) {
-        this.starTreeNumericType = starTreeNumericType;
-    }
+    public CountValueAggregator() {}
 
     @Override
-    public StarTreeNumericType getAggregatedValueType() {
+    public FieldValueConverter getAggregatedValueType() {
         return VALUE_AGGREGATOR_TYPE;
     }
 

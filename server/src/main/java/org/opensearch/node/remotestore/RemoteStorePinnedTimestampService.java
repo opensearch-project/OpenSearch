@@ -10,19 +10,16 @@ package org.opensearch.node.remotestore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.ClusterName;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
-import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.gateway.remote.model.RemotePinnedTimestamps;
-import org.opensearch.gateway.remote.model.RemotePinnedTimestamps.PinnedTimestamps;
-import org.opensearch.gateway.remote.model.RemoteStorePinnedTimestampsBlobStore;
-import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
@@ -30,15 +27,13 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -48,20 +43,19 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
     private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
-    public static final int PINNED_TIMESTAMP_FILES_TO_KEEP = 5;
+    public static final String PINNED_TIMESTAMPS_PATH_TOKEN = "pinned_timestamps";
+    public static final String PINNED_TIMESTAMPS_FILENAME_SEPARATOR = "__";
 
     private final Supplier<RepositoriesService> repositoriesService;
     private final Settings settings;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private BlobStoreRepository blobStoreRepository;
-    private BlobStoreTransferService blobStoreTransferService;
-    private RemoteStorePinnedTimestampsBlobStore pinnedTimestampsBlobStore;
+    private BlobContainer blobContainer;
     private AsyncUpdatePinnedTimestampTask asyncUpdatePinnedTimestampTask;
-    private final Semaphore updateTimetampPinningSemaphore = new Semaphore(1);
 
     public RemoteStorePinnedTimestampService(
         Supplier<RepositoriesService> repositoriesService,
@@ -82,7 +76,6 @@ public class RemoteStorePinnedTimestampService implements Closeable {
      */
     public void start() {
         validateRemoteStoreConfiguration();
-        initializeComponents();
         startAsyncUpdateTask(RemoteStoreSettings.getPinnedTimestampsSchedulerInterval());
     }
 
@@ -93,19 +86,8 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         assert remoteStoreRepo != null : "Remote Segment Store repository is not configured";
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
-        blobStoreRepository = (BlobStoreRepository) repository;
-    }
-
-    private void initializeComponents() {
-        String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
-        blobStoreTransferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), this.threadPool);
-        pinnedTimestampsBlobStore = new RemoteStorePinnedTimestampsBlobStore(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            this.threadPool,
-            ThreadPool.Names.REMOTE_STATE_READ
-        );
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        blobContainer = blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath().add(PINNED_TIMESTAMPS_PATH_TOKEN));
     }
 
     private void startAsyncUpdateTask(TimeValue pinnedTimestampsSchedulerInterval) {
@@ -129,7 +111,86 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 "Timestamp to be pinned is less than current timestamp - value of cluster.remote_store.pinned_timestamps.lookback_interval"
             );
         }
-        updatePinning(pinnedTimestamps -> pinnedTimestamps.pin(timestamp, pinningEntity), listener);
+        long startTime = System.nanoTime();
+        try {
+            logger.debug("Pinning timestamp = {} against entity = {}", timestamp, pinningEntity);
+            blobContainer.writeBlob(getBlobName(timestamp, pinningEntity), new ByteArrayInputStream(new byte[0]), 0, true);
+            long elapsedTime = System.nanoTime() - startTime;
+            if (elapsedTime > RemoteStoreSettings.getPinnedTimestampsLookbackInterval().nanos()) {
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "Timestamp pinning took %s nanoseconds which is more than limit of %s nanoseconds, failing the operation",
+                    elapsedTime,
+                    RemoteStoreSettings.getPinnedTimestampsLookbackInterval().nanos()
+                );
+                logger.error(errorMessage);
+                unpinTimestamp(timestamp, pinningEntity, ActionListener.wrap(() -> listener.onFailure(new RuntimeException(errorMessage))));
+            } else {
+                listener.onResponse(null);
+            }
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Clones a timestamp by creating a new pinning entity for an existing timestamp.
+     *
+     * This method attempts to create a new pinning entity for a given timestamp that is already
+     * associated with an existing pinning entity. If the timestamp exists for the existing entity,
+     * a new blob is created for the new pinning entity. If the timestamp doesn't exist for the
+     * existing entity, the operation fails with an IllegalArgumentException.
+     *
+     * @param timestamp The timestamp to be cloned.
+     * @param existingPinningEntity The name of the existing entity that has pinned the timestamp.
+     * @param newPinningEntity The name of the new entity to pin the timestamp to.
+     * @param listener An ActionListener that will be notified of the operation's success or failure.
+     *                 On success, onResponse will be called with null. On failure, onFailure will
+     *                 be called with the appropriate exception.
+     */
+    public void cloneTimestamp(long timestamp, String existingPinningEntity, String newPinningEntity, ActionListener<Void> listener) {
+        try {
+            logger.debug(
+                "cloning timestamp = {} with existing pinningEntity = {} with new pinningEntity = {}",
+                timestamp,
+                existingPinningEntity,
+                newPinningEntity
+            );
+            String blobName = getBlobName(timestamp, existingPinningEntity);
+            if (blobContainer.blobExists(blobName)) {
+                logger.debug("Pinning timestamp = {} against entity = {}", timestamp, newPinningEntity);
+                blobContainer.writeBlob(getBlobName(timestamp, newPinningEntity), new ByteArrayInputStream(new byte[0]), 0, true);
+                listener.onResponse(null);
+            } else {
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "Timestamp: %s is not pinned by existing entity: %s",
+                    timestamp,
+                    existingPinningEntity
+                );
+                logger.error(errorMessage);
+                listener.onFailure(new IllegalArgumentException(errorMessage));
+            }
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private String getBlobName(long timestamp, String pinningEntity) {
+        return String.join(PINNED_TIMESTAMPS_FILENAME_SEPARATOR, pinningEntity, String.valueOf(timestamp));
+    }
+
+    private long getTimestampFromBlobName(String blobName) {
+        String[] blobNameTokens = blobName.split(PINNED_TIMESTAMPS_FILENAME_SEPARATOR);
+        if (blobNameTokens.length < 2) {
+            logger.error("Pinned timestamps blob name contains invalid format: {}", blobName);
+        }
+        try {
+            return Long.parseLong(blobNameTokens[blobNameTokens.length - 1]);
+        } catch (NumberFormatException e) {
+            logger.error(() -> new ParameterizedMessage("Pinned timestamps blob name contains invalid format: {}", blobName), e);
+        }
+        return -1;
     }
 
     /**
@@ -140,90 +201,19 @@ public class RemoteStorePinnedTimestampService implements Closeable {
      * @param listener A listener to be notified when the unpinning operation completes
      */
     public void unpinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) {
-        updatePinning(pinnedTimestamps -> pinnedTimestamps.unpin(timestamp, pinningEntity), listener);
-    }
-
-    private void updatePinning(Consumer<PinnedTimestamps> updateConsumer, ActionListener<Void> listener) {
-        RemotePinnedTimestamps remotePinnedTimestamps = new RemotePinnedTimestamps(
-            clusterService.state().metadata().clusterUUID(),
-            blobStoreRepository.getCompressor()
-        );
-        BlobPath path = pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps);
         try {
-            if (updateTimetampPinningSemaphore.tryAcquire(10, TimeUnit.MINUTES)) {
-                ActionListener<Void> semaphoreAwareListener = ActionListener.runBefore(listener, updateTimetampPinningSemaphore::release);
-                ActionListener<List<BlobMetadata>> listCallResponseListener = getListenerForListCallResponse(
-                    remotePinnedTimestamps,
-                    updateConsumer,
-                    semaphoreAwareListener
-                );
-                blobStoreTransferService.listAllInSortedOrder(
-                    path,
-                    remotePinnedTimestamps.getType(),
-                    Integer.MAX_VALUE,
-                    listCallResponseListener
-                );
+            logger.debug("Unpinning timestamp = {} against entity = {}", timestamp, pinningEntity);
+            String blobName = getBlobName(timestamp, pinningEntity);
+            if (blobContainer.blobExists(blobName)) {
+                blobContainer.deleteBlobsIgnoringIfNotExists(List.of(blobName));
+                listener.onResponse(null);
             } else {
-                throw new TimeoutException("Timed out while waiting to acquire lock in updatePinning");
+                String errorMessage = String.format(Locale.ROOT, "Timestamp: %s is not pinned by entity: %s", timestamp, pinningEntity);
+                logger.error(errorMessage);
+                listener.onFailure(new IllegalArgumentException(errorMessage));
             }
-        } catch (InterruptedException | TimeoutException e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private ActionListener<List<BlobMetadata>> getListenerForListCallResponse(
-        RemotePinnedTimestamps remotePinnedTimestamps,
-        Consumer<PinnedTimestamps> updateConsumer,
-        ActionListener<Void> listener
-    ) {
-        return ActionListener.wrap(blobMetadata -> {
-            PinnedTimestamps pinnedTimestamps = new PinnedTimestamps(new HashMap<>());
-            if (blobMetadata.isEmpty() == false) {
-                pinnedTimestamps = readExistingPinnedTimestamps(blobMetadata.get(0).name(), remotePinnedTimestamps);
-            }
-            updateConsumer.accept(pinnedTimestamps);
-            remotePinnedTimestamps.setPinnedTimestamps(pinnedTimestamps);
-            ActionListener<Void> writeCallResponseListener = getListenerForWriteCallResponse(
-                remotePinnedTimestamps,
-                blobMetadata,
-                listener
-            );
-            pinnedTimestampsBlobStore.writeAsync(remotePinnedTimestamps, writeCallResponseListener);
-        }, listener::onFailure);
-    }
-
-    private ActionListener<Void> getListenerForWriteCallResponse(
-        RemotePinnedTimestamps remotePinnedTimestamps,
-        List<BlobMetadata> blobMetadata,
-        ActionListener<Void> listener
-    ) {
-        return ActionListener.wrap(unused -> {
-            // Delete older pinnedTimestamp files
-            if (blobMetadata.size() > PINNED_TIMESTAMP_FILES_TO_KEEP) {
-                List<String> oldFilesToBeDeleted = blobMetadata.subList(PINNED_TIMESTAMP_FILES_TO_KEEP, blobMetadata.size())
-                    .stream()
-                    .map(BlobMetadata::name)
-                    .collect(Collectors.toList());
-                try {
-                    blobStoreTransferService.deleteBlobs(
-                        pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps),
-                        oldFilesToBeDeleted
-                    );
-                } catch (IOException e) {
-                    logger.error("Exception while deleting stale pinned timestamps", e);
-                }
-            }
-            listener.onResponse(null);
-        }, listener::onFailure);
-    }
-
-    private PinnedTimestamps readExistingPinnedTimestamps(String blobFilename, RemotePinnedTimestamps remotePinnedTimestamps) {
-        remotePinnedTimestamps.setBlobFileName(blobFilename);
-        remotePinnedTimestamps.setFullBlobName(pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps));
-        try {
-            return pinnedTimestampsBlobStore.read(remotePinnedTimestamps);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read existing pinned timestamps", e);
+            listener.onFailure(e);
         }
     }
 
@@ -262,31 +252,22 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         @Override
         protected void runInternal() {
             long triggerTimestamp = System.currentTimeMillis();
-            RemotePinnedTimestamps remotePinnedTimestamps = new RemotePinnedTimestamps(
-                clusterService.state().metadata().clusterUUID(),
-                blobStoreRepository.getCompressor()
-            );
-            BlobPath path = pinnedTimestampsBlobStore.getBlobPathForUpload(remotePinnedTimestamps);
-            blobStoreTransferService.listAllInSortedOrder(path, remotePinnedTimestamps.getType(), 1, new ActionListener<>() {
-                @Override
-                public void onResponse(List<BlobMetadata> blobMetadata) {
-                    if (blobMetadata.isEmpty()) {
-                        return;
-                    }
-                    PinnedTimestamps pinnedTimestamps = readExistingPinnedTimestamps(blobMetadata.get(0).name(), remotePinnedTimestamps);
-                    logger.debug(
-                        "Fetched pinned timestamps from remote store: {} - {}",
-                        triggerTimestamp,
-                        pinnedTimestamps.getPinnedTimestampPinningEntityMap().keySet()
-                    );
-                    pinnedTimestampsSet = new Tuple<>(triggerTimestamp, pinnedTimestamps.getPinnedTimestampPinningEntityMap().keySet());
+            try {
+                Map<String, BlobMetadata> pinnedTimestampList = blobContainer.listBlobs();
+                if (pinnedTimestampList.isEmpty()) {
+                    pinnedTimestampsSet = new Tuple<>(triggerTimestamp, Set.of());
+                    return;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Exception while listing pinned timestamp files", e);
-                }
-            });
+                Set<Long> pinnedTimestamps = pinnedTimestampList.keySet()
+                    .stream()
+                    .map(RemoteStorePinnedTimestampService.this::getTimestampFromBlobName)
+                    .filter(timestamp -> timestamp != -1)
+                    .collect(Collectors.toSet());
+                logger.debug("Fetched pinned timestamps from remote store: {} - {}", triggerTimestamp, pinnedTimestamps);
+                pinnedTimestampsSet = new Tuple<>(triggerTimestamp, pinnedTimestamps);
+            } catch (Throwable t) {
+                logger.error("Exception while fetching pinned timestamp details", t);
+            }
         }
     }
 }

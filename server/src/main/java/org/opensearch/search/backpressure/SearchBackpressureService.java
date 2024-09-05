@@ -18,7 +18,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -43,6 +42,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,7 +80,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     private final SearchBackpressureSettings settings;
     private final TaskResourceTrackingService taskResourceTrackingService;
     private final ThreadPool threadPool;
-    private final LongSupplier timeNanosSupplier;
 
     private final NodeDuressTrackers nodeDuressTrackers;
     private final Map<Class<? extends SearchBackpressureTask>, TaskResourceUsageTrackers> taskTrackers;
@@ -150,7 +149,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
         this.threadPool = threadPool;
-        this.timeNanosSupplier = timeNanosSupplier;
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.taskManager = taskManager;
 

@@ -28,6 +28,7 @@ import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable.Writer;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.gateway.CorruptStateException;
@@ -56,6 +57,10 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
     }
 
     public BytesReference serialize(final T obj, final String blobName, final Compressor compressor) throws IOException {
+        return serialize((out, unSerializedObj) -> unSerializedObj.writeTo(out), obj, blobName, compressor);
+    }
+
+    public BytesReference serialize(final Writer<T> writer, T obj, final String blobName, final Compressor compressor) throws IOException {
         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
@@ -76,7 +81,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
                 }; StreamOutput stream = new OutputStreamStreamOutput(compressor.threadLocalOutputStream(indexOutputOutputStream));) {
                     // TODO The stream version should be configurable
                     stream.setVersion(Version.CURRENT);
-                    obj.writeTo(stream);
+                    writer.write(stream, obj);
                 }
                 CodecUtil.writeFooter(indexOutput);
             }

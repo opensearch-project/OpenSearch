@@ -480,15 +480,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         Settings.Builder settings = Settings.builder();
         settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
         settings.put("location", segmentRepoPath).put("max_remote_download_bytes_per_sec", 4, ByteSizeUnit.KB);
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(REPOSITORY_NAME)
-                .setType(ReloadableFsRepository.TYPE)
-                .setSettings(settings)
-                .get()
-        );
+        createRepository(REPOSITORY_NAME, ReloadableFsRepository.TYPE, settings);
 
         for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             Repository segmentRepo = repositoriesService.repository(REPOSITORY_NAME);
@@ -517,14 +509,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         // revert repo metadata to pass asserts on repo metadata vs. node attrs during teardown
         // https://github.com/opensearch-project/OpenSearch/pull/9569#discussion_r1345668700
         settings.remove("max_remote_download_bytes_per_sec");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(REPOSITORY_NAME)
-                .setType(ReloadableFsRepository.TYPE)
-                .setSettings(settings)
-                .get()
-        );
+        createRepository(REPOSITORY_NAME, ReloadableFsRepository.TYPE, settings);
         for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             Repository segmentRepo = repositoriesService.repository(REPOSITORY_NAME);
             assertNull(segmentRepo.getMetadata().settings().get("max_remote_download_bytes_per_sec"));

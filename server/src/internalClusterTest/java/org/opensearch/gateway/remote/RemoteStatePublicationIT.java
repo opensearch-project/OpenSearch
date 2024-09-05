@@ -8,13 +8,20 @@
 
 package org.opensearch.gateway.remote;
 
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
+import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
@@ -45,20 +52,35 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
 
-    private static String INDEX_NAME = "test-index";
+    private static final String INDEX_NAME = "test-index";
+    private static final String REMOTE_STATE_PREFIX = "!";
+    private static final String REMOTE_ROUTING_PREFIX = "_";
+    private boolean isRemoteStateEnabled = true;
+    private String isRemotePublicationEnabled = "true";
+    private boolean hasRemoteStateCharPrefix;
+    private boolean hasRemoteRoutingCharPrefix;
 
     @Before
     public void setup() {
         asyncUploadMockFsRepo = false;
+        isRemoteStateEnabled = true;
+        isRemotePublicationEnabled = "true";
+        hasRemoteStateCharPrefix = randomBoolean();
+        hasRemoteRoutingCharPrefix = randomBoolean();
     }
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled)
+            .build();
     }
 
     @Override
@@ -74,12 +96,30 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             routingTableRepoName
         );
+
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), isRemoteStateEnabled)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put(
+                RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(),
+                RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE
+            )
+            .put(
+                RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.getKey(),
+                hasRemoteStateCharPrefix ? REMOTE_STATE_PREFIX : ""
+            )
+            .put(
+                RemoteRoutingTableBlobStore.CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX.getKey(),
+                hasRemoteRoutingCharPrefix ? REMOTE_ROUTING_PREFIX : ""
+            )
+            .put(RemoteIndexMetadataManager.REMOTE_INDEX_METADATA_PATH_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX.toString())
+            .put(
+                RemoteIndexMetadataManager.REMOTE_INDEX_METADATA_PATH_HASH_ALGO_SETTING.getKey(),
+                PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString()
+            )
             .build();
     }
 
@@ -123,6 +163,27 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         Map<String, Integer> manifestFiles = getMetadataFiles(repository, RemoteClusterMetadataManifest.MANIFEST);
         assertTrue(manifestFiles.containsKey(RemoteClusterMetadataManifest.MANIFEST));
 
+        RemoteClusterStateService remoteClusterStateService = internalCluster().getInstance(
+            RemoteClusterStateService.class,
+            internalCluster().getClusterManagerName()
+        );
+        ClusterMetadataManifest manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+            getClusterState().getClusterName().value(),
+            getClusterState().metadata().clusterUUID()
+        ).get();
+        assertThat(manifest.getIndices().size(), is(1));
+        if (hasRemoteStateCharPrefix) {
+            for (UploadedIndexMetadata md : manifest.getIndices()) {
+                assertThat(md.getUploadedFilename(), startsWith(REMOTE_STATE_PREFIX));
+            }
+        }
+        assertThat(manifest.getIndicesRouting().size(), is(1));
+        if (hasRemoteRoutingCharPrefix) {
+            for (UploadedIndexMetadata md : manifest.getIndicesRouting()) {
+                assertThat(md.getUploadedFilename(), startsWith(REMOTE_ROUTING_PREFIX));
+            }
+        }
+
         // get settings from each node and verify that it is updated
         Settings settings = clusterService().getSettings();
         logger.info("settings : {}", settings);
@@ -134,6 +195,50 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 .get(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey());
             assertEquals("10mb", refreshSetting);
         }
+    }
+
+    public void testRemotePublicationDisableIfRemoteStateDisabled() {
+        // only disable remote state
+        isRemoteStateEnabled = false;
+        // create cluster with multi node with in-consistent settings
+        prepareCluster(3, 2, INDEX_NAME, 1, 2);
+        // assert cluster is stable, ensuring publication falls back to legacy transport with inconsistent settings
+        ensureStableCluster(5);
+        ensureGreen(INDEX_NAME);
+
+        assertNull(internalCluster().getCurrentClusterManagerNodeInstance(RemoteClusterStateService.class));
+    }
+
+    public void testRemotePublicationDownloadStats() {
+        int shardCount = randomIntBetween(1, 2);
+        int replicaCount = 1;
+        int dataNodeCount = shardCount * (replicaCount + 1);
+        int clusterManagerNodeCount = 1;
+        prepareCluster(clusterManagerNodeCount, dataNodeCount, INDEX_NAME, replicaCount, shardCount);
+        String dataNode = internalCluster().getDataNodeNames().stream().collect(Collectors.toList()).get(0);
+
+        NodesStatsResponse nodesStatsResponseDataNode = client().admin()
+            .cluster()
+            .prepareNodesStats(dataNode)
+            .addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())
+            .get();
+
+        assertDataNodeDownloadStats(nodesStatsResponseDataNode);
+
+    }
+
+    private void assertDataNodeDownloadStats(NodesStatsResponse nodesStatsResponse) {
+        // assert cluster state stats for data node
+        DiscoveryStats dataNodeDiscoveryStats = nodesStatsResponse.getNodes().get(0).getDiscoveryStats();
+        assertNotNull(dataNodeDiscoveryStats.getClusterStateStats());
+        assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getUpdateSuccess());
+        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 0);
+        assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getFailedCount());
+        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis() > 0);
+
+        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getSuccessCount() > 0);
+        assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getFailedCount());
+        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getTotalTimeInMillis() > 0);
     }
 
     private Map<String, Integer> getMetadataFiles(BlobStoreRepository repository, String subDirectory) throws IOException {
@@ -151,5 +256,4 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             return fileName.split(DELIMITER)[0];
         }).collect(Collectors.toMap(Function.identity(), key -> 1, Integer::sum));
     }
-
 }

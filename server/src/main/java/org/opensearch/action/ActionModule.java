@@ -85,7 +85,9 @@ import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.opensearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
+import org.opensearch.action.admin.cluster.shards.CatShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.opensearch.action.admin.cluster.shards.TransportCatShardsAction;
 import org.opensearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.TransportDeleteWeightedRoutingAction;
@@ -646,6 +648,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterGetWeightedRoutingAction.INSTANCE, TransportGetWeightedRoutingAction.class);
         actions.register(ClusterDeleteWeightedRoutingAction.INSTANCE, TransportDeleteWeightedRoutingAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
+        actions.register(CatShardsAction.INSTANCE, TransportCatShardsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         actions.register(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
@@ -1200,9 +1203,12 @@ public class ActionModule extends AbstractModule {
          * @param route The {@link RestHandler.Route}.
          * @return the corresponding {@link RestSendToExtensionAction} if it is registered, null otherwise.
          */
-        @SuppressWarnings("unchecked")
         public RestSendToExtensionAction get(RestHandler.Route route) {
-            return routeRegistry.get(route);
+            if (route instanceof NamedRoute) {
+                return routeRegistry.get((NamedRoute) route);
+            }
+            // Only NamedRoutes are map keys so any other route is not in the map
+            return null;
         }
     }
 }

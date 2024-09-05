@@ -635,7 +635,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
-            return wildcardQuery(value.toString(), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
+            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 
         @Override
@@ -649,7 +649,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Set<String> expectedValues = new HashSet<>();
             StringBuilder pattern = new StringBuilder();
             for (Object value : values) {
-                String stringVal = value.toString();
+                String stringVal = BytesRefs.toString(value);
                 builder.add(matchAllTermsQuery(name(), getRequiredNGrams(stringVal)), BooleanClause.Occur.SHOULD);
                 expectedValues.add(stringVal);
                 if (pattern.length() > 0) {

@@ -32,6 +32,7 @@
 
 package org.opensearch.upgrades;
 
+import com.sun.jna.StringArray;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -44,6 +45,7 @@ import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -141,14 +143,14 @@ public class MultiVersionRepositoryAccessIT extends OpenSearchRestTestCase {
                 case STEP2_NEW_CLUSTER:
                 case STEP4_NEW_CLUSTER:
                     assertSnapshotStatusSuccessful(client, repoName,
-                        snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
+                        snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new), Strings.EMPTY_ARRAY);
                     break;
                 case STEP1_OLD_CLUSTER:
-                    assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TEST_STEP);
+                    assertSnapshotStatusSuccessful(client, repoName,  new String[] {"snapshot-" + TEST_STEP}, Strings.EMPTY_ARRAY);
                     break;
                 case STEP3_OLD_CLUSTER:
                     assertSnapshotStatusSuccessful(
-                        client, repoName, "snapshot-" + TEST_STEP, "snapshot-" + TestStep.STEP3_OLD_CLUSTER);
+                        client, repoName, new String[] {"snapshot-" + TEST_STEP, "snapshot-" + TestStep.STEP3_OLD_CLUSTER}, Strings.EMPTY_ARRAY);
                     break;
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
@@ -186,10 +188,10 @@ public class MultiVersionRepositoryAccessIT extends OpenSearchRestTestCase {
                     break;
             }
             if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
-                assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
+                assertSnapshotStatusSuccessful(client, repoName, new String[] {"snapshot-" + TestStep.STEP1_OLD_CLUSTER}, Strings.EMPTY_ARRAY);
             } else {
                 assertSnapshotStatusSuccessful(client, repoName,
-                    "snapshot-" + TestStep.STEP1_OLD_CLUSTER, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
+                    new String[] {"snapshot-" + TestStep.STEP1_OLD_CLUSTER, "snapshot-" + TestStep.STEP2_NEW_CLUSTER}, Strings.EMPTY_ARRAY);
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
@@ -214,7 +216,7 @@ public class MultiVersionRepositoryAccessIT extends OpenSearchRestTestCase {
                 // Every step creates one snapshot
                 assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
                 assertSnapshotStatusSuccessful(client, repoName,
-                    snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
+                    snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new), Strings.EMPTY_ARRAY);
                 if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
                     ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
                 } else {
@@ -239,9 +241,9 @@ public class MultiVersionRepositoryAccessIT extends OpenSearchRestTestCase {
     }
 
     private static void assertSnapshotStatusSuccessful(RestHighLevelClient client, String repoName,
-                                                       String... snapshots) throws IOException {
+                                                       String[] snapshots, String[] indices) throws IOException {
         final SnapshotsStatusResponse statusResponse = client.snapshot()
-            .status(new SnapshotsStatusRequest(repoName, snapshots), RequestOptions.DEFAULT);
+            .status((new SnapshotsStatusRequest(repoName, snapshots)).indices(indices), RequestOptions.DEFAULT);
         for (SnapshotStatus status : statusResponse.getSnapshots()) {
             assertThat(status.getShardsStats().getFailedShards(), is(0));
         }

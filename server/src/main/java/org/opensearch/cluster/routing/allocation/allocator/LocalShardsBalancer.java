@@ -30,6 +30,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
@@ -41,9 +42,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialShard;
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
@@ -71,6 +74,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
+    private final Supplier<Boolean> timedOutFunc;
     private int totalShardCount = 0;
 
     public LocalShardsBalancer(
@@ -81,7 +85,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         float threshold,
         boolean preferPrimaryBalance,
         boolean preferPrimaryRebalance,
-        boolean ignoreThrottleInRestore
+        boolean ignoreThrottleInRestore,
+        Supplier<Boolean> timedOutFunc
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -99,6 +104,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
         this.ignoreThrottleInRestore = ignoreThrottleInRestore;
+        this.timedOutFunc = timedOutFunc;
     }
 
     /**
@@ -344,6 +350,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final BalancedShardsAllocator.ModelNode[] modelNodes = sorter.modelNodes;
         final float[] weights = sorter.weights;
         for (String index : buildWeightOrderedIndices()) {
+            // Terminate if the time allocated to the balanced shards allocator has elapsed
+            if (timedOutFunc != null && timedOutFunc.get()) {
+                logger.info(
+                    "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
+                        + ". Skipping indices iteration"
+                );
+                return;
+            }
             IndexMetadata indexMetadata = metadata.index(index);
 
             // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
@@ -368,6 +382,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
             int lowIdx = 0;
             int highIdx = relevantNodes - 1;
             while (true) {
+                // break if the time allocated to the balanced shards allocator has elapsed
+                if (timedOutFunc != null && timedOutFunc.get()) {
+                    logger.info(
+                        "Cannot balance any shard in the cluster as time allocated to balanced shards allocator has elapsed"
+                            + ". Skipping relevant nodes iteration"
+                    );
+                    return;
+                }
                 final BalancedShardsAllocator.ModelNode minNode = modelNodes[lowIdx];
                 final BalancedShardsAllocator.ModelNode maxNode = modelNodes[highIdx];
                 advance_range: if (maxNode.numShards(index) > 0) {
@@ -533,6 +555,16 @@ public class LocalShardsBalancer extends ShardsBalancer {
     }
 
     /**
+     * Checks if the shard can be skipped from the local shard balancer operations
+     * @param shardRouting the shard to be checked
+     * @return true if the shard can be skipped, false otherwise
+     */
+    private boolean canShardBeSkipped(ShardRouting shardRouting) {
+        return (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))
+            && !(FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX) && isPartialShard(shardRouting, allocation)));
+    }
+
+    /**
      * Move started shards that can not be allocated to a node anymore
      * <p>
      * For each shard to be moved this function executes a move operation
@@ -572,9 +604,18 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 return;
             }
 
+            // Terminate if the time allocated to the balanced shards allocator has elapsed
+            if (timedOutFunc != null && timedOutFunc.get()) {
+                logger.info(
+                    "Cannot move any shard in the cluster as time allocated to balanced shards allocator has elapsed"
+                        + ". Skipping shard iteration"
+                );
+                return;
+            }
+
             ShardRouting shardRouting = it.next();
 
-            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+            if (canShardBeSkipped(shardRouting)) {
                 continue;
             }
 
@@ -640,7 +681,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     MoveDecision decideMove(final ShardRouting shardRouting) {
-        if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+        if (canShardBeSkipped(shardRouting)) {
             return MoveDecision.NOT_TAKEN;
         }
 
@@ -729,7 +770,9 @@ public class LocalShardsBalancer extends ShardsBalancer {
             for (ShardRouting shard : rn) {
                 assert rn.nodeId().equals(shard.currentNodeId());
                 /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
-                if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)) && shard.state() != RELOCATING) {
+                if ((RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation))
+                    || (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX) && isPartialShard(shard, allocation)))
+                    && shard.state() != RELOCATING) {
                     node.addShard(shard);
                     ++totalShardCount;
                     if (logger.isTraceEnabled()) {
@@ -799,8 +842,23 @@ public class LocalShardsBalancer extends ShardsBalancer {
         int secondaryLength = 0;
         int primaryLength = primary.length;
         ArrayUtil.timSort(primary, comparator);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Staring allocation of [{}] unassigned shards", primaryLength);
+        }
         do {
             for (int i = 0; i < primaryLength; i++) {
+                if (timedOutFunc != null && timedOutFunc.get()) {
+                    // TODO - maybe check if we can allow wait for active shards thingy bypass this condition
+                    logger.info(
+                        "Ignoring [{}] unassigned shards for allocation as time allocated to balanced shards allocator has elapsed",
+                        (primaryLength - i)
+                    );
+                    while (i < primaryLength) {
+                        unassigned.ignoreShard(primary[i], UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        i++;
+                    }
+                    return;
+                }
                 ShardRouting shard = primary[i];
                 final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard);
                 final String assignedNodeId = allocationDecision.getTargetNode() != null
