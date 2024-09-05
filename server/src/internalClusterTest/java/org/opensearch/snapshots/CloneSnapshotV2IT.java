@@ -390,6 +390,19 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         assertEquals(deleteResponse.getResult(), DocWriteResponse.Result.DELETED);
         ensureGreen(indexName1);
 
+        // delete the source snapshot
+        AcknowledgedResponse deleteSnapshotResponse = internalCluster().clusterManagerClient()
+            .admin()
+            .cluster()
+            .prepareDeleteSnapshot(snapshotRepoName, sourceSnapshot)
+            .get();
+        assertAcked(deleteSnapshotResponse);
+
+        deleteResponse = client().prepareDelete(indexName1, "2").execute().actionGet();
+        assertEquals(deleteResponse.getResult(), DocWriteResponse.Result.DELETED);
+        ensureGreen(indexName1);
+        ensureGreen(indexName1);
+
         // restore from clone
         RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin()
             .cluster()
