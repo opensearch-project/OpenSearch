@@ -325,13 +325,15 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(REMOTE_REPO_NAME);
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         BlobPath shardLevelBlobPath = getShardLevelBlobPath(
             client(),
             remoteStoreEnabledIndexName,
             remoteStoreRepository.basePath(),
             "0",
             SEGMENTS,
-            LOCK_FILES
+            LOCK_FILES,
+            segmentsPathFixedPrefix
         );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         String[] lockFiles;

@@ -66,6 +66,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.plugins.Plugin;
@@ -554,13 +555,15 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName) throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         BlobPath shardLevelBlobPath = getShardLevelBlobPath(
             client(),
             remoteStoreIndex,
             remoteStoreRepository.basePath(),
             "0",
             SEGMENTS,
-            LOCK_FILES
+            LOCK_FILES,
+            segmentsPathFixedPrefix
         );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
