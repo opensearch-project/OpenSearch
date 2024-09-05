@@ -412,7 +412,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         public static long getTimestamp(String filename) {
             String[] filenameTokens = filename.split(SEPARATOR);
-            return RemoteStoreUtils.invertLong(filenameTokens[6]);
+            return RemoteStoreUtils.invertLong(filenameTokens[filenameTokens.length - 2]);
         }
 
         public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
