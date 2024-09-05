@@ -5162,6 +5162,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void syncSegmentsFromGivenRemoteSegmentStore(
+        boolean overrideLocal,
+        RemoteSegmentStoreDirectory sourceRemoteDirectory,
+        long primaryTerm,
+        long commitGeneration
+    ) throws IOException {
+        // Keeping this method to avoid breaking change detection
+    }
+
     /**
      * Downloads segments from given remote segment store for a specific commit.
      * @param overrideLocal flag to override local segment files with those in remote store
