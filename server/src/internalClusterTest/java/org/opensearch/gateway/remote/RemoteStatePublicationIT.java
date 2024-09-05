@@ -13,6 +13,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.Client;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -79,6 +81,8 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     protected Settings featureFlagSettings() {
         return Settings.builder()
             .put(super.featureFlagSettings())
+            .put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, Boolean.TRUE.toString())
+            .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), Boolean.TRUE.toString())
             .put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled)
             .build();
     }
@@ -125,7 +129,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
 
     public void testPublication() throws Exception {
         // create cluster with multi node (3 master + 2 data)
-        prepareCluster(3, 2, INDEX_NAME, 1, 2);
+        prepareClusterWithDefaultContext(3, 2, INDEX_NAME, 1, 2);
         ensureStableCluster(5);
         ensureGreen(INDEX_NAME);
         // update settings on a random node
@@ -188,12 +192,17 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         Settings settings = clusterService().getSettings();
         logger.info("settings : {}", settings);
         for (Client client : clients()) {
-            ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+            ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetadata(true).setLocal(true).get();
+
             String refreshSetting = response.getState()
                 .metadata()
                 .settings()
                 .get(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey());
+
             assertEquals("10mb", refreshSetting);
+
+            // Verify context is present in metadata
+            assertEquals(new Context(CONTEXT_NAME), response.getState().metadata().indices().get(INDEX_NAME).context());
         }
     }
 
