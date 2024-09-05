@@ -2271,11 +2271,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testParseQueryToOriginalOrStarTreeQuery() throws IOException {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), true).build())
-            .execute();
+        setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -2288,14 +2284,10 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             .setSettings(settings)
             .setMapping(StarTreeDocValuesFormatTests.getExpandedMapping());
         createIndex("test", builder);
+
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
         IndexShard indexShard = indexService.getShard(0);
-
-        SearchService searchService = getInstanceFromNode(SearchService.class);
-
-        // Case 1: No query or aggregations, should not use star tree
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             new SearchRequest().allowPartialSearchResults(true),
@@ -2307,89 +2299,62 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             null,
             null
         );
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, randomBoolean())) {
-            SearchContext context = searchService.createContext(reader, request, null, false);
-            assertFalse(context.query() instanceof StarTreeQuery);
-            searchService.doStop();
-        }
+
+        // Case 1: No query or aggregations, should not use star tree
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
 
         // Case 2: MatchAllQuery present but no aggregations, should not use star tree
-        searchService = getInstanceFromNode(SearchService.class);
-        sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.query(new MatchAllQueryBuilder());
-        request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
-            SearchContext context = searchService.createContext(reader, request, null, randomBoolean());
-            assertThat(context.query(), instanceOf(MatchAllDocsQuery.class));
-            searchService.doStop();
-        }
+        sourceBuilder = new SearchSourceBuilder().query(new MatchAllQueryBuilder());
+        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
 
-        // Case 3: MatchAllQuery and aggregations present, should use star tree if possible
-        searchService = getInstanceFromNode(SearchService.class);
-        sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.size(0).query(new MatchAllQueryBuilder()).aggregation(AggregationBuilders.max("test").field("field"));
-        request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
-            SearchContext context = searchService.createContext(reader, request, null, true);
-            assertThat(context.query(), instanceOf(StarTreeQuery.class));
-            searchService.doStop();
-        }
+        // Case 3: MatchAllQuery and aggregations present, should use star tree
+        sourceBuilder = new SearchSourceBuilder().size(0)
+            .query(new MatchAllQueryBuilder())
+            .aggregation(AggregationBuilders.max("test").field("field"));
+        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
 
         // Case 4: MatchAllQuery and aggregations present, but trackTotalHitsUpTo specified, should not use star tree
-        searchService = getInstanceFromNode(SearchService.class);
-        sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.size(0)
+        sourceBuilder = new SearchSourceBuilder().size(0)
             .query(new MatchAllQueryBuilder())
             .aggregation(AggregationBuilders.max("test").field("field"))
             .trackTotalHitsUpTo(1000);
-        request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
-            SearchContext context = searchService.createContext(reader, request, null, true);
-            assertThat(context.query(), instanceOf(MatchAllDocsQuery.class));
-        }
-        searchService.doStop();
+        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
 
         // Case 5: TermQuery and aggregations present, should use star tree
-        searchService = getInstanceFromNode(SearchService.class);
-        sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.size(0).query(new TermQueryBuilder("sndv", 1)).aggregation(AggregationBuilders.max("test").field("field"));
-        request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
-            SearchContext context = searchService.createContext(reader, request, null, true);
-            assertThat(context.query(), instanceOf(StarTreeQuery.class));
-        }
-        searchService.doStop();
+        sourceBuilder = new SearchSourceBuilder().size(0)
+            .query(new TermQueryBuilder("sndv", 1))
+            .aggregation(AggregationBuilders.max("test").field("field"));
+        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
 
         // Case 6: No query, metric aggregations present, should use star tree
-        searchService = getInstanceFromNode(SearchService.class);
-        sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.size(0).aggregation(AggregationBuilders.max("test").field("field"));
-        request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
-            SearchContext context = searchService.createContext(reader, request, null, true);
-            assertThat(context.query(), instanceOf(StarTreeQuery.class));
-        }
-        searchService.doStop();
+        sourceBuilder = new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.max("test").field("field"));
+        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
 
-        // Case 7: TermQuery and aggregations present, size !=0, should not use star tree
-        searchService = getInstanceFromNode(SearchService.class);
-        sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.query(new TermQueryBuilder("sndv", 1));
-        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
-        request.source(sourceBuilder);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
-            SearchContext context = searchService.createContext(reader, request, null, true);
-            assertThat(context.query(), instanceOf(IndexOrDocValuesQuery.class));
-        }
-        searchService.doStop();
+        // Case 7: TermQuery and aggregations present, size != 0, should not use star tree
+        sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("sndv", 1))
+            .aggregation(AggregationBuilders.max("test").field("field"));
+        assertQueryType(request, sourceBuilder, IndexOrDocValuesQuery.class);
 
-        searchService.doClose();
+        setStarTreeIndexSetting(null);
+    }
+
+    private void setStarTreeIndexSetting(String value) throws IOException {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), (String) null).build()
-            )
+            .setTransientSettings(Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), value).build())
             .execute();
+    }
+
+    private void assertQueryType(ShardSearchRequest request, SearchSourceBuilder sourceBuilder, Class<?> expectedQueryClass)
+        throws IOException {
+        request.source(sourceBuilder);
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
+            SearchContext context = searchService.createContext(reader, request, null, true);
+            assertThat(context.query(), instanceOf(expectedQueryClass));
+            searchService.doStop();
+        }
     }
 }
