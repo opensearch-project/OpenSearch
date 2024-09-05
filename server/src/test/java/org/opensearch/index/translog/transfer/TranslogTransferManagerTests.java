@@ -26,6 +26,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
@@ -873,5 +874,54 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         assertThrows(IOException.class, () -> translogTransferManager.readMetadata(3000L));
         assertNoDownloadStats(true);
+    }
+
+    public void testPopulateFileTrackerWithLocalStateNoReaders() {
+        translogTransferManager.populateFileTrackerWithLocalState(null);
+        assertTrue(translogTransferManager.getFileTransferTracker().allUploaded().isEmpty());
+
+        translogTransferManager.populateFileTrackerWithLocalState(List.of());
+        assertTrue(translogTransferManager.getFileTransferTracker().allUploaded().isEmpty());
+    }
+
+    public void testPopulateFileTrackerWithLocalState() {
+        TranslogReader reader1 = mock(TranslogReader.class);
+        when(reader1.getGeneration()).thenReturn(12L);
+        TranslogReader reader2 = mock(TranslogReader.class);
+        when(reader2.getGeneration()).thenReturn(23L);
+        TranslogReader reader3 = mock(TranslogReader.class);
+        when(reader3.getGeneration()).thenReturn(34L);
+        TranslogReader reader4 = mock(TranslogReader.class);
+        when(reader4.getGeneration()).thenReturn(45L);
+
+        translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2, reader3, reader4));
+        assertEquals(
+            Set.of("translog-12.tlog", "translog-23.tlog", "translog-34.tlog", "translog-45.tlog"),
+            translogTransferManager.getFileTransferTracker().allUploaded()
+        );
+    }
+
+    public void testPopulateFileTrackerWithLocalStateNoCkpAsMetadata() {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            true
+        );
+
+        TranslogReader reader1 = mock(TranslogReader.class);
+        when(reader1.getGeneration()).thenReturn(12L);
+        TranslogReader reader2 = mock(TranslogReader.class);
+        when(reader2.getGeneration()).thenReturn(23L);
+
+        translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2));
+        assertEquals(
+            Set.of("translog-12.tlog", "translog-12.ckp", "translog-23.tlog", "translog-23.ckp"),
+            translogTransferManager.getFileTransferTracker().allUploaded()
+        );
     }
 }
