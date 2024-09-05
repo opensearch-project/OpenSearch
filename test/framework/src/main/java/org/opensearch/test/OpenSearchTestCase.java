@@ -1113,6 +1113,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      * Runs the code block for the provided interval, waiting for no assertions to trip.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+        maxWaitTime = 5;
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         // In case you've forgotten your high-school studies, log10(x) / log10(y) == log y(x)
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
