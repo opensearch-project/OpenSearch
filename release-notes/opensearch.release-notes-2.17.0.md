@@ -1,9 +1,6 @@
-# CHANGELOG
-All notable changes to this project are documented in this file.
+## 2024-09-17 Version 2.17.0 Release Notes
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See the [CONTRIBUTING guide](./CONTRIBUTING.md#Changelog) for instructions on how to add changelog entries.
-
-## [Unreleased 2.17.x]
+## [2.17.0]
 ### Added
 - [Workload Management] Add Settings for Workload Management feature ([#15028](https://github.com/opensearch-project/OpenSearch/pull/15028))
 - Fix for hasInitiatedFetching to fix allocation explain and manual reroute APIs (([#14972](https://github.com/opensearch-project/OpenSearch/pull/14972))
@@ -53,19 +50,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - ClusterManagerTaskThrottler Improvements ([#15508](https://github.com/opensearch-project/OpenSearch/pull/15508))
 - Relax the join validation for Remote State publication ([#15471](https://github.com/opensearch-project/OpenSearch/pull/15471))
 - Reset DiscoveryNodes in all transport node actions request ([#15131](https://github.com/opensearch-project/OpenSearch/pull/15131))
-- Adding WithFieldName interface for QueryBuilders with fieldName ([#15705](https://github.com/opensearch-project/OpenSearch/pull/15705))
 
 ### Dependencies
+- Bump `netty` from 4.1.111.Final to 4.1.112.Final ([#15081](https://github.com/opensearch-project/OpenSearch/pull/15081))
+- Bump `org.apache.commons:commons-lang3` from 3.14.0 to 3.15.0 ([#14861](https://github.com/opensearch-project/OpenSearch/pull/14861))
+- OpenJDK Update (July 2024 Patch releases) ([#14998](https://github.com/opensearch-project/OpenSearch/pull/14998))
+- Bump `com.microsoft.azure:msal4j` from 1.16.1 to 1.17.0 ([#14995](https://github.com/opensearch-project/OpenSearch/pull/14995), [#15420](https://github.com/opensearch-project/OpenSearch/pull/15420))
+- Bump `actions/github-script` from 6 to 7 ([#14997](https://github.com/opensearch-project/OpenSearch/pull/14997))
+- Bump `org.tukaani:xz` from 1.9 to 1.10 ([#15110](https://github.com/opensearch-project/OpenSearch/pull/15110))
+- Bump `org.apache.avro:avro` from 1.11.3 to 1.12.0 in /plugins/repository-hdfs ([#15119](https://github.com/opensearch-project/OpenSearch/pull/15119))
+- Bump `org.bouncycastle:bcpg-fips` from 1.0.7.1 to 2.0.9 ([#15103](https://github.com/opensearch-project/OpenSearch/pull/15103), [#15299](https://github.com/opensearch-project/OpenSearch/pull/15299))
+- Bump `com.azure:azure-core` from 1.49.1 to 1.51.0 ([#15111](https://github.com/opensearch-project/OpenSearch/pull/15111))
+- Bump `org.xerial.snappy:snappy-java` from 1.1.10.5 to 1.1.10.6 ([#15207](https://github.com/opensearch-project/OpenSearch/pull/15207))
+- Bump `com.azure:azure-xml` from 1.0.0 to 1.1.0 ([#15206](https://github.com/opensearch-project/OpenSearch/pull/15206))
+- Bump `reactor` from 3.5.19 to 3.5.20 ([#15262](https://github.com/opensearch-project/OpenSearch/pull/15262))
+- Bump `reactor-netty` from 1.1.21 to 1.1.22 ([#15262](https://github.com/opensearch-project/OpenSearch/pull/15262))
+- Bump `org.apache.kerby:kerb-admin` from 2.0.3 to 2.1.0 ([#15301](https://github.com/opensearch-project/OpenSearch/pull/15301))
+- Bump `com.azure:azure-core-http-netty` from 1.15.1 to 1.15.3 ([#15300](https://github.com/opensearch-project/OpenSearch/pull/15300))
+- Bump `com.gradle.develocity` from 3.17.6 to 3.18 ([#15297](https://github.com/opensearch-project/OpenSearch/pull/15297))
+- Bump `commons-cli:commons-cli` from 1.8.0 to 1.9.0 ([#15298](https://github.com/opensearch-project/OpenSearch/pull/15298))
+- Bump `opentelemetry` from 1.40.0 to 1.41.0 ([#15361](https://github.com/opensearch-project/OpenSearch/pull/15361))
+- Bump `opentelemetry-semconv` from 1.26.0-alpha to 1.27.0-alpha ([#15361](https://github.com/opensearch-project/OpenSearch/pull/15361))
+- Bump `tj-actions/changed-files` from 44 to 45 ([#15422](https://github.com/opensearch-project/OpenSearch/pull/15422))
+- Bump `dnsjava:dnsjava` from 3.6.0 to 3.6.1 ([#15418](https://github.com/opensearch-project/OpenSearch/pull/15418))
+- Bump `com.netflix.nebula.ospackage-base` from 11.9.1 to 11.10.0 ([#15419](https://github.com/opensearch-project/OpenSearch/pull/15419))
+- Bump `org.roaringbitmap:RoaringBitmap` from 1.1.0 to 1.2.1 ([#15423](https://github.com/opensearch-project/OpenSearch/pull/15423))
+- Bump `icu4j` from 70.1 to 75.1 ([#15469](https://github.com/opensearch-project/OpenSearch/pull/15469))
 
 ### Changed
-
+- Add lower limit for primary and replica batch allocators timeout ([#14979](https://github.com/opensearch-project/OpenSearch/pull/14979))
+- Optimize regexp-based include/exclude on aggregations when pattern matches prefixes ([#14371](https://github.com/opensearch-project/OpenSearch/pull/14371))
+- Replace and block usages of org.apache.logging.log4j.util.Strings ([#15238](https://github.com/opensearch-project/OpenSearch/pull/15238))
+- Remote publication using minimum node version for backward compatibility ([#15216](https://github.com/opensearch-project/OpenSearch/pull/15216))
 
 ### Deprecated
 
 ### Removed
+- Remove some unused code in the search backpressure package ([#15518](https://github.com/opensearch-project/OpenSearch/pull/15518))
 
 ### Fixed
-
-### Security
-
-[Unreleased 2.17.x]: https://github.com/opensearch-project/OpenSearch/compare/01c5e5642b7450bba2f3a21acdf8cf13539f65eb...2.17
+- Fix constraint bug which allows more primary shards than average primary shards per index ([#14908](https://github.com/opensearch-project/OpenSearch/pull/14908))
+- Fix NPE when bulk ingest with empty pipeline ([#15033](https://github.com/opensearch-project/OpenSearch/pull/15033))
+- Fix missing value of FieldSort for unsigned_long ([#14963](https://github.com/opensearch-project/OpenSearch/pull/14963))
+- Fix delete index template failed when the index template matches a data stream but is unused ([#15080](https://github.com/opensearch-project/OpenSearch/pull/15080))
+- Fix array_index_out_of_bounds_exception when indexing documents with field name containing only dot ([#15126](https://github.com/opensearch-project/OpenSearch/pull/15126))
+- Fixed array field name omission in flat_object function for nested JSON ([#13620](https://github.com/opensearch-project/OpenSearch/pull/13620))
+- Fix incorrect parameter names in MinHash token filter configuration handling ([#15233](https://github.com/opensearch-project/OpenSearch/pull/15233))
+- Fix range aggregation optimization ignoring top level queries ([#15287](https://github.com/opensearch-project/OpenSearch/pull/15287))
+- Fix indexing error when flat_object field is explicitly null ([#15375](https://github.com/opensearch-project/OpenSearch/pull/15375))
+- Fix split response processor not included in allowlist ([#15393](https://github.com/opensearch-project/OpenSearch/pull/15393))
+- Fix unchecked cast in dynamic action map getter ([#15394](https://github.com/opensearch-project/OpenSearch/pull/15394))
+- Fix null values indexed as "null" strings in flat_object field ([#14069](https://github.com/opensearch-project/OpenSearch/pull/14069))
+- Fix terms query on wildcard field returns nothing ([#15607](https://github.com/opensearch-project/OpenSearch/pull/15607))
