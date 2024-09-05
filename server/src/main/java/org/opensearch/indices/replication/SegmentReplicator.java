@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -44,12 +45,44 @@ public class SegmentReplicator {
     private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
 
+    private final SetOnce<SegmentReplicationSourceFactory> sourceFactory;
+
     public SegmentReplicator(ThreadPool threadPool) {
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
         this.threadPool = threadPool;
+        this.sourceFactory = new SetOnce<>();
     }
 
-    // TODO: Add public entrypoint for replication on an interval to be invoked via IndexService
+    /**
+     * Starts a replication event for the given shard.
+     * @param shard - {@link IndexShard} replica shard
+     */
+    public void startReplication(IndexShard shard) {
+        if (sourceFactory.get() == null) return;
+        startReplication(
+            shard,
+            shard.getLatestReplicationCheckpoint(),
+            sourceFactory.get().get(shard),
+            new SegmentReplicationTargetService.SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    logger.trace("Completed replication for {}", shard.shardId());
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    logger.error(() -> new ParameterizedMessage("Failed segment replication for {}", shard.shardId()), e);
+                    if (sendShardFailure) {
+                        shard.failShard("unrecoverable replication failure", e);
+                    }
+                }
+            }
+        );
+    }
+
+    void setSourceFactory(SegmentReplicationSourceFactory sourceFactory) {
+        this.sourceFactory.set(sourceFactory);
+    }
 
     /**
      * Start a round of replication and sync to at least the given checkpoint.
