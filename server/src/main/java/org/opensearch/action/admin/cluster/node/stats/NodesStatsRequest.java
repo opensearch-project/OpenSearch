@@ -59,7 +59,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private final Set<String> requestedMetrics = new HashSet<>();
 
     public NodesStatsRequest() {
-        super((String[]) null);
+        super(false, (String[]) null);
     }
 
     public NodesStatsRequest(StreamInput in) throws IOException {
@@ -90,7 +90,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * for all nodes will be returned.
      */
     public NodesStatsRequest(String... nodesIds) {
-        super(nodesIds);
+        super(false, nodesIds);
     }
 
     /**
