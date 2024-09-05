@@ -53,6 +53,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.DelayedAllocationService;
+import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -479,4 +480,7 @@ public class ClusterModule extends AbstractModule {
         allocationService.setExistingShardsAllocators(existingShardsAllocators);
     }
 
+    public void setRerouteServiceForAllocator(RerouteService rerouteService) {
+        shardsAllocator.setRerouteService(rerouteService);
+    }
 }
