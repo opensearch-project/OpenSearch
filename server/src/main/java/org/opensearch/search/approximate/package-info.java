@@ -7,8 +7,6 @@
  */
 
 /**
- * Numeric Types for Composite Index Star Tree
- *
- *  @opensearch.experimental
+ * Approximation query framework to approximate commonly used queries
  */
-package org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype;
+package org.opensearch.search.approximate;

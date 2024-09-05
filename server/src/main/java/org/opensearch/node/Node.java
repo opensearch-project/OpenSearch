@@ -233,7 +233,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
-import org.opensearch.search.deciders.ConcurrentSearchDecider;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
@@ -788,6 +788,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
             );
+            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
             final RemoteClusterStateService remoteClusterStateService;
             final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
             final RemoteIndexPathUploader remoteIndexPathUploader;
@@ -796,7 +797,8 @@ public class Node implements Closeable {
                     threadPool,
                     settings,
                     repositoriesServiceReference::get,
-                    clusterService.getClusterSettings()
+                    clusterService.getClusterSettings(),
+                    remoteStoreSettings
                 );
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
@@ -865,15 +867,16 @@ public class Node implements Closeable {
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
+            clusterModule.setRerouteServiceForAllocator(rerouteService);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
-            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
             final CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(settings, settingsModule.getClusterSettings());
 
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
-                threadPool
+                threadPool,
+                remoteStoreSettings.getSegmentsPathFixedPrefix()
             );
 
             final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
@@ -891,6 +894,7 @@ public class Node implements Closeable {
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             CacheModule cacheModule = new CacheModule(pluginsService.filterPlugins(CachePlugin.class), settings);
             CacheService cacheService = cacheModule.getCacheService();
+            final SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
@@ -920,7 +924,8 @@ public class Node implements Closeable {
                 cacheService,
                 remoteStoreSettings,
                 fileCache,
-                compositeIndexSettings
+                compositeIndexSettings,
+                segmentReplicator::startReplication
             );
 
             final IngestService ingestService = new IngestService(
@@ -1203,7 +1208,8 @@ public class Node implements Closeable {
                 repositoryService,
                 transportService,
                 actionModule.getActionFilters(),
-                remoteStorePinnedTimestampService
+                remoteStorePinnedTimestampService,
+                remoteStoreSettings
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,
@@ -1331,7 +1337,7 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 searchModule.getIndexSearcherExecutor(threadPool),
                 taskResourceTrackingService,
-                searchModule.getConcurrentSearchDeciders()
+                searchModule.getConcurrentSearchRequestDeciderFactories()
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -1406,6 +1412,7 @@ public class Node implements Closeable {
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
+                b.bind(RemoteStoreSettings.class).toInstance(remoteStoreSettings);
                 {
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
@@ -1420,7 +1427,7 @@ public class Node implements Closeable {
                                 new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                                 indicesService,
                                 clusterService,
-                                new SegmentReplicator(threadPool)
+                                segmentReplicator
                             )
                         );
                     b.bind(SegmentReplicationSourceService.class)
@@ -1455,6 +1462,7 @@ public class Node implements Closeable {
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
+                b.bind(SegmentReplicator.class).toInstance(segmentReplicator);
             });
             injector = modules.createInjector();
 
@@ -1979,7 +1987,7 @@ public class Node implements Closeable {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchDecider> concurrentSearchDecidersList
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
     ) {
         return new SearchService(
             clusterService,
@@ -1993,7 +2001,7 @@ public class Node implements Closeable {
             circuitBreakerService,
             indexSearcherExecutor,
             taskResourceTrackingService,
-            concurrentSearchDecidersList
+            concurrentSearchDeciderFactories
         );
     }
 

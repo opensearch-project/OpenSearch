@@ -40,11 +40,22 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 @PublicApi(since = "2.3.0")
 public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     private final Supplier<RepositoriesService> repositoriesService;
+    private final String segmentsPathFixedPrefix;
 
     private final ThreadPool threadPool;
 
+    // Added for passing breaking change check
     public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
+        this(repositoriesService, threadPool, null);
+    }
+
+    public RemoteSegmentStoreDirectoryFactory(
+        Supplier<RepositoriesService> repositoriesService,
+        ThreadPool threadPool,
+        String segmentsPathFixedPrefix
+    ) {
         this.repositoriesService = repositoriesService;
+        this.segmentsPathFixedPrefix = segmentsPathFixedPrefix;
         this.threadPool = threadPool;
     }
 
@@ -71,6 +82,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .shardId(shardIdStr)
                 .dataCategory(SEGMENTS)
                 .dataType(DATA)
+                .fixedPrefix(segmentsPathFixedPrefix)
                 .build();
             // Derive the path for data directory of SEGMENTS
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
@@ -87,6 +99,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .shardId(shardIdStr)
                 .dataCategory(SEGMENTS)
                 .dataType(METADATA)
+                .fixedPrefix(segmentsPathFixedPrefix)
                 .build();
             // Derive the path for metadata directory of SEGMENTS
             BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
@@ -98,7 +111,8 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 repositoryName,
                 indexUUID,
                 shardIdStr,
-                pathStrategy
+                pathStrategy,
+                segmentsPathFixedPrefix
             );
 
             return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);

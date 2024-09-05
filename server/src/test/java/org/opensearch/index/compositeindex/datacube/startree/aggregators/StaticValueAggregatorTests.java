@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.apache.lucene.util.NumericUtils;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.metrics.CompensatedSum;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -39,7 +39,7 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
     private static double getAggregatedValue(double[] numbers) {
         // explicitly took double to test for most precision
         // hard to run similar tests for different data types dynamically as inputs and precision vary
-        SumValueAggregator aggregator = new SumValueAggregator(StarTreeNumericType.DOUBLE);
+        SumValueAggregator aggregator = new SumValueAggregator(NumberFieldMapper.NumberType.DOUBLE);
         double aggregatedValue = aggregator.getInitialAggregatedValueForSegmentDocValue(NumericUtils.doubleToSortableLong(numbers[0]));
         aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(aggregatedValue, NumericUtils.doubleToSortableLong(numbers[1]));
         aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(aggregatedValue, NumericUtils.doubleToSortableLong(numbers[2]));
@@ -65,7 +65,7 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
     public void testMaxAggregatorExtremeValues() {
         double[] numbers = { Double.MAX_VALUE, Double.MIN_VALUE, 0.0, Double.MAX_VALUE + 1 };
         double expected = Double.MAX_VALUE + 1;
-        MaxValueAggregator aggregator = new MaxValueAggregator(StarTreeNumericType.DOUBLE);
+        MaxValueAggregator aggregator = new MaxValueAggregator(NumberFieldMapper.NumberType.DOUBLE);
         double aggregatedValue = aggregator.getInitialAggregatedValueForSegmentDocValue(NumericUtils.doubleToSortableLong(numbers[0]));
         for (int i = 1; i < numbers.length; i++) {
             aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(
@@ -85,7 +85,7 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
             Double.POSITIVE_INFINITY,
             Double.NEGATIVE_INFINITY };
         double expected = Double.POSITIVE_INFINITY;
-        MaxValueAggregator aggregator = new MaxValueAggregator(StarTreeNumericType.DOUBLE);
+        MaxValueAggregator aggregator = new MaxValueAggregator(NumberFieldMapper.NumberType.DOUBLE);
         double aggregatedValue = aggregator.getInitialAggregatedValueForSegmentDocValue(NumericUtils.doubleToSortableLong(numbers[0]));
         for (int i = 1; i < numbers.length; i++) {
             aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(
@@ -99,7 +99,7 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
     public void testMinAggregatorExtremeValues() {
         double[] numbers = { Double.MAX_VALUE, Double.MIN_VALUE - 1, 0.0, Double.MAX_VALUE + 1 };
         double expected = Double.MIN_VALUE - 1;
-        MinValueAggregator aggregator = new MinValueAggregator(StarTreeNumericType.DOUBLE);
+        MinValueAggregator aggregator = new MinValueAggregator(NumberFieldMapper.NumberType.DOUBLE);
         double aggregatedValue = aggregator.getInitialAggregatedValueForSegmentDocValue(NumericUtils.doubleToSortableLong(numbers[0]));
         for (int i = 1; i < numbers.length; i++) {
             aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(
@@ -119,7 +119,7 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
             Double.POSITIVE_INFINITY,
             Double.NEGATIVE_INFINITY };
         double expected = Double.NEGATIVE_INFINITY;
-        MinValueAggregator aggregator = new MinValueAggregator(StarTreeNumericType.DOUBLE);
+        MinValueAggregator aggregator = new MinValueAggregator(NumberFieldMapper.NumberType.DOUBLE);
         double aggregatedValue = aggregator.getInitialAggregatedValueForSegmentDocValue(NumericUtils.doubleToSortableLong(numbers[0]));
         for (int i = 1; i < numbers.length; i++) {
             aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(

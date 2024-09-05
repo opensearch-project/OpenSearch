@@ -34,11 +34,11 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
-import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.FieldMapper;
+import org.opensearch.index.mapper.FieldValueConverter;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,6 +55,8 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.getFieldInfo;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 
 /**
  * Builder for star tree. Defines the algorithm to construct star-tree
@@ -143,19 +145,16 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     MetricStat.DOC_COUNT,
                     metric.getField(),
                     starTreeField.getName(),
-                    IndexNumericFieldData.NumericType.LONG
+                    LONG
                 );
                 metricAggregatorInfos.add(metricAggregatorInfo);
                 continue;
             }
-            for (MetricStat metricStat : metric.getMetrics()) {
-                if (metricStat.isDerivedMetric()) {
-                    continue;
-                }
-                IndexNumericFieldData.NumericType numericType;
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
+                FieldValueConverter fieldValueConverter;
                 Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(metric.getField());
-                if (fieldMapper instanceof NumberFieldMapper) {
-                    numericType = ((NumberFieldMapper) fieldMapper).fieldType().numericType();
+                if (fieldMapper instanceof FieldMapper && ((FieldMapper) fieldMapper).fieldType() instanceof FieldValueConverter) {
+                    fieldValueConverter = (FieldValueConverter) ((FieldMapper) fieldMapper).fieldType();
                 } else {
                     logger.error("unsupported mapper type");
                     throw new IllegalStateException("unsupported mapper type");
@@ -165,7 +164,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     metricStat,
                     metric.getField(),
                     starTreeField.getName(),
-                    numericType
+                    fieldValueConverter
                 );
                 metricAggregatorInfos.add(metricAggregatorInfo);
             }
@@ -183,7 +182,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
         for (Metric metric : this.starTreeField.getMetrics()) {
-            for (MetricStat metricStat : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
                 SequentialDocValuesIterator metricReader;
                 FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
                 if (metricStat.equals(MetricStat.DOC_COUNT)) {
@@ -351,20 +350,17 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
             for (int i = 0; i < starTreeDocument.metrics.length; i++) {
                 try {
-                    switch (metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType()) {
-                        case LONG:
-                            if (starTreeDocument.metrics[i] != null) {
-                                metricWriters.get(i).addValue(docId, (long) starTreeDocument.metrics[i]);
-                            }
-                            break;
-                        case DOUBLE:
-                            if (starTreeDocument.metrics[i] != null) {
-                                metricWriters.get(i)
-                                    .addValue(docId, NumericUtils.doubleToSortableLong((Double) starTreeDocument.metrics[i]));
-                            }
-                            break;
-                        default:
-                            throw new IllegalStateException("Unknown metric doc value type");
+                    FieldValueConverter aggregatedValueType = metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType();
+                    if (aggregatedValueType.equals(LONG)) {
+                        if (starTreeDocument.metrics[i] != null) {
+                            metricWriters.get(i).addValue(docId, (long) starTreeDocument.metrics[i]);
+                        }
+                    } else if (aggregatedValueType.equals(DOUBLE)) {
+                        if (starTreeDocument.metrics[i] != null) {
+                            metricWriters.get(i).addValue(docId, NumericUtils.doubleToSortableLong((Double) starTreeDocument.metrics[i]));
+                        }
+                    } else {
+                        throw new IllegalStateException("Unknown metric doc value type");
                     }
                 } catch (IllegalArgumentException e) {
                     logger.error("could not parse the value, exiting creation of star tree");

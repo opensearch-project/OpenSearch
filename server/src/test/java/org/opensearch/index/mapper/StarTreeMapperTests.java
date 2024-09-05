@@ -13,6 +13,8 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
@@ -24,6 +26,7 @@ import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.ReadDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,6 +38,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
+import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -52,20 +58,23 @@ public class StarTreeMapperTests extends MapperTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
+    @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .put(SETTINGS)
+            .build();
+    }
+
     public void testValidStarTree() throws IOException {
+
         MapperService mapperService = createMapperService(getExpandedMappingWithJustAvg("status", "size"));
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals(2, starTreeFieldType.getDimensions().size());
-            assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
-            assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
-            DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
-            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
-                Rounding.DateTimeUnit.DAY_OF_MONTH,
-                Rounding.DateTimeUnit.MONTH_OF_YEAR
-            );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            assertEquals("node", starTreeFieldType.getDimensions().get(0).getField());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals(2, starTreeFieldType.getMetrics().size());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
@@ -76,10 +85,44 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
             assertEquals(
-                new HashSet<>(Arrays.asList("@timestamp", "status")),
+                new HashSet<>(Arrays.asList("node", "status")),
                 starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
             );
         }
+    }
+
+    public void testCompositeIndexWithArraysInCompositeField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(getExpandedMappingWithJustAvg("status", "status"));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("status").value(0).value(1).endArray()))
+        );
+        assertEquals(
+            "object mapping for [_doc] with array for [status] cannot be accepted as field is also part of composite index mapping which does not accept arrays",
+            ex.getMessage()
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("size").value(0).value(1).endArray()));
+        // 1 intPoint , 1 SNDV field for each value , so 4 in total
+        assertEquals(4, doc.rootDoc().getFields("size").length);
+    }
+
+    public void testValidValueForFlushTresholdSizeWithoutCompositeIndex() {
+        Settings settings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), false)
+            .build();
+
+        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings));
+    }
+
+    public void testValidValueForCompositeIndex() {
+        Settings settings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "512mb")
+            .build();
+
+        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.get(settings));
     }
 
     public void testMetricsWithJustSum() throws IOException {
@@ -87,14 +130,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
-            assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
-            assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
-            DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
-            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
-                Rounding.DateTimeUnit.DAY_OF_MONTH,
-                Rounding.DateTimeUnit.MONTH_OF_YEAR
-            );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            assertEquals("node", starTreeFieldType.getDimensions().get(0).getField());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
@@ -104,7 +140,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
             assertEquals(
-                new HashSet<>(Arrays.asList("@timestamp", "status")),
+                new HashSet<>(Arrays.asList("node", "status")),
                 starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
             );
         }
@@ -115,14 +151,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
-            assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
-            assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
-            DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
-            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
-                Rounding.DateTimeUnit.DAY_OF_MONTH,
-                Rounding.DateTimeUnit.MONTH_OF_YEAR
-            );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            assertEquals("node", starTreeFieldType.getDimensions().get(0).getField());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
@@ -137,7 +166,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
             assertEquals(
-                new HashSet<>(Arrays.asList("@timestamp", "status")),
+                new HashSet<>(Arrays.asList("node", "status")),
                 starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
             );
         }
@@ -148,14 +177,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
-            assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
-            assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
-            DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
-            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
-                Rounding.DateTimeUnit.MINUTES_OF_HOUR,
-                Rounding.DateTimeUnit.HOUR_OF_DAY
-            );
-            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            assertEquals("node", starTreeFieldType.getDimensions().get(0).getField());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals(3, starTreeFieldType.getMetrics().size());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
@@ -228,7 +250,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> createMapperService(getMinMapping(false, false, true, false))
         );
-        assertThat(ex.getMessage(), containsString("Failed to parse mapping [_doc]: unknown dimension field [@timestamp]"));
+        assertThat(ex.getMessage(), containsString("Failed to parse mapping [_doc]: unknown dimension field [node]"));
     }
 
     public void testMissingMetrics() {
@@ -264,7 +286,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             () -> createMapperService(getInvalidMapping(false, false, true, false))
         );
         assertEquals(
-            "Failed to parse mapping [_doc]: unsupported field type associated with dimension [@timestamp] as part of star tree field [startree]",
+            "Failed to parse mapping [_doc]: unsupported field type associated with dimension [node] as part of star tree field [startree]",
             ex.getMessage()
         );
     }
@@ -287,6 +309,24 @@ public class StarTreeMapperTests extends MapperTestCase {
         );
         assertEquals(
             "Failed to parse mapping [_doc]: Atleast two dimensions are required to build star tree index field [startree]",
+            ex.getMessage()
+        );
+    }
+
+    public void testDuplicateDimensions() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(true, false);
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(finalMapping));
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate dimension [numeric_dv] present as part star tree index field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testDuplicateMetrics() {
+        XContentBuilder finalMapping = getMappingWithDuplicateFields(false, true);
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(finalMapping));
+        assertEquals(
+            "Failed to parse mapping [_doc]: Duplicate metrics [numeric_dv] present as part star tree index field [startree-1]",
             ex.getMessage()
         );
     }
@@ -443,7 +483,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             )
         );
         assertEquals(
-            "Aggregations not supported for the dimension field [@timestamp] with field type [date] as part of star tree field",
+            "Aggregations not supported for the dimension field [node] with field type [integer] as part of star tree field",
             ex.getMessage()
         );
 
@@ -466,17 +506,13 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.field("max_leaf_docs", 100);
             b.startArray("skip_star_node_creation_for_dimensions");
             {
-                b.value("@timestamp");
+                b.value("node");
                 b.value("status");
             }
             b.endArray();
             b.startArray("ordered_dimensions");
             b.startObject();
-            b.field("name", "@timestamp");
-            b.startArray("calendar_intervals");
-            b.value("day");
-            b.value("month");
-            b.endArray();
+            b.field("name", "node");
             b.endObject();
             b.startObject();
             b.field("name", dim);
@@ -494,8 +530,8 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
             b.startObject("properties");
-            b.startObject("@timestamp");
-            b.field("type", "date");
+            b.startObject("node");
+            b.field("type", "integer");
             b.endObject();
             b.startObject("status");
             b.field("type", "integer");
@@ -507,6 +543,56 @@ public class StarTreeMapperTests extends MapperTestCase {
         });
     }
 
+    private XContentBuilder getMappingWithDuplicateFields(boolean isDuplicateDim, boolean isDuplicateMetric) {
+        XContentBuilder mapping = null;
+        try {
+            mapping = jsonBuilder().startObject()
+                .startObject("composite")
+                .startObject("startree-1")
+                .field("type", "star_tree")
+                .startObject("config")
+                .startArray("ordered_dimensions")
+                .startObject()
+                .field("name", "node")
+                .endObject()
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateDim ? "numeric_dv" : "numeric_dv1")  // Duplicate dimension
+                .endObject()
+                .endArray()
+                .startArray("metrics")
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .startObject()
+                .field("name", isDuplicateMetric ? "numeric_dv" : "numeric_dv1")  // Duplicate metric
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("properties")
+                .startObject("node")
+                .field("type", "integer")
+                .endObject()
+                .startObject("numeric_dv")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("numeric_dv1")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            fail("Failed to create mapping: " + e.getMessage());
+        }
+        return mapping;
+    }
+
     private XContentBuilder getExpandedMappingWithJustSum(String dim, String metric) throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
@@ -516,17 +602,13 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.field("max_leaf_docs", 100);
             b.startArray("skip_star_node_creation_for_dimensions");
             {
-                b.value("@timestamp");
+                b.value("node");
                 b.value("status");
             }
             b.endArray();
             b.startArray("ordered_dimensions");
             b.startObject();
-            b.field("name", "@timestamp");
-            b.startArray("calendar_intervals");
-            b.value("day");
-            b.value("month");
-            b.endArray();
+            b.field("name", "node");
             b.endObject();
             b.startObject();
             b.field("name", dim);
@@ -544,8 +626,8 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
             b.startObject("properties");
-            b.startObject("@timestamp");
-            b.field("type", "date");
+            b.startObject("node");
+            b.field("type", "integer");
             b.endObject();
             b.startObject("status");
             b.field("type", "integer");
@@ -566,17 +648,13 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.field("max_leaf_docs", 100);
             b.startArray("skip_star_node_creation_for_dimensions");
             {
-                b.value("@timestamp");
+                b.value("node");
                 b.value("status");
             }
             b.endArray();
             b.startArray("ordered_dimensions");
             b.startObject();
-            b.field("name", "@timestamp");
-            b.startArray("calendar_intervals");
-            b.value("day");
-            b.value("month");
-            b.endArray();
+            b.field("name", "node");
             b.endObject();
             b.startObject();
             b.field("name", dim);
@@ -595,8 +673,8 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
             b.startObject("properties");
-            b.startObject("@timestamp");
-            b.field("type", "date");
+            b.startObject("node");
+            b.field("type", "integer");
             b.endObject();
             b.startObject("status");
             b.field("type", "integer");
@@ -622,7 +700,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             if (!isEmptyDims) {
                 b.startArray("ordered_dimensions");
                 b.startObject();
-                b.field("name", "@timestamp");
+                b.field("name", "node");
                 b.endObject();
                 b.startObject();
                 b.field("name", "status");
@@ -644,8 +722,8 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("properties");
             if (!missingDim) {
-                b.startObject("@timestamp");
-                b.field("type", "date");
+                b.startObject("node");
+                b.field("type", "integer");
                 b.endObject();
             }
             b.startObject("status");
@@ -758,7 +836,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startArray("ordered_dimensions");
             if (!singleDim) {
                 b.startObject();
-                b.field("name", "@timestamp");
+                b.field("name", "node");
                 b.endObject();
             }
             b.startObject();
@@ -783,9 +861,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
             b.startObject("properties");
-            b.startObject("@timestamp");
+            b.startObject("node");
             if (!invalidDimType) {
-                b.field("type", "date");
+                b.field("type", "integer");
             } else {
                 b.field("type", "keyword");
             }
@@ -828,7 +906,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startArray("ordered_dimensions");
             if (!singleDim) {
                 b.startObject();
-                b.field("name", "@timestamp");
+                b.field("name", "node");
                 b.endObject();
             }
             b.startObject();
@@ -847,12 +925,12 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
             b.startObject("properties");
-            b.startObject("@timestamp");
+            b.startObject("node");
             if (!invalidDimType) {
-                b.field("type", "date");
+                b.field("type", "integer");
                 b.field("doc_values", "true");
             } else {
-                b.field("type", "date");
+                b.field("type", "integer");
                 b.field("doc_values", "false");
             }
             b.endObject();
