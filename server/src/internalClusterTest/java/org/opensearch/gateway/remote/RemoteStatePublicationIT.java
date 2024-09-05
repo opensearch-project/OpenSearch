@@ -51,6 +51,7 @@ import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.M
 import static org.opensearch.cluster.metadata.Metadata.isGlobalStateEquals;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
@@ -282,9 +283,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                         .addMetric(SETTINGS.metricName())
                         .get();
                     // if masterRestarted is true Publication Setting should be false, and vice versa
-                    assertTrue(
-                        REMOTE_PUBLICATION_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()) != activeCMRestarted
-                    );
+                    assertTrue(REMOTE_PUBLICATION_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()) != activeCMRestarted);
 
                     followingCMs.forEach(node -> {
                         PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, node);
