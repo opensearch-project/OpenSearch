@@ -732,14 +732,6 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<Integer> INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT = Setting.intSetting(
-        "index.search.concurrent.max_slice_count",
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
-        Property.Dynamic,
-        Property.IndexScope
-    );
-
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
         "index.optimize_doc_id_lookup.fuzzy_set.enabled",
         false,
