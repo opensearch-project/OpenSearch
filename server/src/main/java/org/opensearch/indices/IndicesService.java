@@ -361,6 +361,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final SearchRequestStats searchRequestStats;
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
+    private final Consumer<IndexShard> replicator;
 
     @Override
     protected void doStart() {
@@ -397,7 +398,8 @@ public class IndicesService extends AbstractLifecycleComponent
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
-        CompositeIndexSettings compositeIndexSettings
+        CompositeIndexSettings compositeIndexSettings,
+        Consumer<IndexShard> replicator
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -506,6 +508,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.remoteStoreSettings = remoteStoreSettings;
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
+        this.replicator = replicator;
     }
 
     public IndicesService(
@@ -567,7 +570,8 @@ public class IndicesService extends AbstractLifecycleComponent
             cacheService,
             remoteStoreSettings,
             fileCache,
-            null
+            null,
+            (s) -> {}
         );
     }
 
@@ -628,6 +632,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoverySettings,
             cacheService,
             remoteStoreSettings,
+            null,
             null,
             null
         );
@@ -1046,7 +1051,8 @@ public class IndicesService extends AbstractLifecycleComponent
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
             this.recoverySettings,
-            this.remoteStoreSettings
+            this.remoteStoreSettings,
+            replicator
         );
     }
 
