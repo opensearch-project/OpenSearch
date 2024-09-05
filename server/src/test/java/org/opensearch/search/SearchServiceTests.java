@@ -35,6 +35,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -2326,8 +2327,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         // Case 3: MatchAllQuery and aggregations present, should use star tree if possible
         searchService = getInstanceFromNode(SearchService.class);
         sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.query(new MatchAllQueryBuilder());
-        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
+        sourceBuilder.size(0).query(new MatchAllQueryBuilder()).aggregation(AggregationBuilders.max("test").field("field"));
         request.source(sourceBuilder);
         try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
             SearchContext context = searchService.createContext(reader, request, null, true);
@@ -2338,8 +2338,10 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         // Case 4: MatchAllQuery and aggregations present, but trackTotalHitsUpTo specified, should not use star tree
         searchService = getInstanceFromNode(SearchService.class);
         sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.query(new MatchAllQueryBuilder());
-        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field")).trackTotalHitsUpTo(1000);
+        sourceBuilder.size(0)
+            .query(new MatchAllQueryBuilder())
+            .aggregation(AggregationBuilders.max("test").field("field"))
+            .trackTotalHitsUpTo(1000);
         request.source(sourceBuilder);
         try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
             SearchContext context = searchService.createContext(reader, request, null, true);
@@ -2350,8 +2352,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         // Case 5: TermQuery and aggregations present, should use star tree
         searchService = getInstanceFromNode(SearchService.class);
         sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.query(new TermQueryBuilder("sndv", 1));
-        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
+        sourceBuilder.size(0).query(new TermQueryBuilder("sndv", 1)).aggregation(AggregationBuilders.max("test").field("field"));
         request.source(sourceBuilder);
         try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
             SearchContext context = searchService.createContext(reader, request, null, true);
@@ -2362,11 +2363,23 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         // Case 6: No query, metric aggregations present, should use star tree
         searchService = getInstanceFromNode(SearchService.class);
         sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
+        sourceBuilder.size(0).aggregation(AggregationBuilders.max("test").field("field"));
         request.source(sourceBuilder);
         try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
             SearchContext context = searchService.createContext(reader, request, null, true);
             assertThat(context.query(), instanceOf(StarTreeQuery.class));
+        }
+        searchService.doStop();
+
+        // Case 7: TermQuery and aggregations present, size !=0, should not use star tree
+        searchService = getInstanceFromNode(SearchService.class);
+        sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(new TermQueryBuilder("sndv", 1));
+        sourceBuilder.aggregation(AggregationBuilders.max("test").field("field"));
+        request.source(sourceBuilder);
+        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
+            SearchContext context = searchService.createContext(reader, request, null, true);
+            assertThat(context.query(), instanceOf(IndexOrDocValuesQuery.class));
         }
         searchService.doStop();
 
