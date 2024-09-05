@@ -169,11 +169,6 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static TermsSetQueryBuilder fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
