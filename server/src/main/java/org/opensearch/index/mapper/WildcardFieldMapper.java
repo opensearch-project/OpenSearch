@@ -430,22 +430,27 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 finalValue = value;
             }
             Predicate<String> matchPredicate;
-            if (value.contains("?")) {
-                Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue));
-                CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
+            Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue));
+            CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
+            if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.SINGLE) {
+                // when type equals SINGLE, #compiledAutomaton.runAutomaton is null
+                matchPredicate = s -> {
+                    if (caseInsensitive) {
+                        s = s.toLowerCase(Locale.ROOT);
+                    }
+                    return s.equals(finalValue);
+                };
+            } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.ALL) {
+                return existsQuery(context);
+            } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.NONE) {
+                return new MatchNoDocsQuery("Wildcard expression matches nothing");
+            } else {
                 matchPredicate = s -> {
                     if (caseInsensitive) {
                         s = s.toLowerCase(Locale.ROOT);
                     }
                     BytesRef valueBytes = BytesRefs.toBytesRef(s);
                     return compiledAutomaton.runAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length);
-                };
-            } else {
-                matchPredicate = s -> {
-                    if (caseInsensitive) {
-                        s = s.toLowerCase(Locale.ROOT);
-                    }
-                    return Regex.simpleMatch(finalValue, s);
                 };
             }
 
@@ -468,22 +473,30 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         // Package-private for testing
         static Set<String> getRequiredNGrams(String value) {
             Set<String> terms = new HashSet<>();
+
+            if (value.isEmpty()) {
+                return terms;
+            }
+
             int pos = 0;
+            String rawSequence = null;
             String currentSequence = null;
             if (!value.startsWith("?") && !value.startsWith("*")) {
                 // Can add prefix term
-                currentSequence = getNonWildcardSequence(value, 0);
+                rawSequence = getNonWildcardSequence(value, 0);
+                currentSequence = performEscape(rawSequence);
                 if (currentSequence.length() == 1) {
-                    terms.add(new String(new char[] { 0, currentSequence.charAt(0) }));
+                    terms.add(new String(new char[]{0, currentSequence.charAt(0)}));
                 } else {
-                    terms.add(new String(new char[] { 0, currentSequence.charAt(0), currentSequence.charAt(1) }));
+                    terms.add(new String(new char[]{0, currentSequence.charAt(0), currentSequence.charAt(1)}));
                 }
             } else {
                 pos = findNonWildcardSequence(value, pos);
-                currentSequence = getNonWildcardSequence(value, pos);
+                rawSequence = getNonWildcardSequence(value, pos);
             }
             while (pos < value.length()) {
-                boolean isEndOfValue = pos + currentSequence.length() == value.length();
+                boolean isEndOfValue = pos + rawSequence.length() == value.length();
+                currentSequence = performEscape(rawSequence);
                 if (!currentSequence.isEmpty() && currentSequence.length() < 3 && !isEndOfValue && pos > 0) {
                     // If this is a prefix or suffix of length < 3, then we already have a longer token including the anchor.
                     terms.add(currentSequence);
@@ -495,15 +508,15 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 if (isEndOfValue) {
                     // This is the end of the input. We can attach a suffix anchor.
                     if (currentSequence.length() == 1) {
-                        terms.add(new String(new char[] { currentSequence.charAt(0), 0 }));
+                        terms.add(new String(new char[]{currentSequence.charAt(0), 0}));
                     } else {
                         char a = currentSequence.charAt(currentSequence.length() - 2);
                         char b = currentSequence.charAt(currentSequence.length() - 1);
-                        terms.add(new String(new char[] { a, b, 0 }));
+                        terms.add(new String(new char[]{a, b, 0}));
                     }
                 }
-                pos = findNonWildcardSequence(value, pos + currentSequence.length());
-                currentSequence = getNonWildcardSequence(value, pos);
+                pos = findNonWildcardSequence(value, pos + rawSequence.length());
+                rawSequence = getNonWildcardSequence(value, pos);
             }
             return terms;
         }
@@ -511,7 +524,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         private static String getNonWildcardSequence(String value, int startFrom) {
             for (int i = startFrom; i < value.length(); i++) {
                 char c = value.charAt(i);
-                if (c == '?' || c == '*') {
+                if ((c == '?' || c == '*') &&
+                    (i == 0 || value.charAt(i - 1) != '\\')) {
                     return value.substring(startFrom, i);
                 }
             }
@@ -527,6 +541,22 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 }
             }
             return value.length();
+        }
+
+        private static String performEscape(String str) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < str.length(); i++) {
+                if (str.charAt(i) == '\\' && (i + 1) < str.length()) {
+                    char c = str.charAt(i + 1);
+                    if (c == '*' || c == '?') {
+                        i++;
+                    }
+                }
+                sb.append(str.charAt(i));
+            }
+            assert !sb.toString().contains("\\*");
+            assert !sb.toString().contains("\\?");
+            return sb.toString();
         }
 
         @Override
@@ -616,10 +646,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 query = builder.build();
             } else if ((regExp.kind == RegExp.Kind.REGEXP_REPEAT_MIN || regExp.kind == RegExp.Kind.REGEXP_REPEAT_MINMAX)
                 && regExp.min > 0) {
-                    return regexpToQuery(fieldName, regExp.exp1);
-                } else {
-                    return new MatchAllDocsQuery();
-                }
+                return regexpToQuery(fieldName, regExp.exp1);
+            } else {
+                return new MatchAllDocsQuery();
+            }
             if (query.clauses().size() == 1) {
                 return query.iterator().next().getQuery();
             } else if (query.clauses().size() == 0) {

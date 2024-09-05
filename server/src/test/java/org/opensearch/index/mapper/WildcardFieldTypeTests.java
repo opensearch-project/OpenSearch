@@ -88,6 +88,38 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testEscapedWildcardQuery() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        Set<String> expectedTerms = new HashSet<>();
+        expectedTerms.add(prefixAnchored("*"));
+        expectedTerms.add(suffixAnchored("*"));
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (String term : expectedTerms) {
+            builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
+        }
+
+        assertEquals(
+            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\**\\*"),
+            ft.wildcardQuery("\\**\\*", null, null)
+        );
+
+        assertEquals(
+            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\*"),
+            ft.wildcardQuery("\\*", null, null)
+        );
+
+        expectedTerms.remove(suffixAnchored("*"));
+        builder = new BooleanQuery.Builder();
+        for (String term : expectedTerms) {
+            builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
+        }
+        assertEquals(
+            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\**"),
+            ft.wildcardQuery("\\**", null, null)
+        );
+    }
+
     public void testMultipleWildcardsInQuery() {
         final String pattern = "a?cd*efg?h";
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
