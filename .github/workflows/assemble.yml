@@ -30,8 +30,11 @@ jobs:
       - name: Setup docker (missing on MacOS)
         id: setup_docker
         if: runner.os == 'macos'
+        continue-on-error: true
         run: |
-          exit 0;
+          brew install docker colima coreutils
+          gtimeout 15m colima start
+        shell: bash
       - name: Run Gradle (assemble)
         if: runner.os == 'macos' && steps.setup_docker.outcome != 'success'
         run: |
@@ -45,4 +48,4 @@ jobs:
       - name: Run Gradle (assemble)
         if: runner.os == 'macos' && steps.setup_docker.outcome == 'success'
         run: |
-          exit 0;
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=${{ matrix.java }}
