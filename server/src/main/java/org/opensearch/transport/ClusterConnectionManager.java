@@ -131,7 +131,7 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     @Override
     public void markDisconnectAsCompleted(Set<DiscoveryNode> nodes) {
-        logger.info("marking disconnect as completed for nodes: [{}]");
+        logger.debug("marking disconnect as completed for nodes: [{}]", nodes);
         pendingDisconnections.removeAll(nodes);
     }
 
