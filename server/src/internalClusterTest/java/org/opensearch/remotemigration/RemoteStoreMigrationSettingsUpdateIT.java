@@ -11,6 +11,7 @@ package org.opensearch.remotemigration;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -109,7 +110,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         setDirection(REMOTE_STORE.direction);
         String restoredIndexName2 = TEST_INDEX + "-restored2";
         restoreSnapshot(snapshotRepoName, snapshotName, restoredIndexName2);
-        ensureGreen(restoredIndexName2);
+        ensureGreen(TimeValue.timeValueSeconds(90), restoredIndexName2);
 
         logger.info("Verify that restored index is non remote-backed");
         assertRemoteStoreBackedIndex(restoredIndexName2);
