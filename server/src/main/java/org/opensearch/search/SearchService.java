@@ -105,7 +105,7 @@ import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
-import org.opensearch.search.deciders.ConcurrentSearchDecider;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.dfs.DfsPhase;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -358,7 +358,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final QueryPhase queryPhase;
 
     private final FetchPhase fetchPhase;
-    private final Collection<ConcurrentSearchDecider> concurrentSearchDeciders;
+    private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
     private volatile long defaultKeepAlive;
 
@@ -404,7 +404,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchDecider> concurrentSearchDeciders
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -460,7 +460,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
-        this.concurrentSearchDeciders = concurrentSearchDeciders;
+        this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1161,7 +1161,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 validate,
                 indexSearcherExecutor,
                 this::aggReduceContextBuilder,
-                concurrentSearchDeciders
+                concurrentSearchDeciderFactories
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services

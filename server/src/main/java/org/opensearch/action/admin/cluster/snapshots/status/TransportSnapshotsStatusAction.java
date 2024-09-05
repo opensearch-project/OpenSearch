@@ -49,6 +49,8 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.shard.ShardId;
@@ -66,7 +68,6 @@ import org.opensearch.snapshots.SnapshotShardFailure;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.snapshots.SnapshotsService;
-import org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -458,13 +459,17 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             snapshotsInfoMap.put(snapshotId, snapshotInfo);
         }
         if (totalShardsAcrossSnapshots > maximumAllowedShardCount && request.indices().length == 0) {
-            String message = "Total shard count ["
+            String message = "["
+                + repositoryName
+                + ":"
+                + String.join(", ", request.snapshots())
+                + "]"
+                + " Total shard count ["
                 + totalShardsAcrossSnapshots
                 + "] is more than the maximum allowed value of shard count ["
                 + maximumAllowedShardCount
                 + "] for snapshot status request";
-
-            throw new TooManyShardsInSnapshotsStatusException(repositoryName, message, request.snapshots());
+            throw new CircuitBreakingException(message, CircuitBreaker.Durability.PERMANENT);
         }
         return unmodifiableMap(snapshotsInfoMap);
     }
@@ -520,15 +525,19 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         }
 
         if (totalShardsAcrossIndices > maximumAllowedShardCount && requestedIndexNames.isEmpty() == false && isV2Snapshot == false) {
-            String message = "Total shard count ["
+            String message = "["
+                + repositoryName
+                + ":"
+                + String.join(", ", request.snapshots())
+                + "]"
+                + " Total shard count ["
                 + totalShardsAcrossIndices
                 + "] across the requested indices ["
                 + requestedIndexNames.stream().collect(Collectors.joining(", "))
                 + "] is more than the maximum allowed value of shard count ["
                 + maximumAllowedShardCount
                 + "] for snapshot status request";
-
-            throw new TooManyShardsInSnapshotsStatusException(repositoryName, message, snapshotName);
+            throw new CircuitBreakingException(message, CircuitBreaker.Durability.PERMANENT);
         }
 
         final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
