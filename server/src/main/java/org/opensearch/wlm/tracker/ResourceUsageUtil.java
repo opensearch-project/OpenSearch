@@ -42,6 +42,9 @@ public abstract class ResourceUsageUtil {
      */
     protected abstract double getNormalisedThreshold(QueryGroup queryGroup, WorkloadManagementSettings settings);
 
+    /**
+     * Utility class to provide query group level helper methods for CPU resource type
+     */
     public static class CpuUsageUtil extends ResourceUsageUtil {
         private static final CpuUsageUtil instance = new CpuUsageUtil();
 
@@ -57,6 +60,9 @@ public abstract class ResourceUsageUtil {
         }
     }
 
+    /**
+     * Utility class to provide query group level helper methods for Memory Resource
+     */
     public static class MemoryUsageUtil extends ResourceUsageUtil {
         private static final MemoryUsageUtil instance = new MemoryUsageUtil();
 
