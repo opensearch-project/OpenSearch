@@ -76,8 +76,8 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.deciders.ConcurrentSearchDecider;
 import org.opensearch.search.deciders.ConcurrentSearchDecision;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.LegacyReaderContext;
 import org.opensearch.search.internal.PitReaderContext;
@@ -96,6 +96,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -984,14 +986,34 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             // Case4: multiple deciders are registered and all of them opt out of decision-making
             // with supported agg query so concurrent path is used
 
-            ConcurrentSearchDecider decider1 = mock(ConcurrentSearchDecider.class);
-            when(decider1.canEvaluateForIndex(any())).thenReturn(false);
-            ConcurrentSearchDecider decider2 = mock(ConcurrentSearchDecider.class);
-            when(decider2.canEvaluateForIndex(any())).thenReturn(false);
+            ConcurrentSearchRequestDecider decider1 = mock(ConcurrentSearchRequestDecider.class);
 
-            Collection<ConcurrentSearchDecider> concurrentSearchDeciders = new ArrayList<>();
-            concurrentSearchDeciders.add(decider1);
-            concurrentSearchDeciders.add(decider2);
+            ConcurrentSearchRequestDecider decider2 = mock(ConcurrentSearchRequestDecider.class);
+
+            ConcurrentSearchRequestDecider.Factory factory1 = new ConcurrentSearchRequestDecider.Factory() {
+                @Override
+                public Optional<ConcurrentSearchRequestDecider> create(IndexSettings indexSettings) {
+                    return Optional.ofNullable(decider1);
+                }
+            };
+
+            ConcurrentSearchRequestDecider.Factory factory2 = new ConcurrentSearchRequestDecider.Factory() {
+                @Override
+                public Optional<ConcurrentSearchRequestDecider> create(IndexSettings indexSettings) {
+                    return Optional.ofNullable(decider2);
+                }
+            };
+            ConcurrentSearchRequestDecider.Factory factory3 = new ConcurrentSearchRequestDecider.Factory() {
+                @Override
+                public Optional<ConcurrentSearchRequestDecider> create(IndexSettings indexSettings) {
+                    return Optional.empty();
+                }
+            };
+
+            List<ConcurrentSearchRequestDecider.Factory> concurrentSearchRequestDeciders = new ArrayList<>();
+            concurrentSearchRequestDeciders.add(factory1);
+            concurrentSearchRequestDeciders.add(factory2);
+            concurrentSearchRequestDeciders.add(factory3);
 
             context = new DefaultSearchContext(
                 readerContext,
@@ -1007,7 +1029,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchDeciders
+                concurrentSearchRequestDeciders
             );
             // create a supported agg operation
             context.aggregations(mockAggregations);
@@ -1021,15 +1043,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
 
             // Case5: multiple deciders are registered and one of them returns ConcurrentSearchDecision.DecisionStatus.NO
             // use non-concurrent path even if query contains supported agg
-            when(decider1.canEvaluateForIndex(any())).thenReturn(true);
             when(decider1.getConcurrentSearchDecision()).thenReturn(
                 new ConcurrentSearchDecision(ConcurrentSearchDecision.DecisionStatus.NO, "disable concurrent search")
             );
-            when(decider2.canEvaluateForIndex(any())).thenReturn(false);
-
-            concurrentSearchDeciders.clear();
-            concurrentSearchDeciders.add(decider1);
-            concurrentSearchDeciders.add(decider2);
 
             // create a source so that query tree is parsed by visitor
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -1051,7 +1067,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchDeciders
+                concurrentSearchRequestDeciders
             );
 
             // create a supported agg operation
@@ -1067,20 +1083,17 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             // Case6: multiple deciders are registered and first decider returns ConcurrentSearchDecision.DecisionStatus.YES
             // while second decider returns ConcurrentSearchDecision.DecisionStatus.NO
             // use non-concurrent path even if query contains supported agg
-            when(decider1.canEvaluateForIndex(any())).thenReturn(true);
+
             when(decider1.getConcurrentSearchDecision()).thenReturn(
                 new ConcurrentSearchDecision(ConcurrentSearchDecision.DecisionStatus.YES, "enable concurrent search")
             );
-            when(decider2.canEvaluateForIndex(any())).thenReturn(true);
+
             when(decider2.getConcurrentSearchDecision()).thenReturn(
                 new ConcurrentSearchDecision(ConcurrentSearchDecision.DecisionStatus.NO, "disable concurrent search")
             );
 
-            concurrentSearchDeciders.clear();
-            concurrentSearchDeciders.add(decider1);
-            concurrentSearchDeciders.add(decider2);
-
             // create a source so that query tree is parsed by visitor
+            when(shardSearchRequest.source()).thenReturn(sourceBuilder);
 
             context = new DefaultSearchContext(
                 readerContext,
@@ -1096,7 +1109,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchDeciders
+                concurrentSearchRequestDeciders
             );
 
             // create a supported agg operation
@@ -1111,22 +1124,19 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
 
             // Case7: multiple deciders are registered and all return ConcurrentSearchDecision.DecisionStatus.NO_OP
             // but un-supported agg query is present, use non-concurrent path
-            when(decider1.canEvaluateForIndex(any())).thenReturn(true);
+
             when(decider1.getConcurrentSearchDecision()).thenReturn(
                 new ConcurrentSearchDecision(ConcurrentSearchDecision.DecisionStatus.NO_OP, "noop")
             );
-            when(decider2.canEvaluateForIndex(any())).thenReturn(true);
+
             when(decider2.getConcurrentSearchDecision()).thenReturn(
                 new ConcurrentSearchDecision(ConcurrentSearchDecision.DecisionStatus.NO_OP, "noop")
             );
 
             when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(false);
 
-            concurrentSearchDeciders.clear();
-            concurrentSearchDeciders.add(decider1);
-            concurrentSearchDeciders.add(decider2);
-
             // create a source so that query tree is parsed by visitor
+            when(shardSearchRequest.source()).thenReturn(sourceBuilder);
 
             context = new DefaultSearchContext(
                 readerContext,
@@ -1142,7 +1152,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchDeciders
+                concurrentSearchRequestDeciders
             );
 
             // create a supported agg operation
