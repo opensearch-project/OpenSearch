@@ -13,7 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import java.util.Collection;
 
 /**
- * This Class defines the decisions that a {@link ConcurrentSearchDecider#getConcurrentSearchDecision} can return.
+ * This Class defines the decisions that a {@link ConcurrentSearchRequestDecider#getConcurrentSearchDecision} can return.
  *
  */
 @ExperimentalApi
