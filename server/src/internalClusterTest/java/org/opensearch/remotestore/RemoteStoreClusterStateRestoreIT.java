@@ -328,10 +328,17 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         internalCluster().stopAllNodes();
         // Step - 3 Delete index metadata file in remote
         try {
-            Files.move(
-                segmentRepoPath.resolve(encodeString(clusterName) + "/cluster-state/" + prevClusterUUID + "/index"),
-                segmentRepoPath.resolve("cluster-state/")
+            RemoteClusterStateService remoteClusterStateService = internalCluster().getInstance(
+                RemoteClusterStateService.class,
+                internalCluster().getClusterManagerName()
             );
+            ClusterMetadataManifest manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                getClusterState().getClusterName().value(),
+                getClusterState().metadata().clusterUUID()
+            ).get();
+            for (UploadedIndexMetadata md : manifest.getIndices()) {
+                Files.move(segmentRepoPath.resolve(md.getUploadedFilename()), segmentRepoPath.resolve("cluster-state/"));
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
