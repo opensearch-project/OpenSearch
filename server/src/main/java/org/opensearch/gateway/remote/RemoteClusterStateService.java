@@ -124,7 +124,7 @@ public class RemoteClusterStateService implements Closeable {
     /**
      * Gates the functionality of remote publication.
      */
-    public static final String REMOTE_PUBLICATION_SETTING_KEY = "opensearch.feature.remote_store.publication.enabled";
+    public static final String REMOTE_PUBLICATION_SETTING_KEY = "cluster.remote_store.publication.enabled";
 
     public static final Setting<Boolean> REMOTE_PUBLICATION_SETTING = Setting.boolSetting(
         REMOTE_PUBLICATION_SETTING_KEY,

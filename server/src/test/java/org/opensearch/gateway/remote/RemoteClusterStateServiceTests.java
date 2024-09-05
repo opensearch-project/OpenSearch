@@ -273,8 +273,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         super.tearDown();
         remoteClusterStateService.close();
         publicationEnabled = false;
-        Settings nodeSettings = Settings.builder().build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         threadPool.shutdown();
     }
 
@@ -371,8 +369,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void testWriteFullMetadataSuccessPublicationEnabled() throws IOException {
         // TODO Make the publication flag parameterized
         publicationEnabled = true;
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -749,8 +746,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testWriteIncrementalMetadataSuccessWhenPublicationEnabled() throws IOException {
         publicationEnabled = true;
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, true).build();
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
