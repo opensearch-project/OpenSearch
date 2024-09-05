@@ -371,7 +371,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             } else if (joinHelper.isJoinPending()) {
                 logger.trace("onFollowerCheckRequest: rejoining cluster-manager, responding successfully to {}", followerCheckRequest);
             } else {
-                logger.info("Mode: {}, ", mode);
                 logger.trace("onFollowerCheckRequest: received check from faulty cluster-manager, rejecting {}", followerCheckRequest);
                 throw new CoordinationStateRejectedException(
                     "onFollowerCheckRequest: received check from faulty cluster-manager, rejecting " + followerCheckRequest
@@ -1363,7 +1362,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 // marking pending disconnects before publish
                 // if we try to joinRequest during pending disconnect, it should fail
-                transportService.markPendingDisconnects(clusterChangedEvent.nodesDelta());
+                transportService.setPendingDisconnections(clusterChangedEvent.nodesDelta());
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
@@ -1468,7 +1467,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         protected void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term) {
             synchronized (mutex) {
                 ensureTermAtLeast(clusterManagerNode, term);
-                logger.info("sending join request to {}", clusterManagerNode);
                 joinHelper.sendJoinRequest(clusterManagerNode, getCurrentTerm(), joinWithDestination(lastJoin, clusterManagerNode, term));
             }
         }

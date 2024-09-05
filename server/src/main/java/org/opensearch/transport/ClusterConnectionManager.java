@@ -45,7 +45,6 @@ import org.opensearch.core.action.ActionListener;
 
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -118,23 +117,6 @@ public class ClusterConnectionManager implements ConnectionManager {
         internalOpenConnection(node, resolvedProfile, listener);
     }
 
-    @Override
-    public void markPendingDisconnects(List<DiscoveryNode> nodes) {
-        logger.info("marking pending disconnects for nodes: [{}]", nodes);
-        pendingDisconnections.addAll(nodes);
-    }
-
-    @Override
-    public Set<DiscoveryNode> getPendingDisconnections() {
-        return pendingDisconnections;
-    }
-
-    @Override
-    public void markDisconnectAsCompleted(Set<DiscoveryNode> nodes) {
-        logger.debug("marking disconnect as completed for nodes: [{}]", nodes);
-        pendingDisconnections.removeAll(nodes);
-    }
-
     /**
      * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
      * Once a successful is established, it can be validated before being exposed.
@@ -147,7 +129,7 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectionValidator connectionValidator,
         ActionListener<Void> listener
     ) throws ConnectTransportException {
-        logger.info("[{}]connecting to node [{}]", Thread.currentThread().getName(), node);
+        logger.trace("[{}]connecting to node [{}]", Thread.currentThread().getName(), node);
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         if (node == null) {
             listener.onFailure(new ConnectTransportException(null, "can't connect to a null node"));
@@ -195,16 +177,16 @@ public class ClusterConnectionManager implements ConnectionManager {
                 assert Transports.assertNotTransportThread("connection validator success");
                 try {
                     if (connectedNodes.putIfAbsent(node, conn) != null) {
-                        logger.info("existing connection to node [{}], closing new redundant connection", node);
+                        logger.debug("existing connection to node [{}], closing new redundant connection", node);
                         IOUtils.closeWhileHandlingException(conn);
                     } else {
-                        logger.info("connected to node [{}]", node);
+                        logger.debug("connected to node [{}]", node);
                         try {
                             connectionListener.onNodeConnected(node, conn);
                         } finally {
                             final Transport.Connection finalConnection = conn;
                             conn.addCloseListener(ActionListener.wrap(() -> {
-                                logger.info("unregistering {} after connection close and marking as disconnected", node);
+                                logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                 connectedNodes.remove(node, finalConnection);
                                 connectionListener.onNodeDisconnected(node, conn);
                             }));
@@ -263,7 +245,24 @@ public class ClusterConnectionManager implements ConnectionManager {
             nodeChannels.close();
         }
         pendingDisconnections.remove(node);
-        logger.info("Removed node {} from pending disconnects list", node);
+        logger.debug("Removed node [{}] from pending disconnections list", node);
+    }
+
+    @Override
+    public Set<DiscoveryNode> getPendingDisconnections() {
+        return pendingDisconnections;
+    }
+
+    @Override
+    public void setPendingDisconnections(Set<DiscoveryNode> nodes) {
+        logger.debug("set pending disconnection for nodes: [{}]", nodes);
+        pendingDisconnections.addAll(nodes);
+    }
+
+    @Override
+    public void removePendingDisconnections(Set<DiscoveryNode> nodes) {
+        logger.debug("marking disconnection as completed for nodes: [{}]", nodes);
+        pendingDisconnections.removeAll(nodes);
     }
 
     /**
@@ -317,7 +316,6 @@ public class ClusterConnectionManager implements ConnectionManager {
                 connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
             }
             if (connection.isClosed()) {
-                logger.info("channel closed while connecting, throwing exception");
                 throw new ConnectTransportException(node, "a channel closed while connecting");
             }
             return connection;

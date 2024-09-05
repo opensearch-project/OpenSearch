@@ -36,7 +36,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.Closeable;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -53,10 +52,6 @@ public interface ConnectionManager extends Closeable {
 
     void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener);
 
-    Set<DiscoveryNode> getPendingDisconnections();
-
-    void markDisconnectAsCompleted(Set<DiscoveryNode> nodes);
-
     void connectToNode(
         DiscoveryNode node,
         ConnectionProfile connectionProfile,
@@ -68,9 +63,13 @@ public interface ConnectionManager extends Closeable {
 
     boolean nodeConnected(DiscoveryNode node);
 
-    void markPendingDisconnects(List<DiscoveryNode> nodes);
-
     void disconnectFromNode(DiscoveryNode node);
+
+    Set<DiscoveryNode> getPendingDisconnections();
+
+    void setPendingDisconnections(Set<DiscoveryNode> nodes);
+
+    void removePendingDisconnections(Set<DiscoveryNode> nodes);
 
     Set<DiscoveryNode> getAllConnectedNodes();
 

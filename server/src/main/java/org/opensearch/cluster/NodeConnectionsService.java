@@ -171,8 +171,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             for (final DiscoveryNode discoveryNode : discoveryNodes) {
                 nodesToDisconnect.remove(discoveryNode);
             }
-            logger.info(" targetsByNode is {}", targetsByNode.keySet());
-            logger.info(" nodes to disconnect set is [{}]", nodesToDisconnect);
 
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
                 runnables.add(targetsByNode.get(discoveryNode).disconnect());
@@ -181,7 +179,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             // There might be some stale nodes that are in pendingDisconnect set from before but are not connected anymore
             // This code block clears the pending disconnect for these nodes to avoid permanently blocking node joins
             // This situation should ideally not happen
-            transportService.markDisconnectAsCompleted(
+            transportService.removePendingDisconnections(
                 transportService.getPendingDisconnections()
                     .stream()
                     .filter(discoveryNode -> !discoveryNodes.nodeExists(discoveryNode))

@@ -40,7 +40,6 @@ import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportConnectionListener;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -120,8 +119,8 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void markPendingDisconnects(List<DiscoveryNode> nodes) {
-        delegate.markPendingDisconnects(nodes);
+    public void disconnectFromNode(DiscoveryNode node) {
+        delegate.disconnectFromNode(node);
     }
 
     @Override
@@ -130,13 +129,13 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void markDisconnectAsCompleted(Set<DiscoveryNode> nodes) {
-        delegate.markDisconnectAsCompleted(nodes);
+    public void setPendingDisconnections(Set<DiscoveryNode> nodes) {
+        delegate.setPendingDisconnections(nodes);
     }
 
     @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-        delegate.disconnectFromNode(node);
+    public void removePendingDisconnections(Set<DiscoveryNode> nodes) {
+        delegate.removePendingDisconnections(nodes);
     }
 
     @Override

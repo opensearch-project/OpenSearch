@@ -33,11 +33,8 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.cluster.ClusterChangedEvent;
-import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.MockEngineFactoryPlugin;
@@ -51,9 +48,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
-import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportConnectionListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
@@ -104,22 +99,14 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
             .build();
-        // start a cluster-manager node
+        // start a 3 node cluster with 1 cluster-manager
         final String cm = internalCluster().startNode(nodeSettings);
-
-        logger.info("--> spawning node t1");
-        final String blueNodeName = internalCluster().startNode(
-            Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
-        );
-        logger.info("--> spawning node t2");
+        internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        logger.info("--> initial health check");
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
-        logger.info("--> done initial health check");
 
-        logger.info("--> creating index");
         client().admin()
             .indices()
             .prepareCreate(indexName)
@@ -130,63 +117,22 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .get();
-        logger.info("--> done creating index");
-        MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, cm);
-        MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            redNodeName
-        );
 
         ClusterService cmClsService = internalCluster().getInstance(ClusterService.class, cm);
-        // simulate a slow applier on the cm
-        cmClsService.addStateApplier(new ClusterStateApplier() {
-            @Override
-            public void applyClusterState(ClusterChangedEvent event) {
-                if (event.nodesRemoved()) {
-                    try {
-                        Thread.sleep(3000);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+        // Simulate a slow applier on the cm to delay node-left state application
+        cmClsService.addStateApplier(event -> {
+            if (event.nodesRemoved()) {
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
             }
         });
-        cmTransportService.connectionManager().addListener(new TransportConnectionListener() {
-
-            @Override
-            public void onConnectionOpened(Transport.Connection connection) {
-                // try {
-                // Thread.sleep(500);
-                // } catch (InterruptedException e) {
-                // throw new RuntimeException(e);
-                // }
-
-            }
-
-            @Override
-            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
-                // if (node.getName().equals("node_t2")) {
-                // try {
-                // Thread.sleep(250);
-                // } catch (InterruptedException e) {
-                // throw new RuntimeException(e);
-                // }
-                // }
-            }
-
-            // @Override
-            // public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
-            // try {
-            // Thread.sleep(5000);
-            // } catch (InterruptedException e) {
-            // throw new RuntimeException(e);
-            // }
-            // }
-        });
         AtomicBoolean bb = new AtomicBoolean();
-        // simulate followerchecker failure
 
-        ConnectionDelay handlingBehavior = new ConnectionDelay(FOLLOWER_CHECK_ACTION_NAME, () -> {
+        // Simulate followerchecker failure on 1 node when bb is false
+        ConnectionDelay handlingBehavior = new ConnectionDelay(() -> {
             if (bb.get()) {
                 return;
             }
@@ -197,55 +143,39 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             }
             throw new NodeHealthCheckFailureException("non writable exception");
         });
+        MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            redNodeName
+        );
         redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, handlingBehavior);
 
+        // Loop runs 10 times to ensure race condition gets reproduced
         for (int i = 0; i < 10; i++) {
-            bb.set(false); // fail followerchecker by force to trigger node disconnect
-            logger.info("--> disconnecting from red node, iteration: " + i);
-            // cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+            bb.set(false);
+            // fail followerchecker by force to trigger node disconnect
             // now followerchecker should fail and trigger node left
-            logger.info("--> checking cluster health 2 nodes, iteration: " + i);
             ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
             assertThat(response1.isTimedOut(), is(false));
-            logger.info("--> completed checking cluster health 2 nodes, iteration: " + i);
 
             // once we know a node has left, we can re-enable followerchecker to work normally
             bb.set(true);
-            Thread.sleep(1500);
-            logger.info("--> checking cluster health 3 nodes, iteration: " + i);
             ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
             assertThat(response2.isTimedOut(), is(false));
-            logger.info("--> completed checking cluster health 3 nodes, iteration: " + i);
 
-            Thread.sleep(1500);
-
-            // Checking again
-            logger.info("--> checking cluster health 3 nodes again, iteration: " + i);
+            // Checking again to validate stability
             ClusterHealthResponse response3 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
             assertThat(response3.isTimedOut(), is(false));
-            logger.info("--> completed checking cluster health 3 nodes again, iteration: " + i);
         }
 
         bb.set(true);
-        logger.info("-->first validation outside loop");
-        response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
-        assertThat(response.isTimedOut(), is(false));
-
-        logger.info("-->sleeping for 20s");
-        Thread.sleep(20000);
-
-        logger.info("-->second validation outside loop after sleep");
         response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }
 
     private class ConnectionDelay implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
-
-        private final String actionName;
         private final Runnable connectionBreaker;
 
-        private ConnectionDelay(String actionName, Runnable connectionBreaker) {
-            this.actionName = actionName;
+        private ConnectionDelay(Runnable connectionBreaker) {
             this.connectionBreaker = connectionBreaker;
         }
 

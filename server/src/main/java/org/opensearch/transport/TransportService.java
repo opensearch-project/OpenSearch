@@ -483,18 +483,6 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, null, listener);
     }
 
-    public void markPendingDisconnects(DiscoveryNodes.Delta nodesDelta) {
-        connectionManager.markPendingDisconnects(nodesDelta.removedNodes());
-    }
-
-    public Set<DiscoveryNode> getPendingDisconnections() {
-        return connectionManager.getPendingDisconnections();
-    }
-
-    public void markDisconnectAsCompleted(Set<DiscoveryNode> nodes) {
-        connectionManager.markDisconnectAsCompleted(nodes);
-    }
-
     public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToExtensionNode(node, null, listener);
     }
@@ -784,6 +772,18 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
         connectionManager.disconnectFromNode(node);
+    }
+
+    public Set<DiscoveryNode> getPendingDisconnections() {
+        return connectionManager.getPendingDisconnections();
+    }
+
+    public void setPendingDisconnections(DiscoveryNodes.Delta nodesDelta) {
+        connectionManager.setPendingDisconnections(new HashSet<>(nodesDelta.removedNodes()));
+    }
+
+    public void removePendingDisconnections(Set<DiscoveryNode> nodes) {
+        connectionManager.removePendingDisconnections(nodes);
     }
 
     public void addMessageListener(TransportMessageListener listener) {

@@ -464,7 +464,6 @@ public class MasterService extends AbstractLifecycleComponent {
     private TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, String taskSummary) {
         ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, previousClusterState, taskSummary);
         ClusterState newClusterState = patchVersions(previousClusterState, clusterTasksResult);
-        logger.debug("in cluster compute, finished computing new cluster state for version: {}", newClusterState.getVersion());
         return new TaskOutputs(
             taskInputs,
             previousClusterState,
