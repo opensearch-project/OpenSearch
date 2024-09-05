@@ -343,6 +343,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    /**
+     * Controls the fixed prefix for the snapshot shard blob path.
+     */
+    public static final Setting<String> SNAPSHOT_SHARD_PATH_PREFIX_SETTING = Setting.simpleString(
+        "cluster.snapshot.shard.path.prefix",
+        "",
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
     protected volatile boolean supportURLRepo;
 
     private volatile int maxShardBlobDeleteBatch;
@@ -434,6 +444,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final NamedXContentRegistry namedXContentRegistry;
 
+    private final String snapshotShardPathPrefix;
+
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
@@ -485,6 +497,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
+        this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX_SETTING.get(clusterService.getSettings());
     }
 
     @Override
@@ -2729,6 +2742,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotShardPathInput shardPathInput = new SnapshotShardPathInput.Builder().basePath(basePath())
             .indexUUID(indexId.getId())
             .shardId(String.valueOf(shardId))
+            .fixedPrefix(snapshotShardPathPrefix)
             .build();
         PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
         return pathType.path(shardPathInput, pathHashAlgorithm);
