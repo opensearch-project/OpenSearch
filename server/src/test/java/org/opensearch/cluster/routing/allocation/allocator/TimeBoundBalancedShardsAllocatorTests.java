@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.routing.allocation.allocator;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterName;
@@ -17,6 +18,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -26,14 +28,20 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.threadpool.TestThreadPool;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
@@ -41,26 +49,49 @@ import static org.opensearch.cluster.routing.allocation.allocator.BalancedShards
 
 public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationTestCase {
 
+    private TestThreadPool threadPool;
+    private ClusterService clusterService;
+    private ClusterState state;
+
     private final DiscoveryNode node1 = newNode("node1", "node1", Collections.singletonMap("zone", "1a"));
     private final DiscoveryNode node2 = newNode("node2", "node2", Collections.singletonMap("zone", "1b"));
     private final DiscoveryNode node3 = newNode("node3", "node3", Collections.singletonMap("zone", "1c"));
 
-    public void testAllUnassignedShardsAllocatedWhenNoTimeOut() {
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        if (threadPool != null) {
+            final boolean terminated = terminate(threadPool);
+            assert terminated;
+        }
+        if (clusterService != null) {
+            clusterService.close();
+        }
+    }
+
+    public void setupStateAndService(Metadata metadata, RoutingTable routingTable) {
+        state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        threadPool = new TestThreadPool(getTestName());
+        clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
+    }
+
+    public void testAllUnassignedShardsAllocatedWhenNoTimeOutAndRerouteNotScheduled() {
         int numberOfIndices = 2;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
         int totalPrimaryCount = numberOfIndices * numberOfShards;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Settings.Builder settings = Settings.builder();
-        // passing total shard count for timed out latch such that no shard times out
-        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings.build(), new CountDownLatch(totalShardCount));
+        // passing sufficiently high count for timeout latch to simulate no time out
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings.build(), new CountDownLatch(Integer.MAX_VALUE));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         RoutingAllocation allocation = new RoutingAllocation(
             yesAllocationDeciders(),
             new RoutingNodes(state, false),
@@ -69,6 +100,18 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
         int node1Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node1.getId());
@@ -77,9 +120,10 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(totalShardCount, initializingShards.size());
         assertEquals(0, allocation.routingNodes().unassigned().ignored().size());
         assertEquals(totalPrimaryCount, node1Recoveries + node2Recoveries + node3Recoveries);
+        assertFalse(rerouteScheduled.get());
     }
 
-    public void testAllUnassignedShardsIgnoredWhenTimedOut() {
+    public void testAllUnassignedShardsIgnoredWhenTimedOutAndRerouteScheduled() {
         int numberOfIndices = 2;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
@@ -89,11 +133,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings.build(), new CountDownLatch(0));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         RoutingAllocation allocation = new RoutingAllocation(
             yesAllocationDeciders(),
             new RoutingNodes(state, false),
@@ -102,6 +142,18 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
         int node1Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node1.getId());
@@ -110,9 +162,10 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(0, initializingShards.size());
         assertEquals(totalShardCount, allocation.routingNodes().unassigned().ignored().size());
         assertEquals(0, node1Recoveries + node2Recoveries + node3Recoveries);
+        assertTrue(rerouteScheduled.get());
     }
 
-    public void testAllocatePartialPrimaryShardsUntilTimedOut() {
+    public void testAllocatePartialPrimaryShardsUntilTimedOutAndRerouteScheduled() {
         int numberOfIndices = 2;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
@@ -123,11 +176,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings.build(), new CountDownLatch(shardsToAllocate));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         RoutingAllocation allocation = new RoutingAllocation(
             yesAllocationDeciders(),
             new RoutingNodes(state, false),
@@ -136,6 +185,18 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
         int node1Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node1.getId());
@@ -144,9 +205,10 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(shardsToAllocate, initializingShards.size());
         assertEquals(totalShardCount - shardsToAllocate, allocation.routingNodes().unassigned().ignored().size());
         assertEquals(shardsToAllocate, node1Recoveries + node2Recoveries + node3Recoveries);
+        assertTrue(rerouteScheduled.get());
     }
 
-    public void testAllocateAllPrimaryShardsAndPartialReplicaShardsUntilTimedOut() {
+    public void testAllocateAllPrimaryShardsAndPartialReplicaShardsUntilTimedOutAndRerouteScheduled() {
         int numberOfIndices = 2;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
@@ -158,11 +220,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings.build(), new CountDownLatch(shardsToAllocate));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         RoutingAllocation allocation = new RoutingAllocation(
             yesAllocationDeciders(),
             new RoutingNodes(state, false),
@@ -171,6 +229,18 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
         int node1Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node1.getId());
@@ -179,20 +249,17 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(shardsToAllocate, initializingShards.size());
         assertEquals(totalShardCount - shardsToAllocate, allocation.routingNodes().unassigned().ignored().size());
         assertEquals(numberOfShards * numberOfIndices, node1Recoveries + node2Recoveries + node3Recoveries);
+        assertTrue(rerouteScheduled.get());
     }
 
-    public void testAllShardsMoveWhenExcludedAndTimeoutNotBreached() {
+    public void testAllShardsMoveWhenExcludedAndTimeoutNotBreachedAndRerouteNotScheduled() {
         int numberOfIndices = 3;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         MockAllocationService allocationService = createAllocationService();
         state = applyStartedShardsUntilNoChange(state, allocationService);
         // check all shards allocated
@@ -200,8 +267,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
         int node1ShardCount = state.getRoutingNodes().node("node1").size();
         Settings settings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build();
-        int shardsToMove = 10 + 1000; // such that time out is never breached
-        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings, new CountDownLatch(shardsToMove));
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings, new CountDownLatch(Integer.MAX_VALUE));
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDecidersForExcludeAPI(settings),
             new RoutingNodes(state, false),
@@ -210,30 +276,39 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(node1ShardCount, relocatingShards.size());
+        assertFalse(rerouteScheduled.get());
     }
 
-    public void testNoShardsMoveWhenExcludedAndTimeoutBreached() {
+    public void testNoShardsMoveWhenExcludedAndTimeoutBreachedAndRerouteScheduled() {
         int numberOfIndices = 3;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         MockAllocationService allocationService = createAllocationService();
         state = applyStartedShardsUntilNoChange(state, allocationService);
         // check all shards allocated
         assertEquals(0, state.getRoutingNodes().shardsWithState(INITIALIZING).size());
         assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
         Settings settings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build();
-        int shardsToMove = 0; // such that time out is never breached
+        int shardsToMove = 0; // such that time out is breached
         BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings, new CountDownLatch(shardsToMove));
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDecidersForExcludeAPI(settings),
@@ -243,23 +318,32 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(0, relocatingShards.size());
+        assertTrue(rerouteScheduled.get());
     }
 
-    public void testPartialShardsMoveWhenExcludedAndTimeoutBreached() {
+    public void testPartialShardsMoveWhenExcludedAndTimeoutBreachedAndRerouteScheduled() {
         int numberOfIndices = 3;
         int numberOfShards = 5;
         int numberOfReplicas = 1;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         MockAllocationService allocationService = createAllocationService();
         state = applyStartedShardsUntilNoChange(state, allocationService);
         // check all shards allocated
@@ -279,23 +363,32 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(shardsToMove / 3, relocatingShards.size());
+        assertTrue(rerouteScheduled.get());
     }
 
-    public void testClusterRebalancedWhenNotTimedOut() {
+    public void testClusterRebalancedWhenNotTimedOutAndRerouteNotScheduled() {
         int numberOfIndices = 1;
         int numberOfShards = 15;
         int numberOfReplicas = 1;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         MockAllocationService allocationService = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build()
         ); // such that no shards are allocated to node1
@@ -306,8 +399,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         assertEquals(totalShardCount, state.getRoutingNodes().shardsWithState(STARTED).size());
         assertEquals(0, node1ShardCount);
         Settings newSettings = Settings.builder().put("cluster.routing.allocation.exclude.zone", "").build();
-        int shardsToMove = 1000; // such that time out is never breached
-        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(newSettings, new CountDownLatch(shardsToMove));
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(newSettings, new CountDownLatch(Integer.MAX_VALUE));
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDecidersForExcludeAPI(newSettings),
             new RoutingNodes(state, false),
@@ -316,23 +408,32 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(totalShardCount / 3, relocatingShards.size());
+        assertFalse(rerouteScheduled.get());
     }
 
-    public void testClusterNotRebalancedWhenTimedOut() {
+    public void testClusterNotRebalancedWhenTimedOutAndRerouteScheduled() {
         int numberOfIndices = 1;
         int numberOfShards = 15;
         int numberOfReplicas = 1;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         MockAllocationService allocationService = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build()
         ); // such that no shards are allocated to node1
@@ -353,23 +454,32 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(0, relocatingShards.size());
+        assertTrue(rerouteScheduled.get());
     }
 
-    public void testClusterPartialRebalancedWhenTimedOut() {
+    public void testClusterPartialRebalancedWhenTimedOutAndRerouteScheduled() {
         int numberOfIndices = 1;
         int numberOfShards = 15;
         int numberOfReplicas = 1;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
         RoutingTable routingTable = buildRoutingTable(metadata);
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
-            .build();
+        setupStateAndService(metadata, routingTable);
         MockAllocationService allocationService = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.exclude.zone", "1a").build()
         ); // such that no shards are allocated to node1
@@ -404,9 +514,22 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
             null,
             System.nanoTime()
         );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.HIGH, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
         allocator.allocate(allocation);
         List<ShardRouting> relocatingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.RELOCATING);
         assertEquals(3, relocatingShards.size());
+        assertTrue(rerouteScheduled.get());
     }
 
     public void testAllocatorNeverTimedOutIfValueIsMinusOne() {
