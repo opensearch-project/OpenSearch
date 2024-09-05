@@ -627,7 +627,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         String mdFilename = tm.getFileName();
         long count = mdFilename.chars().filter(ch -> ch == METADATA_SEPARATOR.charAt(0)).count();
         // There should not be any `_` in mdFile name as it is used a separator .
-        assertEquals(12, count);
+        assertEquals(14, count);
         Thread.sleep(1);
         TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node--2");
         String mdFilename2 = tm2.getFileName();
