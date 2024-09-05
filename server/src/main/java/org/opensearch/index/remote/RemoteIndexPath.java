@@ -18,7 +18,9 @@ import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
 import org.opensearch.index.remote.RemoteStoreEnums.DataType;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy.BasePathInput;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
+import org.opensearch.indices.RemoteStoreSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -67,6 +69,7 @@ public class RemoteIndexPath implements ToXContentFragment {
     private final Iterable<String> basePath;
     private final PathType pathType;
     private final PathHashAlgorithm pathHashAlgorithm;
+    private final RemoteStoreSettings remoteStoreSettings;
 
     /**
      * This keeps the map of paths that would be present in the content of the index path file. For eg - It is possible
@@ -81,7 +84,8 @@ public class RemoteIndexPath implements ToXContentFragment {
         Iterable<String> basePath,
         PathType pathType,
         PathHashAlgorithm pathHashAlgorithm,
-        Map<DataCategory, List<DataType>> pathCreationMap
+        Map<DataCategory, List<DataType>> pathCreationMap,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         if (Objects.isNull(pathCreationMap)
             || Objects.isNull(pathType)
@@ -118,6 +122,7 @@ public class RemoteIndexPath implements ToXContentFragment {
         this.pathType = pathType;
         this.pathHashAlgorithm = pathHashAlgorithm;
         this.pathCreationMap = pathCreationMap;
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     @Override
@@ -141,12 +146,17 @@ public class RemoteIndexPath implements ToXContentFragment {
             DataCategory dataCategory = entry.getKey();
             for (DataType type : entry.getValue()) {
                 for (int shardNo = 0; shardNo < shardCount; shardNo++) {
-                    PathInput pathInput = PathInput.builder()
+                    BasePathInput pathInput = PathInput.builder()
                         .basePath(new BlobPath().add(basePath))
                         .indexUUID(indexUUID)
                         .shardId(Integer.toString(shardNo))
                         .dataCategory(dataCategory)
                         .dataType(type)
+                        .fixedPrefix(
+                            dataCategory == TRANSLOG
+                                ? remoteStoreSettings.getTranslogPathFixedPrefix()
+                                : remoteStoreSettings.getSegmentsPathFixedPrefix()
+                        )
                         .build();
                     builder.value(pathType.path(pathInput, pathHashAlgorithm).buildAsString());
                 }

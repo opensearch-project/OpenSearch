@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -65,6 +66,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.plugins.Plugin;
@@ -103,7 +105,6 @@ import java.util.function.Predicate;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -381,16 +382,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
-    }
-
-    protected void updateRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> updating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
-    }
-
     protected void createRepository(String repoName, String type, Path location) {
         createRepository(repoName, type, Settings.builder().put("location", location));
     }
@@ -564,13 +555,15 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName) throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         BlobPath shardLevelBlobPath = getShardLevelBlobPath(
             client(),
             remoteStoreIndex,
             remoteStoreRepository.basePath(),
             "0",
             SEGMENTS,
-            LOCK_FILES
+            LOCK_FILES,
+            segmentsPathFixedPrefix
         );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
@@ -613,7 +606,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             Collections.emptyList(),
             randomBoolean(),
             metadata,
-            false
+            false,
+            0
         );
         PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
@@ -623,6 +617,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT,
                 Function.identity(),
+                Priority.NORMAL,
                 f
             )
         );

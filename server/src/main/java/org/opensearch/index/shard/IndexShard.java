@@ -525,7 +525,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Function<String, Boolean> isShardOnRemoteEnabledNode = nodeId -> {
         DiscoveryNode node = discoveryNodes.get(nodeId);
         if (node != null) {
-            logger.trace("Node {} has remote_enabled as {}", nodeId, node.isRemoteStoreNode());
             return node.isRemoteStoreNode();
         }
         return false;
@@ -2156,7 +2155,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
                     }
                     try {
-                        Thread.sleep(TimeValue.timeValueSeconds(30).seconds());
+                        Thread.sleep(TimeValue.timeValueSeconds(30).millis());
                     } catch (InterruptedException ie) {
                         throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
                     }
@@ -2900,7 +2899,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: "
                 + recoveryState.getRecoverySource();
             StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-            storeRecovery.recoverFromSnapshotAndRemoteStore(this, repository, repositoriesService, listener, threadPool);
+            storeRecovery.recoverFromSnapshotAndRemoteStore(
+                this,
+                repository,
+                repositoriesService,
+                listener,
+                remoteStoreSettings.getSegmentsPathFixedPrefix(),
+                threadPool
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -5131,10 +5137,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
             .getSegmentsUploadedToRemoteStore();
-        final Directory storeDirectory = store.directory();
         store.incRef();
-
         try {
+            final Directory storeDirectory;
+            if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
+                storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
+                for (String file : uploadedSegments.keySet()) {
+                    long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+                    if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
+                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
+                    } else {
+                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
+                    }
+                }
+            } else {
+                storeDirectory = store.directory();
+            }
+
             String segmentsNFile = copySegmentFiles(
                 storeDirectory,
                 sourceRemoteDirectory,

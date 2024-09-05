@@ -17,6 +17,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
 import org.opensearch.index.remote.RemoteStoreEnums.DataType;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.Objects;
 
@@ -67,29 +68,39 @@ public class RemoteStorePathStrategy {
         return "RemoteStorePathStrategy{" + "type=" + type + ", hashAlgorithm=" + hashAlgorithm + '}';
     }
 
+    public BlobPath generatePath(BasePathInput pathInput) {
+        return type.path(pathInput, hashAlgorithm);
+    }
+
+    // Added for BWC
     public BlobPath generatePath(PathInput pathInput) {
         return type.path(pathInput, hashAlgorithm);
     }
 
     /**
-     * Wrapper class for the input required to generate path for remote store uploads.
+     * Wrapper class for the path input required to generate path for remote store uploads. This input is composed of
+     * basePath and indexUUID.
+     *
      * @opensearch.internal
      */
     @PublicApi(since = "2.14.0")
     @ExperimentalApi
-    public static class PathInput {
+    public static class BasePathInput {
         private final BlobPath basePath;
         private final String indexUUID;
-        private final String shardId;
-        private final DataCategory dataCategory;
-        private final DataType dataType;
+        private final String fixedPrefix;
 
-        public PathInput(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
-            this.basePath = Objects.requireNonNull(basePath);
-            this.indexUUID = Objects.requireNonNull(indexUUID);
-            this.shardId = Objects.requireNonNull(shardId);
-            this.dataCategory = Objects.requireNonNull(dataCategory);
-            this.dataType = Objects.requireNonNull(dataType);
+        // Adding for BWC
+        public BasePathInput(BlobPath basePath, String indexUUID) {
+            this.basePath = basePath;
+            this.indexUUID = indexUUID;
+            this.fixedPrefix = null;
+        }
+
+        public BasePathInput(Builder<?> builder) {
+            this.basePath = Objects.requireNonNull(builder.basePath);
+            this.indexUUID = Objects.requireNonNull(builder.indexUUID);
+            this.fixedPrefix = Objects.isNull(builder.fixedPrefix) ? "" : builder.fixedPrefix;
         }
 
         BlobPath basePath() {
@@ -98,6 +109,159 @@ public class RemoteStorePathStrategy {
 
         String indexUUID() {
             return indexUUID;
+        }
+
+        String fixedPrefix() {
+            return fixedPrefix;
+        }
+
+        BlobPath fixedSubPath() {
+            return BlobPath.cleanPath().add(indexUUID);
+        }
+
+        BlobPath hashPath() {
+            return fixedSubPath();
+        }
+
+        /**
+         * Returns a new builder for {@link BasePathInput}.
+         */
+        public static Builder<?> builder() {
+            return new Builder<>();
+        }
+
+        public void assertIsValid() {
+            // Input is always valid here.
+        }
+
+        /**
+         * Builder for {@link BasePathInput}.
+         *
+         * @opensearch.internal
+         */
+        @PublicApi(since = "2.14.0")
+        @ExperimentalApi
+        public static class Builder<T extends Builder<T>> {
+            private BlobPath basePath;
+            private String indexUUID;
+            private String fixedPrefix;
+
+            public T basePath(BlobPath basePath) {
+                this.basePath = basePath;
+                return self();
+            }
+
+            public T indexUUID(String indexUUID) {
+                this.indexUUID = indexUUID;
+                return self();
+            }
+
+            public T fixedPrefix(String fixedPrefix) {
+                this.fixedPrefix = fixedPrefix;
+                return self();
+            }
+
+            protected T self() {
+                return (T) this;
+            }
+
+            public BasePathInput build() {
+                return new BasePathInput(this);
+            }
+        }
+    }
+
+    /**
+     * A subclass of {@link PathInput} that represents the input required to generate a path
+     * for a shard in a snapshot. It includes the base path, index UUID, and shard ID.
+     *
+     * @opensearch.internal
+     */
+    public static class SnapshotShardPathInput extends BasePathInput {
+        private final String shardId;
+
+        public SnapshotShardPathInput(SnapshotShardPathInput.Builder builder) {
+            super(builder);
+            this.shardId = Objects.requireNonNull(builder.shardId);
+        }
+
+        @Override
+        BlobPath fixedSubPath() {
+            return BlobPath.cleanPath().add(BlobStoreRepository.INDICES_DIR).add(super.fixedSubPath()).add(shardId);
+        }
+
+        @Override
+        BlobPath hashPath() {
+            return BlobPath.cleanPath().add(shardId).add(indexUUID());
+        }
+
+        public String shardId() {
+            return shardId;
+        }
+
+        /**
+         * Returns a new builder for {@link SnapshotShardPathInput}.
+         */
+        public static SnapshotShardPathInput.Builder builder() {
+            return new SnapshotShardPathInput.Builder();
+        }
+
+        /**
+         * Builder for {@link SnapshotShardPathInput}.
+         *
+         * @opensearch.internal
+         */
+        public static class Builder extends BasePathInput.Builder<SnapshotShardPathInput.Builder> {
+            private String shardId;
+
+            public SnapshotShardPathInput.Builder shardId(String shardId) {
+                this.shardId = shardId;
+                return this;
+            }
+
+            @Override
+            protected SnapshotShardPathInput.Builder self() {
+                return this;
+            }
+
+            public SnapshotShardPathInput build() {
+                return new SnapshotShardPathInput(this);
+            }
+        }
+    }
+
+    /**
+     * Wrapper class for the data aware path input required to generate path for remote store uploads. This input is
+     * composed of the parent inputs, shard id, data category and data type.
+     *
+     * @opensearch.internal
+     */
+    @PublicApi(since = "2.14.0")
+    @ExperimentalApi
+    public static class PathInput extends BasePathInput {
+        private final String shardId;
+        private final DataCategory dataCategory;
+        private final DataType dataType;
+
+        // Adding for BWC
+        public PathInput(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
+            super(basePath, indexUUID);
+            this.shardId = shardId;
+            this.dataCategory = dataCategory;
+            this.dataType = dataType;
+        }
+
+        public PathInput(Builder builder) {
+            super(builder);
+            this.shardId = Objects.requireNonNull(builder.shardId);
+            this.dataCategory = Objects.requireNonNull(builder.dataCategory);
+            this.dataType = Objects.requireNonNull(builder.dataType);
+            assert dataCategory.isSupportedDataType(dataType) : "category:"
+                + dataCategory
+                + " type:"
+                + dataType
+                + " are not supported together";
+
         }
 
         String shardId() {
@@ -110,6 +274,11 @@ public class RemoteStorePathStrategy {
 
         DataType dataType() {
             return dataType;
+        }
+
+        @Override
+        BlobPath fixedSubPath() {
+            return super.fixedSubPath().add(shardId).add(dataCategory.getName()).add(dataType.getName());
         }
 
         /**
@@ -126,20 +295,18 @@ public class RemoteStorePathStrategy {
          */
         @PublicApi(since = "2.14.0")
         @ExperimentalApi
-        public static class Builder {
-            private BlobPath basePath;
-            private String indexUUID;
+        public static class Builder extends BasePathInput.Builder<Builder> {
             private String shardId;
             private DataCategory dataCategory;
             private DataType dataType;
 
             public Builder basePath(BlobPath basePath) {
-                this.basePath = basePath;
+                super.basePath = basePath;
                 return this;
             }
 
             public Builder indexUUID(String indexUUID) {
-                this.indexUUID = indexUUID;
+                super.indexUUID = indexUUID;
                 return this;
             }
 
@@ -158,8 +325,13 @@ public class RemoteStorePathStrategy {
                 return this;
             }
 
+            @Override
+            protected Builder self() {
+                return this;
+            }
+
             public PathInput build() {
-                return new PathInput(basePath, indexUUID, shardId, dataCategory, dataType);
+                return new PathInput(this);
             }
         }
     }

@@ -1,0 +1,239 @@
+setup:
+  - skip:
+      version: " - 2.99.99"
+      reason: "Added in 2.15, but need to skip pre-3.0 before backport"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: wildcard
+                fields:
+                  lower:
+                    type: wildcard
+                    normalizer: lowercase
+                  doc_values:
+                    type: wildcard
+                    doc_values: true
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          my_field: "org.opensearch.transport.NodeDisconnectedException: [node_s0][127.0.0.1:39953][disconnected] disconnected"
+  - do:
+      index:
+        index: test
+        id: 2
+        body:
+          my_field: "[2024-06-08T06:31:37,443][INFO ][o.o.c.c.Coordinator      ] [node_s2] cluster-manager node [{node_s0}{Nj7FjR7hRP2lh_zur8KN_g}{OTGOoWmmSsWP_RQ3tIKJ9g}{127.0.0.1}{127.0.0.1:39953}{imr}{shard_indexing_pressure_enabled=true}] failed, restarting discovery"
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body:
+          my_field: "[2024-06-08T06:31:37,451][INFO ][o.o.c.s.ClusterApplierService] [node_s2] cluster-manager node changed {previous [{node_s0}{Nj7FjR7hRP2lh_zur8KN_g}{OTGOoWmmSsWP_RQ3tIKJ9g}{127.0.0.1}{127.0.0.1:39953}{imr}{shard_indexing_pressure_enabled=true}], current []}, term: 1, version: 24, reason: becoming candidate: onLeaderFailure"
+  - do:
+      index:
+        index: test
+        id: 4
+        body:
+          my_field: "[2024-06-08T06:31:37,452][WARN ][o.o.c.NodeConnectionsService] [node_s1] failed to connect to {node_s0}{Nj7FjR7hRP2lh_zur8KN_g}{OTGOoWmmSsWP_RQ3tIKJ9g}{127.0.0.1}{127.0.0.1:39953}{imr}{shard_indexing_pressure_enabled=true} (tried [1] times)"
+  - do:
+      index:
+        index: test
+        id: 5
+        body:
+          my_field: "AbCd"
+  - do:
+      index:
+        index: test
+        id: 6
+        body:
+          other_field: "test"
+  - do:
+      indices.refresh: {}
+
+---
+"term query matches exact value":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field: "AbCd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field.doc_values: "AbCd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+---
+"term query matches lowercase-normalized value":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field.lower: "abcd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field.lower: "ABCD"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field: "abcd"
+  - match: { hits.total.value: 0 }
+
+---
+"wildcard query matches":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*Node*Exception*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"wildcard query matches lowercase-normalized field":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field.lower:
+                value: "*node*exception*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field.lower:
+                value: "*NODE*EXCEPTION*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*node*exception*"
+  - match: { hits.total.value: 0 }
+
+---
+"prefix query matches":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              my_field:
+                value: "[2024-06-08T"
+  - match: { hits.total.value: 3 }
+
+---
+"regexp query matches":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: ".*06-08.*cluster-manager node.*"
+  - match: { hits.total.value: 2 }
+
+---
+"regexp query matches lowercase-normalized field":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field.lower:
+                value: ".*06-08.*Cluster-Manager Node.*"
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: ".*06-08.*Cluster-Manager Node.*"
+  - match: { hits.total.value: 0 }
+
+---
+"wildcard match-all works":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*"
+  - match: { hits.total.value: 5 }
+---
+"regexp match-all works":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: ".*"
+  - match: { hits.total.value: 5 }
+---
+"terms query on wildcard field matches":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            terms: { my_field: ["AbCd"] }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }

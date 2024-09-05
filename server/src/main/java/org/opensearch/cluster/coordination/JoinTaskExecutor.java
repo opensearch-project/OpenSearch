@@ -69,6 +69,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
@@ -519,7 +520,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             );
         }
 
-        ensureRemoteStoreNodesCompatibility(joiningNode, currentNodes, metadata);
+        ensureRemoteRepositoryCompatibility(joiningNode, currentNodes, metadata);
     }
 
     /**
@@ -552,6 +553,30 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
+    public static void ensureRemoteRepositoryCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
+        List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
+
+        boolean isClusterRemoteStoreEnabled = existingNodes.stream().anyMatch(DiscoveryNode::isRemoteStoreNode);
+        if (isClusterRemoteStoreEnabled || joiningNode.isRemoteStoreNode()) {
+            ensureRemoteStoreNodesCompatibility(joiningNode, currentNodes, metadata);
+        } else {
+            ensureRemoteClusterStateNodesCompatibility(joiningNode, currentNodes);
+        }
+    }
+
+    private static void ensureRemoteClusterStateNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes) {
+        List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
+
+        assert existingNodes.isEmpty() == false;
+        Optional<DiscoveryNode> remotePublicationNode = existingNodes.stream()
+            .filter(DiscoveryNode::isRemoteStatePublicationEnabled)
+            .findFirst();
+
+        if (remotePublicationNode.isPresent() && joiningNode.isRemoteStatePublicationEnabled()) {
+            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES);
+        }
+    }
+
     /**
      * The method ensures homogeneity -
      * 1. The joining node has to be a remote store backed if it's joining a remote store backed cluster. Validates
@@ -567,16 +592,33 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      *       needs to be modified.
      */
     private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
+
         List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
 
         assert existingNodes.isEmpty() == false;
 
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
-        if (STRICT.equals(remoteStoreCompatibilityMode)) {
 
-            DiscoveryNode existingNode = existingNodes.get(0);
+        List<String> reposToSkip = new ArrayList<>(1);
+        Optional<DiscoveryNode> remoteRoutingTableNode = existingNodes.stream()
+            .filter(
+                node -> node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
+            )
+            .findFirst();
+        // If none of the existing nodes have routing table repo, then we skip this repo check if present in joining node.
+        // This ensures a new node with remote routing table repo is able to join the cluster.
+        if (remoteRoutingTableNode.isEmpty()) {
+            String joiningNodeRepoName = joiningNode.getAttributes()
+                .get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
+            if (joiningNodeRepoName != null) {
+                reposToSkip.add(joiningNodeRepoName);
+            }
+        }
+
+        if (STRICT.equals(remoteStoreCompatibilityMode)) {
+            DiscoveryNode existingNode = remoteRoutingTableNode.orElseGet(() -> existingNodes.get(0));
             if (joiningNode.isRemoteStoreNode()) {
-                ensureRemoteStoreNodesCompatibility(joiningNode, existingNode);
+                ensureRemoteStoreNodesCompatibility(joiningNode, existingNode, reposToSkip);
             } else {
                 if (existingNode.isRemoteStoreNode()) {
                     throw new IllegalStateException(
@@ -598,19 +640,25 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     throw new IllegalStateException(reason);
                 }
                 if (joiningNode.isRemoteStoreNode()) {
-                    Optional<DiscoveryNode> remoteDN = existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
-                    remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode));
+                    Optional<DiscoveryNode> remoteDN = remoteRoutingTableNode.isPresent()
+                        ? remoteRoutingTableNode
+                        : existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+                    remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode, reposToSkip));
                 }
             }
         }
     }
 
-    private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNode existingNode) {
+    private static void ensureRemoteStoreNodesCompatibility(
+        DiscoveryNode joiningNode,
+        DiscoveryNode existingNode,
+        List<String> reposToSkip
+    ) {
         if (joiningNode.isRemoteStoreNode()) {
             if (existingNode.isRemoteStoreNode()) {
                 RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
                 RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode);
-                if (existingRemoteStoreNodeAttribute.equals(joiningRemoteStoreNodeAttribute) == false) {
+                if (existingRemoteStoreNodeAttribute.equalsWithRepoSkip(joiningRemoteStoreNodeAttribute, reposToSkip) == false) {
                     throw new IllegalStateException(
                         "a remote store node ["
                             + joiningNode
@@ -623,6 +671,23 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             } else {
                 throw new IllegalStateException("a remote store node [" + joiningNode + "] is trying to join a non remote store cluster");
             }
+        }
+    }
+
+    private static void ensureRepositoryCompatibility(DiscoveryNode joiningNode, DiscoveryNode existingNode, List<String> reposToValidate) {
+
+        RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
+        RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode);
+
+        if (existingRemoteStoreNodeAttribute.equalsForRepositories(joiningRemoteStoreNodeAttribute, reposToValidate) == false) {
+            throw new IllegalStateException(
+                "a remote store node ["
+                    + joiningNode
+                    + "] is trying to join a remote store cluster with incompatible node attributes in "
+                    + "comparison with existing node ["
+                    + existingNode
+                    + "]"
+            );
         }
     }
 

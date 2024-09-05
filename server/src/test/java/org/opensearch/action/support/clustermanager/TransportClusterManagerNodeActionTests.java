@@ -47,7 +47,6 @@ import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -85,9 +84,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
-import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithRemoteStoreSettings;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -718,9 +716,6 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testDontAllowSwitchingToStrictCompatibilityModeForMixedCluster() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-
         // request to change cluster compatibility mode to STRICT
         Settings currentCompatibilityModeSettings = Settings.builder()
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
@@ -809,84 +804,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
     }
 
-    public void testDontAllowSwitchingToStrictCompatibilityModeWithoutRemoteIndexSettings() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-        Settings currentCompatibilityModeSettings = Settings.builder()
-            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
-            .build();
-        Settings intendedCompatibilityModeSettings = Settings.builder()
-            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
-            .build();
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        request.persistentSettings(intendedCompatibilityModeSettings);
-        DiscoveryNode remoteNode1 = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            getRemoteStoreNodeAttributes(),
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNode remoteNode2 = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            getRemoteStoreNodeAttributes(),
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(remoteNode1)
-            .localNodeId(remoteNode1.getId())
-            .add(remoteNode2)
-            .localNodeId(remoteNode2.getId())
-            .build();
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
-        );
-        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            allocationService,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterService.getClusterSettings()
-        );
-
-        Metadata nonRemoteIndexMd = Metadata.builder(createIndexMetadataWithDocrepSettings("test"))
-            .persistentSettings(currentCompatibilityModeSettings)
-            .build();
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(nonRemoteIndexMd)
-            .nodes(discoveryNodes)
-            .build();
-        final SettingsException exception = expectThrows(
-            SettingsException.class,
-            () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterState)
-        );
-        assertEquals(
-            "can not switch to STRICT compatibility mode since all indices in the cluster does not have remote store based index settings",
-            exception.getMessage()
-        );
-
-        Metadata remoteIndexMd = Metadata.builder(createIndexMetadataWithRemoteStoreSettings("test"))
-            .persistentSettings(currentCompatibilityModeSettings)
-            .build();
-        ClusterState clusterStateWithRemoteIndices = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(remoteIndexMd)
-            .nodes(discoveryNodes)
-            .build();
-        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterStateWithRemoteIndices);
-    }
-
     public void testDontAllowSwitchingCompatibilityModeForClusterWithMultipleVersions() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-
         // request to change cluster compatibility mode
         boolean toStrictMode = randomBoolean();
         Settings currentCompatibilityModeSettings = Settings.builder()
@@ -984,9 +902,9 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
     private Map<String, String> getRemoteStoreNodeAttributes() {
         Map<String, String> remoteStoreNodeAttributes = new HashMap<>();
+        remoteStoreNodeAttributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-repo-1");
         remoteStoreNodeAttributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
         remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
         return remoteStoreNodeAttributes;
     }
-
 }

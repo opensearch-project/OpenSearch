@@ -34,6 +34,9 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -45,6 +48,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.node.ResponseCollectorService;
 
 import java.io.IOException;
@@ -60,6 +64,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -75,7 +80,7 @@ import static java.util.Collections.emptyMap;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexShardRoutingTable implements Iterable<ShardRouting> {
+public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTable> implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
     // Shuffler for weighted round-robin shard routing. This uses rotation to permute shards.
@@ -209,6 +214,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      */
     public List<ShardRouting> getShards() {
         return shards();
+    }
+
+    /**
+     * Returns a {@link List} of the search only shards in the RoutingTable
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> searchOnlyReplicas() {
+        return replicas.stream().filter(ShardRouting::isSearchOnly).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a {@link List} of the writer replicas (primary eligible) shards in the RoutingTable
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> writerReplicas() {
+        return replicas.stream().filter(r -> r.isSearchOnly() == false).collect(Collectors.toList());
     }
 
     /**
@@ -527,6 +550,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return sortedShards;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        this.shardId().getIndex().writeTo(out);
+        Builder.writeToThin(this, out);
+    }
+
     private static class NodeRankComparator implements Comparator<ShardRouting> {
         private final Map<String, Double> nodeRanks;
 
@@ -619,15 +648,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return new PlainShardIterator(shardId, Collections.emptyList());
         }
 
-        LinkedList<ShardRouting> ordered = new LinkedList<>();
-        for (ShardRouting replica : shuffler.shuffle(replicas)) {
-            if (replica.active()) {
-                ordered.addFirst(replica);
-            } else if (replica.initializing()) {
-                ordered.addLast(replica);
-            }
-        }
-        return new PlainShardIterator(shardId, ordered);
+        return filterAndOrderShards(replica -> true);
+    }
+
+    public ShardIterator searchReplicaActiveInitializingShardIt() {
+        return filterAndOrderShards(ShardRouting::isSearchOnly);
     }
 
     /**
@@ -654,6 +679,20 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         // Add initializing shards last
         if (!allInitializingShards.isEmpty()) {
             ordered.addAll(allInitializingShards);
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    private ShardIterator filterAndOrderShards(Predicate<ShardRouting> filter) {
+        LinkedList<ShardRouting> ordered = new LinkedList<>();
+        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+            if (filter.test(replica)) {
+                if (replica.active()) {
+                    ordered.addFirst(replica);
+                } else if (replica.initializing()) {
+                    ordered.addLast(replica);
+                }
+            }
         }
         return new PlainShardIterator(shardId, ordered);
     }
@@ -738,9 +777,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (!shardId.equals(that.shardId)) return false;
-        if (!shards.equals(that.shards)) return false;
-
-        return true;
+        return shards.size() == that.shards.size() && shards.containsAll(that.shards) && that.shards.containsAll(shards);
     }
 
     @Override
@@ -1051,6 +1088,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
     }
 
+    public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
+        return IndexShardRoutingTable.Builder.readFrom(in);
+    }
+
+    public static Diff<IndexShardRoutingTable> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(IndexShardRoutingTable::readFrom, in);
+    }
+
     /**
      * Builder of an index shard routing table.
      *
@@ -1137,6 +1182,27 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
 
+        public static void writeVerifiableTo(IndexShardRoutingTable indexShard, BufferedChecksumStreamOutput out) throws IOException {
+            out.writeVInt(indexShard.shardId.id());
+            out.writeVInt(indexShard.shards.size());
+            // Order allocated shards by allocationId
+            AtomicInteger assignedShardCount = new AtomicInteger();
+            indexShard.shards.stream()
+                .filter(shardRouting -> shardRouting.allocationId() != null)
+                .sorted(Comparator.comparing(o -> o.allocationId().getId()))
+                .forEach(shardRouting -> {
+                    try {
+                        assignedShardCount.getAndIncrement();
+                        shardRouting.writeToThin(out);
+                    } catch (IOException e) {
+                        logger.error(() -> new ParameterizedMessage("Failed to write shard {}. Exception {}", indexShard, e));
+                        throw new RuntimeException("Failed to write IndexShardRoutingTable", e);
+                    }
+                });
+            // is primary assigned
+            out.writeBoolean(indexShard.primaryShard().allocationId() != null);
+            out.writeVInt(indexShard.shards.size() - assignedShardCount.get());
+        }
     }
 
     @Override

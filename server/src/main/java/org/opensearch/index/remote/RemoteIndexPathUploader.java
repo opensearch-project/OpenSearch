@@ -23,8 +23,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.IndexMetadataUploadListener;
-import org.opensearch.gateway.remote.RemoteClusterStateService.RemoteStateTransferException;
+import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
@@ -45,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING;
+import static org.opensearch.gateway.remote.RemoteGlobalMetadataManager.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING;
 import static org.opensearch.index.remote.RemoteIndexPath.COMBINED_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
@@ -79,8 +80,9 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     private final Settings settings;
     private final boolean isRemoteDataAttributePresent;
     private final boolean isTranslogSegmentRepoSame;
+    private final RemoteStoreSettings remoteStoreSettings;
     private final Supplier<RepositoriesService> repositoriesService;
-    private volatile TimeValue indexMetadataUploadTimeout;
+    private volatile TimeValue metadataUploadTimeout;
 
     private BlobStoreRepository translogRepository;
     private BlobStoreRepository segmentRepository;
@@ -89,7 +91,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         ThreadPool threadPool,
         Settings settings,
         Supplier<RepositoriesService> repositoriesService,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(threadPool, ThreadPool.Names.GENERIC);
         this.settings = Objects.requireNonNull(settings);
@@ -98,8 +101,9 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         // If the remote data attributes are not present, then there is no effect of translog and segment being same or different or null.
         isTranslogSegmentRepoSame = isTranslogSegmentRepoSame();
         Objects.requireNonNull(clusterSettings);
-        indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
-        clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
+        metadataUploadTimeout = clusterSettings.get(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setMetadataUploadTimeout);
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     @Override
@@ -131,7 +135,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
             logger.trace(new ParameterizedMessage("Remote index path upload started for {}", indexNames));
 
             try {
-                if (latch.await(indexMetadataUploadTimeout.millis(), TimeUnit.MILLISECONDS) == false) {
+                if (latch.await(metadataUploadTimeout.millis(), TimeUnit.MILLISECONDS) == false) {
                     RemoteStateTransferException ex = new RemoteStateTransferException(
                         String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames)
                     );
@@ -208,7 +212,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
                 basePath,
                 pathType,
                 hashAlgorithm,
-                pathCreationMap
+                pathCreationMap,
+                remoteStoreSettings
             );
             String fileName = generateFileName(indexUUID, idxMD.getVersion(), remoteIndexPath.getVersion());
             REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(remoteIndexPath, blobContainer, fileName, actionListener);
@@ -289,8 +294,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         return pathType == PathType.HASHED_PREFIX && (Objects.isNull(prevPathType) || prevPathType != PathType.HASHED_PREFIX);
     }
 
-    private void setIndexMetadataUploadTimeout(TimeValue newIndexMetadataUploadTimeout) {
-        this.indexMetadataUploadTimeout = newIndexMetadataUploadTimeout;
+    private void setMetadataUploadTimeout(TimeValue newIndexMetadataUploadTimeout) {
+        this.metadataUploadTimeout = newIndexMetadataUploadTimeout;
     }
 
     /**

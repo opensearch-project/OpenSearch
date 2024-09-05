@@ -68,6 +68,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     // Used for metric CACHE_STATS, to determine which caches to report stats for
     private EnumSet<CacheType> includeCaches = EnumSet.noneOf(CacheType.class);
     private String[] levels = new String[0];
+    private boolean includeIndicesStatsByLevel = false;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -106,6 +107,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             includeCaches = in.readEnumSet(CacheType.class);
             levels = in.readStringArray();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            includeIndicesStatsByLevel = in.readBoolean();
+        }
     }
 
     @Override
@@ -135,6 +139,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             out.writeEnumSet(includeCaches);
             out.writeStringArrayNullable(levels);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeBoolean(includeIndicesStatsByLevel);
+        }
     }
 
     /**
@@ -149,7 +156,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeUnloadedSegments = false;
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
-        includeCaches = EnumSet.noneOf(CacheType.class);
+        includeCaches = EnumSet.allOf(CacheType.class);
         levels = new String[0];
         return this;
     }
@@ -271,6 +278,14 @@ public class CommonStatsFlags implements Writeable, Cloneable {
 
     public boolean includeSegmentFileSizes() {
         return this.includeSegmentFileSizes;
+    }
+
+    public void setIncludeIndicesStatsByLevel(boolean includeIndicesStatsByLevel) {
+        this.includeIndicesStatsByLevel = includeIndicesStatsByLevel;
+    }
+
+    public boolean getIncludeIndicesStatsByLevel() {
+        return this.includeIndicesStatsByLevel;
     }
 
     public boolean isSet(Flag flag) {

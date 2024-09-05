@@ -37,7 +37,7 @@ dependencies {
   runtimeOnly "com.squareup.okhttp3:okhttp:4.11.0"
   runtimeOnly "com.squareup.okio:okio-jvm:3.5.0"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${versions.opentelemetry}"
-  api "io.opentelemetry:opentelemetry-extension-incubator:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-api-incubator:${versions.opentelemetry}-alpha"
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${versions.opentelemetry}"
 }
 
@@ -48,7 +48,9 @@ thirdPartyAudit {
    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
    'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
-   'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess'
+   'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess',
+   'io.opentelemetry.exporter.internal.marshal.UnsafeAccess',
+   'io.opentelemetry.exporter.internal.marshal.UnsafeAccess$UnsafeHolder'
   )
 
   ignoreMissingClasses(
@@ -78,17 +80,15 @@ thirdPartyAudit {
     'org.conscrypt.ConscryptHostnameVerifier',
     'org.openjsse.javax.net.ssl.SSLParameters',
     'org.openjsse.javax.net.ssl.SSLSocket',
-    'io.opentelemetry.api.events.EventBuilder',
-    'io.opentelemetry.api.events.EventEmitter',
-    'io.opentelemetry.api.events.EventEmitterBuilder',
-    'io.opentelemetry.api.events.EventEmitterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties',
     'io.opentelemetry.sdk.autoconfigure.spi.logs.ConfigurableLogRecordExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
     'kotlin.io.path.PathsKt',
     'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
-    'io.opentelemetry.sdk.autoconfigure.spi.internal.AutoConfigureListener'
+    'io.opentelemetry.sdk.autoconfigure.spi.internal.AutoConfigureListener',
+    'io.opentelemetry.sdk.autoconfigure.spi.internal.ComponentProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.internal.StructuredConfigProperties'
   )
 }
 

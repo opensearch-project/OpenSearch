@@ -48,6 +48,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
@@ -66,11 +67,13 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.cache.query.IndexQueryCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
@@ -97,6 +100,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -141,6 +145,17 @@ public final class IndexModule {
         Property.NodeScope
     );
 
+    /**
+     * Index setting which used to determine how the data is cached locally fully or partially
+     */
+    public static final Setting<DataLocalityType> INDEX_STORE_LOCALITY_SETTING = new Setting<>(
+        "index.store.data_locality",
+        DataLocalityType.FULL.name(),
+        DataLocalityType::getValueOf,
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
     public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
         "index.recovery.type",
         "",
@@ -158,6 +173,14 @@ public final class IndexModule {
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
+    );
+
+    public static final Setting<String> INDEX_TIERING_STATE = new Setting<>(
+        "index.tiering.state",
+        TieringState.HOT.name(),
+        Function.identity(),
+        Property.IndexScope,
+        Property.PrivateIndex
     );
 
     /** Which lucene file extensions to load with the mmap directory when using hybridfs store. This settings is ignored if {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} is set.
@@ -297,6 +320,8 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final FileCache fileCache;
+    private final CompositeIndexSettings compositeIndexSettings;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -315,7 +340,9 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final FileCache fileCache,
+        final CompositeIndexSettings compositeIndexSettings
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -327,6 +354,57 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCache = fileCache;
+        this.compositeIndexSettings = compositeIndexSettings;
+    }
+
+    public IndexModule(
+        final IndexSettings indexSettings,
+        final AnalysisRegistry analysisRegistry,
+        final EngineFactory engineFactory,
+        final EngineConfigFactory engineConfigFactory,
+        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final BooleanSupplier allowExpensiveQueries,
+        final IndexNameExpressionResolver expressionResolver,
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final FileCache fileCache
+    ) {
+        this(
+            indexSettings,
+            analysisRegistry,
+            engineFactory,
+            engineConfigFactory,
+            directoryFactories,
+            allowExpensiveQueries,
+            expressionResolver,
+            recoveryStateFactories,
+            fileCache,
+            null
+        );
+    }
+
+    public IndexModule(
+        final IndexSettings indexSettings,
+        final AnalysisRegistry analysisRegistry,
+        final EngineFactory engineFactory,
+        final EngineConfigFactory engineConfigFactory,
+        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final BooleanSupplier allowExpensiveQueries,
+        final IndexNameExpressionResolver expressionResolver,
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+    ) {
+        this(
+            indexSettings,
+            analysisRegistry,
+            engineFactory,
+            engineConfigFactory,
+            directoryFactories,
+            allowExpensiveQueries,
+            expressionResolver,
+            recoveryStateFactories,
+            null,
+            null
+        );
     }
 
     /**
@@ -577,12 +655,57 @@ public final class IndexModule {
         }
     }
 
+    /**
+     * Indicates the locality of the data - whether it will be cached fully or partially
+     */
+    public enum DataLocalityType {
+        /**
+         * Indicates that all the data will be cached locally
+         */
+        FULL,
+        /**
+         * Indicates that only a subset of the data will be cached locally
+         */
+        PARTIAL;
+
+        private static final Map<String, DataLocalityType> LOCALITY_TYPES;
+
+        static {
+            final Map<String, DataLocalityType> localityTypes = new HashMap<>(values().length);
+            for (final DataLocalityType dataLocalityType : values()) {
+                localityTypes.put(dataLocalityType.name(), dataLocalityType);
+            }
+            LOCALITY_TYPES = Collections.unmodifiableMap(localityTypes);
+        }
+
+        public static DataLocalityType getValueOf(final String localityType) {
+            Objects.requireNonNull(localityType, "No locality type given.");
+            final String localityTypeName = localityType.trim().toUpperCase(Locale.ROOT);
+            final DataLocalityType type = LOCALITY_TYPES.get(localityTypeName);
+            if (type != null) {
+                return type;
+            }
+            throw new IllegalArgumentException("Unknown locality type constant [" + localityType + "].");
+        }
+    }
+
     public static Type defaultStoreType(final boolean allowMmap) {
         if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
             return Type.HYBRIDFS;
         } else {
             return Type.NIOFS;
         }
+    }
+
+    /**
+     * Represents the tiering state of the index.
+     */
+    @ExperimentalApi
+    public enum TieringState {
+        HOT,
+        HOT_TO_WARM,
+        WARM,
+        WARM_TO_HOT;
     }
 
     public IndexService newIndexService(
@@ -607,6 +730,56 @@ public final class IndexModule {
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings
+    ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            recoverySettings,
+            remoteStoreSettings,
+            (s) -> {}
+        );
+    }
+
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -665,7 +838,10 @@ public final class IndexModule {
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
                 recoverySettings,
-                remoteStoreSettings
+                remoteStoreSettings,
+                fileCache,
+                compositeIndexSettings,
+                replicator
             );
             success = true;
             return indexService;

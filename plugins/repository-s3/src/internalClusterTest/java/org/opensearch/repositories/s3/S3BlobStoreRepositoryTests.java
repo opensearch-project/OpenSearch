@@ -82,7 +82,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 import fixture.s3.S3HttpHandler;
@@ -228,7 +227,6 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10735")
     @Override
     public void testRequestStats() throws Exception {
         final String repository = createRepository(randomName());
@@ -270,7 +268,12 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             } catch (RepositoryMissingException e) {
                 return null;
             }
-        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
+        }).filter(b -> {
+            if (b instanceof BlobStoreRepository) {
+                return ((BlobStoreRepository) b).blobStore() != null;
+            }
+            return false;
+        }).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
         Map<BlobStore.Metric, Map<String, Long>> extendedStats = repositoryStats.extendedStats;
         Map<String, Long> aggregatedStats = new HashMap<>();
@@ -312,6 +315,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
+            GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
+
             return new S3Repository(
                 metadata,
                 registry,
@@ -326,7 +331,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
                 false,
                 null,
                 null,
-                null
+                genericStatsMetricPublisher
             ) {
 
                 @Override

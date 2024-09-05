@@ -23,9 +23,11 @@ import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.stats.SearchTaskStats;
-import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
+import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
+import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -37,11 +39,13 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ResourceType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,9 +57,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
+import static org.opensearch.wlm.ResourceType.CPU;
+import static org.opensearch.wlm.ResourceType.MEMORY;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyDouble;
+import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -89,8 +97,15 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         AtomicReference<Double> cpuUsage = new AtomicReference<>();
         AtomicReference<Double> heapUsage = new AtomicReference<>();
-        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5);
-        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5);
+        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5, () -> 3);
+        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5, () -> 3);
+
+        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+            {
+                put(ResourceType.MEMORY, heapUsageTracker);
+                put(ResourceType.CPU, cpuUsageTracker);
+            }
+        };
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -102,9 +117,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             System::nanoTime,
-            List.of(cpuUsageTracker, heapUsageTracker),
-            Collections.emptyList(),
-            Collections.emptyList(),
+            new NodeDuressTrackers(duressTrackers),
+            new TaskResourceUsageTrackers(),
+            new TaskResourceUsageTrackers(),
             taskManager
         );
 
@@ -132,6 +147,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         LongSupplier mockTimeNanosSupplier = () -> TimeUnit.SECONDS.toNanos(1234);
         TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTracker.class);
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -143,15 +160,15 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            Collections.emptyList(),
-            List.of(mockTaskResourceUsageTracker),
-            Collections.emptyList(),
+            new NodeDuressTrackers(new EnumMap<>(ResourceType.class)),
+            taskResourceUsageTrackers,
+            new TaskResourceUsageTrackers(),
             taskManager
         );
 
         for (int i = 0; i < 100; i++) {
             // service.onTaskCompleted(new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()));
-            service.onTaskCompleted(createMockTaskWithResourceStats(SearchTask.class, 100, 200));
+            service.onTaskCompleted(createMockTaskWithResourceStats(SearchTask.class, 100, 200, i));
         }
         assertEquals(100, service.getSearchBackpressureState(SearchTask.class).getCompletionCount());
         verify(mockTaskResourceUsageTracker, times(100)).update(any());
@@ -161,6 +178,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         LongSupplier mockTimeNanosSupplier = () -> TimeUnit.SECONDS.toNanos(1234);
         TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTracker.class);
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -172,16 +191,16 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            List.of(mockTaskResourceUsageTracker),
+            new NodeDuressTrackers(new EnumMap<>(ResourceType.class)),
+            new TaskResourceUsageTrackers(),
+            taskResourceUsageTrackers,
             taskManager
         );
 
         // Record task completions to update the tracker state. Tasks other than SearchTask & SearchShardTask are ignored.
-        service.onTaskCompleted(createMockTaskWithResourceStats(CancellableTask.class, 100, 200));
+        service.onTaskCompleted(createMockTaskWithResourceStats(CancellableTask.class, 100, 200, 101));
         for (int i = 0; i < 100; i++) {
-            service.onTaskCompleted(createMockTaskWithResourceStats(SearchShardTask.class, 100, 200));
+            service.onTaskCompleted(createMockTaskWithResourceStats(SearchShardTask.class, 100, 200, i));
         }
         assertEquals(100, service.getSearchBackpressureState(SearchShardTask.class).getCompletionCount());
         verify(mockTaskResourceUsageTracker, times(100)).update(any());
@@ -192,21 +211,41 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
-        NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true);
+        NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true, () -> 3);
 
-        TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker();
+        TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker(
+            TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
+            (task) -> {
+                if (task.getTotalResourceStats().getCpuTimeInNanos() < 300) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(new TaskCancellation.Reason("limits exceeded", 5));
+            }
+        );
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         // Mocking 'settings' with predictable rate limiting thresholds.
         SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 5.0);
+
+        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> false, () -> 3);
+
+        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+            {
+                put(MEMORY, heapUsageTracker);
+                put(CPU, mockNodeDuressTracker);
+            }
+        };
 
         SearchBackpressureService service = new SearchBackpressureService(
             settings,
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            List.of(mockNodeDuressTracker),
-            List.of(mockTaskResourceUsageTracker),
-            Collections.emptyList(),
+            new NodeDuressTrackers(duressTrackers),
+            taskResourceUsageTrackers,
+            new TaskResourceUsageTrackers(),
             mockTaskManager
         );
 
@@ -225,9 +264,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         Map<Long, Task> activeSearchTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
             if (i % 3 == 0) {
-                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 500, taskHeapUsageBytes));
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 500, taskHeapUsageBytes, i));
             } else {
-                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, taskHeapUsageBytes));
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, taskHeapUsageBytes, i));
             }
         }
         doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
@@ -264,9 +303,28 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
-        NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true);
+        NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true, () -> 3);
 
-        TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker();
+        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+            {
+                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
+                put(CPU, mockNodeDuressTracker);
+            }
+        };
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers);
+
+        TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker(
+            TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
+            (task) -> {
+                if (task.getTotalResourceStats().getCpuTimeInNanos() < 300) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(new TaskCancellation.Reason("limits exceeded", 5));
+            }
+        );
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         // Mocking 'settings' with predictable rate limiting thresholds.
         SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 10.0);
@@ -276,9 +334,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            List.of(mockNodeDuressTracker),
-            Collections.emptyList(),
-            List.of(mockTaskResourceUsageTracker),
+            nodeDuressTrackers,
+            new TaskResourceUsageTrackers(),
+            taskResourceUsageTrackers,
             mockTaskManager
         );
 
@@ -297,9 +355,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         Map<Long, Task> activeSearchShardTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
             if (i % 5 == 0) {
-                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 500, taskHeapUsageBytes));
+                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 500, taskHeapUsageBytes, i));
             } else {
-                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes));
+                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes, i));
             }
         }
         doReturn(activeSearchShardTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
@@ -317,7 +375,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Simulate task completion to replenish some tokens.
         // This will add 2 tokens (task count delta * cancellationRatio) to 'rateLimitPerTaskCompletion'.
         for (int i = 0; i < 20; i++) {
-            service.onTaskCompleted(createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes));
+            service.onTaskCompleted(createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes, i));
         }
         service.doRun();
         verify(mockTaskManager, times(12)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
@@ -333,6 +391,180 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         assertEquals(expectedStats, actualStats);
     }
 
+    public void testNonCancellationOfHeapBasedTasksWhenHeapNotInDuress() {
+        TaskManager mockTaskManager = spy(taskManager);
+        TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
+        AtomicLong mockTime = new AtomicLong(0);
+        LongSupplier mockTimeNanosSupplier = mockTime::get;
+
+        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+            {
+                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
+                put(CPU, new NodeDuressTracker(() -> true, () -> 3));
+            }
+        };
+
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers);
+
+        // Creating heap and cpu usage trackers where heap tracker will always evaluate with reasons to cancel the
+        // tasks but heap based cancellation should not happen because heap is not in duress
+        TaskResourceUsageTracker heapUsageTracker = getMockedTaskResourceUsageTracker(
+            TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
+            (task) -> Optional.of(new TaskCancellation.Reason("mem exceeded", 10))
+        );
+        TaskResourceUsageTracker cpuUsageTracker = getMockedTaskResourceUsageTracker(
+            TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
+            (task) -> {
+                if (task.getTotalResourceStats().getCpuTimeInNanos() < 400) {
+                    return Optional.empty();
+                }
+                return Optional.of(new TaskCancellation.Reason("cpu time limit exceeded", 5));
+            }
+        );
+
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addTracker(cpuUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+        taskResourceUsageTrackers.addTracker(heapUsageTracker, TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER);
+
+        // Mocking 'settings' with predictable rate limiting thresholds.
+        SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 10.0);
+
+        SearchBackpressureService service = new SearchBackpressureService(
+            settings,
+            mockTaskResourceTrackingService,
+            threadPool,
+            mockTimeNanosSupplier,
+            nodeDuressTrackers,
+            taskResourceUsageTrackers,
+            new TaskResourceUsageTrackers(),
+            mockTaskManager
+        );
+
+        service.doRun();
+        service.doRun();
+
+        SearchTaskSettings searchTaskSettings = mock(SearchTaskSettings.class);
+        // setting the total heap percent threshold to minimum so that circuit does not break in SearchBackpressureService
+        when(searchTaskSettings.getTotalHeapPercentThreshold()).thenReturn(0.0);
+        when(settings.getSearchTaskSettings()).thenReturn(searchTaskSettings);
+
+        // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
+        Map<Long, Task> activeSearchTasks = new HashMap<>();
+        for (long i = 0; i < 75; i++) {
+            if (i % 5 == 0) {
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 500, 800, i));
+            } else {
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, 800, i));
+            }
+        }
+        doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
+
+        // this will trigger cancellation but these cancellation should only be cpu based
+        service.doRun();
+        verify(mockTaskManager, times(5)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
+        assertEquals(5, service.getSearchBackpressureState(SearchTask.class).getCancellationCount());
+        assertEquals(1, service.getSearchBackpressureState(SearchTask.class).getLimitReachedCount());
+
+        SearchBackpressureStats expectedStats = new SearchBackpressureStats(
+            new SearchTaskStats(
+                5,
+                1,
+                Map.of(
+                    TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
+                    new MockStats(5),
+                    TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
+                    new MockStats(0)
+                )
+            ),
+            new SearchShardTaskStats(0, 0, Collections.emptyMap()),
+            SearchBackpressureMode.ENFORCED
+        );
+
+        SearchBackpressureStats actualStats = service.nodeStats();
+        assertEquals(expectedStats, actualStats);
+    }
+
+    public void testNonCancellationWhenSearchTrafficIsNotQualifyingForCancellation() {
+        TaskManager mockTaskManager = spy(taskManager);
+        TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
+        AtomicLong mockTime = new AtomicLong(0);
+        LongSupplier mockTimeNanosSupplier = mockTime::get;
+
+        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+            {
+                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
+                put(CPU, new NodeDuressTracker(() -> true, () -> 3));
+            }
+        };
+
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers);
+
+        // Creating heap and cpu usage trackers where heap tracker will always evaluate with reasons to cancel the
+        // tasks but heap based cancellation should not happen because heap is not in duress
+        TaskResourceUsageTracker heapUsageTracker = getMockedTaskResourceUsageTracker(
+            TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
+            (task) -> Optional.of(new TaskCancellation.Reason("mem exceeded", 10))
+        );
+        TaskResourceUsageTracker cpuUsageTracker = getMockedTaskResourceUsageTracker(
+            TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
+            (task) -> {
+                if (task.getTotalResourceStats().getCpuTimeInNanos() < 400) {
+                    return Optional.empty();
+                }
+                return Optional.of(new TaskCancellation.Reason("cpu time limit exceeded", 5));
+            }
+        );
+
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addTracker(cpuUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+        taskResourceUsageTrackers.addTracker(heapUsageTracker, TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER);
+
+        // Mocking 'settings' with predictable rate limiting thresholds.
+        SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 10.0);
+
+        SearchBackpressureService service = spy(
+            new SearchBackpressureService(
+                settings,
+                mockTaskResourceTrackingService,
+                threadPool,
+                mockTimeNanosSupplier,
+                nodeDuressTrackers,
+                taskResourceUsageTrackers,
+                new TaskResourceUsageTrackers(),
+                mockTaskManager
+            )
+        );
+
+        when(service.isHeapUsageDominatedBySearch(anyList(), anyDouble())).thenReturn(false);
+
+        service.doRun();
+        service.doRun();
+
+        SearchTaskSettings searchTaskSettings = mock(SearchTaskSettings.class);
+        // setting the total heap percent threshold to minimum so that circuit does not break in SearchBackpressureService
+        when(searchTaskSettings.getTotalHeapPercentThreshold()).thenReturn(0.0);
+        when(settings.getSearchTaskSettings()).thenReturn(searchTaskSettings);
+
+        // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
+        Map<Long, Task> activeSearchTasks = new HashMap<>();
+        for (long i = 0; i < 75; i++) {
+            Class<? extends CancellableTask> taskType = randomBoolean() ? SearchTask.class : SearchShardTask.class;
+            if (i % 5 == 0) {
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(taskType, 500, 800, i));
+            } else {
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(taskType, 100, 800, i));
+            }
+        }
+        doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
+
+        // this will trigger cancellation but the cancellation should not happen as the node is not is duress because of search traffic
+        service.doRun();
+
+        verify(mockTaskManager, times(0)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
+        assertEquals(0, service.getSearchBackpressureState(SearchTask.class).getCancellationCount());
+        assertEquals(0, service.getSearchBackpressureState(SearchShardTask.class).getCancellationCount());
+    }
+
     private SearchBackpressureSettings getBackpressureSettings(String mode, double ratio, double rate, double burst) {
         return spy(
             new SearchBackpressureSettings(
@@ -342,11 +574,14 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         );
     }
 
-    private TaskResourceUsageTracker getMockedTaskResourceUsageTracker() {
+    private TaskResourceUsageTracker getMockedTaskResourceUsageTracker(
+        TaskResourceUsageTrackerType type,
+        TaskResourceUsageTracker.ResourceUsageBreachEvaluator evaluator
+    ) {
         return new TaskResourceUsageTracker() {
             @Override
             public String name() {
-                return TaskResourceUsageTrackerType.CPU_USAGE_TRACKER.getName();
+                return type.getName();
             }
 
             @Override
@@ -354,11 +589,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
             @Override
             public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
-                if (task.getTotalResourceStats().getCpuTimeInNanos() < 300) {
-                    return Optional.empty();
-                }
-
-                return Optional.of(new TaskCancellation.Reason("limits exceeded", 5));
+                return evaluator.evaluate(task);
             }
 
             @Override

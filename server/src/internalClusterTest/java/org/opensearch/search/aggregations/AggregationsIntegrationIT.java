@@ -57,7 +57,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.stats;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -81,8 +84,12 @@ public class AggregationsIntegrationIT extends ParameterizedStaticSettingsOpenSe
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_ALL).build() },
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_AUTO).build() },
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_NONE).build() }
         );
     }
 
@@ -186,5 +193,28 @@ public class AggregationsIntegrationIT extends ParameterizedStaticSettingsOpenSe
 
         // Validate non-global agg does not throw an exception
         assertSearchResponse(client().prepareSearch("idx").addAggregation(stats("value_stats").field("score")).get());
+    }
+
+    public void testAggsWithTerminateAfter() throws InterruptedException {
+        assertAcked(
+            prepareCreate(
+                "terminate_index",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("f", "type=keyword").get()
+        );
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(5, 20); ++i) {
+            docs.add(client().prepareIndex("terminate_index").setSource("f", Integer.toString(i / 3)));
+        }
+        indexRandom(true, docs);
+
+        SearchResponse response = client().prepareSearch("terminate_index")
+            .setSize(2)
+            .setTerminateAfter(1)
+            .addAggregation(terms("f").field("f"))
+            .get();
+        assertSearchResponse(response);
+        assertTrue(response.isTerminatedEarly());
+        assertEquals(response.getHits().getHits().length, 1);
     }
 }

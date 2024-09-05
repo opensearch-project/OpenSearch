@@ -78,7 +78,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
     public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -125,7 +125,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
     public void testInboundUnknownAction() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = unknownAction;
         // Initiate Message
@@ -149,7 +149,13 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
     public void testCircuitBreak() throws IOException {
         circuitBreaker.startBreaking();
         // Actions are breakable
-        Header breakableHeader = new Header(randomInt(), randomNonNegativeLong(), TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header breakableHeader = new Header(
+            TransportProtocol.NATIVE,
+            randomInt(),
+            randomNonNegativeLong(),
+            TransportStatus.setRequest((byte) 0),
+            Version.CURRENT
+        );
         breakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         breakableHeader.actionName = "action_name";
         // Initiate Message
@@ -169,7 +175,13 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         assertThat(aggregated1.getException(), instanceOf(CircuitBreakingException.class));
 
         // Actions marked as unbreakable are not broken
-        Header unbreakableHeader = new Header(randomInt(), randomNonNegativeLong(), TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header unbreakableHeader = new Header(
+            TransportProtocol.NATIVE,
+            randomInt(),
+            randomNonNegativeLong(),
+            TransportStatus.setRequest((byte) 0),
+            Version.CURRENT
+        );
         unbreakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         unbreakableHeader.actionName = unBreakableAction;
         // Initiate Message
@@ -188,7 +200,13 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
         // Handshakes are not broken
         final byte handshakeStatus = TransportStatus.setHandshake(TransportStatus.setRequest((byte) 0));
-        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, Version.CURRENT);
+        Header handshakeHeader = new Header(
+            TransportProtocol.NATIVE,
+            randomInt(),
+            randomNonNegativeLong(),
+            handshakeStatus,
+            Version.CURRENT
+        );
         handshakeHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         handshakeHeader.actionName = "handshake";
         // Initiate Message
@@ -208,7 +226,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
     public void testCloseWillCloseContent() {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -248,7 +266,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         } else {
             actionName = "action_name";
         }
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         // Initiate Message
         aggregator.headerReceived(header);
 

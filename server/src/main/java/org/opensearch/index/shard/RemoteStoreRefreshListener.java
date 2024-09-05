@@ -30,6 +30,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
@@ -170,6 +171,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true if sync is needed
      */
     private boolean shouldSync(boolean didRefresh, boolean skipPrimaryTermCheck) {
+        // Ignore syncing segments if the underlying shard is closed
+        // This also makes sure that retries are not scheduled for shards
+        // with failed syncSegments invocation after they are closed
+        if (shardClosed()) {
+            logger.info("Shard is already closed. Not attempting sync to remote store");
+            return false;
+        }
         boolean shouldSync = didRefresh // If the readers change, didRefresh is always true.
             // The third condition exists for uploading the zero state segments where the refresh has not changed the reader
             // reference, but it is important to upload the zero state segments so that the restore does not break.
@@ -432,6 +440,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         logger.debug("Effective new segments files to upload {}", filteredFiles);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
+        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
         for (String src : filteredFiles) {
             // Initializing listener here to ensure that the stats increment operations are thread-safe
@@ -439,6 +448,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
                 statsListener.onSuccess(src);
                 batchUploadListener.onResponse(resp);
+                if (directory instanceof CompositeDirectory) {
+                    ((CompositeDirectory) directory).afterSyncToRemote(src);
+                }
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
                 if (ex instanceof CorruptIndexException) {
@@ -452,8 +464,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         }
     }
 
-    private boolean isLowPriorityUpload() {
-        return isLocalOrSnapshotRecovery();
+    boolean isLowPriorityUpload() {
+        return isLocalOrSnapshotRecoveryOrSeeding();
     }
 
     /**
@@ -543,7 +555,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff the shard is a started with primary mode true or it is local or snapshot recovery.
      */
     private boolean isReadyForUpload() {
-        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery() || indexShard.shouldSeedRemoteStore();
+        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecoveryOrSeeding();
 
         if (isReady == false) {
             StringBuilder sb = new StringBuilder("Skipped syncing segments with");
@@ -565,14 +577,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return isReady;
     }
 
-    private boolean isLocalOrSnapshotRecovery() {
+    boolean isLocalOrSnapshotRecoveryOrSeeding() {
         // In this case when the primary mode is false, we need to upload segments to Remote Store
-        // This is required in case of snapshots/shrink/ split/clone where we need to durable persist
+        // This is required in case of remote migration seeding/snapshots/shrink/ split/clone where we need to durable persist
         // all segments to remote before completing the recovery to ensure durability.
         return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
             && indexShard.recoveryState() != null
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                || indexShard.shouldSeedRemoteStore());
     }
 
     /**
@@ -606,6 +619,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
             }
         };
+    }
+
+    /**
+     * Checks if the underlying IndexShard instance is closed
+     *
+     * @return true if it is closed, false otherwise
+     */
+    private boolean shardClosed() {
+        return indexShard.state() == IndexShardState.CLOSED;
     }
 
     @Override

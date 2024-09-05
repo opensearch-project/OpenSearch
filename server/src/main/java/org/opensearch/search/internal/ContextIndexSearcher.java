@@ -69,6 +69,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -218,6 +219,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
+        } else if (query instanceof ApproximateScoreQuery) {
+            ((ApproximateScoreQuery) query).setContext(searchContext);
+            return super.createWeight(query, scoreMode, boost);
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
@@ -270,20 +274,27 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
-        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
-        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
-        // reader order here.
-        if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
-            for (int i = leaves.size() - 1; i >= 0; i--) {
-                searchLeaf(leaves.get(i), weight, collector);
+        searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
+        try {
+            // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+            // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+            // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+            // reader order here.
+            if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
+                for (int i = leaves.size() - 1; i >= 0; i--) {
+                    searchLeaf(leaves.get(i), weight, collector);
+                }
+            } else {
+                for (int i = 0; i < leaves.size(); i++) {
+                    searchLeaf(leaves.get(i), weight, collector);
+                }
             }
-        } else {
-            for (int i = 0; i < leaves.size(); i++) {
-                searchLeaf(leaves.get(i), weight, collector);
-            }
+            searchContext.bucketCollectorProcessor().processPostCollection(collector);
+        } catch (Throwable t) {
+            searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);
+            throw t;
         }
-        searchContext.bucketCollectorProcessor().processPostCollection(collector);
+        searchContext.indexShard().getSearchOperationListener().onSliceExecution(searchContext);
     }
 
     /**

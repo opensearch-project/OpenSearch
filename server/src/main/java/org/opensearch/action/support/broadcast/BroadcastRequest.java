@@ -52,6 +52,8 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
+    protected boolean shouldCancelOnTimeout = false;
+
     public BroadcastRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
@@ -124,5 +126,13 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
+    }
+
+    public void setShouldCancelOnTimeout(boolean shouldCancelOnTimeout) {
+        this.shouldCancelOnTimeout = shouldCancelOnTimeout;
+    }
+
+    public boolean getShouldCancelOnTimeout() {
+        return this.shouldCancelOnTimeout;
     }
 }

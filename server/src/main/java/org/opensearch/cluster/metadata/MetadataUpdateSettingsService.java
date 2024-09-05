@@ -57,24 +57,33 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findComponentTemplate;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
@@ -196,6 +205,7 @@ public class MetadataUpdateSettingsService {
                     Set<Index> openIndices = new HashSet<>();
                     Set<Index> closeIndices = new HashSet<>();
                     final String[] actualIndices = new String[request.indices().length];
+                    final List<String> validationErrors = new ArrayList<>();
                     for (int i = 0; i < request.indices().length; i++) {
                         Index index = request.indices()[i];
                         actualIndices[i] = index.getName();
@@ -205,6 +215,25 @@ public class MetadataUpdateSettingsService {
                         } else {
                             closeIndices.add(index);
                         }
+                        if (metadata.context() != null) {
+                            validateOverlap(
+                                normalizedSettings.keySet(),
+                                findComponentTemplate(currentState.metadata(), metadata.context()).template().settings(),
+                                index.getName()
+                            ).ifPresent(validationErrors::add);
+                        }
+                        validateTranslogFlushIntervalSettingsForCompositeIndex(
+                            normalizedSettings,
+                            clusterService.getClusterSettings(),
+                            metadata.getSettings()
+                        ).ifPresent(validationErrors::add);
+
+                    }
+
+                    if (validationErrors.size() > 0) {
+                        ValidationException exception = new ValidationException();
+                        exception.addValidationErrors(validationErrors);
+                        throw exception;
                     }
 
                     if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
@@ -257,6 +286,34 @@ public class MetadataUpdateSettingsService {
                             routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                             metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                             logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
+                        }
+                    }
+
+                    if (IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(openSettings)) {
+                        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
+                            validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
+                        }
+                        final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
+                        if (preserveExisting == false) {
+                            // TODO: Honor awareness validation to search replicas.
+
+                            // Verify that this won't take us over the cluster shard limit.
+                            int totalNewShards = Arrays.stream(request.indices())
+                                .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfSearchReplicas))
+                                .sum();
+                            Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
+                            if (error.isPresent()) {
+                                ValidationException ex = new ValidationException();
+                                ex.addValidationError(error.get());
+                                throw ex;
+                            }
+                            routingTableBuilder.updateNumberOfSearchReplicas(updatedNumberOfSearchReplicas, actualIndices);
+                            metadataBuilder.updateNumberOfSearchReplicas(updatedNumberOfSearchReplicas, actualIndices);
+                            logger.info(
+                                "updating number_of_Search Replicas to [{}] for indices {}",
+                                updatedNumberOfSearchReplicas,
+                                actualIndices
+                            );
                         }
                     }
 
@@ -468,5 +525,28 @@ public class MetadataUpdateSettingsService {
                 }
             }
         );
+    }
+
+    /**
+     * Validates that if we are trying to update search replica count the index is segrep enabled.
+     *
+     * @param requestSettings {@link Settings}
+     * @param indices indices that are changing
+     * @param currentState {@link ClusterState} current cluster state
+     */
+    private void validateSearchReplicaCountSettings(Settings requestSettings, Index[] indices, ClusterState currentState) {
+        final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings);
+        if (updatedNumberOfSearchReplicas > 0) {
+            if (Arrays.stream(indices).allMatch(index -> currentState.metadata().isSegmentReplicationEnabled(index.getName())) == false) {
+                throw new IllegalArgumentException(
+                    "To set "
+                        + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                        + ", "
+                        + INDEX_REPLICATION_TYPE_SETTING.getKey()
+                        + " must be set to "
+                        + ReplicationType.SEGMENT
+                );
+            }
+        }
     }
 }

@@ -11,24 +11,30 @@ package org.opensearch.plugin.insights.core.service;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.insights.QueryInsightsTestUtils;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit Tests for {@link QueryInsightsService}.
  */
 public class TopQueriesServiceTests extends OpenSearchTestCase {
     private TopQueriesService topQueriesService;
+    private final ThreadPool threadPool = mock(ThreadPool.class);
+    private final QueryInsightsExporterFactory queryInsightsExporterFactory = mock(QueryInsightsExporterFactory.class);
 
     @Before
     public void setup() {
-        topQueriesService = new TopQueriesService(MetricType.LATENCY);
+        topQueriesService = new TopQueriesService(MetricType.LATENCY, threadPool, queryInsightsExporterFactory);
         topQueriesService.setTopNSize(Integer.MAX_VALUE);
         topQueriesService.setWindowSize(new TimeValue(Long.MAX_VALUE));
         topQueriesService.setEnabled(true);
@@ -70,6 +76,10 @@ public class TopQueriesServiceTests extends OpenSearchTestCase {
 
     public void testValidateTopNSize() {
         assertThrows(IllegalArgumentException.class, () -> { topQueriesService.validateTopNSize(QueryInsightsSettings.MAX_N_SIZE + 1); });
+    }
+
+    public void testValidateNegativeTopNSize() {
+        assertThrows(IllegalArgumentException.class, () -> { topQueriesService.validateTopNSize(-1); });
     }
 
     public void testGetTopQueriesWhenNotEnabled() {

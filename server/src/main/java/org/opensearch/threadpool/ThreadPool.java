@@ -104,6 +104,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        public static final String SNAPSHOT_DELETION = "snapshot_deletion";
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
@@ -114,6 +115,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_PURGE = "remote_purge";
         public static final String REMOTE_REFRESH_RETRY = "remote_refresh_retry";
         public static final String REMOTE_RECOVERY = "remote_recovery";
+        public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
     }
 
@@ -174,6 +176,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
         map.put(Names.WARMER, ThreadPoolType.SCALING);
         map.put(Names.SNAPSHOT, ThreadPoolType.SCALING);
+        map.put(Names.SNAPSHOT_DELETION, ThreadPoolType.SCALING);
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
@@ -186,6 +189,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
+        map.put(Names.REMOTE_STATE_READ, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -231,6 +235,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+        final int snapshotDeletionPoolMax = boundedBy(4 * allocatedProcessors, 64, 256);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
@@ -261,6 +266,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(
+            Names.SNAPSHOT_DELETION,
+            new ScalingExecutorBuilder(Names.SNAPSHOT_DELETION, 1, snapshotDeletionPoolMax, TimeValue.timeValueMinutes(5))
+        );
+        builders.put(
             Names.FETCH_SHARD_STARTED,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
         );
@@ -285,6 +294,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.REMOTE_RECOVERY,
             new ScalingExecutorBuilder(
                 Names.REMOTE_RECOVERY,
+                1,
+                twiceAllocatedProcessors(allocatedProcessors),
+                TimeValue.timeValueMinutes(5)
+            )
+        );
+        builders.put(
+            Names.REMOTE_STATE_READ,
+            new ScalingExecutorBuilder(
+                Names.REMOTE_STATE_READ,
                 1,
                 twiceAllocatedProcessors(allocatedProcessors),
                 TimeValue.timeValueMinutes(5)

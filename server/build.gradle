@@ -36,7 +36,7 @@ plugins {
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
   id('opensearch.optional-dependencies')
-  id('me.champeau.gradle.japicmp') version '0.4.2'
+  id('me.champeau.gradle.japicmp') version '0.4.3'
 }
 
 publishing {
@@ -96,9 +96,9 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
-  // precentil ranks aggregation
-  api 'org.hdrhistogram:HdrHistogram:2.2.1'
+  api "com.tdunning:t-digest:${versions.tdigest}"
+  // percentile ranks aggregation
+  api "org.hdrhistogram:HdrHistogram:${versions.hdrhistogram}"
 
   // lucene spatial
   api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
@@ -124,6 +124,9 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+
+  // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
+  implementation 'org.roaringbitmap:RoaringBitmap:1.2.1'
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -393,14 +396,18 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("dependencyLicenses").configure {
+    mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.opensearch') == false ||
-                // keep the following org.opensearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
-    }
+    dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
+        componentFilter {
+            it instanceof ModuleComponentIdentifier &&
+                (it.group.startsWith('org.opensearch') == false ||
+                    // keep the following org.opensearch jars in
+                    (it.name == 'jna' ||
+                            it.name == 'securesm'))
+        }
+    }.files
 }
 
 tasks.named("filepermissions").configure {
@@ -441,6 +448,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     failOnModification = true
     ignoreMissingClasses = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
+    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadJapicmpCompareTarget

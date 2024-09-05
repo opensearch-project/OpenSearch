@@ -51,7 +51,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.gateway.TestGatewayAllocator;
@@ -64,7 +63,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 
@@ -325,7 +323,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         return createInitialClusterState(service, indexSettings, Settings.EMPTY);
     }
 
-    private ClusterState createInitialClusterState(AllocationService service, Settings idxSettings, Settings clusterSettings) {
+    static ClusterState createInitialClusterState(AllocationService service, Settings idxSettings, Settings clusterSettings) {
         Metadata.Builder metadata = Metadata.builder();
         metadata.persistentSettings(clusterSettings);
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(idxSettings);
@@ -416,7 +414,6 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
     public void testMixedModeRemoteStoreAllocation() {
         // For mixed mode remote store direction cluster's existing indices replica creation ,
         // we don't consider filter allocation decider for replica of existing indices
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build());
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Settings initialSettings = Settings.builder()
             .put("cluster.routing.allocation.exclude._id", "node2")

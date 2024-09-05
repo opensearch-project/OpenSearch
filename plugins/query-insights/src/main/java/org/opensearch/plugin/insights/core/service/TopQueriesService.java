@@ -8,11 +8,19 @@
 
 package org.opensearch.plugin.insights.core.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporter;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
+import org.opensearch.plugin.insights.core.exporter.SinkType;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -27,6 +35,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_QUERIES_INDEX_PATTERN;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_QUERIES_EXPORTER_TYPE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORTER_TYPE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORT_INDEX;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.QUERY_INSIGHTS_EXECUTOR;
+
 /**
  * Service responsible for gathering and storing top N queries
  * with high latency or resource usage
@@ -34,6 +48,10 @@ import java.util.stream.Stream;
  * @opensearch.internal
  */
 public class TopQueriesService {
+    /**
+     * Logger of the local index exporter
+     */
+    private final Logger logger = LogManager.getLogger();
     private boolean enabled;
     /**
      * The metric type to measure top n queries
@@ -63,12 +81,34 @@ public class TopQueriesService {
      */
     private final AtomicReference<List<SearchQueryRecord>> topQueriesHistorySnapshot;
 
-    TopQueriesService(final MetricType metricType) {
+    /**
+     * Factory for validating and creating exporters
+     */
+    private final QueryInsightsExporterFactory queryInsightsExporterFactory;
+
+    /**
+     * The internal OpenSearch thread pool that execute async processing and exporting tasks
+     */
+    private final ThreadPool threadPool;
+
+    /**
+     * Exporter for exporting top queries data
+     */
+    private QueryInsightsExporter exporter;
+
+    TopQueriesService(
+        final MetricType metricType,
+        final ThreadPool threadPool,
+        final QueryInsightsExporterFactory queryInsightsExporterFactory
+    ) {
         this.enabled = false;
         this.metricType = metricType;
+        this.threadPool = threadPool;
+        this.queryInsightsExporterFactory = queryInsightsExporterFactory;
         this.topNSize = QueryInsightsSettings.DEFAULT_TOP_N_SIZE;
         this.windowSize = QueryInsightsSettings.DEFAULT_WINDOW_SIZE;
         this.windowStart = -1L;
+        this.exporter = null;
         topQueriesStore = new PriorityQueue<>(topNSize, (a, b) -> SearchQueryRecord.compare(a, b, metricType));
         topQueriesCurrentSnapshot = new AtomicReference<>(new ArrayList<>());
         topQueriesHistorySnapshot = new AtomicReference<>(new ArrayList<>());
@@ -98,17 +138,15 @@ public class TopQueriesService {
      * @param size the wanted top N size
      */
     public void validateTopNSize(final int size) {
-        if (size > QueryInsightsSettings.MAX_N_SIZE) {
+        if (size < 1 || size > QueryInsightsSettings.MAX_N_SIZE) {
             throw new IllegalArgumentException(
                 "Top N size setting for ["
                     + metricType
                     + "]"
-                    + " should be smaller than max top N size ["
+                    + " should be between 1 and "
                     + QueryInsightsSettings.MAX_N_SIZE
-                    + "was ("
+                    + ", was ("
                     + size
-                    + " > "
-                    + QueryInsightsSettings.MAX_N_SIZE
                     + ")"
             );
         }
@@ -167,6 +205,47 @@ public class TopQueriesService {
                     + ")"
             );
         }
+    }
+
+    /**
+     * Set up the top queries exporter based on provided settings
+     *
+     * @param settings exporter config {@link Settings}
+     */
+    public void setExporter(final Settings settings) {
+        if (settings.get(EXPORTER_TYPE) != null) {
+            SinkType expectedType = SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE));
+            if (exporter != null && expectedType == SinkType.getSinkTypeFromExporter(exporter)) {
+                queryInsightsExporterFactory.updateExporter(exporter, settings.get(EXPORT_INDEX, DEFAULT_TOP_N_QUERIES_INDEX_PATTERN));
+            } else {
+                try {
+                    queryInsightsExporterFactory.closeExporter(this.exporter);
+                } catch (IOException e) {
+                    logger.error("Fail to close the current exporter when updating exporter, error: ", e);
+                }
+                this.exporter = queryInsightsExporterFactory.createExporter(
+                    SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE)),
+                    settings.get(EXPORT_INDEX, DEFAULT_TOP_N_QUERIES_INDEX_PATTERN)
+                );
+            }
+        } else {
+            // Disable exporter if exporter type is set to null
+            try {
+                queryInsightsExporterFactory.closeExporter(this.exporter);
+                this.exporter = null;
+            } catch (IOException e) {
+                logger.error("Fail to close the current exporter when disabling exporter, error: ", e);
+            }
+        }
+    }
+
+    /**
+     * Validate provided settings for top queries exporter
+     *
+     * @param settings settings exporter config {@link Settings}
+     */
+    public void validateExporterConfig(Settings settings) {
+        queryInsightsExporterFactory.validateExporterConfig(settings);
     }
 
     /**
@@ -254,6 +333,10 @@ public class TopQueriesService {
             topQueriesStore.clear();
             topQueriesCurrentSnapshot.set(new ArrayList<>());
             windowStart = newWindowStart;
+            // export to the configured sink
+            if (exporter != null) {
+                threadPool.executor(QUERY_INSIGHTS_EXECUTOR).execute(() -> exporter.export(history));
+            }
         }
     }
 
@@ -278,5 +361,12 @@ public class TopQueriesService {
      */
     public List<SearchQueryRecord> getTopQueriesCurrentSnapshot() {
         return topQueriesCurrentSnapshot.get();
+    }
+
+    /**
+     * Close the top n queries service
+     */
+    public void close() throws IOException {
+        queryInsightsExporterFactory.closeExporter(this.exporter);
     }
 }

@@ -42,7 +42,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.index.IndexModule;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -304,6 +304,10 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         out.writeMap(indicesBlocks, StreamOutput::writeString, (o, s) -> writeBlockSet(s, o));
     }
 
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        writeTo(out);
+    }
+
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {
         out.writeCollection(blocks);
     }
@@ -399,7 +403,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             if (IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.get(indexMetadata.getSettings())) {
                 addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             }
-            if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()))) {
+            if (indexMetadata.isRemoteSnapshot()) {
                 addIndexBlock(indexName, IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE);
             }
             return this;

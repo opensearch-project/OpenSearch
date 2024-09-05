@@ -8,9 +8,9 @@
 
 package org.opensearch.common.annotation.processor;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.InternalApi;
 
-@PublicApi(since = "1.0.0")
+@InternalApi
 public class InternalApiAnnotated {
 
 }

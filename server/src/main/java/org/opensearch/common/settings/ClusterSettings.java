@@ -50,6 +50,7 @@ import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.opensearch.cluster.coordination.Coordinator;
@@ -76,6 +77,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
@@ -105,7 +107,9 @@ import org.opensearch.gateway.DanglingIndicesState;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
+import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -114,9 +118,10 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -129,6 +134,7 @@ import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.store.IndicesStore;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsService;
 import org.opensearch.monitor.jvm.JvmGcMonitorService;
@@ -149,7 +155,6 @@ import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionCo
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
@@ -171,6 +176,7 @@ import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportSettings;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -179,6 +185,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+
+import static org.opensearch.gateway.remote.RemoteGlobalMetadataManager.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING;
+import static org.opensearch.gateway.remote.RemoteIndexMetadataManager.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING;
+import static org.opensearch.gateway.remote.RemoteManifestManager.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -262,6 +272,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.SHARD_MOVEMENT_STRATEGY_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
+                BalancedShardsAllocator.IGNORE_THROTTLE_FOR_REMOTE_RESTORE,
+                BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_TYPE,
@@ -302,10 +314,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
+                RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
                 RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT,
+                RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
@@ -335,6 +349,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 GatewayService.RECOVER_AFTER_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_TIME_SETTING,
                 ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE,
+                ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING,
+                ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING,
                 PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
                 NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
@@ -393,11 +409,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,  // deprecated
                 ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                IngestService.MAX_NUMBER_OF_INGEST_PROCESSORS,
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
-                TransportSearchAction.SEARCH_QUERY_METRICS_ENABLED_SETTING,
                 TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
@@ -533,6 +549,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
                 SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
+                SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
+                SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
@@ -582,7 +600,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                 ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
                 ResourceWatcherService.RELOAD_INTERVAL_LOW,
-                SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                 FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                 Node.BREAKER_TYPE_KEY,
@@ -621,6 +638,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
                 HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
                 SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+                SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API,
                 FsHealthService.ENABLED_SETTING,
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
@@ -690,7 +708,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
-                FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
+                FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
@@ -713,15 +731,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL,
 
                 // Remote cluster state settings
+                RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
-                RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
-                RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
-                RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
+                INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
+                GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
+                METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
+                RemoteClusterStateService.REMOTE_STATE_READ_TIMEOUT_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
 
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
                 IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
+                RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING,
+                RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING,
+                RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING,
 
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
@@ -733,8 +756,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
 
                 // Concurrent segment search settings
-                SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
+                SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
                 SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
+                SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE,
 
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
@@ -743,7 +767,29 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
-                RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX,
+
+                // Composite index settings
+                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
+                CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+
+                SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
+
+                // WorkloadManagement settings
+                WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
+
+                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+
+                // Composite index settings
+                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING
             )
         )
     );
@@ -773,6 +819,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
                 CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
             )
-        )
+        ),
+        List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
+        List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING)
     );
 }

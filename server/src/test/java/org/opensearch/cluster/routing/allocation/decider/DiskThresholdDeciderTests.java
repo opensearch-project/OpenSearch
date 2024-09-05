@@ -69,7 +69,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
@@ -95,6 +94,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -381,6 +381,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .build();
 
         // We have an index with 2 primary shards each taking 40 bytes. Each node has 100 bytes available
@@ -406,7 +407,6 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(remoteIndexSettings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-            .persistentSettings(Settings.builder().put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5).build())
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
@@ -530,6 +530,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         // Primary should initialize, even though both nodes are over the limit initialize
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
+        // below checks are unnecessary as the primary shard is always assigned to node2 as BSA always picks up that node
+        // first as both node1 and node2 have equal weight as both of them contain zero shards.
         String nodeWithPrimary, nodeWithoutPrimary;
         if (clusterState.getRoutingNodes().node("node1").size() == 1) {
             nodeWithPrimary = "node1";
@@ -679,10 +681,12 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logShardStates(clusterState);
-        // primary shard already has been relocated away
-        assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
-        // node with increased space still has its shard
-        assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
+        // primary shard already has been relocated away - this is a wrong expectation as we don't really move
+        // primary first unless explicitly set by setting. This is caught with PR
+        // https://github.com/opensearch-project/OpenSearch/pull/15239/
+        // as it randomises nodes to check for potential moves
+        // assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
+        // assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
 
@@ -861,19 +865,6 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         // is still below the high watermark (unlike node3)
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
-    }
-
-    public void testAverageUsage() {
-        RoutingNode rn = new RoutingNode("node1", newNode("node1"));
-        DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
-
-        final Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
-
-        DiskUsage node1Usage = decider.averageUsage(rn, usages);
-        assertThat(node1Usage.getTotalBytes(), equalTo(100L));
-        assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
 
     public void testFreeDiskPercentageAfterShardAssigned() {

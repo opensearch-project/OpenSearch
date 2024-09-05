@@ -46,11 +46,18 @@ public class RemoteStoreNodeAttribute {
         + "."
         + CryptoMetadata.SETTINGS_KEY;
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
+    public static final String REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.routing_table.repository";
+
     private final RepositoriesMetadata repositoriesMetadata;
 
     public static List<String> SUPPORTED_DATA_REPO_NAME_ATTRIBUTES = List.of(
         REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
         REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+    );
+
+    public static List<String> REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES = List.of(
+        REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+        REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY
     );
 
     /**
@@ -157,6 +164,10 @@ public class RemoteStoreNodeAttribute {
         } else if (node.getAttributes().containsKey(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY));
         }
+        if (node.getAttributes().containsKey(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        }
+
         return repositoryNames;
     }
 
@@ -185,6 +196,15 @@ public class RemoteStoreNodeAttribute {
     public static boolean isRemoteStoreClusterStateEnabled(Settings settings) {
         return RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings)
             && isRemoteClusterStateAttributePresent(settings);
+    }
+
+    private static boolean isRemoteRoutingTableAttributePresent(Settings settings) {
+        return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)
+            .isEmpty() == false;
+    }
+
+    public static boolean isRemoteRoutingTableEnabled(Settings settings) {
+        return isRemoteRoutingTableAttributePresent(settings);
     }
 
     public RepositoriesMetadata getRepositoriesMetadata() {
@@ -229,6 +249,29 @@ public class RemoteStoreNodeAttribute {
                 : Objects.hash(repositoryMetadata.name(), repositoryMetadata.type(), repositoryMetadata.settings()));
         }
         return hashCode;
+    }
+
+    /**
+     * Checks if 2 instances are equal, with option to skip check for a list of repos.
+     * *
+     * @param o other instance
+     * @param reposToSkip list of repos to skip check for equality
+     * @return {@code true} iff both instances are equal, not including the repositories in both instances if they are part of reposToSkip.
+     */
+    public boolean equalsWithRepoSkip(Object o, List<String> reposToSkip) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsWithRepoSkip(that.getRepositoriesMetadata(), reposToSkip);
+    }
+
+    public boolean equalsForRepositories(Object otherNode, List<String> repositoryToValidate) {
+        if (this == otherNode) return true;
+        if (otherNode == null || getClass() != otherNode.getClass()) return false;
+
+        RemoteStoreNodeAttribute other = (RemoteStoreNodeAttribute) otherNode;
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsForRepo(other.repositoriesMetadata, repositoryToValidate);
     }
 
     @Override

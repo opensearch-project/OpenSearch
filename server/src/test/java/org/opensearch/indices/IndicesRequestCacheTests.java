@@ -95,16 +95,18 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
@@ -488,7 +490,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             indexShard.hashCode()
         );
         // test the mapping
-        ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -551,7 +554,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         );
 
         // test the mapping
-        ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -719,7 +723,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
         assertEquals(1, cache.count());
         // test the mappings
-        ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(reader)));
 
         cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
@@ -792,25 +797,73 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IOUtils.close(secondReader);
     }
 
-    private DirectoryReader getReader(IndexWriter writer, ShardId shardId) throws IOException {
-        return OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
+    // test adding to cleanupKeyToCountMap with multiple threads
+    public void testAddingToCleanupKeyToCountMapWorksAppropriatelyWithMultipleThreads() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
+        cache = getIndicesRequestCache(settings);
+
+        int numberOfThreads = 10;
+        int numberOfIterations = 1000;
+        Phaser phaser = new Phaser(numberOfThreads + 1); // +1 for the main thread
+        AtomicBoolean concurrentModificationExceptionDetected = new AtomicBoolean(false);
+
+        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            executorService.submit(() -> {
+                phaser.arriveAndAwaitAdvance(); // Ensure all threads start at the same time
+                try {
+                    for (int j = 0; j < numberOfIterations; j++) {
+                        cache.cacheCleanupManager.addToCleanupKeyToCountMap(indexShard.shardId(), UUID.randomUUID().toString());
+                    }
+                } catch (ConcurrentModificationException e) {
+                    logger.error("ConcurrentModificationException detected in thread : " + e.getMessage());
+                    concurrentModificationExceptionDetected.set(true); // Set flag if exception is detected
+                }
+            });
+        }
+        phaser.arriveAndAwaitAdvance(); // Start all threads
+
+        // Main thread iterates over the map
+        executorService.submit(() -> {
+            try {
+                for (int j = 0; j < numberOfIterations; j++) {
+                    cache.cacheCleanupManager.getCleanupKeyToCountMap().forEach((k, v) -> {
+                        v.forEach((k1, v1) -> {
+                            // Accessing the map to create contention
+                            v.get(k1);
+                        });
+                    });
+                }
+            } catch (ConcurrentModificationException e) {
+                logger.error("ConcurrentModificationException detected in main thread : " + e.getMessage());
+                concurrentModificationExceptionDetected.set(true); // Set flag if exception is detected
+            }
+        });
+
+        executorService.shutdown();
+        assertTrue(executorService.awaitTermination(60, TimeUnit.SECONDS));
+        assertEquals(
+            numberOfThreads * numberOfIterations,
+            cache.cacheCleanupManager.getCleanupKeyToCountMap().get(indexShard.shardId()).size()
+        );
+        assertFalse(concurrentModificationExceptionDetected.get());
     }
 
     private IndicesRequestCache getIndicesRequestCache(Settings settings) {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        return new IndicesRequestCache(settings, (shardId -> {
-            IndexService indexService = null;
-            try {
-                indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            } catch (IndexNotFoundException ex) {
-                return Optional.empty();
-            }
-            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }),
+        return new IndicesRequestCache(
+            settings,
+            indicesService.indicesRequestCache.cacheEntityLookup,
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool,
             ClusterServiceUtils.createClusterService(threadPool)
         );
+    }
+
+    private DirectoryReader getReader(IndexWriter writer, ShardId shardId) throws IOException {
+        return OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
     }
 
     private Loader getLoader(DirectoryReader reader) {
@@ -1417,6 +1470,55 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cache.count());
 
         IOUtils.close(reader, writer, dir, cache);
+    }
+
+    public void testIndexShardClosedAndVerifyCacheCleanUpWorksSuccessfully() throws Exception {
+        threadPool = getThreadPool();
+        String indexName = "test1";
+        // Create a shard
+        IndexService indexService = createIndex(
+            indexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        IndexShard indexShard = indexService.getShard(0);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        writer.addDocument(newDoc(0, "foo"));
+        writer.addDocument(newDoc(1, "hack"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), indexShard.shardId());
+        Loader loader = new Loader(reader, 0);
+
+        // Set clean interval to a high value as we will do it manually here.
+        IndicesRequestCache cache = getIndicesRequestCache(
+            Settings.builder()
+                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(100000))
+                .build()
+        );
+        IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(indexShard);
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "bar");
+
+        // Cache some values for indexShard
+        BytesReference value = cache.getOrCompute(cacheEntity, loader, reader, getTermBytes());
+
+        // Verify response and stats.
+        assertEquals("foo", value.streamInput().readString());
+        RequestCacheStats stats = indexShard.requestCache().stats();
+        assertEquals("foo", value.streamInput().readString());
+        assertEquals(1, cache.count());
+        assertEquals(1, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Remove the shard making its cache entries stale
+        IOUtils.close(reader, writer, dir);
+        indexService.removeShard(0, "force");
+
+        assertBusy(() -> { assertEquals(IndexShardState.CLOSED, indexShard.state()); }, 1, TimeUnit.SECONDS);
+
+        // Trigger clean up of cache. Should not throw any exception.
+        cache.cacheCleanupManager.cleanCache();
+        // Verify all cleared up.
+        assertEquals(0, cache.count());
+        IOUtils.close(cache);
     }
 
     public static String generateString(int length) {

@@ -125,7 +125,6 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
-import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -188,6 +187,7 @@ import reactor.core.scheduler.Schedulers;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -815,6 +815,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
     }
 
+    /**
+     * @return a <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        int randomInt = randomInt();
+        return randomInt == Integer.MIN_VALUE ? 0 : Math.abs(randomInt);
+    }
+
     public static float randomFloat() {
         return random().nextFloat();
     }
@@ -1278,7 +1286,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static Settings.Builder remoteIndexSettings(Version version) {
         Settings.Builder builder = Settings.builder()
-            .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
@@ -1809,7 +1817,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BlobPath basePath,
         String shardId,
         RemoteStoreEnums.DataCategory dataCategory,
-        RemoteStoreEnums.DataType dataType
+        RemoteStoreEnums.DataType dataType,
+        String fixedPrefix
     ) {
         String indexUUID = client.admin()
             .indices()
@@ -1834,6 +1843,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             .shardId(shardId)
             .dataCategory(dataCategory)
             .dataType(dataType)
+            .fixedPrefix(fixedPrefix)
             .build();
         return type.path(pathInput, hashAlgorithm);
     }

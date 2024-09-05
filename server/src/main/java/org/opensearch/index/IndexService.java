@@ -55,6 +55,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.io.IOUtils;
@@ -72,6 +73,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -91,8 +93,10 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -132,6 +136,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
+import static org.opensearch.common.util.FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
@@ -170,6 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
     private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    private volatile AsyncReplicationTask asyncReplicationTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -188,6 +194,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
+    private final FileCache fileCache;
+    private final CompositeIndexSettings compositeIndexSettings;
+    private final Consumer<IndexShard> replicator;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -223,7 +232,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        FileCache fileCache,
+        CompositeIndexSettings compositeIndexSettings,
+        Consumer<IndexShard> replicator
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -298,15 +310,181 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
+            this.asyncReplicationTask = new AsyncReplicationTask(this);
+        }
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.compositeIndexSettings = compositeIndexSettings;
+        this.fileCache = fileCache;
+        this.replicator = replicator;
         updateFsyncTaskIfNecessary();
+    }
+
+    public IndexService(
+        IndexSettings indexSettings,
+        IndexCreationContext indexCreationContext,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        ShardStoreDeleter shardStoreDeleter,
+        IndexAnalyzers indexAnalyzers,
+        EngineFactory engineFactory,
+        EngineConfigFactory engineConfigFactory,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        QueryCache queryCache,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexEventListener eventListener,
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        List<SearchOperationListener> searchOperationListeners,
+        List<IndexingOperationListener> indexingOperationListeners,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        BooleanSupplier allowExpensiveQueries,
+        IndexNameExpressionResolver expressionResolver,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        FileCache fileCache
+    ) {
+        this(
+            indexSettings,
+            indexCreationContext,
+            nodeEnv,
+            xContentRegistry,
+            similarityService,
+            shardStoreDeleter,
+            indexAnalyzers,
+            engineFactory,
+            engineConfigFactory,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            queryCache,
+            directoryFactory,
+            remoteDirectoryFactory,
+            eventListener,
+            wrapperFactory,
+            mapperRegistry,
+            indicesFieldDataCache,
+            searchOperationListeners,
+            indexingOperationListeners,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            allowExpensiveQueries,
+            expressionResolver,
+            valuesSourceRegistry,
+            recoveryStateFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            recoverySettings,
+            remoteStoreSettings,
+            fileCache,
+            null,
+            (s) -> {}
+        );
+    }
+
+    public IndexService(
+        IndexSettings indexSettings,
+        IndexCreationContext indexCreationContext,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        ShardStoreDeleter shardStoreDeleter,
+        IndexAnalyzers indexAnalyzers,
+        EngineFactory engineFactory,
+        EngineConfigFactory engineConfigFactory,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        QueryCache queryCache,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexEventListener eventListener,
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        List<SearchOperationListener> searchOperationListeners,
+        List<IndexingOperationListener> indexingOperationListeners,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        BooleanSupplier allowExpensiveQueries,
+        IndexNameExpressionResolver expressionResolver,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        this(
+            indexSettings,
+            indexCreationContext,
+            nodeEnv,
+            xContentRegistry,
+            similarityService,
+            shardStoreDeleter,
+            indexAnalyzers,
+            engineFactory,
+            engineConfigFactory,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            queryCache,
+            directoryFactory,
+            remoteDirectoryFactory,
+            eventListener,
+            wrapperFactory,
+            mapperRegistry,
+            indicesFieldDataCache,
+            searchOperationListeners,
+            indexingOperationListeners,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            allowExpensiveQueries,
+            expressionResolver,
+            valuesSourceRegistry,
+            recoveryStateFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            recoverySettings,
+            remoteStoreSettings,
+            null,
+            null,
+            s -> {}
+        );
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
         return false == (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
+    }
+
+    // visible for tests
+    AsyncReplicationTask getReplicationTask() {
+        return asyncReplicationTask;
     }
 
     /**
@@ -495,9 +673,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
             Store remoteStore = null;
+            Directory remoteDirectory = null;
             boolean seedRemote = false;
             if (targetNode.isRemoteStoreNode()) {
-                final Directory remoteDirectory;
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
@@ -516,7 +694,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         this.indexSettings.getRemoteStorePathStrategy()
                     );
                 }
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
+                // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.
+                // Currently, we create 2 instances of store for remote store backed indices: store and remoteStore.
+                // As there can be only one shardlock acquired for a given shard, the lock is shared between store and remoteStore.
+                // This creates an issue when we are deleting the index as it results in closing both store and remoteStore.
+                // Sample test failure: https://github.com/opensearch-project/OpenSearch/issues/13871
+                // The following method provides ShardLock that is not maintained by NodeEnvironment.
+                // As part of https://github.com/opensearch-project/OpenSearch/issues/13075, we want to move away from keeping 2
+                // store instances.
+                ShardLock remoteStoreLock = new ShardLock(shardId) {
+                    @Override
+                    protected void closeInternal() {
+                        // Do nothing for shard lock on remote store
+                    }
+                };
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, remoteStoreLock, Store.OnClose.EMPTY, path);
             } else {
                 // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
                 // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
@@ -530,7 +722,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
 
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            Directory directory = null;
+            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING) &&
+            // TODO : Need to remove this check after support for hot indices is added in Composite Directory
+                this.indexSettings.isStoreLocalityPartial()) {
+                Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
+                directory = new CompositeDirectory(localDirectory, remoteDirectory, fileCache);
+            } else {
+                directory = directoryFactory.newDirectory(this.indexSettings, path);
+            }
             store = new Store(
                 shardId,
                 this.indexSettings,
@@ -957,9 +1157,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
+            if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
+                updateReplicationTask();
+            }
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
+    }
+
+    private void updateReplicationTask() {
+        try {
+            asyncReplicationTask.close();
+        } finally {
+            asyncReplicationTask = new AsyncReplicationTask(this);
+        }
     }
 
     /**
@@ -1018,6 +1229,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             refreshTask = new AsyncRefreshTask(this);
         }
+    }
+
+    public CompositeIndexSettings getCompositeIndexSettings() {
+        return compositeIndexSettings;
     }
 
     /**
@@ -1219,6 +1434,47 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         public String toString() {
             return "refresh";
+        }
+    }
+
+    final class AsyncReplicationTask extends BaseAsyncTask {
+
+        AsyncReplicationTask(IndexService indexService) {
+            super(indexService, indexService.getRefreshInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybeSyncSegments(false);
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "replication";
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
+        }
+    }
+
+    private void maybeSyncSegments(boolean force) {
+        if (getRefreshInterval().millis() > 0 || force) {
+            for (IndexShard shard : this.shards.values()) {
+                try {
+                    if (shard.routingEntry().isSearchOnly() && shard.routingEntry().active()) {
+                        replicator.accept(shard);
+                    }
+                } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                    // do nothing
+                }
+            }
         }
     }
 

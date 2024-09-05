@@ -48,6 +48,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -65,6 +66,9 @@ import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
@@ -930,21 +934,22 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         final String previousClusterUUID = "prev-cluster-uuid";
-        final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
-            0L,
-            0L,
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            Version.CURRENT,
-            randomAlphaOfLength(10),
-            false,
-            1,
-            randomAlphaOfLength(10),
-            Collections.emptyList(),
-            randomAlphaOfLength(10),
-            true
-        );
-        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID)).thenReturn(manifest);
+        final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .clusterTerm(0L)
+            .stateVersion(0L)
+            .clusterUUID(randomAlphaOfLength(10))
+            .stateUUID(randomAlphaOfLength(10))
+            .opensearchVersion(Version.CURRENT)
+            .nodeId(randomAlphaOfLength(10))
+            .committed(false)
+            .codecVersion(1)
+            .globalMetadataFileName(randomAlphaOfLength(10))
+            .indices(Collections.emptyList())
+            .previousClusterUUID(randomAlphaOfLength(10))
+            .clusterUUIDCommitted(true)
+            .build();
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
 
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
         persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
@@ -969,14 +974,17 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, randomRepoName)
             .put(stateRepoTypeAttributeKey, FsRepository.TYPE)
             .put(stateRepoSettingsAttributeKeyPrefix + "location", "randomRepoPath")
-            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
 
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
         coordinationState.handlePrePublish(clusterState);
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1))
+            .writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
+        Mockito.when(remoteClusterStateService.markLastStateAsCommitted(any(), any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
         coordinationState.handlePreCommit();
         ClusterState committedClusterState = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).clusterUUIDCommitted(true).build())
@@ -996,6 +1004,16 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             clusterStateCaptor.getValue().metadata().clusterUUIDCommitted(),
             equalTo(committedClusterState.metadata().clusterUUIDCommitted())
         );
+    }
+
+    public void testIsRemotePublicationEnabled_WithInconsistentSettings() {
+        // create settings with remote state disabled but publication enabled
+        Settings settings = Settings.builder()
+            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), false)
+            .put(REMOTE_PUBLICATION_EXPERIMENTAL, true)
+            .build();
+        CoordinationState coordinationState = createCoordinationState(psr1, node1, settings);
+        assertFalse(coordinationState.isRemotePublicationEnabled());
     }
 
     public static CoordinationState createCoordinationState(

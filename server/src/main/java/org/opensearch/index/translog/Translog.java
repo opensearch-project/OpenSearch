@@ -315,6 +315,10 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      */
     public static long parseIdFromFileName(Path translogFile) {
         final String fileName = translogFile.getFileName().toString();
+        return parseIdFromFileName(fileName);
+    }
+
+    public static long parseIdFromFileName(String fileName) {
         final Matcher matcher = PARSE_STRICT_ID_PATTERN.matcher(fileName);
         if (matcher.matches()) {
             try {

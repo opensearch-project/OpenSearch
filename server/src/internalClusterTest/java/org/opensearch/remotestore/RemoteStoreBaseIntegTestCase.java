@@ -69,6 +69,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
+    protected static final String REMOTE_ROUTING_TABLE_REPO = "remote-routing-table-repo";
     protected static final int SHARD_COUNT = 1;
     protected static int REPLICA_COUNT = 1;
     protected static final String TOTAL_OPERATIONS = "total-operations";
@@ -189,9 +190,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         Settings.Builder settings = Settings.builder()
             .put("location", rmd.settings().get("location"))
             .put(REPOSITORIES_FAILRATE_SETTING.getKey(), value);
-        assertAcked(
-            client().admin().cluster().preparePutRepository(repoName).setType(ReloadableFsRepository.TYPE).setSettings(settings).get()
-        );
+        createRepository(repoName, ReloadableFsRepository.TYPE, settings);
     }
 
     public Settings indexSettings() {
@@ -312,7 +311,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         }
     }
 
-    public static int getFileCount(Path path) throws Exception {
+    public static int getFileCount(Path path) throws IOException {
         final AtomicInteger filesExisting = new AtomicInteger(0);
         Files.walkFileTree(path, new SimpleFileVisitor<>() {
             @Override
@@ -349,5 +348,31 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
                 new RestoreRemoteStoreRequest().indices(indices).restoreAllShards(restoreAllShards),
                 PlainActionFuture.newFuture()
             );
+    }
+
+    protected void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
+        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
+        internalCluster().startDataOnlyNodes(numDataOnlyNodes);
+        for (String index : indices.split(",")) {
+            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
+            ensureYellowAndNoInitializingShards(index);
+            ensureGreen(index);
+        }
+    }
+
+    protected void prepareCluster(
+        int numClusterManagerNodes,
+        int numDataOnlyNodes,
+        String indices,
+        int replicaCount,
+        int shardCount,
+        Settings settings
+    ) {
+        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes, settings);
+        internalCluster().startDataOnlyNodes(numDataOnlyNodes, settings);
+        for (String index : indices.split(",")) {
+            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
+            ensureGreen(index);
+        }
     }
 }

@@ -11,25 +11,40 @@ package org.opensearch.index.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA;
@@ -214,13 +229,13 @@ public class RemoteStoreUtils {
         // does not support custom metadata.
         // https://github.com/opensearch-project/OpenSearch/issues/13745
         boolean blobStoreMetadataEnabled = false;
-        boolean translogMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
+        boolean translogMetadata = Version.V_2_15_0.compareTo(minNodeVersion) <= 0
             && CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.get(clusterSettings)
             && blobStoreMetadataEnabled;
 
         remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(translogMetadata));
 
-        RemoteStoreEnums.PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
+        RemoteStoreEnums.PathType pathType = Version.V_2_15_0.compareTo(minNodeVersion) <= 0
             ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)
             : RemoteStoreEnums.PathType.FIXED;
         RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType == RemoteStoreEnums.PathType.FIXED
@@ -249,5 +264,319 @@ public class RemoteStoreUtils {
             .filter(DiscoveryNode::isRemoteStoreNode)
             .findFirst();
         return remoteNode.map(RemoteStoreNodeAttribute::getDataRepoNames).orElseGet(HashMap::new);
+    }
+
+    /**
+     * Invoked after a cluster settings update.
+     * Checks if the applied cluster settings has switched the cluster to STRICT mode.
+     * If so, checks and applies appropriate index settings depending on the current set
+     * of node types in the cluster
+     * This has been intentionally done after the cluster settings update
+     * flow. That way we are not interfering with the usual settings update
+     * and the cluster state mutation that comes along with it
+     *
+     * @param isCompatibilityModeChanging flag passed from cluster settings update call to denote if a compatibility mode change has been done
+     * @param request request payload passed from cluster settings update
+     * @param currentState cluster state generated after changing cluster settings were applied
+     * @param logger Logger reference
+     * @return Mutated cluster state with remote store index settings applied, no-op if the cluster is not switching to `STRICT` compatibility mode
+     */
+    public static ClusterState checkAndFinalizeRemoteStoreMigration(
+        boolean isCompatibilityModeChanging,
+        ClusterUpdateSettingsRequest request,
+        ClusterState currentState,
+        Logger logger
+    ) {
+        if (isCompatibilityModeChanging && isSwitchToStrictCompatibilityMode(request)) {
+            return finalizeMigration(currentState, logger);
+        }
+        return currentState;
+    }
+
+    /**
+     * Finalizes the docrep to remote-store migration process by applying remote store based index settings
+     * on indices that are missing them. No-Op if all indices already have the settings applied through
+     * IndexMetadataUpdater
+     *
+     * @param incomingState mutated cluster state after cluster settings were applied
+     * @return new cluster state with index settings updated
+     */
+    public static ClusterState finalizeMigration(ClusterState incomingState, Logger logger) {
+        Map<String, DiscoveryNode> discoveryNodeMap = incomingState.nodes().getNodes();
+        if (discoveryNodeMap.isEmpty() == false) {
+            // At this point, we have already validated that all nodes in the cluster are of uniform type.
+            // Either all of them are remote store enabled, or all of them are docrep enabled
+            boolean remoteStoreEnabledNodePresent = discoveryNodeMap.values().stream().findFirst().get().isRemoteStoreNode();
+            if (remoteStoreEnabledNodePresent == true) {
+                List<IndexMetadata> indicesWithoutRemoteStoreSettings = getIndicesWithoutRemoteStoreSettings(incomingState, logger);
+                if (indicesWithoutRemoteStoreSettings.isEmpty() == true) {
+                    logger.info("All indices in the cluster has remote store based index settings");
+                } else {
+                    Metadata mutatedMetadata = applyRemoteStoreSettings(incomingState, indicesWithoutRemoteStoreSettings, logger);
+                    return ClusterState.builder(incomingState).metadata(mutatedMetadata).build();
+                }
+            } else {
+                logger.debug("All nodes in the cluster are not remote nodes. Skipping.");
+            }
+        }
+        return incomingState;
+    }
+
+    /**
+     * Filters out indices which does not have remote store based
+     * index settings applied even after all shard copies have
+     * migrated to remote store enabled nodes
+     */
+    private static List<IndexMetadata> getIndicesWithoutRemoteStoreSettings(ClusterState clusterState, Logger logger) {
+        Collection<IndexMetadata> allIndicesMetadata = clusterState.metadata().indices().values();
+        if (allIndicesMetadata.isEmpty() == false) {
+            List<IndexMetadata> indicesWithoutRemoteSettings = allIndicesMetadata.stream()
+                .filter(idxMd -> indexHasRemoteStoreSettings(idxMd.getSettings()) == false)
+                .collect(Collectors.toList());
+            logger.debug(
+                "Attempting to switch to strict mode. Count of indices without remote store settings {}",
+                indicesWithoutRemoteSettings.size()
+            );
+            return indicesWithoutRemoteSettings;
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Applies remote store index settings through {@link RemoteMigrationIndexMetadataUpdater}
+     */
+    private static Metadata applyRemoteStoreSettings(
+        ClusterState clusterState,
+        List<IndexMetadata> indicesWithoutRemoteStoreSettings,
+        Logger logger
+    ) {
+        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.getMetadata());
+        RoutingTable currentRoutingTable = clusterState.getRoutingTable();
+        DiscoveryNodes currentDiscoveryNodes = clusterState.getNodes();
+        Settings currentClusterSettings = clusterState.metadata().settings();
+        for (IndexMetadata indexMetadata : indicesWithoutRemoteStoreSettings) {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+            RemoteMigrationIndexMetadataUpdater indexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
+                currentDiscoveryNodes,
+                currentRoutingTable,
+                indexMetadata,
+                currentClusterSettings,
+                logger
+            );
+            indexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexMetadata.getIndex().getName());
+            metadataBuilder.put(indexMetadataBuilder);
+        }
+        return metadataBuilder.build();
+    }
+
+    /**
+     * Checks if the incoming cluster settings payload is attempting to switch
+     * the cluster to `STRICT` compatibility mode
+     * Visible only for tests
+     */
+    public static boolean isSwitchToStrictCompatibilityMode(ClusterUpdateSettingsRequest request) {
+        Settings incomingSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
+        return RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(
+            incomingSettings
+        ) == RemoteStoreNodeService.CompatibilityMode.STRICT;
+    }
+
+    /**
+     * Determines and returns a set of metadata files that match provided pinned timestamps.
+     *
+     * This method is an overloaded version of getPinnedTimestampLockedFiles and do not use cached entries to find
+     * the metadata file
+     *
+     * @param metadataFiles A list of metadata file names. Expected to be sorted in descending order of timestamp.
+     * @param pinnedTimestampSet A set of timestamps representing pinned points in time.
+     * @param getTimestampFunction A function that extracts the timestamp from a metadata file name.
+     * @param prefixFunction A function that extracts a tuple of prefix information from a metadata file name.
+     * @param ignorePinnedTimestampEnabledSetting A flag to ignore pinned timestamp enabled setting
+     * @return A set of metadata file names that are implicitly locked based on the pinned timestamps.
+     */
+    public static Set<String> getPinnedTimestampLockedFiles(
+        List<String> metadataFiles,
+        Set<Long> pinnedTimestampSet,
+        Function<String, Long> getTimestampFunction,
+        Function<String, Tuple<String, String>> prefixFunction,
+        boolean ignorePinnedTimestampEnabledSetting
+    ) {
+        return getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            new HashMap<>(),
+            getTimestampFunction,
+            prefixFunction,
+            ignorePinnedTimestampEnabledSetting
+        );
+    }
+
+    /**
+     * Determines and returns a set of metadata files that match provided pinned timestamps. If pinned timestamp
+     * feature is not enabled, this function is a no-op.
+     *
+     * This method identifies metadata files that are considered implicitly locked due to their timestamps
+     * matching or being the closest preceding timestamp to the pinned timestamps. It uses a caching mechanism
+     * to improve performance for previously processed timestamps.
+     *
+     * The method performs the following steps:
+     *           1. Validates input parameters.
+     *           2. Updates the cache (metadataFilePinnedTimestampMap) to remove outdated entries.
+     *           3. Processes cached entries and identifies new timestamps to process.
+     *           4. For new timestamps, iterates through metadata files to find matching or closest preceding files.
+     *           5. Updates the cache with newly processed timestamps and their corresponding metadata files.
+     *
+     * @param metadataFiles A list of metadata file names. Expected to be sorted in descending order of timestamp.
+     * @param pinnedTimestampSet A set of timestamps representing pinned points in time.
+     * @param metadataFilePinnedTimestampMap A map used for caching processed timestamps and their corresponding metadata files.
+     * @param getTimestampFunction A function that extracts the timestamp from a metadata file name.
+     * @param prefixFunction A function that extracts a tuple of prefix information from a metadata file name.
+     * @return A set of metadata file names that are implicitly locked based on the pinned timestamps.
+     *
+     */
+    public static Set<String> getPinnedTimestampLockedFiles(
+        List<String> metadataFiles,
+        Set<Long> pinnedTimestampSet,
+        Map<Long, String> metadataFilePinnedTimestampMap,
+        Function<String, Long> getTimestampFunction,
+        Function<String, Tuple<String, String>> prefixFunction
+    ) {
+        return getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            metadataFilePinnedTimestampMap,
+            getTimestampFunction,
+            prefixFunction,
+            false
+        );
+    }
+
+    private static Set<String> getPinnedTimestampLockedFiles(
+        List<String> metadataFiles,
+        Set<Long> pinnedTimestampSet,
+        Map<Long, String> metadataFilePinnedTimestampMap,
+        Function<String, Long> getTimestampFunction,
+        Function<String, Tuple<String, String>> prefixFunction,
+        boolean ignorePinnedTimestampEnabledSetting
+    ) {
+        Set<String> implicitLockedFiles = new HashSet<>();
+
+        if (ignorePinnedTimestampEnabledSetting == false && RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+            return implicitLockedFiles;
+        }
+
+        if (metadataFiles == null || metadataFiles.isEmpty() || pinnedTimestampSet == null) {
+            return implicitLockedFiles;
+        }
+
+        // Remove entries for timestamps that are no longer pinned
+        metadataFilePinnedTimestampMap.keySet().retainAll(pinnedTimestampSet);
+
+        // Add cached entries and collect new timestamps
+        Set<Long> newPinnedTimestamps = new TreeSet<>(Collections.reverseOrder());
+        for (Long pinnedTimestamp : pinnedTimestampSet) {
+            String cachedFile = metadataFilePinnedTimestampMap.get(pinnedTimestamp);
+            if (cachedFile != null) {
+                implicitLockedFiles.add(cachedFile);
+            } else {
+                newPinnedTimestamps.add(pinnedTimestamp);
+            }
+        }
+
+        if (newPinnedTimestamps.isEmpty()) {
+            return implicitLockedFiles;
+        }
+
+        // Sort metadata files in descending order of timestamp
+        // ToDo: Do we really need this? Files fetched from remote store are already lexicographically sorted.
+        metadataFiles.sort(String::compareTo);
+
+        // If we have metadata files from multiple writers, it can result in picking file generated by stale primary.
+        // To avoid this, we fail fast.
+        RemoteStoreUtils.verifyNoMultipleWriters(metadataFiles, prefixFunction);
+
+        Iterator<Long> timestampIterator = newPinnedTimestamps.iterator();
+        Long currentPinnedTimestamp = timestampIterator.next();
+        long prevMdTimestamp = Long.MAX_VALUE;
+        for (String metadataFileName : metadataFiles) {
+            long currentMdTimestamp = getTimestampFunction.apply(metadataFileName);
+            // We always prefer md file with higher values of prefix like primary term, generation etc.
+            if (currentMdTimestamp > prevMdTimestamp) {
+                continue;
+            }
+            while (currentMdTimestamp <= currentPinnedTimestamp && prevMdTimestamp > currentPinnedTimestamp) {
+                implicitLockedFiles.add(metadataFileName);
+                // Do not cache entry for latest metadata file as the next metadata can also match the same pinned timestamp
+                if (prevMdTimestamp != Long.MAX_VALUE) {
+                    metadataFilePinnedTimestampMap.put(currentPinnedTimestamp, metadataFileName);
+                }
+                if (timestampIterator.hasNext() == false) {
+                    return implicitLockedFiles;
+                }
+                currentPinnedTimestamp = timestampIterator.next();
+            }
+            prevMdTimestamp = currentMdTimestamp;
+        }
+
+        return implicitLockedFiles;
+    }
+
+    /**
+     * Filters out metadata files based on their age and pinned timestamps settings.
+     *
+     * This method filters a list of metadata files, keeping only those that are older
+     * than a certain threshold determined by the last successful fetch of pinned timestamps
+     * and a configured lookback interval.
+     *
+     * @param metadataFiles A list of metadata file names to be filtered.
+     * @param getTimestampFunction A function that extracts a timestamp from a metadata file name.
+     * @param lastSuccessfulFetchOfPinnedTimestamps The timestamp of the last successful fetch of pinned timestamps.
+     * @return A new list containing only the metadata files that meet the age criteria.
+     *         If pinned timestamps are not enabled, returns a copy of the input list.
+     */
+    public static List<String> filterOutMetadataFilesBasedOnAge(
+        List<String> metadataFiles,
+        Function<String, Long> getTimestampFunction,
+        long lastSuccessfulFetchOfPinnedTimestamps
+    ) {
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+            return new ArrayList<>(metadataFiles);
+        }
+        // We allow now() - loopback interval to be pinned. Also, the actual pinning can take at most loopback interval
+        // This means the pinned timestamp can be available for read after at most (2 * loopback interval)
+        long maximumAllowedTimestamp = lastSuccessfulFetchOfPinnedTimestamps - (2 * RemoteStoreSettings
+            .getPinnedTimestampsLookbackInterval()
+            .getMillis());
+        List<String> metadataFilesWithMinAge = new ArrayList<>();
+        for (String metadataFileName : metadataFiles) {
+            long metadataTimestamp = getTimestampFunction.apply(metadataFileName);
+            if (metadataTimestamp < maximumAllowedTimestamp) {
+                metadataFilesWithMinAge.add(metadataFileName);
+            }
+        }
+        return metadataFilesWithMinAge;
+    }
+
+    /**
+     * Determines if the pinned timestamp state is stale.
+     *
+     * This method checks whether the last successful fetch of pinned timestamps
+     * is considered stale based on the current time and configured intervals.
+     * The state is considered stale if the last successful fetch occurred before
+     * a certain threshold, which is calculated as three times the scheduler interval
+     * plus the lookback interval.
+     *
+     * @return true if the pinned timestamp state is stale, false otherwise.
+     *         Always returns false if pinned timestamps are not enabled.
+     */
+    public static boolean isPinnedTimestampStateStale() {
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+            return false;
+        }
+        long lastSuccessfulFetchTimestamp = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
+        long staleBufferInMillis = (RemoteStoreSettings.getPinnedTimestampsSchedulerInterval().millis() * 3) + RemoteStoreSettings
+            .getPinnedTimestampsLookbackInterval()
+            .millis();
+        return lastSuccessfulFetchTimestamp < (System.currentTimeMillis() - staleBufferInMillis);
     }
 }

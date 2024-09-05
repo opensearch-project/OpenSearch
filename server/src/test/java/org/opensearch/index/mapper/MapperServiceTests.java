@@ -52,6 +52,7 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.InvalidTypeNameException;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -85,6 +86,11 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals("mapping type name [_document] can't start with '_' unless it is called [_doc]", e.getMessage());
 
         MapperService.validateTypeName("_doc"); // no exception
+    }
+
+    public void testGetMetadataFieldsReturnsExpectedSet() throws Throwable {
+        final MapperService mapperService = createIndex("test1").mapperService();
+        assertEquals(mapperService.getMetadataFields(), IndicesModule.getBuiltInMetadataFields());
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {

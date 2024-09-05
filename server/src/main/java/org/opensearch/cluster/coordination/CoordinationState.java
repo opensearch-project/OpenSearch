@@ -39,6 +39,7 @@ import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedState
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.Closeable;
@@ -52,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -79,6 +81,7 @@ public class CoordinationState {
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
     private final boolean isRemoteStateEnabled;
+    private final boolean isRemotePublicationEnabled;
 
     public CoordinationState(
         DiscoveryNode localNode,
@@ -102,6 +105,13 @@ public class CoordinationState {
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
         this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
+        this.isRemotePublicationEnabled = isRemoteStateEnabled
+            && FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
+            && localNode.isRemoteStatePublicationEnabled();
+    }
+
+    public boolean isRemotePublicationEnabled() {
+        return isRemotePublicationEnabled;
     }
 
     public long getCurrentTerm() {

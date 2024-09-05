@@ -72,6 +72,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.test.OpenSearchIntegTestCase.resolvePath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFileExists;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
@@ -140,18 +141,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().prepareDeleteRepository(repoName));
 
         logger.info("--> recreate repository");
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository(repoName)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", repo)
-                        .put("compress", false)
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", repo)
+            .put("compress", false)
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository(repoName, "fs", settings);
 
         startDeleteSnapshot(repoName, snapshot).get();
 
@@ -168,20 +162,12 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository(repoName)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", repo)
-                        .put("compress", false)
-                        .put(BlobStoreRepository.ALLOW_CONCURRENT_MODIFICATION.getKey(), true)
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
-
+        Settings.Builder settings = Settings.builder()
+            .put("location", repo)
+            .put("compress", false)
+            .put(BlobStoreRepository.ALLOW_CONCURRENT_MODIFICATION.getKey(), true)
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository(repoName, "fs", settings);
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
         indexRandom(
@@ -472,7 +458,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         // not break subsequent repository operations
         logger.info("--> move shard level metadata to new generation");
         final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
+        final Path shardPath = repoPath.resolve(resolvePath(indexId, "0"));
         final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
         assertFileExists(initialShardMetaPath);
         Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "1"));
@@ -501,8 +487,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> move shard level metadata to new generation and make RepositoryData point at an older generation");
         final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
+        final Path shardPath = repoPath.resolve(resolvePath(indexId, "0"));
         final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
+
         assertFileExists(initialShardMetaPath);
         Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + randomIntBetween(1, 1000)));
 
@@ -564,9 +551,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(indexIds.size(), equalTo(1));
 
         final IndexId corruptedIndex = indexIds.get(indexName);
-        final Path shardIndexFile = repo.resolve("indices")
-            .resolve(corruptedIndex.getId())
-            .resolve("0")
+        final Path shardIndexFile = repo.resolve(resolvePath(corruptedIndex, "0"))
             .resolve("index-" + repositoryData.shardGenerations().getShardGen(corruptedIndex, 0));
 
         logger.info("-->  truncating shard index file [{}]", shardIndexFile);
@@ -641,7 +626,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete index metadata and shard metadata");
         for (String index : indices) {
-            Path shardZero = indicesPath.resolve(indexIds.get(index).getId()).resolve("0");
+            Path shardZero = repo.resolve(resolvePath(indexIds.get(index), "0"));
             if (randomBoolean()) {
                 Files.delete(
                     shardZero.resolve("index-" + getRepositoryData("test-repo").shardGenerations().getShardGen(indexIds.get(index), 0))
@@ -834,10 +819,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
 
         logger.info("--> deleting shard level index file");
-        final Path indicesPath = repo.resolve("indices");
         for (IndexId indexId : getRepositoryData("test-repo").getIndices().values()) {
             final Path shardGen;
-            try (Stream<Path> shardFiles = Files.list(indicesPath.resolve(indexId.getId()).resolve("0"))) {
+            try (Stream<Path> shardFiles = Files.list(repo.resolve(resolvePath(indexId, "0")))) {
                 shardGen = shardFiles.filter(file -> file.getFileName().toString().startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Failed to find shard index blob"));
