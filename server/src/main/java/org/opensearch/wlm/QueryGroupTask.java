@@ -10,6 +10,7 @@ package org.opensearch.wlm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.TaskId;
@@ -24,6 +25,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
 /**
  * Base class to define QueryGroup tasks
  */
+@PublicApi(since = "2.17.0")
 public class QueryGroupTask extends CancellableTask {
 
     private static final Logger logger = LogManager.getLogger(QueryGroupTask.class);

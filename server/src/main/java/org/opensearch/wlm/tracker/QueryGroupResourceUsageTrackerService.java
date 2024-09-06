@@ -27,21 +27,15 @@ public class QueryGroupResourceUsageTrackerService {
     public static final EnumSet<ResourceType> TRACKED_RESOURCES = EnumSet.allOf(ResourceType.class);
     private final TaskResourceTrackingService taskResourceTrackingService;
     private final Supplier<Long> nanoTimeSupplier;
-    private final ResourceUsageCalculatorFactory resourceUsageCalculatorFactory;
 
     /**
      * QueryGroupResourceTrackerService constructor
      *
      * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
-    public QueryGroupResourceUsageTrackerService(
-        TaskResourceTrackingService taskResourceTrackingService,
-        Supplier<Long> nanoTimeSupplier,
-        ResourceUsageCalculatorFactory resourceUsageCalculatorFactory
-    ) {
+    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService, Supplier<Long> nanoTimeSupplier) {
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.nanoTimeSupplier = nanoTimeSupplier;
-        this.resourceUsageCalculatorFactory = resourceUsageCalculatorFactory;
     }
 
     /**
@@ -58,10 +52,7 @@ public class QueryGroupResourceUsageTrackerService {
             // Compute the QueryGroup resource usage
             final Map<ResourceType, Double> resourceUsage = new HashMap<>();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                final ResourceUsageCalculator resourceUsageCalculator = resourceUsageCalculatorFactory.getInstanceForResourceType(
-                    resourceType
-                );
-                double usage = resourceUsageCalculator.calculateResourceUsage(queryGroupEntry.getValue(), nanoTimeSupplier);
+                double usage = resourceType.calculateQueryGroupUsage(queryGroupEntry.getValue(), nanoTimeSupplier);
                 resourceUsage.put(resourceType, usage);
             }
 

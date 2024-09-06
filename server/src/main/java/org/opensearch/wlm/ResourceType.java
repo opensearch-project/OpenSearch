@@ -8,11 +8,17 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.wlm.tracker.CpuUsageCalculator;
+import org.opensearch.wlm.tracker.MemoryUsageCalculator;
+import org.opensearch.wlm.tracker.ResourceUsageCalculator;
+import org.opensearch.wlm.tracker.ResourceUsageUtil;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Enum to hold the resource type
@@ -21,16 +27,30 @@ import java.util.List;
  */
 @PublicApi(since = "2.17.0")
 public enum ResourceType {
-    CPU("cpu", true),
-    MEMORY("memory", true);
+    CPU("cpu", true, CpuUsageCalculator.INSTANCE, new ResourceUsageUtil() {
+        @Override
+        protected double getNormalisedThreshold(QueryGroup queryGroup) {
+            return queryGroup.getResourceLimits().get(ResourceType.CPU) * getSettings().getNodeLevelCpuCancellationThreshold();
+        }
+    }),
+    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, new ResourceUsageUtil() {
+        @Override
+        protected double getNormalisedThreshold(QueryGroup queryGroup) {
+            return queryGroup.getResourceLimits().get(ResourceType.MEMORY) * getSettings().getNodeLevelMemoryCancellationThreshold();
+        }
+    });
 
     private final String name;
     private final boolean statsEnabled;
+    private final ResourceUsageCalculator resourceUsageCalculator;
+    private final ResourceUsageUtil resourceUsageUtil;
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
-    ResourceType(String name, boolean statsEnabled) {
+    ResourceType(String name, boolean statsEnabled, ResourceUsageCalculator resourceUsageCalculator, ResourceUsageUtil resourceUsageUtil) {
         this.name = name;
         this.statsEnabled = statsEnabled;
+        this.resourceUsageCalculator = resourceUsageCalculator;
+        this.resourceUsageUtil = resourceUsageUtil;
     }
 
     /**
@@ -57,6 +77,26 @@ public enum ResourceType {
 
     public boolean hasStatsEnabled() {
         return statsEnabled;
+    }
+
+    public double calculateQueryGroupUsage(List<QueryGroupTask> tasks, Supplier<Long> nanoTimeSupplier) {
+        return resourceUsageCalculator.calculateResourceUsage(tasks, nanoTimeSupplier);
+    }
+
+    public double calculateTaskUsage(QueryGroupTask task, Supplier<Long> nanoTimeSupplier) {
+        return resourceUsageCalculator.calculateTaskResourceUsage(task, nanoTimeSupplier);
+    }
+
+    public boolean isBreachingThreshold(QueryGroup queryGroup, double currentUsage) {
+        return getExcessUsage(queryGroup, currentUsage) > 0;
+    }
+
+    public double getExcessUsage(QueryGroup queryGroup, double currentUsage) {
+        return resourceUsageUtil.getExcessUsage(queryGroup, currentUsage);
+    }
+
+    public void setWorkloadManagementSettings(WorkloadManagementSettings settings) {
+        resourceUsageUtil.setSettings(settings);
     }
 
     public static List<ResourceType> getSortedValues() {

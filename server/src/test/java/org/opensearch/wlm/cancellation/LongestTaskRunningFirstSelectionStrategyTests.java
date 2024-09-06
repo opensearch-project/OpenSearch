@@ -17,8 +17,6 @@ import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.tracker.MemoryUsageCalculator;
-import org.opensearch.wlm.tracker.ResourceUsageCalculatorFactory;
 import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.TestClock;
 
 import java.util.ArrayList;
@@ -30,13 +28,11 @@ import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 
 public class LongestTaskRunningFirstSelectionStrategyTests extends OpenSearchTestCase {
     private TestClock clock;
-    private ResourceUsageCalculatorFactory resourceUsageCalculatorFactory;
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
         clock = new TestClock();
-        resourceUsageCalculatorFactory = ResourceUsageCalculatorFactory.getInstance();
         LongestTaskRunningFirstSelectionStrategy testLongestTaskRunningFirstSelectionStrategy =
-            new LongestTaskRunningFirstSelectionStrategy(clock::getTime, resourceUsageCalculatorFactory);
+            new LongestTaskRunningFirstSelectionStrategy(clock::getTime);
         long thresholdInLong = 100L;
         double reduceBy = 50.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
@@ -83,7 +79,7 @@ public class LongestTaskRunningFirstSelectionStrategyTests extends OpenSearchTes
     private boolean tasksUsageMeetsThreshold(List<QueryGroupTask> selectedTasks, double threshold) {
         double memory = 0;
         for (QueryGroupTask task : selectedTasks) {
-            memory += MemoryUsageCalculator.getInstance().calculateTaskResourceUsage(task, clock::getTime);
+            memory += ResourceType.MEMORY.calculateTaskUsage(task, clock::getTime);
             if ((memory - threshold) > MIN_VALUE) {
                 return true;
             }

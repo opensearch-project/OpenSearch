@@ -16,8 +16,6 @@ import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
-import org.opensearch.wlm.tracker.ResourceUsageUtil;
-import org.opensearch.wlm.tracker.ResourceUsageUtilFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,7 +54,6 @@ public class TaskCanceller {
     protected final Collection<QueryGroup> activeQueryGroups;
     protected final Collection<QueryGroup> deletedQueryGroups;
     protected BooleanSupplier isNodeInDuress;
-    private final ResourceUsageUtilFactory resourceUsageUtilFactory;
 
     public TaskCanceller(
         WorkloadManagementSettings workloadManagementSettings,
@@ -64,8 +61,7 @@ public class TaskCanceller {
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
         Collection<QueryGroup> activeQueryGroups,
         Collection<QueryGroup> deletedQueryGroups,
-        BooleanSupplier isNodeInDuress,
-        ResourceUsageUtilFactory resourceUsageUtilFactory
+        BooleanSupplier isNodeInDuress
     ) {
         this.workloadManagementSettings = workloadManagementSettings;
         this.taskSelectionStrategy = taskSelectionStrategy;
@@ -73,7 +69,7 @@ public class TaskCanceller {
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
         this.isNodeInDuress = isNodeInDuress;
-        this.resourceUsageUtilFactory = resourceUsageUtilFactory;
+        TRACKED_RESOURCES.forEach(resourceType -> resourceType.setWorkloadManagementSettings(workloadManagementSettings));
     }
 
     /**
@@ -141,8 +137,7 @@ public class TaskCanceller {
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 if (queryGroup.getResourceLimits().containsKey(resourceType)) {
                     final double currentUsage = queryGroupResourcesUsage.get(resourceType);
-                    final ResourceUsageUtil resourceUsageUtil = resourceUsageUtilFactory.getInstanceForResourceType(resourceType);
-                    if (resourceUsageUtil.isBreachingThresholdFor(queryGroup, currentUsage, workloadManagementSettings)) {
+                    if (resourceType.isBreachingThreshold(queryGroup, currentUsage)) {
                         queryGroupsToCancelFrom.add(queryGroup);
                         break;
                     }
@@ -235,9 +230,7 @@ public class TaskCanceller {
 
         final QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
         final double currentUsage = queryGroupResourceUsageView.getResourceUsageData().get(resourceType);
-        final ResourceUsageUtil resourceUsageUtil = resourceUsageUtilFactory.getInstanceForResourceType(resourceType);
-
-        return resourceUsageUtil.getExcessUsage(queryGroup, currentUsage, workloadManagementSettings);
+        return resourceType.getExcessUsage(queryGroup, currentUsage);
     }
 
     private void callbackOnCancel() {

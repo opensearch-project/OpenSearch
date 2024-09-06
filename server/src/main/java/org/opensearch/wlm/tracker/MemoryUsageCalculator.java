@@ -20,13 +20,9 @@ import java.util.function.Supplier;
  */
 public class MemoryUsageCalculator implements ResourceUsageCalculator {
     public static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
-    private static final MemoryUsageCalculator instance = new MemoryUsageCalculator();
+    public static final MemoryUsageCalculator INSTANCE = new MemoryUsageCalculator();
 
     private MemoryUsageCalculator() {}
-
-    public static MemoryUsageCalculator getInstance() {
-        return instance;
-    }
 
     @Override
     public double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier) {

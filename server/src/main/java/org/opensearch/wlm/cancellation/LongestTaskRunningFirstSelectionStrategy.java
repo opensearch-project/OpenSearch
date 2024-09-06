@@ -10,7 +10,6 @@ package org.opensearch.wlm.cancellation;
 
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.tracker.ResourceUsageCalculatorFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,18 +26,13 @@ import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
 public class LongestTaskRunningFirstSelectionStrategy implements TaskSelectionStrategy {
 
     private final Supplier<Long> nanoTimeSupplier;
-    private final ResourceUsageCalculatorFactory resourceUsageCalculatorFactory;
 
     public LongestTaskRunningFirstSelectionStrategy() {
-        this(System::nanoTime, ResourceUsageCalculatorFactory.getInstance());
+        this(System::nanoTime);
     }
 
-    public LongestTaskRunningFirstSelectionStrategy(
-        Supplier<Long> nanoTimeSupplier,
-        ResourceUsageCalculatorFactory resourceUsageCalculatorFactory
-    ) {
+    public LongestTaskRunningFirstSelectionStrategy(Supplier<Long> nanoTimeSupplier) {
         this.nanoTimeSupplier = nanoTimeSupplier;
-        this.resourceUsageCalculatorFactory = resourceUsageCalculatorFactory;
     }
 
     /**
@@ -75,8 +69,7 @@ public class LongestTaskRunningFirstSelectionStrategy implements TaskSelectionSt
         double accumulated = 0;
         for (QueryGroupTask task : sortedTasks) {
             selectedTasks.add(task);
-            accumulated += resourceUsageCalculatorFactory.getInstanceForResourceType(resourceType)
-                .calculateTaskResourceUsage(task, nanoTimeSupplier);
+            accumulated += resourceType.calculateTaskUsage(task, nanoTimeSupplier);
             if ((accumulated - limit) > MIN_VALUE) {
                 break;
             }

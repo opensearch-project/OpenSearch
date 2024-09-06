@@ -20,17 +20,9 @@ import java.util.function.Supplier;
 public class CpuUsageCalculator implements ResourceUsageCalculator {
     // This value should be initialised at the start time of the process and be used throughout the codebase
     public static final int PROCESSOR_COUNT = Runtime.getRuntime().availableProcessors();
-    private static final CpuUsageCalculator instance = new CpuUsageCalculator();
+    public static final CpuUsageCalculator INSTANCE = new CpuUsageCalculator();
 
     private CpuUsageCalculator() {}
-
-    /**
-     * static method to access the singleton
-     * @return eager singleton object of the class
-     */
-    public static CpuUsageCalculator getInstance() {
-        return instance;
-    }
 
     @Override
     public double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier) {

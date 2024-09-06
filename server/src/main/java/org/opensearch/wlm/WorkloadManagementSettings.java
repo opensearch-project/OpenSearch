@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -15,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 /**
  * Main class to declare Workload Management related settings
  */
+@PublicApi(since = "2.17.0")
 public class WorkloadManagementSettings {
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_REJECTION_THRESHOLD = 0.8;
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = 0.9;

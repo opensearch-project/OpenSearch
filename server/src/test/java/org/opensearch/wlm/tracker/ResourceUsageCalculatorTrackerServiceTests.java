@@ -45,9 +45,6 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
     TaskResourceTrackingService mockTaskResourceTrackingService;
     QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService;
     WorkloadManagementSettings settings;
-    ResourceUsageCalculatorFactory resourceUsageCalculatorFactory;
-    CpuUsageCalculator cpuUsageCalculator;
-    MemoryUsageCalculator memoryUsageCalculator;
 
     public static class TestClock {
         long time;
@@ -69,12 +66,7 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         settings = mock(WorkloadManagementSettings.class);
         threadPool = new TestThreadPool(getTestName());
         mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        resourceUsageCalculatorFactory = ResourceUsageCalculatorFactory.getInstance();
-        queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
-            mockTaskResourceTrackingService,
-            clock::getTime,
-            resourceUsageCalculatorFactory
-        );
+        queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(mockTaskResourceTrackingService, clock::getTime);
     }
 
     @After
