@@ -49,10 +49,10 @@ import java.util.stream.Collectors;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
 import static org.opensearch.cluster.metadata.Metadata.isGlobalStateEquals;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -88,11 +88,6 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     }
 
     @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled).build();
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String routingTableRepoName = "remote-routing-repo";
         String routingTableRepoTypeAttributeKey = String.format(
@@ -109,6 +104,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), isRemoteStateEnabled)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
@@ -248,7 +244,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 @Override
                 public Settings onNodeStopped(String nodeName) {
                     restartedMasters.add(nodeName);
-                    return Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, false).build();
+                    return Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, false).build();
                 }
 
                 @Override
@@ -287,9 +283,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                         .addMetric(SETTINGS.metricName())
                         .get();
                     // if masterRestarted is true Publication Setting should be false, and vice versa
-                    assertTrue(
-                        REMOTE_PUBLICATION_EXPERIMENTAL_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()) != activeCMRestarted
-                    );
+                    assertTrue(REMOTE_PUBLICATION_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()) != activeCMRestarted);
 
                     followingCMs.forEach(node -> {
                         PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, node);
@@ -336,7 +330,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             .addMetric(SETTINGS.metricName())
             .get();
         // if masterRestarted is true Publication Setting should be false, and vice versa
-        assertFalse(REMOTE_PUBLICATION_EXPERIMENTAL_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()));
+        assertFalse(REMOTE_PUBLICATION_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()));
 
         followingCMs.forEach(node -> {
             PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, node);
