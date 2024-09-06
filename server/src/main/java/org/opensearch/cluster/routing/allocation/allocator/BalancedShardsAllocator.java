@@ -35,6 +35,7 @@ package org.opensearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IntroSorter;
+import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardMovementStrategy;
@@ -49,12 +50,14 @@ import org.opensearch.cluster.routing.allocation.RebalanceConstraints;
 import org.opensearch.cluster.routing.allocation.RebalanceParameter;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -202,6 +205,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile boolean ignoreThrottleInRestore;
     private volatile TimeValue allocatorTimeout;
     private long startTime;
+    private RerouteService rerouteService;
 
     public BalancedShardsAllocator(Settings settings) {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -229,6 +233,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_THROTTLE_FOR_REMOTE_RESTORE, this::setIgnoreThrottleInRestore);
         clusterSettings.addSettingsUpdateConsumer(ALLOCATOR_TIMEOUT_SETTING, this::setAllocatorTimeout);
+    }
+
+    @Override
+    public void setRerouteService(RerouteService rerouteService) {
+        assert this.rerouteService == null : "RerouteService is already set";
+        this.rerouteService = rerouteService;
     }
 
     /**
@@ -342,6 +352,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         localShardsBalancer.allocateUnassigned();
         localShardsBalancer.moveShards();
         localShardsBalancer.balance();
+        scheduleRerouteIfAllocatorTimedOut();
 
         final ShardsBalancer remoteShardsBalancer = new RemoteShardsBalancer(logger, allocation);
         remoteShardsBalancer.allocateUnassigned();
@@ -401,6 +412,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     allocation.changes()
                 );
             }
+        }
+    }
+
+    private void scheduleRerouteIfAllocatorTimedOut() {
+        if (allocatorTimedOut()) {
+            assert rerouteService != null : "RerouteService not set to schedule reroute after allocator time out";
+            rerouteService.reroute(
+                "reroute after balanced shards allocator timed out",
+                Priority.HIGH,
+                ActionListener.wrap(
+                    r -> logger.trace("reroute after balanced shards allocator timed out completed"),
+                    e -> logger.debug("reroute after balanced shards allocator timed out failed", e)
+                )
+            );
         }
     }
 

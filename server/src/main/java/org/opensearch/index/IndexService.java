@@ -136,6 +136,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
+import static org.opensearch.common.util.FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
@@ -174,6 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
     private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    private volatile AsyncReplicationTask asyncReplicationTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -194,6 +196,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final RemoteStoreSettings remoteStoreSettings;
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
+    private final Consumer<IndexShard> replicator;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -231,7 +234,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
-        CompositeIndexSettings compositeIndexSettings
+        CompositeIndexSettings compositeIndexSettings,
+        Consumer<IndexShard> replicator
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -306,11 +310,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
+            this.asyncReplicationTask = new AsyncReplicationTask(this);
+        }
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
+        this.replicator = replicator;
         updateFsyncTaskIfNecessary();
     }
 
@@ -387,7 +395,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             recoverySettings,
             remoteStoreSettings,
             fileCache,
-            null
+            null,
+            (s) -> {}
         );
     }
 
@@ -463,13 +472,19 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             recoverySettings,
             remoteStoreSettings,
             null,
-            null
+            null,
+            s -> {}
         );
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
         return false == (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
+    }
+
+    // visible for tests
+    AsyncReplicationTask getReplicationTask() {
+        return asyncReplicationTask;
     }
 
     /**
@@ -944,7 +959,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         String clusterAlias,
-        boolean validate
+        boolean validate,
+        boolean keywordIndexOrDocValuesEnabled
     ) {
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
@@ -970,8 +986,25 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexNameMatcher,
             allowExpensiveQueries,
             valuesSourceRegistry,
-            validate
+            validate,
+            keywordIndexOrDocValuesEnabled
         );
+    }
+
+    /**
+     * Creates a new QueryShardContext.
+     * <p>
+     * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
+     * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
+     */
+    public QueryShardContext newQueryShardContext(
+        int shardId,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        boolean validate
+    ) {
+        return newQueryShardContext(shardId, searcher, nowInMillis, clusterAlias, validate, false);
     }
 
     /**
@@ -1142,9 +1175,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
+            if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
+                updateReplicationTask();
+            }
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
+    }
+
+    private void updateReplicationTask() {
+        try {
+            asyncReplicationTask.close();
+        } finally {
+            asyncReplicationTask = new AsyncReplicationTask(this);
+        }
     }
 
     /**
@@ -1408,6 +1452,47 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         public String toString() {
             return "refresh";
+        }
+    }
+
+    final class AsyncReplicationTask extends BaseAsyncTask {
+
+        AsyncReplicationTask(IndexService indexService) {
+            super(indexService, indexService.getRefreshInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybeSyncSegments(false);
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "replication";
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
+        }
+    }
+
+    private void maybeSyncSegments(boolean force) {
+        if (getRefreshInterval().millis() > 0 || force) {
+            for (IndexShard shard : this.shards.values()) {
+                try {
+                    if (shard.routingEntry().isSearchOnly() && shard.routingEntry().active()) {
+                        replicator.accept(shard);
+                    }
+                } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                    // do nothing
+                }
+            }
         }
     }
 
