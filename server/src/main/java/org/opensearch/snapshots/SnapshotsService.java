@@ -813,6 +813,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
     }
 
+    private void cloneSnapshotPinnedTimestamp(
+        RepositoryData repositoryData,
+        SnapshotId sourceSnapshot,
+        Snapshot snapshot,
+        long timestampToPin,
+        ActionListener<RepositoryData> listener
+    ) {
+        remoteStorePinnedTimestampService.cloneTimestamp(
+            timestampToPin,
+            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + sourceSnapshot.getUUID(),
+            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshot.getSnapshotId().getUUID(),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.debug("Timestamp pinned successfully for clone snapshot {}", snapshot.getSnapshotId().getName());
+                    listener.onResponse(repositoryData);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to pin timestamp for clone snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
+                    listener.onFailure(e);
+
+                }
+            }
+        );
+    }
+
     private static void ensureSnapshotNameNotRunning(
         List<SnapshotsInProgress.Entry> runningSnapshots,
         String repositoryName,
@@ -834,9 +862,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             .collect(Collectors.toMap(IndexId::getName, Function.identity()));
     }
 
-    // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
-    // for repository metadata and loading it has predictable performance
-    public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<Void> listener) {
+    /**
+     * This method does some pre-validation, checks for the presence of source snapshot in repository data.
+     * For shallow snapshot v2 clone, it checks the pinned timestamp to be greater than zero in the source snapshot.
+     *
+     * @param request snapshot request
+     * @param listener snapshot completion listener
+     */
+    public void executeClone(CloneSnapshotRequest request, ActionListener<Void> listener) {
         final String repositoryName = request.repository();
         Repository repository = repositoriesService.repository(repositoryName);
         if (repository.isReadOnly()) {
@@ -845,10 +878,230 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.target());
         validate(repositoryName, snapshotName);
-        // TODO: create snapshot UUID in CloneSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
-        // retries
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        try {
+            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+            repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
+            repositoryDataListener.whenComplete(repositoryData -> {
+                final SnapshotId sourceSnapshotId = repositoryData.getSnapshotIds()
+                    .stream()
+                    .filter(src -> src.getName().equals(request.source()))
+                    .findAny()
+                    .orElseThrow(() -> new SnapshotMissingException(repositoryName, request.source()));
+                final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
+                final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+                executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
+
+                snapshotInfoListener.whenComplete(sourceSnapshotInfo -> {
+                    if (sourceSnapshotInfo.getPinnedTimestamp() > 0) {
+                        if (hasWildCardPatterForCloneSnapshotV2(request.indices()) == false) {
+                            throw new SnapshotException(
+                                repositoryName,
+                                snapshotName,
+                                "Aborting clone for Snapshot-v2, only wildcard pattern '*' is supported for indices"
+                            );
+                        }
+                        cloneSnapshotV2(request, snapshot, repositoryName, repository, listener);
+                    } else {
+                        cloneSnapshot(request, snapshot, repositoryName, repository, listener);
+                    }
+                }, e -> listener.onFailure(e));
+            }, e -> listener.onFailure(e));
+
+        } catch (Exception e) {
+            assert false : new AssertionError(e);
+            logger.error("Snapshot {} clone failed with exception {}", snapshot.getSnapshotId().getName(), e);
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * This method is responsible for creating a clone of the shallow snapshot v2.
+     * It pins the same timestamp that is pinned by the source snapshot.
+     *
+     * Unlike traditional snapshot operations, this method performs a synchronous clone execution and doesn't
+     * upload any shard metadata to the snapshot repository.
+     * The pinned timestamp is later reconciled with remote store segment and translog metadata files during the restore
+     * operation.
+     *
+     * @param request snapshot request
+     * @param snapshot clone snapshot
+     * @param repositoryName snapshot repository name
+     * @param repository snapshot repository
+     * @param listener completion listener
+     */
+    public void cloneSnapshotV2(
+        CloneSnapshotRequest request,
+        Snapshot snapshot,
+        String repositoryName,
+        Repository repository,
+        ActionListener<Void> listener
+    ) {
+
+        long startTime = System.currentTimeMillis();
+        ClusterState currentState = clusterService.state();
+        String snapshotName = snapshot.getSnapshotId().getName();
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
+            private SnapshotsInProgress.Entry newEntry;
+            private SnapshotId sourceSnapshotId;
+            private List<String> indicesForSnapshot;
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
+
+                sourceSnapshotId = repositoryData.getSnapshotIds()
+                    .stream()
+                    .filter(src -> src.getName().equals(request.source()))
+                    .findAny()
+                    .orElseThrow(() -> new SnapshotMissingException(repositoryName, request.source()));
+
+                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
+                    SnapshotDeletionsInProgress.TYPE,
+                    SnapshotDeletionsInProgress.EMPTY
+                );
+                if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(sourceSnapshotId))) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repositoryName,
+                        sourceSnapshotId.getName(),
+                        "cannot clone from snapshot that is being deleted"
+                    );
+                }
+                indicesForSnapshot = new ArrayList<>();
+                for (IndexId indexId : repositoryData.getIndices().values()) {
+                    if (repositoryData.getSnapshots(indexId).contains(sourceSnapshotId)) {
+                        indicesForSnapshot.add(indexId.getName());
+                    }
+                }
+
+                newEntry = SnapshotsInProgress.startClone(
+                    snapshot,
+                    sourceSnapshotId,
+                    repositoryData.resolveIndices(indicesForSnapshot),
+                    threadPool.absoluteTimeInMillis(),
+                    repositoryData.getGenId(),
+                    minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null)
+                );
+                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
+                newEntries.add(newEntry);
+                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(newEntries)).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to clone snapshot-v2", repositoryName, snapshotName), e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                logger.info("snapshot-v2 clone [{}] started", snapshot);
+                final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
+                final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+                executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
+                final ShardGenerations shardGenerations = repositoryData.shardGenerations();
+
+                snapshotInfoListener.whenComplete(snapshotInfo -> {
+                    final SnapshotInfo cloneSnapshotInfo = new SnapshotInfo(
+                        snapshot.getSnapshotId(),
+                        indicesForSnapshot,
+                        newEntry.dataStreams(),
+                        startTime,
+                        null,
+                        System.currentTimeMillis(),
+                        snapshotInfo.totalShards(),
+                        Collections.emptyList(),
+                        newEntry.includeGlobalState(),
+                        newEntry.userMetadata(),
+                        true,
+                        snapshotInfo.getPinnedTimestamp()
+                    );
+                    if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                        throw new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2 clone, no longer cluster manager");
+                    }
+                    final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
+                    pinnedTimestampListener.whenComplete(repoData -> {
+                        logger.info("snapshot-v2 clone [{}] completed successfully", snapshot);
+                        listener.onResponse(null);
+                    }, listener::onFailure);
+                    repository.finalizeSnapshot(
+                        shardGenerations,
+                        repositoryData.getGenId(),
+                        metadataForSnapshot(
+                            currentState.metadata(),
+                            newEntry.includeGlobalState(),
+                            false,
+                            newEntry.dataStreams(),
+                            newEntry.indices()
+                        ),
+                        cloneSnapshotInfo,
+                        repositoryData.getVersion(sourceSnapshotId),
+                        state -> stateWithoutSnapshot(state, snapshot),
+                        Priority.IMMEDIATE,
+                        new ActionListener<RepositoryData>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                                    failSnapshotCompletionListeners(
+                                        snapshot,
+                                        new SnapshotException(snapshot, "Aborting Snapshot-v2 clone, no longer cluster manager")
+                                    );
+                                    listener.onFailure(
+                                        new SnapshotException(
+                                            repositoryName,
+                                            snapshotName,
+                                            "Aborting Snapshot-v2 clone, no longer cluster manager"
+                                        )
+                                    );
+                                    return;
+                                }
+                                cloneSnapshotPinnedTimestamp(
+                                    repositoryData,
+                                    sourceSnapshotId,
+                                    snapshot,
+                                    snapshotInfo.getPinnedTimestamp(),
+                                    pinnedTimestampListener
+                                );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error(
+                                    "Failed to upload files to snapshot repo {} for clone snapshot-v2 {} ",
+                                    repositoryName,
+                                    snapshotName
+                                );
+                                listener.onFailure(e);
+                            }
+                        }
+                    );
+
+                }, listener::onFailure);
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return request.clusterManagerNodeTimeout();
+            }
+        }, "clone_snapshot_v2 [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
+    }
+
+    // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
+    // for repository metadata and loading it has predictable performance
+    public void cloneSnapshot(
+        CloneSnapshotRequest request,
+        Snapshot snapshot,
+        String repositoryName,
+        Repository repository,
+        ActionListener<Void> listener
+    ) {
+        String snapshotName = snapshot.getSnapshotId().getName();
+
         initializingClones.add(snapshot);
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
@@ -4088,6 +4341,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }
+    }
+
+    private boolean hasWildCardPatterForCloneSnapshotV2(String[] indices) {
+        for (String index : indices) {
+            if ("*".equals(index)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private class UpdateSnapshotStatusAction extends TransportClusterManagerNodeAction<
