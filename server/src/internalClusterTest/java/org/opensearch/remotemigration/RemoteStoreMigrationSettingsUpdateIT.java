@@ -67,6 +67,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         assertRemoteStoreBackedIndex(indexName2);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15793")
     public void testNewRestoredIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() throws Exception {
         logger.info("Initialize cluster: gives non remote cluster manager");
         initializeCluster(false);
