@@ -171,4 +171,9 @@ public class ClusterHealthRequestBuilder extends ClusterManagerNodeReadOperation
         request.ensureNodeWeighedIn(ensureNodeCommissioned);
         return this;
     }
+
+    public ClusterHealthRequestBuilder setApplyLevelAtTransportLayer(boolean applyLevelAtTransportLayer) {
+        request.setApplyLevelAtTransportLayer(applyLevelAtTransportLayer);
+        return this;
+    }
 }
