@@ -114,7 +114,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(),
                 RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE
             )
-            .put(REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put(
                 RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.getKey(),
                 hasRemoteStateCharPrefix ? REMOTE_STATE_PREFIX : ""
