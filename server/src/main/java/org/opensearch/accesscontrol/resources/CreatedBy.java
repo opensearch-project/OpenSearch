@@ -8,13 +8,18 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+
+import java.io.IOException;
+
 /**
  * This class contains information on the creator of a resource.
  * Creator can either be a user or a backend_role.
  *
  * @opensearch.experimental
  */
-public class CreatedBy {
+public class CreatedBy implements ToXContentFragment {
 
     private String user;
 
@@ -44,5 +49,10 @@ public class CreatedBy {
     @Override
     public String toString() {
         return "CreatedBy {" + "user='" + user + '\'' + ", backendRole='" + backendRole + '\'' + '}';
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().field("user", user).field("backend_role", backendRole).endObject();
     }
 }

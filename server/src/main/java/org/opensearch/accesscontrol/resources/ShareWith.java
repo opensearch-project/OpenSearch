@@ -8,6 +8,10 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -16,7 +20,7 @@ import java.util.List;
  *
  * @opensearch.experimental
  */
-public class ShareWith {
+public class ShareWith implements ToXContentFragment {
 
     private List<String> users;
 
@@ -24,10 +28,10 @@ public class ShareWith {
 
     private List<String> backendRoles;
 
-    public ShareWith(List<String> users, List<String> backendRoles, List<String> roles) {
+    public ShareWith(List<String> users, List<String> roles, List<String> backendRoles) {
         this.users = users;
-        this.backendRoles = backendRoles;
         this.roles = roles;
+        this.backendRoles = backendRoles;
     }
 
     public List<String> getUsers() {
@@ -57,5 +61,10 @@ public class ShareWith {
     @Override
     public String toString() {
         return "ShareWith {" + "users=" + users + ", roles=" + roles + ", backendRoles=" + backendRoles + '}';
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().field("users", users).field("roles", roles).field("backend_roles", backendRoles).endObject();
     }
 }

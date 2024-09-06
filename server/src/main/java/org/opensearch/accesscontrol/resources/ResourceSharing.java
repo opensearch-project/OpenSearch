@@ -8,6 +8,10 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -18,7 +22,7 @@ import java.util.Objects;
  *
  * @opensearch.experimental
  */
-public class ResourceSharing {
+public class ResourceSharing implements ToXContentFragment {
 
     private String sourceIdx;
 
@@ -26,13 +30,13 @@ public class ResourceSharing {
 
     private CreatedBy createdBy;
 
-    private ShareWith sharedWith;
+    private ShareWith shareWith;
 
-    public ResourceSharing(String sourceIdx, String resourceId, CreatedBy createdBy, ShareWith sharedWith) {
+    public ResourceSharing(String sourceIdx, String resourceId, CreatedBy createdBy, ShareWith shareWith) {
         this.sourceIdx = sourceIdx;
         this.resourceId = resourceId;
         this.createdBy = createdBy;
-        this.sharedWith = sharedWith;
+        this.shareWith = shareWith;
     }
 
     public String getSourceIdx() {
@@ -59,12 +63,12 @@ public class ResourceSharing {
         this.createdBy = createdBy;
     }
 
-    public ShareWith getSharedWith() {
-        return sharedWith;
+    public ShareWith getShareWith() {
+        return shareWith;
     }
 
-    public void setSharedWith(ShareWith sharedWith) {
-        this.sharedWith = sharedWith;
+    public void setShareWith(ShareWith shareWith) {
+        this.shareWith = shareWith;
     }
 
     @Override
@@ -75,12 +79,12 @@ public class ResourceSharing {
         return Objects.equals(getSourceIdx(), resourceSharing.getSourceIdx())
             && Objects.equals(getResourceId(), resourceSharing.getResourceId())
             && Objects.equals(getCreatedBy(), resourceSharing.getCreatedBy())
-            && Objects.equals(getSharedWith(), resourceSharing.getSharedWith());
+            && Objects.equals(getShareWith(), resourceSharing.getShareWith());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getSourceIdx(), getResourceId(), getCreatedBy(), getSharedWith());
+        return Objects.hash(getSourceIdx(), getResourceId(), getCreatedBy(), getShareWith());
     }
 
     @Override
@@ -95,7 +99,17 @@ public class ResourceSharing {
             + ", createdBy="
             + createdBy
             + ", sharedWith="
-            + sharedWith
+            + shareWith
             + '}';
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+            .field("source_idx", sourceIdx)
+            .field("resource_id", resourceId)
+            .field("created_by", createdBy)
+            .field("share_with", shareWith)
+            .endObject();
     }
 }
