@@ -22,39 +22,46 @@ import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.Tes
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 
-public class LongestTaskRunningFirstSelectionStrategyTests extends OpenSearchTestCase {
+public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends OpenSearchTestCase {
     private TestClock clock;
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
         clock = new TestClock();
-        LongestTaskRunningFirstSelectionStrategy testLongestTaskRunningFirstSelectionStrategy =
-            new LongestTaskRunningFirstSelectionStrategy(clock::getTime);
-        long thresholdInLong = 100L;
-        double reduceBy = 50.0 / HEAP_SIZE_BYTES;
+        HighestResourceConsumingTaskFirstSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
+            new HighestResourceConsumingTaskFirstSelectionStrategy(clock::getTime);
+        double reduceBy = 50000.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
-        List<QueryGroupTask> selectedTasks = testLongestTaskRunningFirstSelectionStrategy.selectTasksForCancellation(
+        List<QueryGroupTask> tasks = getListOfTasks(100);
+        List<QueryGroupTask> selectedTasks = testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(
             tasks,
             reduceBy,
             resourceType
         );
         assertFalse(selectedTasks.isEmpty());
+        boolean sortedInDescendingResourceUsage = IntStream.range(0, selectedTasks.size() - 1)
+            .noneMatch(
+                index -> ResourceType.MEMORY.calculateTaskUsage(selectedTasks.get(index), null) < ResourceType.MEMORY.calculateTaskUsage(
+                    selectedTasks.get(index + 1),
+                    null
+                )
+            );
+        assertTrue(sortedInDescendingResourceUsage);
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsLesserThanZero() {
-        LongestTaskRunningFirstSelectionStrategy testLongestTaskRunningFirstSelectionStrategy =
-            new LongestTaskRunningFirstSelectionStrategy();
-        long thresholdInLong = 100L;
+        HighestResourceConsumingTaskFirstSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
+            new HighestResourceConsumingTaskFirstSelectionStrategy();
         double reduceBy = -50.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
+        List<QueryGroupTask> tasks = getListOfTasks(3);
         try {
-            testLongestTaskRunningFirstSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+            testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         } catch (Exception e) {
             assertTrue(e instanceof IllegalArgumentException);
             assertEquals("limit has to be greater than zero", e.getMessage());
@@ -62,13 +69,12 @@ public class LongestTaskRunningFirstSelectionStrategyTests extends OpenSearchTes
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsEqualToZero() {
-        LongestTaskRunningFirstSelectionStrategy testLongestTaskRunningFirstSelectionStrategy =
-            new LongestTaskRunningFirstSelectionStrategy();
-        long thresholdInLong = 100L;
+        HighestResourceConsumingTaskFirstSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
+            new HighestResourceConsumingTaskFirstSelectionStrategy();
         double reduceBy = 0.0;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<QueryGroupTask> tasks = getListOfTasks(thresholdInLong);
-        List<QueryGroupTask> selectedTasks = testLongestTaskRunningFirstSelectionStrategy.selectTasksForCancellation(
+        List<QueryGroupTask> tasks = getListOfTasks(50);
+        List<QueryGroupTask> selectedTasks = testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(
             tasks,
             reduceBy,
             resourceType
@@ -87,10 +93,10 @@ public class LongestTaskRunningFirstSelectionStrategyTests extends OpenSearchTes
         return false;
     }
 
-    private List<QueryGroupTask> getListOfTasks(long totalMemory) {
+    private List<QueryGroupTask> getListOfTasks(int numberOfTasks) {
         List<QueryGroupTask> tasks = new ArrayList<>();
 
-        while (totalMemory > 0) {
+        while (tasks.size() < numberOfTasks) {
             long id = randomLong();
             final QueryGroupTask task = getRandomSearchTask(id);
             long initial_memory = randomLongBetween(1, 100);
@@ -100,8 +106,6 @@ public class LongestTaskRunningFirstSelectionStrategyTests extends OpenSearchTes
             task.startThreadResourceTracking(id, ResourceStatsType.WORKER_STATS, initialTaskResourceMetrics);
 
             long memory = initial_memory + randomLongBetween(1, 10000);
-
-            totalMemory -= memory - initial_memory;
 
             ResourceUsageMetric[] taskResourceMetrics = new ResourceUsageMetric[] {
                 new ResourceUsageMetric(ResourceStats.MEMORY, memory), };

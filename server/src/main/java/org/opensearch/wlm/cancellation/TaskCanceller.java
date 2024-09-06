@@ -29,7 +29,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 
 /**
  * Manages the cancellation of tasks enforced by QueryGroup thresholds on resource usage criteria.
- * This class utilizes a strategy pattern through {@link LongestTaskRunningFirstSelectionStrategy} to identify tasks that exceed
+ * This class utilizes a strategy pattern through {@link HighestResourceConsumingTaskFirstSelectionStrategy} to identify tasks that exceed
  * predefined resource usage limits and are therefore eligible for cancellation.
  *
  * <p>The cancellation process is initiated by evaluating the resource usage of each QueryGroup against its
@@ -40,24 +40,24 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * views, a set of active QueryGroups, and a task selection strategy. These components collectively facilitate the
  * identification and cancellation of tasks that threaten to breach QueryGroup resource limits.</p>
  *
- * @see LongestTaskRunningFirstSelectionStrategy
+ * @see HighestResourceConsumingTaskFirstSelectionStrategy
  * @see QueryGroup
  * @see ResourceType
  */
 public class TaskCanceller {
     public static final double MIN_VALUE = 1e-9;
 
-    protected final WorkloadManagementSettings workloadManagementSettings;
-    protected final TaskSelectionStrategy taskSelectionStrategy;
+    private final WorkloadManagementSettings workloadManagementSettings;
+    private final TaskSelectionStrategy taskSelectionStrategy;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
-    protected final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
-    protected final Collection<QueryGroup> activeQueryGroups;
-    protected final Collection<QueryGroup> deletedQueryGroups;
-    protected BooleanSupplier isNodeInDuress;
+    private final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
+    private final Collection<QueryGroup> activeQueryGroups;
+    private final Collection<QueryGroup> deletedQueryGroups;
+    private BooleanSupplier isNodeInDuress;
 
     public TaskCanceller(
         WorkloadManagementSettings workloadManagementSettings,
-        LongestTaskRunningFirstSelectionStrategy taskSelectionStrategy,
+        HighestResourceConsumingTaskFirstSelectionStrategy taskSelectionStrategy,
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
         Collection<QueryGroup> activeQueryGroups,
         Collection<QueryGroup> deletedQueryGroups,
@@ -106,7 +106,7 @@ public class TaskCanceller {
      *
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode) {
+    List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode) {
         return getAllCancellableTasks(getQueryGroupsToCancelFrom(resiliencyMode));
     }
 
@@ -115,7 +115,7 @@ public class TaskCanceller {
      *
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getAllCancellableTasks(Collection<QueryGroup> queryGroups) {
+    List<TaskCancellation> getAllCancellableTasks(Collection<QueryGroup> queryGroups) {
         return queryGroups.stream().flatMap(queryGroup -> getCancellableTasksFrom(queryGroup).stream()).collect(Collectors.toList());
     }
 
@@ -163,7 +163,7 @@ public class TaskCanceller {
      * @param queryGroup The QueryGroup from which to get cancellable tasks
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getCancellableTasksFrom(QueryGroup queryGroup) {
+    List<TaskCancellation> getCancellableTasksFrom(QueryGroup queryGroup) {
         return TRACKED_RESOURCES.stream()
             .filter(resourceType -> shouldCancelTasks(queryGroup, resourceType))
             .flatMap(resourceType -> getTaskCancellations(queryGroup, resourceType).stream())
@@ -208,7 +208,7 @@ public class TaskCanceller {
         return new TaskCancellation(task, List.of(new TaskCancellation.Reason(cancellationReason, 5)), List.of(this::callbackOnCancel));
     }
 
-    protected List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
+    List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
         List<QueryGroupTask> tasks = queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks();
 
         List<TaskCancellation> taskCancellations = new ArrayList<>();

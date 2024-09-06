@@ -25,7 +25,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
 /**
  * Base class to define QueryGroup tasks
  */
-@PublicApi(since = "2.17.0")
+@PublicApi(since = "2.18.0")
 public class QueryGroupTask extends CancellableTask {
 
     private static final Logger logger = LogManager.getLogger(QueryGroupTask.class);

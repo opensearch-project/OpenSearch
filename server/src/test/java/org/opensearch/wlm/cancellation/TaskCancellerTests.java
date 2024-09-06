@@ -46,7 +46,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
 
         public TestTaskCancellerImpl(
             WorkloadManagementSettings workloadManagementSettings,
-            LongestTaskRunningFirstSelectionStrategy longestTaskRunningFirstSelectionStrategy,
+            HighestResourceConsumingTaskFirstSelectionStrategy highestResourceConsumingTaskFirstSelectionStrategy,
             Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelViews,
             Set<QueryGroup> activeQueryGroups,
             Set<QueryGroup> deletedQueryGroups,
@@ -54,7 +54,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
         ) {
             super(
                 workloadManagementSettings,
-                longestTaskRunningFirstSelectionStrategy,
+                highestResourceConsumingTaskFirstSelectionStrategy,
                 queryGroupLevelViews,
                 activeQueryGroups,
                 deletedQueryGroups,
@@ -81,7 +81,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
         when(workloadManagementSettings.getNodeLevelMemoryCancellationThreshold()).thenReturn(0.9);
         taskCancellation = new TestTaskCancellerImpl(
             workloadManagementSettings,
-            new LongestTaskRunningFirstSelectionStrategy(),
+            new HighestResourceConsumingTaskFirstSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
             deletedQueryGroups,
@@ -208,7 +208,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
 
         TestTaskCancellerImpl taskCancellation = new TestTaskCancellerImpl(
             workloadManagementSettings,
-            new LongestTaskRunningFirstSelectionStrategy(),
+            new HighestResourceConsumingTaskFirstSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
             deletedQueryGroups,
@@ -241,7 +241,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
 
         TestTaskCancellerImpl taskCancellation = new TestTaskCancellerImpl(
             workloadManagementSettings,
-            new LongestTaskRunningFirstSelectionStrategy(),
+            new HighestResourceConsumingTaskFirstSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
             deletedQueryGroups,
@@ -301,7 +301,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
 
         TestTaskCancellerImpl taskCancellation = new TestTaskCancellerImpl(
             workloadManagementSettings,
-            new LongestTaskRunningFirstSelectionStrategy(),
+            new HighestResourceConsumingTaskFirstSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
             deletedQueryGroups,
@@ -372,7 +372,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
 
         TestTaskCancellerImpl taskCancellation = new TestTaskCancellerImpl(
             workloadManagementSettings,
-            new LongestTaskRunningFirstSelectionStrategy(),
+            new HighestResourceConsumingTaskFirstSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
             deletedQueryGroups,
@@ -432,7 +432,7 @@ public class TaskCancellerTests extends OpenSearchTestCase {
 
         TestTaskCancellerImpl taskCancellation = new TestTaskCancellerImpl(
             workloadManagementSettings,
-            new LongestTaskRunningFirstSelectionStrategy(),
+            new HighestResourceConsumingTaskFirstSelectionStrategy(),
             queryGroupLevelViews,
             activeQueryGroups,
             deletedQueryGroups,

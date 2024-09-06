@@ -42,7 +42,7 @@ import java.util.Optional;
  *              "updated_at": 4513232415
  * }
  */
-@PublicApi(since = "2.17.0")
+@PublicApi(since = "2.18.0")
 public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXContentObject {
 
     public static final String _ID_STRING = "_id";

@@ -21,28 +21,29 @@ import java.util.stream.Collectors;
 import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
 
 /**
- * Represents the longest running task first selection strategy.
+ * Represents the highest resource consuming task first selection strategy.
  */
-public class LongestTaskRunningFirstSelectionStrategy implements TaskSelectionStrategy {
+public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskSelectionStrategy {
 
     private final Supplier<Long> nanoTimeSupplier;
 
-    public LongestTaskRunningFirstSelectionStrategy() {
+    public HighestResourceConsumingTaskFirstSelectionStrategy() {
         this(System::nanoTime);
     }
 
-    public LongestTaskRunningFirstSelectionStrategy(Supplier<Long> nanoTimeSupplier) {
+    public HighestResourceConsumingTaskFirstSelectionStrategy(Supplier<Long> nanoTimeSupplier) {
         this.nanoTimeSupplier = nanoTimeSupplier;
     }
 
     /**
      * Returns a comparator that defines the sorting condition for tasks.
-     * This is the default implementation since the longest running tasks are the likely to regress the performance.
+     * This is the default implementation since the most resource consuming tasks are the likely to regress the performance.
+     * from resiliency point of view it makes sense to cancel them first
      *
      * @return The comparator
      */
-    protected Comparator<QueryGroupTask> sortingCondition() {
-        return Comparator.comparingLong(QueryGroupTask::getStartTime);
+    private Comparator<QueryGroupTask> sortingCondition(ResourceType resourceType) {
+        return Comparator.comparingDouble(task -> resourceType.calculateTaskUsage(task, nanoTimeSupplier));
     }
 
     /**
@@ -63,7 +64,7 @@ public class LongestTaskRunningFirstSelectionStrategy implements TaskSelectionSt
             return Collections.emptyList();
         }
 
-        List<QueryGroupTask> sortedTasks = tasks.stream().sorted(sortingCondition()).collect(Collectors.toList());
+        List<QueryGroupTask> sortedTasks = tasks.stream().sorted(sortingCondition(resourceType).reversed()).collect(Collectors.toList());
 
         List<QueryGroupTask> selectedTasks = new ArrayList<>();
         double accumulated = 0;
