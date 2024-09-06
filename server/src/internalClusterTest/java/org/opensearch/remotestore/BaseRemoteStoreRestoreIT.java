@@ -76,29 +76,4 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
     protected void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
         verifyRestoredData(indexStats, indexName, true);
     }
-
-    public void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
-        prepareCluster(numClusterManagerNodes, numDataOnlyNodes, indices, replicaCount, shardCount, Settings.EMPTY);
-    }
-
-    public void prepareCluster(
-        int numClusterManagerNodes,
-        int numDataOnlyNodes,
-        String indices,
-        int replicaCount,
-        int shardCount,
-        Settings settings
-    ) {
-        prepareCluster(numClusterManagerNodes, numDataOnlyNodes, settings);
-        for (String index : indices.split(",")) {
-            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
-            ensureYellowAndNoInitializingShards(index);
-            ensureGreen(index);
-        }
-    }
-
-    public void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, Settings settings) {
-        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes, settings);
-        internalCluster().startDataOnlyNodes(numDataOnlyNodes, settings);
-    }
 }
