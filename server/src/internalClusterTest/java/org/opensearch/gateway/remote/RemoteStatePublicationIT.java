@@ -234,6 +234,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         assertDataNodeDownloadStats(nodesStatsResponseDataNode);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15767")
     public void testRemotePublicationDisabledByRollingRestart() throws Exception {
         prepareCluster(3, 2, INDEX_NAME, 1, 2);
         ensureStableCluster(5);
