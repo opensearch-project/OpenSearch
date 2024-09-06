@@ -52,7 +52,6 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.NodeWeighedAwayException;
-import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.WeightedRoutingUtils;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
@@ -487,7 +486,12 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         TimeValue pendingTaskTimeInQueue
     ) {
         if (logger.isTraceEnabled()) {
-            logger.trace("Calculating health based on state version [{}]", clusterState.version());
+            logger.trace(
+                "Calculating health based on state version [{}] for health level [{}] and applyLevelAtTransportLayer set to [{}]",
+                clusterState.version(),
+                request.level(),
+                request.isApplyLevelAtTransportLayer()
+            );
         }
 
         String[] concreteIndices;
@@ -496,13 +500,13 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             concreteIndices = clusterState.getMetadata().getConcreteAllIndices();
             return new ClusterHealthResponse(
                 clusterState.getClusterName().value(),
+                request,
                 clusterState,
                 clusterService.getClusterSettings(),
                 concreteIndices,
                 awarenessAttribute,
                 numberOfPendingTasks,
                 numberOfInFlightFetch,
-                UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
                 pendingTaskTimeInQueue
             );
         }
@@ -514,10 +518,10 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             ClusterHealthResponse response = new ClusterHealthResponse(
                 clusterState.getClusterName().value(),
                 Strings.EMPTY_ARRAY,
+                request,
                 clusterState,
                 numberOfPendingTasks,
                 numberOfInFlightFetch,
-                UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
                 pendingTaskTimeInQueue
             );
             response.setStatus(ClusterHealthStatus.RED);
@@ -527,10 +531,10 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         return new ClusterHealthResponse(
             clusterState.getClusterName().value(),
             concreteIndices,
+            request,
             clusterState,
             numberOfPendingTasks,
             numberOfInFlightFetch,
-            UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
             pendingTaskTimeInQueue
         );
     }
