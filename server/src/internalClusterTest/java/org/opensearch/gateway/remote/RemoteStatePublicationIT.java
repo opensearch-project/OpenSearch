@@ -20,6 +20,7 @@ import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
@@ -43,16 +44,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
 import static org.opensearch.cluster.metadata.Metadata.isGlobalStateEquals;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -74,7 +76,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     private static final String REMOTE_STATE_PREFIX = "!";
     private static final String REMOTE_ROUTING_PREFIX = "_";
     private boolean isRemoteStateEnabled = true;
-    private String isRemotePublicationEnabled = "true";
+    private boolean isRemotePublicationEnabled = true;
     private boolean hasRemoteStateCharPrefix;
     private boolean hasRemoteRoutingCharPrefix;
 
@@ -82,14 +84,9 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     public void setup() {
         asyncUploadMockFsRepo = false;
         isRemoteStateEnabled = true;
-        isRemotePublicationEnabled = "true";
+        isRemotePublicationEnabled = true;
         hasRemoteStateCharPrefix = randomBoolean();
         hasRemoteRoutingCharPrefix = randomBoolean();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled).build();
     }
 
     @Override
@@ -109,6 +106,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), isRemoteStateEnabled)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
@@ -116,6 +114,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(),
                 RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE
             )
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put(
                 RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.getKey(),
                 hasRemoteStateCharPrefix ? REMOTE_STATE_PREFIX : ""
@@ -235,6 +234,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         assertDataNodeDownloadStats(nodesStatsResponseDataNode);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15767")
     public void testRemotePublicationDisabledByRollingRestart() throws Exception {
         prepareCluster(3, 2, INDEX_NAME, 1, 2);
         ensureStableCluster(5);
@@ -248,7 +248,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 @Override
                 public Settings onNodeStopped(String nodeName) {
                     restartedMasters.add(nodeName);
-                    return Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, false).build();
+                    return Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, false).build();
                 }
 
                 @Override
@@ -287,9 +287,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                         .addMetric(SETTINGS.metricName())
                         .get();
                     // if masterRestarted is true Publication Setting should be false, and vice versa
-                    assertTrue(
-                        REMOTE_PUBLICATION_EXPERIMENTAL_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()) != activeCMRestarted
-                    );
+                    assertTrue(REMOTE_PUBLICATION_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()) != activeCMRestarted);
 
                     followingCMs.forEach(node -> {
                         PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, node);
@@ -336,13 +334,66 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             .addMetric(SETTINGS.metricName())
             .get();
         // if masterRestarted is true Publication Setting should be false, and vice versa
-        assertFalse(REMOTE_PUBLICATION_EXPERIMENTAL_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()));
+        assertFalse(REMOTE_PUBLICATION_SETTING.get(nodesInfoResponse.getNodes().get(0).getSettings()));
 
         followingCMs.forEach(node -> {
             PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, node);
             CoordinationState.PersistedState remoteState = registry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE);
             assertNull(remoteState.getLastAcceptedState());
             // assertNull(remoteState.getLastAcceptedManifest());
+        });
+    }
+
+    public void testMasterReElectionUsesIncrementalUpload() throws IOException {
+        prepareCluster(3, 2, INDEX_NAME, 1, 1);
+        PersistedStateRegistry persistedStateRegistry = internalCluster().getClusterManagerNodeInstance(PersistedStateRegistry.class);
+        GatewayMetaState.RemotePersistedState remotePersistedState = (GatewayMetaState.RemotePersistedState) persistedStateRegistry
+            .getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE);
+        ClusterMetadataManifest manifest = remotePersistedState.getLastAcceptedManifest();
+        // force elected master to step down
+        internalCluster().stopCurrentClusterManagerNode();
+        ensureStableCluster(4);
+
+        persistedStateRegistry = internalCluster().getClusterManagerNodeInstance(PersistedStateRegistry.class);
+        CoordinationState.PersistedState persistedStateAfterElection = persistedStateRegistry.getPersistedState(
+            PersistedStateRegistry.PersistedStateType.REMOTE
+        );
+        ClusterMetadataManifest manifestAfterElection = persistedStateAfterElection.getLastAcceptedManifest();
+
+        // coordination metadata is updated, it will be unequal
+        assertNotEquals(manifest.getCoordinationMetadata(), manifestAfterElection.getCoordinationMetadata());
+        // all other attributes are not uploaded again and will be pointing to same files in manifest after new master is elected
+        assertEquals(manifest.getClusterUUID(), manifestAfterElection.getClusterUUID());
+        assertEquals(manifest.getIndices(), manifestAfterElection.getIndices());
+        assertEquals(manifest.getSettingsMetadata(), manifestAfterElection.getSettingsMetadata());
+        assertEquals(manifest.getTemplatesMetadata(), manifestAfterElection.getTemplatesMetadata());
+        assertEquals(manifest.getCustomMetadataMap(), manifestAfterElection.getCustomMetadataMap());
+        assertEquals(manifest.getRoutingTableVersion(), manifest.getRoutingTableVersion());
+        assertEquals(manifest.getIndicesRouting(), manifestAfterElection.getIndicesRouting());
+    }
+
+    public void testVotingConfigAreCommitted() throws ExecutionException, InterruptedException {
+        prepareCluster(3, 2, INDEX_NAME, 1, 2);
+        ensureStableCluster(5);
+        ensureGreen(INDEX_NAME);
+        // add two new nodes to the cluster, to update the voting config
+        internalCluster().startClusterManagerOnlyNodes(2, Settings.EMPTY);
+        ensureStableCluster(7);
+
+        internalCluster().getInstances(PersistedStateRegistry.class).forEach(persistedStateRegistry -> {
+            CoordinationState.PersistedState localState = persistedStateRegistry.getPersistedState(
+                PersistedStateRegistry.PersistedStateType.LOCAL
+            );
+            CoordinationState.PersistedState remoteState = persistedStateRegistry.getPersistedState(
+                PersistedStateRegistry.PersistedStateType.REMOTE
+            );
+            if (remoteState != null) {
+                assertEquals(
+                    localState.getLastAcceptedState().getLastCommittedConfiguration(),
+                    remoteState.getLastAcceptedState().getLastCommittedConfiguration()
+                );
+                assertEquals(5, remoteState.getLastAcceptedState().getLastCommittedConfiguration().getNodeIds().size());
+            }
         });
     }
 

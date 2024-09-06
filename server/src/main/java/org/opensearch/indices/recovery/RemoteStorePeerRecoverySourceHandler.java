@@ -10,11 +10,13 @@ package org.opensearch.indices.recovery;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.StepListener;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.RecoveryEngineException;
+import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.RunUnderPrimaryPermit;
@@ -48,7 +50,8 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         // A replica of an index with remote translog does not require the translogs locally and keeps receiving the
         // updated segments file on refresh, flushes, and merges. In recovery, here, only file-based recovery is performed
         // and there is no translog replay done.
-
+        final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
+        waitForAssignmentPropagate(retentionLeaseRef);
         final StepListener<SendFileResult> sendFileStep = new StepListener<>();
         final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
         final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
@@ -102,4 +105,5 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
 
         finalizeStepAndCompleteFuture(startingSeqNo, sendSnapshotStep, sendFileStep, prepareEngineStep, onFailure);
     }
+
 }
