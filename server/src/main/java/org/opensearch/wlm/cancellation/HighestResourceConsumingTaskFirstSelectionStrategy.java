@@ -43,7 +43,7 @@ public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskS
      * @return The comparator
      */
     private Comparator<QueryGroupTask> sortingCondition(ResourceType resourceType) {
-        return Comparator.comparingDouble(task -> resourceType.calculateTaskUsage(task, nanoTimeSupplier));
+        return Comparator.comparingDouble(task -> resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task, nanoTimeSupplier));
     }
 
     /**
@@ -70,7 +70,7 @@ public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskS
         double accumulated = 0;
         for (QueryGroupTask task : sortedTasks) {
             selectedTasks.add(task);
-            accumulated += resourceType.calculateTaskUsage(task, nanoTimeSupplier);
+            accumulated += resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task, nanoTimeSupplier);
             if ((accumulated - limit) > MIN_VALUE) {
                 break;
             }

@@ -9,12 +9,14 @@
 package org.opensearch.wlm.tracker;
 
 import org.opensearch.cluster.metadata.QueryGroup;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.wlm.WorkloadManagementSettings;
 
 /**
  * Utility class to provide utility methods at query group level
  */
-public abstract class QueryGroupUsage {
+@PublicApi(since = "2.18.0")
+public abstract class QueryGroupUsageHelper {
     private WorkloadManagementSettings settings;
 
     public WorkloadManagementSettings getSettings() {

@@ -13,12 +13,11 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.wlm.tracker.CpuUsageCalculator;
 import org.opensearch.wlm.tracker.MemoryUsageCalculator;
-import org.opensearch.wlm.tracker.QueryGroupUsage;
+import org.opensearch.wlm.tracker.QueryGroupUsageHelper;
 import org.opensearch.wlm.tracker.ResourceUsageCalculator;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * Enum to hold the resource type
@@ -27,13 +26,13 @@ import java.util.function.Supplier;
  */
 @PublicApi(since = "2.17.0")
 public enum ResourceType {
-    CPU("cpu", true, CpuUsageCalculator.INSTANCE, new QueryGroupUsage() {
+    CPU("cpu", true, CpuUsageCalculator.INSTANCE, new QueryGroupUsageHelper() {
         @Override
         protected double getNormalisedThreshold(QueryGroup queryGroup) {
             return queryGroup.getResourceLimits().get(ResourceType.CPU) * getSettings().getNodeLevelCpuCancellationThreshold();
         }
     }),
-    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, new QueryGroupUsage() {
+    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, new QueryGroupUsageHelper() {
         @Override
         protected double getNormalisedThreshold(QueryGroup queryGroup) {
             return queryGroup.getResourceLimits().get(ResourceType.MEMORY) * getSettings().getNodeLevelMemoryCancellationThreshold();
@@ -43,14 +42,14 @@ public enum ResourceType {
     private final String name;
     private final boolean statsEnabled;
     private final ResourceUsageCalculator resourceUsageCalculator;
-    private final QueryGroupUsage queryGroupUsage;
+    private final QueryGroupUsageHelper queryGroupUsageHelper;
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
-    ResourceType(String name, boolean statsEnabled, ResourceUsageCalculator resourceUsageCalculator, QueryGroupUsage queryGroupUsage) {
+    ResourceType(String name, boolean statsEnabled, ResourceUsageCalculator resourceUsageCalculator, QueryGroupUsageHelper queryGroupUsageHelper) {
         this.name = name;
         this.statsEnabled = statsEnabled;
         this.resourceUsageCalculator = resourceUsageCalculator;
-        this.queryGroupUsage = queryGroupUsage;
+        this.queryGroupUsageHelper = queryGroupUsageHelper;
     }
 
     /**
@@ -79,24 +78,12 @@ public enum ResourceType {
         return statsEnabled;
     }
 
-    public double calculateQueryGroupUsage(List<QueryGroupTask> tasks, Supplier<Long> nanoTimeSupplier) {
-        return resourceUsageCalculator.calculateResourceUsage(tasks, nanoTimeSupplier);
+    public ResourceUsageCalculator getResourceUsageCalculator() {
+        return resourceUsageCalculator;
     }
 
-    public double calculateTaskUsage(QueryGroupTask task, Supplier<Long> nanoTimeSupplier) {
-        return resourceUsageCalculator.calculateTaskResourceUsage(task, nanoTimeSupplier);
-    }
-
-    public boolean isBreachingThreshold(QueryGroup queryGroup, double currentUsage) {
-        return getExcessUsage(queryGroup, currentUsage) > 0;
-    }
-
-    public double getExcessUsage(QueryGroup queryGroup, double currentUsage) {
-        return queryGroupUsage.getExcessUsage(queryGroup, currentUsage);
-    }
-
-    public void setWorkloadManagementSettings(WorkloadManagementSettings settings) {
-        queryGroupUsage.setSettings(settings);
+    public QueryGroupUsageHelper getQueryGroupUsage() {
+        return queryGroupUsageHelper;
     }
 
     public static List<ResourceType> getSortedValues() {

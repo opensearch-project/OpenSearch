@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm.tracker;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.function.Supplier;
 /**
  * This class is used to track query group level resource usage
  */
+@PublicApi(since = "2.18.0")
 public interface ResourceUsageCalculator {
     /**
      * calculates the current resource usage for the query group

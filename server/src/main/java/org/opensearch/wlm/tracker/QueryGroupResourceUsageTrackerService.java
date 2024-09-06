@@ -52,7 +52,7 @@ public class QueryGroupResourceUsageTrackerService {
             // Compute the QueryGroup resource usage
             final Map<ResourceType, Double> resourceUsage = new HashMap<>();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                double usage = resourceType.calculateQueryGroupUsage(queryGroupEntry.getValue(), nanoTimeSupplier);
+                double usage = resourceType.getResourceUsageCalculator().calculateResourceUsage(queryGroupEntry.getValue(), nanoTimeSupplier);
                 resourceUsage.put(resourceType, usage);
             }
 

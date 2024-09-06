@@ -45,7 +45,7 @@ public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends Ope
         assertFalse(selectedTasks.isEmpty());
         boolean sortedInDescendingResourceUsage = IntStream.range(0, selectedTasks.size() - 1)
             .noneMatch(
-                index -> ResourceType.MEMORY.calculateTaskUsage(selectedTasks.get(index), null) < ResourceType.MEMORY.calculateTaskUsage(
+                index -> ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(selectedTasks.get(index), null) < ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(
                     selectedTasks.get(index + 1),
                     null
                 )
@@ -85,7 +85,7 @@ public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends Ope
     private boolean tasksUsageMeetsThreshold(List<QueryGroupTask> selectedTasks, double threshold) {
         double memory = 0;
         for (QueryGroupTask task : selectedTasks) {
-            memory += ResourceType.MEMORY.calculateTaskUsage(task, clock::getTime);
+            memory += ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(task, clock::getTime);
             if ((memory - threshold) > MIN_VALUE) {
                 return true;
             }
