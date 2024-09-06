@@ -76,6 +76,17 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
      */
     private Level level = Level.CLUSTER;
 
+    /**
+     * This flag will be used by the TransportClusterHealthAction to decide if indices/shards info is required in the ClusterHealthResponse or not.
+     * When the flag is disabled - indices/shard info will be returned in ClusterHealthResponse regardless of the health level requested.
+     * When the flag is enabled - indices/shards info will be set according to health level requested.
+     *                  For Level.CLUSTER (or) Level.AWARENESS_ATTRIBUTES - information on indices/shards will NOT be returned to the transport client
+     *                  For Level.INDICES - information on indices will be returned to the transport client.
+     *                  For Level.SHARDS - information on indices and shards will be returned to the transport client
+     * By default, the flag is disabled.
+     */
+    private boolean applyLevelAtTransportLayer = false;
+
     public ClusterHealthRequest() {}
 
     public ClusterHealthRequest(String... indices) {
@@ -103,6 +114,9 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
             ensureNodeWeighedIn = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            applyLevelAtTransportLayer = in.readBoolean();
         }
     }
 
@@ -138,6 +152,9 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeBoolean(ensureNodeWeighedIn);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeBoolean(applyLevelAtTransportLayer);
         }
     }
 
@@ -335,6 +352,14 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
      */
     public final boolean ensureNodeWeighedIn() {
         return ensureNodeWeighedIn;
+    }
+
+    public boolean isApplyLevelAtTransportLayer() {
+        return applyLevelAtTransportLayer;
+    }
+
+    public void setApplyLevelAtTransportLayer(boolean applyLevelAtTransportLayer) {
+        this.applyLevelAtTransportLayer = applyLevelAtTransportLayer;
     }
 
     @Override
