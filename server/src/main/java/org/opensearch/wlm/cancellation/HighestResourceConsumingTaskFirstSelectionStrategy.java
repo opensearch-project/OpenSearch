@@ -43,7 +43,9 @@ public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskS
      * @return The comparator
      */
     private Comparator<QueryGroupTask> sortingCondition(ResourceType resourceType) {
-        return Comparator.comparingDouble(task -> resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task, nanoTimeSupplier));
+        return Comparator.comparingDouble(
+            task -> resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task, nanoTimeSupplier)
+        );
     }
 
     /**

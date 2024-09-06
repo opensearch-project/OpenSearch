@@ -45,7 +45,12 @@ public enum ResourceType {
     private final QueryGroupUsageHelper queryGroupUsageHelper;
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
-    ResourceType(String name, boolean statsEnabled, ResourceUsageCalculator resourceUsageCalculator, QueryGroupUsageHelper queryGroupUsageHelper) {
+    ResourceType(
+        String name,
+        boolean statsEnabled,
+        ResourceUsageCalculator resourceUsageCalculator,
+        QueryGroupUsageHelper queryGroupUsageHelper
+    ) {
         this.name = name;
         this.statsEnabled = statsEnabled;
         this.resourceUsageCalculator = resourceUsageCalculator;

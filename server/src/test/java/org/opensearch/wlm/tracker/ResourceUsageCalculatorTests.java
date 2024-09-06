@@ -50,11 +50,16 @@ public class ResourceUsageCalculatorTests extends OpenSearchTestCase {
         TestClock clock = new TestClock();
 
         QueryGroupTask mockTask = createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 123);
-        double actualMemoryUsage = ResourceType.MEMORY.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask), clock::getTime);
+        double actualMemoryUsage = ResourceType.MEMORY.getResourceUsageCalculator()
+            .calculateResourceUsage(List.of(mockTask), clock::getTime);
         double expectedMemoryUsage = 200.0 / HEAP_SIZE_BYTES;
 
         assertEquals(expectedMemoryUsage, actualMemoryUsage, MIN_VALUE);
-        assertEquals(200.0 / HEAP_SIZE_BYTES, ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask, clock::getTime), MIN_VALUE);
+        assertEquals(
+            200.0 / HEAP_SIZE_BYTES,
+            ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask, clock::getTime),
+            MIN_VALUE
+        );
     }
 
     public static <T extends QueryGroupTask> T createMockTaskWithResourceStats(

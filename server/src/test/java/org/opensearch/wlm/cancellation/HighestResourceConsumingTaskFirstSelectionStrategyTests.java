@@ -45,10 +45,9 @@ public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends Ope
         assertFalse(selectedTasks.isEmpty());
         boolean sortedInDescendingResourceUsage = IntStream.range(0, selectedTasks.size() - 1)
             .noneMatch(
-                index -> ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(selectedTasks.get(index), null) < ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(
-                    selectedTasks.get(index + 1),
-                    null
-                )
+                index -> ResourceType.MEMORY.getResourceUsageCalculator()
+                    .calculateTaskResourceUsage(selectedTasks.get(index), null) < ResourceType.MEMORY.getResourceUsageCalculator()
+                        .calculateTaskResourceUsage(selectedTasks.get(index + 1), null)
             );
         assertTrue(sortedInDescendingResourceUsage);
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
