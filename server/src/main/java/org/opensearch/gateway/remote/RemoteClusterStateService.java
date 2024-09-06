@@ -363,12 +363,20 @@ public class RemoteClusterStateService implements Closeable {
      *
      * @return {@link RemoteClusterStateManifestInfo} object containing uploaded manifest detail
      */
-    @Nullable
     public RemoteClusterStateManifestInfo writeIncrementalMetadata(
         ClusterState previousClusterState,
         ClusterState clusterState,
         ClusterMetadataManifest previousManifest
     ) throws IOException {
+        if (previousClusterState == null) {
+            throw new IllegalArgumentException("previousClusterState cannot be null");
+        }
+        if (clusterState == null) {
+            throw new IllegalArgumentException("clusterState cannot be null");
+        }
+        if (previousManifest == null) {
+            throw new IllegalArgumentException("previousManifest cannot be null");
+        }
         logger.trace("WRITING INCREMENTAL STATE");
 
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
@@ -376,7 +384,6 @@ public class RemoteClusterStateService implements Closeable {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
-        assert previousClusterState.metadata().coordinationMetadata().term() == clusterState.metadata().coordinationMetadata().term();
 
         boolean firstUploadForSplitGlobalMetadata = !previousManifest.hasMetadataAttributesFiles();
 
@@ -949,18 +956,41 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     @Nullable
-    public RemoteClusterStateManifestInfo markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
-        throws IOException {
+    public RemoteClusterStateManifestInfo markLastStateAsCommitted(
+        ClusterState clusterState,
+        ClusterMetadataManifest previousManifest,
+        boolean commitVotingConfig
+    ) throws IOException {
         assert clusterState != null : "Last accepted cluster state is not set";
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
         assert previousManifest != null : "Last cluster metadata manifest is not set";
+        UploadedMetadataAttribute uploadedCoordinationMetadata = previousManifest.getCoordinationMetadata();
+        if (commitVotingConfig) {
+            // update the coordination metadata if voting config is committed
+            uploadedCoordinationMetadata = writeMetadataInParallel(
+                clusterState,
+                emptyList(),
+                emptyMap(),
+                emptyMap(),
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                emptyMap(),
+                false,
+                emptyList(),
+                null
+            ).uploadedCoordinationMetadata;
+        }
         UploadedMetadataResults uploadedMetadataResults = new UploadedMetadataResults(
             previousManifest.getIndices(),
             previousManifest.getCustomMetadataMap(),
-            previousManifest.getCoordinationMetadata(),
+            uploadedCoordinationMetadata,
             previousManifest.getSettingsMetadata(),
             previousManifest.getTemplatesMetadata(),
             previousManifest.getTransientSettingsMetadata(),
@@ -1760,6 +1790,10 @@ public class RemoteClusterStateService implements Closeable {
                 e
             );
         }
+    }
+
+    public boolean isRemotePublicationEnabled() {
+        return this.isPublicationEnabled;
     }
 
     public void setRemoteStateReadTimeout(TimeValue remoteStateReadTimeout) {
