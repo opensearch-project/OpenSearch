@@ -51,7 +51,6 @@ import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.EqualsHashCodeTestUtils;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -68,7 +67,6 @@ import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
@@ -1402,9 +1400,6 @@ public class CoordinationStateTests extends OpenSearchTestCase {
     }
 
     private static Settings remotePublicationSettings() {
-        FeatureFlagSetter.set(REMOTE_PUBLICATION_EXPERIMENTAL);
-        Settings remoteStateSettings = Settings.builder().put(remoteStateSettings()).put(REMOTE_PUBLICATION_EXPERIMENTAL, true).build();
-        initializeFeatureFlags(remoteStateSettings);
-        return remoteStateSettings;
+        return Settings.builder().put(remoteStateSettings()).put(REMOTE_PUBLICATION_SETTING_KEY, true).build();
     }
 }
