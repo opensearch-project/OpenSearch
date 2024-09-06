@@ -40,7 +40,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -92,7 +91,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.ClusterState.CUSTOM_VALUE_SERIALIZER;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
@@ -122,6 +120,18 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
 public class RemoteClusterStateService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
+
+    /**
+     * Gates the functionality of remote publication.
+     */
+    public static final String REMOTE_PUBLICATION_SETTING_KEY = "cluster.remote_store.publication.enabled";
+
+    public static final Setting<Boolean> REMOTE_PUBLICATION_SETTING = Setting.boolSetting(
+        REMOTE_PUBLICATION_SETTING_KEY,
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
 
     /**
      * Used to specify if cluster state metadata should be published to remote store
@@ -249,7 +259,7 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-        this.isPublicationEnabled = FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
+        this.isPublicationEnabled = REMOTE_PUBLICATION_SETTING.get(settings)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
