@@ -182,9 +182,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             // to avoid permanently blocking node joins
             // This situation should ideally not happen, this is just for extra safety
             transportService.removePendingDisconnections(
-                targetsByNode.keySet()
+                transportService.getPendingDisconnections()
                     .stream()
-                    .filter(discoveryNode -> !discoveryNodes.nodeExists(discoveryNode))
+                    .filter(discoveryNode -> !discoveryNodes.nodeExists(discoveryNode) && !targetsByNode.containsKey(discoveryNode))
                     .collect(Collectors.toSet())
             );
         }

@@ -115,6 +115,11 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     @Override
+    public Set<DiscoveryNode> getPendingDisconnections() {
+        return delegate.getPendingDisconnections();
+    }
+
+    @Override
     public void setPendingDisconnection(DiscoveryNode node) {
         delegate.setPendingDisconnection(node);
     }

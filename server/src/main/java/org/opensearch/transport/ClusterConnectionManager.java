@@ -248,6 +248,11 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     @Override
+    public Set<DiscoveryNode> getPendingDisconnections() {
+        return pendingDisconnections;
+    }
+
+    @Override
     public void setPendingDisconnection(DiscoveryNode node) {
         logger.debug("marking disconnection as pending for node: [{}]", node);
         pendingDisconnections.add(node);
