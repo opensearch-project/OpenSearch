@@ -13,8 +13,8 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.wlm.tracker.CpuUsageCalculator;
 import org.opensearch.wlm.tracker.MemoryUsageCalculator;
+import org.opensearch.wlm.tracker.QueryGroupUsage;
 import org.opensearch.wlm.tracker.ResourceUsageCalculator;
-import org.opensearch.wlm.tracker.ResourceUsageUtil;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,13 +27,13 @@ import java.util.function.Supplier;
  */
 @PublicApi(since = "2.17.0")
 public enum ResourceType {
-    CPU("cpu", true, CpuUsageCalculator.INSTANCE, new ResourceUsageUtil() {
+    CPU("cpu", true, CpuUsageCalculator.INSTANCE, new QueryGroupUsage() {
         @Override
         protected double getNormalisedThreshold(QueryGroup queryGroup) {
             return queryGroup.getResourceLimits().get(ResourceType.CPU) * getSettings().getNodeLevelCpuCancellationThreshold();
         }
     }),
-    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, new ResourceUsageUtil() {
+    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, new QueryGroupUsage() {
         @Override
         protected double getNormalisedThreshold(QueryGroup queryGroup) {
             return queryGroup.getResourceLimits().get(ResourceType.MEMORY) * getSettings().getNodeLevelMemoryCancellationThreshold();
@@ -43,14 +43,14 @@ public enum ResourceType {
     private final String name;
     private final boolean statsEnabled;
     private final ResourceUsageCalculator resourceUsageCalculator;
-    private final ResourceUsageUtil resourceUsageUtil;
+    private final QueryGroupUsage queryGroupUsage;
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
-    ResourceType(String name, boolean statsEnabled, ResourceUsageCalculator resourceUsageCalculator, ResourceUsageUtil resourceUsageUtil) {
+    ResourceType(String name, boolean statsEnabled, ResourceUsageCalculator resourceUsageCalculator, QueryGroupUsage queryGroupUsage) {
         this.name = name;
         this.statsEnabled = statsEnabled;
         this.resourceUsageCalculator = resourceUsageCalculator;
-        this.resourceUsageUtil = resourceUsageUtil;
+        this.queryGroupUsage = queryGroupUsage;
     }
 
     /**
@@ -92,11 +92,11 @@ public enum ResourceType {
     }
 
     public double getExcessUsage(QueryGroup queryGroup, double currentUsage) {
-        return resourceUsageUtil.getExcessUsage(queryGroup, currentUsage);
+        return queryGroupUsage.getExcessUsage(queryGroup, currentUsage);
     }
 
     public void setWorkloadManagementSettings(WorkloadManagementSettings settings) {
-        resourceUsageUtil.setSettings(settings);
+        queryGroupUsage.setSettings(settings);
     }
 
     public static List<ResourceType> getSortedValues() {

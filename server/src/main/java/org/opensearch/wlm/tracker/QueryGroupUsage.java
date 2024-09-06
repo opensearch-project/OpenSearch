@@ -14,7 +14,7 @@ import org.opensearch.wlm.WorkloadManagementSettings;
 /**
  * Utility class to provide utility methods at query group level
  */
-public abstract class ResourceUsageUtil {
+public abstract class QueryGroupUsage {
     private WorkloadManagementSettings settings;
 
     public WorkloadManagementSettings getSettings() {
