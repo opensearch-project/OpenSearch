@@ -55,6 +55,7 @@ import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedState
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
@@ -1150,9 +1151,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                 );
                 clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
-                clusterService.setNodeConnectionsService(
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
+                NodeConnectionsService nodeConnectionsService = createTestNodeConnectionsService(
+                    clusterService.getSettings(),
+                    threadPool,
+                    transportService
                 );
+                clusterService.setNodeConnectionsService(nodeConnectionsService);
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
@@ -1588,6 +1592,24 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
+    public static NodeConnectionsService createTestNodeConnectionsService(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService
+    ) {
+        return new NodeConnectionsService(settings, threadPool, transportService) {
+            @Override
+            public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                // just update targetsByNode to ensure disconnect runs for these nodes
+                // we rely on disconnect to run for keeping track of pendingDisconnects and ensuring node-joins can happen
+                for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                    this.targetsByNode.put(discoveryNode, createConnectionTarget(discoveryNode));
+                }
+                onCompletion.run();
+            }
+        };
+    }
+
     static class DisruptableClusterApplierService extends ClusterApplierService {
         private final String nodeName;
         private final DeterministicTaskQueue deterministicTaskQueue;
@@ -1639,11 +1661,6 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
             }
-        }
-
-        @Override
-        protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
         }
 
         @Override

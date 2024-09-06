@@ -62,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static org.opensearch.common.settings.Setting.Property;
 import static org.opensearch.common.settings.Setting.positiveTimeSetting;
@@ -104,7 +103,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     // contains an entry for every node in the latest cluster state, as well as for nodes from which we are in the process of
     // disconnecting
-    private final Map<DiscoveryNode, ConnectionTarget> targetsByNode = new HashMap<>();
+    protected final Map<DiscoveryNode, ConnectionTarget> targetsByNode = new HashMap<>();
 
     private final TimeValue reconnectInterval;
     private volatile ConnectionChecker connectionChecker;
@@ -114,6 +113,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
+    }
+
+    // exposed for testing
+    protected ConnectionTarget createConnectionTarget(DiscoveryNode discoveryNode) {
+        return new ConnectionTarget(discoveryNode);
     }
 
     /**
@@ -175,18 +179,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
                 runnables.add(targetsByNode.get(discoveryNode).disconnect());
             }
-
-            // There might be some stale nodes that are in pendingDisconnect set from before but are not connected anymore
-            // So these nodes would not be there in targetsByNode and would not have disconnect() called for them
-            // This code block clears the pending disconnect for these nodes that don't have entries in targetsByNode
-            // to avoid permanently blocking node joins
-            // This situation should ideally not happen, this is just for extra safety
-            transportService.removePendingDisconnections(
-                transportService.getPendingDisconnections()
-                    .stream()
-                    .filter(discoveryNode -> !discoveryNodes.nodeExists(discoveryNode) && !targetsByNode.containsKey(discoveryNode))
-                    .collect(Collectors.toSet())
-            );
         }
         runnables.forEach(Runnable::run);
     }
@@ -334,7 +326,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      *
      * @opensearch.internal
      */
-    private class ConnectionTarget {
+    protected class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private PlainListenableActionFuture<Void> future = PlainListenableActionFuture.newListenableFuture();
@@ -524,8 +516,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
                     if (completedActivityType.equals(ActivityType.DISCONNECTING)) {
                         final ConnectionTarget removedTarget = targetsByNode.remove(discoveryNode);
-                        // if we remove from targetsByNode, we also remove from underlying pendingDisconnects for consistency
-                        // transportService.markDisconnectAsCompleted(new HashSet<>(Collections.singleton(discoveryNode)));
                         assert removedTarget == this : removedTarget + " vs " + this;
                     }
                 } else {
