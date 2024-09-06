@@ -40,6 +40,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -104,6 +105,7 @@ public class CoordinationState {
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
         this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
+        // ToDo: revisit this check while making the setting dynamic
         this.isRemotePublicationEnabled = isRemoteStateEnabled
             && REMOTE_PUBLICATION_SETTING.get(settings)
             && localNode.isRemoteStatePublicationEnabled();
@@ -459,6 +461,9 @@ public class CoordinationState {
             clusterState.term()
         );
         persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(clusterState);
+        if (shouldUpdateRemotePersistedState(publishRequest)) {
+            updateRemotePersistedStateOnPublishRequest(publishRequest);
+        }
         assert getLastAcceptedState() == clusterState;
 
         return new PublishResponse(clusterState.term(), clusterState.version());
@@ -571,6 +576,9 @@ public class CoordinationState {
         );
 
         persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).markLastAcceptedStateAsCommitted();
+        if (shouldCommitRemotePersistedState()) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).markLastAcceptedStateAsCommitted();
+        }
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
@@ -616,6 +624,33 @@ public class CoordinationState {
         IOUtils.close(persistedStateRegistry);
     }
 
+    private boolean shouldUpdateRemotePersistedState(PublishRequest publishRequest) {
+        return persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null
+            && publishRequest.getAcceptedState().getNodes().isLocalNodeElectedClusterManager() == false;
+    }
+
+    private void updateRemotePersistedStateOnPublishRequest(PublishRequest publishRequest) {
+        if (publishRequest instanceof RemoteStatePublishRequest) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(publishRequest.getAcceptedState());
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE)
+                .setLastAcceptedManifest(((RemoteStatePublishRequest) publishRequest).getAcceptedManifest());
+        } else {
+            // We will end up here if PublishRequest was sent not using Remote Store even with remote persisted state on this node
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(null);
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedManifest(null);
+        }
+    }
+
+    private boolean shouldCommitRemotePersistedState() {
+        return persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null
+            && persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL)
+                .getLastAcceptedState()
+                .getNodes()
+                .isLocalNodeElectedClusterManager() == false
+            && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState() != null
+            && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest() != null;
+    }
+
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
      *
@@ -654,6 +689,22 @@ public class CoordinationState {
         PersistedStateStats getStats();
 
         /**
+         * Returns the last accepted {@link ClusterMetadataManifest}.
+         *
+         * @return The last accepted {@link ClusterMetadataManifest}, or null if no manifest
+         *         has been accepted yet.
+         */
+        default ClusterMetadataManifest getLastAcceptedManifest() {
+            // return null by default, this method needs to be overridden wherever required
+            return null;
+        }
+
+        /**
+         * Sets the last accepted {@link ClusterMetadataManifest}.
+         */
+        default void setLastAcceptedManifest(ClusterMetadataManifest manifest) {}
+
+        /**
          * Marks the last accepted cluster state as committed.
          * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set,
          * with the last committed configuration now corresponding to the last accepted configuration, and the cluster uuid, if set,
@@ -661,14 +712,7 @@ public class CoordinationState {
          */
         default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            Metadata.Builder metadataBuilder = null;
-            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
-                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
-                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
-                    .build();
-                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
-                metadataBuilder.coordinationMetadata(coordinationMetadata);
-            }
+            Metadata.Builder metadataBuilder = commitVotingConfiguration(lastAcceptedState);
             // if we receive a commit from a Zen1 cluster-manager that has not recovered its state yet,
             // the cluster uuid might not been known yet.
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
@@ -691,6 +735,18 @@ public class CoordinationState {
             if (metadataBuilder != null) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
             }
+        }
+
+        default Metadata.Builder commitVotingConfiguration(ClusterState lastAcceptedState) {
+            Metadata.Builder metadataBuilder = null;
+            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
+                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
+                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
+                    .build();
+                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
+                metadataBuilder.coordinationMetadata(coordinationMetadata);
+            }
+            return metadataBuilder;
         }
 
         default void close() throws IOException {}
