@@ -67,11 +67,6 @@ public class FeatureFlags {
      */
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
-    /**
-     * Gates the functionality of background task execution.
-     */
-    public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = "opensearch.experimental.feature.task.background.enabled";
-
     public static final String READER_WRITER_SPLIT_EXPERIMENTAL = "opensearch.experimental.feature.read.write.split.enabled";
 
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
@@ -137,7 +132,6 @@ public class FeatureFlags {
         DATETIME_FORMATTER_CACHING_SETTING,
         TIERED_REMOTE_INDEX_SETTING,
         PLUGGABLE_CACHE_SETTING,
-        STAR_TREE_INDEX_SETTING,
         APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         STAR_TREE_INDEX_SETTING,
         READER_WRITER_SPLIT_EXPERIMENTAL_SETTING
