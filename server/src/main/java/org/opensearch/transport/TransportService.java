@@ -41,7 +41,6 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Streamables;
 import org.opensearch.common.lease.Releasable;
@@ -774,16 +773,12 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.disconnectFromNode(node);
     }
 
-    public Set<DiscoveryNode> getPendingDisconnections() {
-        return connectionManager.getPendingDisconnections();
-    }
-
-    public void setPendingDisconnections(DiscoveryNodes.Delta nodesDelta) {
-        connectionManager.setPendingDisconnections(new HashSet<>(nodesDelta.removedNodes()));
+    public void setPendingDisconnections(Set<DiscoveryNode> nodes) {
+        nodes.forEach(connectionManager::setPendingDisconnection);
     }
 
     public void removePendingDisconnections(Set<DiscoveryNode> nodes) {
-        connectionManager.removePendingDisconnections(nodes);
+        nodes.forEach(connectionManager::removePendingDisconnection);
     }
 
     public void addMessageListener(TransportMessageListener listener) {

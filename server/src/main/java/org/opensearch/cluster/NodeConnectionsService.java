@@ -177,15 +177,16 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
 
             // There might be some stale nodes that are in pendingDisconnect set from before but are not connected anymore
-            // This code block clears the pending disconnect for these nodes to avoid permanently blocking node joins
-            // This situation should ideally not happen
+            // So these nodes would not be there in targetsByNode and would not have disconnect() called for them
+            // This code block clears the pending disconnect for these nodes that don't have entries in targetsByNode
+            // to avoid permanently blocking node joins
+            // This situation should ideally not happen, this is just for extra safety
             transportService.removePendingDisconnections(
-                transportService.getPendingDisconnections()
+                targetsByNode.keySet()
                     .stream()
                     .filter(discoveryNode -> !discoveryNodes.nodeExists(discoveryNode))
                     .collect(Collectors.toSet())
             );
-
         }
         runnables.forEach(Runnable::run);
     }

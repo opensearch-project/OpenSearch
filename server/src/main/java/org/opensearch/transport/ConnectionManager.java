@@ -65,11 +65,9 @@ public interface ConnectionManager extends Closeable {
 
     void disconnectFromNode(DiscoveryNode node);
 
-    Set<DiscoveryNode> getPendingDisconnections();
+    void setPendingDisconnection(DiscoveryNode node);
 
-    void setPendingDisconnections(Set<DiscoveryNode> nodes);
-
-    void removePendingDisconnections(Set<DiscoveryNode> nodes);
+    void removePendingDisconnection(DiscoveryNode node);
 
     Set<DiscoveryNode> getAllConnectedNodes();
 

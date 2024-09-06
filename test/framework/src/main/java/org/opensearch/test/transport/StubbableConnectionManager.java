@@ -124,18 +124,13 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public Set<DiscoveryNode> getPendingDisconnections() {
-        return delegate.getPendingDisconnections();
+    public void setPendingDisconnection(DiscoveryNode node) {
+        delegate.setPendingDisconnection(node);
     }
 
     @Override
-    public void setPendingDisconnections(Set<DiscoveryNode> nodes) {
-        delegate.setPendingDisconnections(nodes);
-    }
-
-    @Override
-    public void removePendingDisconnections(Set<DiscoveryNode> nodes) {
-        delegate.removePendingDisconnections(nodes);
+    public void removePendingDisconnection(DiscoveryNode node) {
+        delegate.removePendingDisconnection(node);
     }
 
     @Override
