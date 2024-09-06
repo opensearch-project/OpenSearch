@@ -20,6 +20,7 @@ import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
@@ -43,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -74,7 +76,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     private static final String REMOTE_STATE_PREFIX = "!";
     private static final String REMOTE_ROUTING_PREFIX = "_";
     private boolean isRemoteStateEnabled = true;
-    private String isRemotePublicationEnabled = "true";
+    private boolean isRemotePublicationEnabled = true;
     private boolean hasRemoteStateCharPrefix;
     private boolean hasRemoteRoutingCharPrefix;
 
@@ -82,7 +84,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     public void setup() {
         asyncUploadMockFsRepo = false;
         isRemoteStateEnabled = true;
-        isRemotePublicationEnabled = "true";
+        isRemotePublicationEnabled = true;
         hasRemoteStateCharPrefix = randomBoolean();
         hasRemoteRoutingCharPrefix = randomBoolean();
     }
@@ -112,6 +114,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(),
                 RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE
             )
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put(
                 RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.getKey(),
                 hasRemoteStateCharPrefix ? REMOTE_STATE_PREFIX : ""
@@ -338,6 +341,59 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             CoordinationState.PersistedState remoteState = registry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE);
             assertNull(remoteState.getLastAcceptedState());
             // assertNull(remoteState.getLastAcceptedManifest());
+        });
+    }
+
+    public void testMasterReElectionUsesIncrementalUpload() throws IOException {
+        prepareCluster(3, 2, INDEX_NAME, 1, 1);
+        PersistedStateRegistry persistedStateRegistry = internalCluster().getClusterManagerNodeInstance(PersistedStateRegistry.class);
+        GatewayMetaState.RemotePersistedState remotePersistedState = (GatewayMetaState.RemotePersistedState) persistedStateRegistry
+            .getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE);
+        ClusterMetadataManifest manifest = remotePersistedState.getLastAcceptedManifest();
+        // force elected master to step down
+        internalCluster().stopCurrentClusterManagerNode();
+        ensureStableCluster(4);
+
+        persistedStateRegistry = internalCluster().getClusterManagerNodeInstance(PersistedStateRegistry.class);
+        CoordinationState.PersistedState persistedStateAfterElection = persistedStateRegistry.getPersistedState(
+            PersistedStateRegistry.PersistedStateType.REMOTE
+        );
+        ClusterMetadataManifest manifestAfterElection = persistedStateAfterElection.getLastAcceptedManifest();
+
+        // coordination metadata is updated, it will be unequal
+        assertNotEquals(manifest.getCoordinationMetadata(), manifestAfterElection.getCoordinationMetadata());
+        // all other attributes are not uploaded again and will be pointing to same files in manifest after new master is elected
+        assertEquals(manifest.getClusterUUID(), manifestAfterElection.getClusterUUID());
+        assertEquals(manifest.getIndices(), manifestAfterElection.getIndices());
+        assertEquals(manifest.getSettingsMetadata(), manifestAfterElection.getSettingsMetadata());
+        assertEquals(manifest.getTemplatesMetadata(), manifestAfterElection.getTemplatesMetadata());
+        assertEquals(manifest.getCustomMetadataMap(), manifestAfterElection.getCustomMetadataMap());
+        assertEquals(manifest.getRoutingTableVersion(), manifest.getRoutingTableVersion());
+        assertEquals(manifest.getIndicesRouting(), manifestAfterElection.getIndicesRouting());
+    }
+
+    public void testVotingConfigAreCommitted() throws ExecutionException, InterruptedException {
+        prepareCluster(3, 2, INDEX_NAME, 1, 2);
+        ensureStableCluster(5);
+        ensureGreen(INDEX_NAME);
+        // add two new nodes to the cluster, to update the voting config
+        internalCluster().startClusterManagerOnlyNodes(2, Settings.EMPTY);
+        ensureStableCluster(7);
+
+        internalCluster().getInstances(PersistedStateRegistry.class).forEach(persistedStateRegistry -> {
+            CoordinationState.PersistedState localState = persistedStateRegistry.getPersistedState(
+                PersistedStateRegistry.PersistedStateType.LOCAL
+            );
+            CoordinationState.PersistedState remoteState = persistedStateRegistry.getPersistedState(
+                PersistedStateRegistry.PersistedStateType.REMOTE
+            );
+            if (remoteState != null) {
+                assertEquals(
+                    localState.getLastAcceptedState().getLastCommittedConfiguration(),
+                    remoteState.getLastAcceptedState().getLastCommittedConfiguration()
+                );
+                assertEquals(5, remoteState.getLastAcceptedState().getLastCommittedConfiguration().getNodeIds().size());
+            }
         });
     }
 
