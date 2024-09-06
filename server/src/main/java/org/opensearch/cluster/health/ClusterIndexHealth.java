@@ -32,9 +32,11 @@
 
 package org.opensearch.cluster.health;
 
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -141,6 +143,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private final int relocatingShards;
     private final int initializingShards;
     private final int unassignedShards;
+    private int delayedUnassignedShards;
     private final int activePrimaryShards;
     private final ClusterHealthStatus status;
     private final Map<Integer, ClusterShardHealth> shards;
@@ -163,6 +166,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
         int computeUnassignedShards = 0;
+        int computeDelayedUnassignedShards = 0;
         for (ClusterShardHealth shardHealth : shards.values()) {
             if (shardHealth.isPrimaryActive()) {
                 computeActivePrimaryShards++;
@@ -171,13 +175,9 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             computeRelocatingShards += shardHealth.getRelocatingShards();
             computeInitializingShards += shardHealth.getInitializingShards();
             computeUnassignedShards += shardHealth.getUnassignedShards();
+            computeDelayedUnassignedShards += shardHealth.getDelayedUnassignedShards();
 
-            if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
-                computeStatus = ClusterHealthStatus.RED;
-            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
-                // do not override an existing red
-                computeStatus = ClusterHealthStatus.YELLOW;
-            }
+            computeStatus = getIndexHealthStatus(shardHealth.getStatus(), computeStatus);
         }
         if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
             computeStatus = ClusterHealthStatus.RED;
@@ -189,6 +189,110 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
         this.unassignedShards = computeUnassignedShards;
+        this.delayedUnassignedShards = computeDelayedUnassignedShards;
+    }
+
+    public ClusterIndexHealth(
+        final IndexMetadata indexMetadata,
+        final IndexRoutingTable indexRoutingTable,
+        final ClusterHealthRequest.Level healthLevel
+    ) {
+        this.index = indexMetadata.getIndex().getName();
+        this.numberOfShards = indexMetadata.getNumberOfShards();
+        this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
+
+        shards = new HashMap<>();
+
+        // update the index status
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+        int computeDelayedUnassignedShards = 0;
+
+        boolean isShardLevelHealthRequired = healthLevel == ClusterHealthRequest.Level.SHARDS;
+        if (isShardLevelHealthRequired) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                int shardId = indexShardRoutingTable.shardId().id();
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, indexShardRoutingTable);
+                if (shardHealth.isPrimaryActive()) {
+                    computeActivePrimaryShards++;
+                }
+                computeActiveShards += shardHealth.getActiveShards();
+                computeRelocatingShards += shardHealth.getRelocatingShards();
+                computeInitializingShards += shardHealth.getInitializingShards();
+                computeUnassignedShards += shardHealth.getUnassignedShards();
+                computeDelayedUnassignedShards += shardHealth.getDelayedUnassignedShards();
+                computeStatus = getIndexHealthStatus(shardHealth.getStatus(), computeStatus);
+                shards.put(shardId, shardHealth);
+            }
+        } else {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                int activeShardsPerShardId = 0;
+
+                List<ShardRouting> shardRoutings = indexShardRoutingTable.shards();
+                int shardRoutingCountPerShardId = shardRoutings.size();
+                for (int index = 0; index < shardRoutingCountPerShardId; index++) {
+                    ShardRouting shardRouting = shardRoutings.get(index);
+                    if (shardRouting.active()) {
+                        computeActiveShards++;
+                        activeShardsPerShardId++;
+                        if (shardRouting.relocating()) {
+                            computeRelocatingShards++;
+                        }
+                    } else if (shardRouting.initializing()) {
+                        computeInitializingShards++;
+                    } else if (shardRouting.unassigned()) {
+                        computeUnassignedShards++;
+                        if (shardRouting.unassignedInfo().isDelayed()) {
+                            computeDelayedUnassignedShards++;
+                        }
+                    }
+                }
+                ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+                if (primaryShard.active()) {
+                    computeActivePrimaryShards++;
+                }
+                ClusterHealthStatus shardHealth = ClusterShardHealth.getShardHealth(
+                    primaryShard,
+                    activeShardsPerShardId,
+                    shardRoutingCountPerShardId
+                );
+                computeStatus = getIndexHealthStatus(shardHealth, computeStatus);
+            }
+        }
+
+        if (indexRoutingTable.shards() != null && indexRoutingTable.shards().isEmpty()) {
+            // might be since none has been created yet (two phase index creation)
+            computeStatus = ClusterHealthStatus.RED;
+        }
+
+        this.status = computeStatus;
+        this.activePrimaryShards = computeActivePrimaryShards;
+        this.activeShards = computeActiveShards;
+        this.relocatingShards = computeRelocatingShards;
+        this.initializingShards = computeInitializingShards;
+        this.unassignedShards = computeUnassignedShards;
+        this.delayedUnassignedShards = computeDelayedUnassignedShards;
+
+    }
+
+    public static ClusterHealthStatus getIndexHealthStatus(ClusterHealthStatus shardHealth, ClusterHealthStatus computeStatus) {
+        switch (shardHealth) {
+            case RED:
+                return ClusterHealthStatus.RED;
+            case YELLOW:
+                // do not override an existing red
+                if (computeStatus != ClusterHealthStatus.RED) {
+                    return ClusterHealthStatus.YELLOW;
+                } else {
+                    return ClusterHealthStatus.RED;
+                }
+            default:
+                return computeStatus;
+        }
     }
 
     public ClusterIndexHealth(final StreamInput in) throws IOException {
@@ -267,6 +371,10 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
 
     public int getUnassignedShards() {
         return unassignedShards;
+    }
+
+    public int getDelayedUnassignedShards() {
+        return delayedUnassignedShards;
     }
 
     public ClusterHealthStatus getStatus() {

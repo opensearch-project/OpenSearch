@@ -157,6 +157,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             ForceSyncRequest::new,
             new ForceSyncTransportRequestHandler()
         );
+        replicator.setSourceFactory(sourceFactory);
     }
 
     @Override

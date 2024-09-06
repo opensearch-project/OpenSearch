@@ -12,7 +12,6 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -21,6 +20,7 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -37,14 +37,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class StarTreeTestUtils {
 
     public static StarTreeDocument[] getSegmentsStarTreeDocuments(
         List<StarTreeValues> starTreeValuesSubs,
-        List<StarTreeNumericType> starTreeNumericTypes,
+        List<FieldValueConverter> fieldValueConverters,
         int numDocs
     ) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
@@ -61,6 +61,9 @@ public class StarTreeTestUtils {
             // get doc id set iterators for metrics
             for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
                 for (MetricStat metricStat : metric.getMetrics()) {
+                    if (metricStat.isDerivedMetric()) {
+                        continue;
+                    }
                     String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                         starTreeValues.getStarTreeField().getName(),
                         metric.getField(),
@@ -72,7 +75,7 @@ public class StarTreeTestUtils {
             }
             int currentDocId = 0;
             while (currentDocId < numDocs) {
-                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, starTreeNumericTypes));
+                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, fieldValueConverters));
                 currentDocId++;
             }
         }
@@ -84,7 +87,7 @@ public class StarTreeTestUtils {
         int currentDocId,
         SequentialDocValuesIterator[] dimensionReaders,
         List<SequentialDocValuesIterator> metricReaders,
-        List<StarTreeNumericType> starTreeNumericTypes
+        List<FieldValueConverter> fieldValueConverters
     ) throws IOException {
         Long[] dims = new Long[dimensionReaders.length];
         int i = 0;
@@ -98,15 +101,15 @@ public class StarTreeTestUtils {
         Object[] metrics = new Object[metricReaders.size()];
         for (SequentialDocValuesIterator metricDocValuesIterator : metricReaders) {
             metricDocValuesIterator.nextDoc(currentDocId);
-            metrics[i] = toStarTreeNumericTypeValue(metricDocValuesIterator.value(currentDocId), starTreeNumericTypes.get(i));
+            metrics[i] = toAggregatorValueType(metricDocValuesIterator.value(currentDocId), fieldValueConverters.get(i));
             i++;
         }
         return new StarTreeDocument(dims, metrics);
     }
 
-    public static Double toStarTreeNumericTypeValue(Long value, StarTreeNumericType starTreeNumericType) {
+    public static Double toAggregatorValueType(Long value, FieldValueConverter fieldValueConverter) {
         try {
-            return starTreeNumericType.getDoubleValue(value);
+            return fieldValueConverter.toDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }
@@ -125,18 +128,18 @@ public class StarTreeTestUtils {
             assertNotNull(resultStarTreeDocument.dimensions);
             assertNotNull(resultStarTreeDocument.metrics);
 
-            assertEquals(resultStarTreeDocument.dimensions.length, expectedStarTreeDocument.dimensions.length);
-            assertEquals(resultStarTreeDocument.metrics.length, expectedStarTreeDocument.metrics.length);
+            assertEquals(expectedStarTreeDocument.dimensions.length, resultStarTreeDocument.dimensions.length);
+            assertEquals(expectedStarTreeDocument.metrics.length, resultStarTreeDocument.metrics.length);
 
             for (int di = 0; di < resultStarTreeDocument.dimensions.length; di++) {
-                assertEquals(resultStarTreeDocument.dimensions[di], expectedStarTreeDocument.dimensions[di]);
+                assertEquals(expectedStarTreeDocument.dimensions[di], resultStarTreeDocument.dimensions[di]);
             }
 
             for (int mi = 0; mi < resultStarTreeDocument.metrics.length; mi++) {
                 if (expectedStarTreeDocument.metrics[mi] instanceof Long) {
-                    assertEquals(resultStarTreeDocument.metrics[mi], ((Long) expectedStarTreeDocument.metrics[mi]).doubleValue());
+                    assertEquals(((Long) expectedStarTreeDocument.metrics[mi]).doubleValue(), resultStarTreeDocument.metrics[mi]);
                 } else {
-                    assertEquals(resultStarTreeDocument.metrics[mi], expectedStarTreeDocument.metrics[mi]);
+                    assertEquals(expectedStarTreeDocument.metrics[mi], resultStarTreeDocument.metrics[mi]);
                 }
             }
         }
@@ -208,11 +211,7 @@ public class StarTreeTestUtils {
                         if (child.getStarTreeNodeType() != StarTreeNodeType.NULL.getValue()) {
                             assertNotNull(starTreeNode.getChildForDimensionValue(child.getDimensionValue()));
                         } else {
-                            StarTreeNode finalStarTreeNode = starTreeNode;
-                            assertThrows(
-                                AssertionError.class,
-                                () -> finalStarTreeNode.getChildForDimensionValue(child.getDimensionValue())
-                            );
+                            assertNull(starTreeNode.getChildForDimensionValue(child.getDimensionValue()));
                         }
                         assertStarTreeNode(child, resultChildNode);
                         assertNotEquals(child.getStarTreeNodeType(), StarTreeNodeType.STAR.getValue());
@@ -271,9 +270,34 @@ public class StarTreeTestUtils {
             Metric expectedMetric = expectedStarTreeMetadata.getMetrics().get(i);
             Metric resultMetric = resultStarTreeMetadata.getMetrics().get(i);
             assertEquals(expectedMetric.getField(), resultMetric.getField());
+            List<MetricStat> metricStats = new ArrayList<>();
+            for (MetricStat metricStat : expectedMetric.getMetrics()) {
+                if (metricStat.isDerivedMetric()) {
+                    continue;
+                }
+                metricStats.add(metricStat);
+            }
+            Metric expectedMetricWithoutDerivedMetrics = new Metric(expectedMetric.getField(), metricStats);
+            metricStats = new ArrayList<>();
+            for (MetricStat metricStat : resultMetric.getMetrics()) {
+                if (metricStat.isDerivedMetric()) {
+                    continue;
+                }
+                metricStats.add(metricStat);
+            }
+            Metric resultantMetricWithoutDerivedMetrics = new Metric(resultMetric.getField(), metricStats);
 
+            // assert base metrics are in order in metadata
+            for (int j = 0; j < expectedMetricWithoutDerivedMetrics.getMetrics().size(); j++) {
+                assertEquals(
+                    expectedMetricWithoutDerivedMetrics.getMetrics().get(j),
+                    resultantMetricWithoutDerivedMetrics.getMetrics().get(j)
+                );
+            }
+
+            // assert all metrics ( including derived metrics are present )
             for (int j = 0; j < expectedMetric.getMetrics().size(); j++) {
-                assertEquals(expectedMetric.getMetrics().get(j), resultMetric.getMetrics().get(j));
+                assertTrue(resultMetric.getMetrics().contains(expectedMetric.getMetrics().get(j)));
             }
 
         }

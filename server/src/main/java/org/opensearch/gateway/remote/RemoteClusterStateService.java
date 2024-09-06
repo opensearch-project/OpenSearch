@@ -40,7 +40,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -71,6 +70,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -91,7 +91,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.ClusterState.CUSTOM_VALUE_SERIALIZER;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
@@ -123,6 +122,18 @@ public class RemoteClusterStateService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
     /**
+     * Gates the functionality of remote publication.
+     */
+    public static final String REMOTE_PUBLICATION_SETTING_KEY = "cluster.remote_store.publication.enabled";
+
+    public static final Setting<Boolean> REMOTE_PUBLICATION_SETTING = Setting.boolSetting(
+        REMOTE_PUBLICATION_SETTING_KEY,
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
      * Used to specify if cluster state metadata should be published to remote store
      */
     public static final Setting<Boolean> REMOTE_CLUSTER_STATE_ENABLED_SETTING = Setting.boolSetting(
@@ -141,12 +152,58 @@ public class RemoteClusterStateService implements Closeable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.state.checksum_validation.enabled",
-        false,
-        Property.Dynamic,
-        Property.NodeScope
+    public static final Setting<RemoteClusterStateValidationMode> REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING = new Setting<>(
+        "cluster.remote_store.state.checksum_validation.mode",
+        RemoteClusterStateValidationMode.NONE.name(),
+        RemoteClusterStateValidationMode::parseString,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
+
+    /**
+    * Controls the fixed prefix for the cluster state path on remote store.
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX = Setting.simpleString(
+        "cluster.remote_store.state.path.prefix",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Validation mode for cluster state checksum.
+     *  None: Validation will be disabled.
+     *  Debug: Validation enabled but only matches checksum and logs failing entities.
+     *  Trace: Matches checksum and downloads full cluster state to find diff in failing entities. Only logs failures.
+     *  Failure: Throws exception on failing validation.
+     */
+    public enum RemoteClusterStateValidationMode {
+        DEBUG("debug"),
+        TRACE("trace"),
+        FAILURE("failure"),
+        NONE("none");
+
+        public final String mode;
+
+        RemoteClusterStateValidationMode(String mode) {
+            this.mode = mode;
+        }
+
+        public static RemoteClusterStateValidationMode parseString(String mode) {
+            try {
+                return RemoteClusterStateValidationMode.valueOf(mode.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "["
+                        + mode
+                        + "] mode is not supported. "
+                        + "supported modes are ["
+                        + Arrays.toString(RemoteClusterStateValidationMode.values())
+                        + "]"
+                );
+            }
+        }
+    }
 
     private TimeValue remoteStateReadTimeout;
     private final String nodeId;
@@ -159,7 +216,7 @@ public class RemoteClusterStateService implements Closeable {
     private BlobStoreTransferService blobStoreTransferService;
     private RemoteRoutingTableService remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
-    private boolean checksumValidationEnabled;
+    private RemoteClusterStateValidationMode remoteClusterStateValidationMode;
 
     private final RemotePersistenceStats remoteStateStats;
     private RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
@@ -174,6 +231,7 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
     private final boolean isPublicationEnabled;
+    private final String remotePathPrefix;
 
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
@@ -206,18 +264,16 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         this.remoteStateReadTimeout = clusterSettings.get(REMOTE_STATE_READ_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_STATE_READ_TIMEOUT_SETTING, this::setRemoteStateReadTimeout);
-        this.checksumValidationEnabled = clusterSettings.get(REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING);
-        clusterSettings.addSettingsUpdateConsumer(
-            REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING,
-            this::setChecksumValidationEnabled
-        );
+        this.remoteClusterStateValidationMode = REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING, this::setChecksumValidationMode);
 
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-        this.isPublicationEnabled = FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
+        this.isPublicationEnabled = REMOTE_PUBLICATION_SETTING.get(settings)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
+        this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
             settings,
@@ -272,7 +328,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousClusterUUID,
             clusterStateDiffManifest,
-            checksumValidationEnabled ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
             false,
             codecVersion
         );
@@ -307,12 +363,20 @@ public class RemoteClusterStateService implements Closeable {
      *
      * @return {@link RemoteClusterStateManifestInfo} object containing uploaded manifest detail
      */
-    @Nullable
     public RemoteClusterStateManifestInfo writeIncrementalMetadata(
         ClusterState previousClusterState,
         ClusterState clusterState,
         ClusterMetadataManifest previousManifest
     ) throws IOException {
+        if (previousClusterState == null) {
+            throw new IllegalArgumentException("previousClusterState cannot be null");
+        }
+        if (clusterState == null) {
+            throw new IllegalArgumentException("clusterState cannot be null");
+        }
+        if (previousManifest == null) {
+            throw new IllegalArgumentException("previousManifest cannot be null");
+        }
         logger.trace("WRITING INCREMENTAL STATE");
 
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
@@ -320,7 +384,6 @@ public class RemoteClusterStateService implements Closeable {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
-        assert previousClusterState.metadata().coordinationMetadata().term() == clusterState.metadata().coordinationMetadata().term();
 
         boolean firstUploadForSplitGlobalMetadata = !previousManifest.hasMetadataAttributesFiles();
 
@@ -472,7 +535,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             clusterStateDiffManifest,
-            checksumValidationEnabled ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
             false,
             previousManifest.getCodecVersion()
         );
@@ -694,7 +757,10 @@ public class RemoteClusterStateService implements Closeable {
                     indexMetadata,
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    blobStoreRepository.getNamedXContentRegistry()
+                    blobStoreRepository.getNamedXContentRegistry(),
+                    remoteIndexMetadataManager.getPathTypeSetting(),
+                    remoteIndexMetadataManager.getPathHashAlgoSetting(),
+                    remotePathPrefix
                 ),
                 listener
             );
@@ -890,18 +956,41 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     @Nullable
-    public RemoteClusterStateManifestInfo markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
-        throws IOException {
+    public RemoteClusterStateManifestInfo markLastStateAsCommitted(
+        ClusterState clusterState,
+        ClusterMetadataManifest previousManifest,
+        boolean commitVotingConfig
+    ) throws IOException {
         assert clusterState != null : "Last accepted cluster state is not set";
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
         assert previousManifest != null : "Last cluster metadata manifest is not set";
+        UploadedMetadataAttribute uploadedCoordinationMetadata = previousManifest.getCoordinationMetadata();
+        if (commitVotingConfig) {
+            // update the coordination metadata if voting config is committed
+            uploadedCoordinationMetadata = writeMetadataInParallel(
+                clusterState,
+                emptyList(),
+                emptyMap(),
+                emptyMap(),
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                emptyMap(),
+                false,
+                emptyList(),
+                null
+            ).uploadedCoordinationMetadata;
+        }
         UploadedMetadataResults uploadedMetadataResults = new UploadedMetadataResults(
             previousManifest.getIndices(),
             previousManifest.getCustomMetadataMap(),
-            previousManifest.getCoordinationMetadata(),
+            uploadedCoordinationMetadata,
             previousManifest.getSettingsMetadata(),
             previousManifest.getTemplatesMetadata(),
             previousManifest.getTransientSettingsMetadata(),
@@ -917,7 +1006,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
-            checksumValidationEnabled ? previousManifest.getClusterStateChecksum() : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
             true,
             previousManifest.getCodecVersion()
         );
@@ -1003,8 +1092,8 @@ public class RemoteClusterStateService implements Closeable {
         this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
     }
 
-    private void setChecksumValidationEnabled(Boolean checksumValidationEnabled) {
-        this.checksumValidationEnabled = checksumValidationEnabled;
+    private void setChecksumValidationMode(RemoteClusterStateValidationMode remoteClusterStateValidationMode) {
+        this.remoteClusterStateValidationMode = remoteClusterStateValidationMode;
     }
 
     // Package private for unit test
@@ -1376,7 +1465,9 @@ public class RemoteClusterStateService implements Closeable {
                 includeEphemeral
             );
 
-            if (includeEphemeral && checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
+            if (includeEphemeral
+                && !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                && manifest.getClusterStateChecksum() != null) {
                 validateClusterStateFromChecksum(manifest, clusterState, clusterName, localNodeId, true);
             }
         } else {
@@ -1498,7 +1589,7 @@ public class RemoteClusterStateService implements Closeable {
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
 
-        if (checksumValidationEnabled && manifest.getClusterStateChecksum() != null) {
+        if (!remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) && manifest.getClusterStateChecksum() != null) {
             validateClusterStateFromChecksum(manifest, clusterState, previousState.getClusterName().value(), localNodeId, false);
         }
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
@@ -1517,20 +1608,24 @@ public class RemoteClusterStateService implements Closeable {
     ) {
         ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
         List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(manifest.getClusterStateChecksum());
-        if (!failedValidation.isEmpty()) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}. Entities failing validation {}",
-                    manifest.getClusterStateChecksum(),
-                    newClusterStateChecksum,
-                    failedValidation
-                )
+        if (failedValidation.isEmpty()) {
+            return;
+        }
+        logger.error(
+            () -> new ParameterizedMessage(
+                "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}. Entities failing validation {}",
+                manifest.getClusterStateChecksum(),
+                newClusterStateChecksum,
+                failedValidation
+            )
+        );
+        if (isFullStateDownload && remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)) {
+            throw new IllegalStateException(
+                "Cluster state checksums do not match during full state read. Validation failed for " + failedValidation
             );
-            if (isFullStateDownload) {
-                throw new IllegalStateException(
-                    "Cluster state checksums do not match during full state read. Validation failed for " + failedValidation
-                );
-            }
+        }
+        if (remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)
+            || remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.TRACE)) {
             // download full cluster state and match against state created for the failing entities
             ClusterState fullClusterState = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
@@ -1663,6 +1758,8 @@ public class RemoteClusterStateService implements Closeable {
                         break;
                 }
             }
+        }
+        if (remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)) {
             throw new IllegalStateException(
                 "Cluster state checksums do not match during diff read. Validation failed for " + failedValidation
             );
@@ -1693,6 +1790,10 @@ public class RemoteClusterStateService implements Closeable {
                 e
             );
         }
+    }
+
+    public boolean isRemotePublicationEnabled() {
+        return this.isPublicationEnabled;
     }
 
     public void setRemoteStateReadTimeout(TimeValue remoteStateReadTimeout) {
