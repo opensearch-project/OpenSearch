@@ -68,10 +68,10 @@ import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
-import static org.opensearch.common.util.FeatureFlags.initializeFeatureFlags;
+
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
@@ -1274,7 +1274,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         // create settings with remote state disabled but publication enabled
         Settings settings = Settings.builder()
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), false)
-            .put(REMOTE_PUBLICATION_EXPERIMENTAL, true)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, true)
             .build();
         CoordinationState coordinationState = createCoordinationState(psr1, node1, settings);
         assertFalse(coordinationState.isRemotePublicationEnabled());
