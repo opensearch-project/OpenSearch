@@ -48,8 +48,6 @@ import org.opensearch.snapshots.Snapshot;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.opensearch.Version.CURRENT;
-
 /**
  * Represents the recovery source of a shard. Available recovery types are:
  * <p>
@@ -335,7 +333,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 remoteStoreIndexShallowCopy = false;
                 sourceRemoteStoreRepository = null;
             }
-            if (in.getVersion().onOrAfter(CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
                 sourceRemoteTranslogRepository = in.readOptionalString();
                 pinnedTimestamp = in.readLong();
             } else {
@@ -399,7 +397,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 out.writeBoolean(remoteStoreIndexShallowCopy);
                 out.writeOptionalString(sourceRemoteStoreRepository);
             }
-            if (out.getVersion().onOrAfter(CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
                 out.writeOptionalString(sourceRemoteTranslogRepository);
                 out.writeLong(pinnedTimestamp);
             }
