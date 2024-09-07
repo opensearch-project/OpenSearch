@@ -130,7 +130,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterService.getClusterName(),
             responses,
             failures,
-            state
+            state,
+            request
         );
     }
 

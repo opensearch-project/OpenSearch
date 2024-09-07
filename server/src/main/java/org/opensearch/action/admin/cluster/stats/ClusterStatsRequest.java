@@ -48,6 +48,10 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
+    private boolean includeMappingStats = true;
+
+    private boolean includeAnalysisStats = true;
+
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
@@ -71,6 +75,22 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     public void useAggregatedNodeLevelResponses(boolean useAggregatedNodeLevelResponses) {
         this.useAggregatedNodeLevelResponses = useAggregatedNodeLevelResponses;
+    }
+
+    public void setIncludeMappingStats(boolean setIncludeMappingStats) {
+        this.includeMappingStats = setIncludeMappingStats;
+    }
+
+    public boolean isIncludeMappingStats() {
+        return includeMappingStats;
+    }
+
+    public void setIncludeAnalysisStats(boolean setIncludeAnalysisStats) {
+        this.includeAnalysisStats = setIncludeAnalysisStats;
+    }
+
+    public boolean isIncludeAnalysisStats() {
+        return includeAnalysisStats;
     }
 
     @Override
