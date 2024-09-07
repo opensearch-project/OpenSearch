@@ -60,18 +60,37 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
 import static org.hamcrest.Matchers.is;
 
+/**
+ ITs for reproducing the scenario and validating some new cases for https://github.com/opensearch-project/OpenSearch/issues/4874
+ This issue is about an infinite loop of node joining and leaving the cluster.
+ This race condition would happen when a node-join task was queued into cluster-manager thread while a node-left task for the same node was still processing.
+
+ Scenario:
+ Suppose a node disconnects from the cluster due to some normal reason.
+ This queues a node-left task on cluster manager thread.
+ Then cluster manager then computes the new cluster state based on the node-left task.
+ The cluster manager now tries to send the new state to all the nodes and waits for all nodes to ack back.
+ Suppose this takes a long time due to lagging nodes or slow applying of the state or any other reason.
+ While this is happening, the node that just left sends a join request to the cluster manager to rejoin the cluster.
+ The role of this join request is to re-establish any required connections and do some pre-validations before queuing a new task.
+ After join request is validated by cluster manager node, cluster manager queues a node-join task into its thread.
+ This node-join task would only start after the node-left task is completed.
+ Now suppose the node-left task has completed publication and has started to apply the new state on the cluster manager.
+ As part of applying the cluster state of node-left task, cluster manager wipes out the connection info of the leaving node.
+ The node-left task then completes and the node-join task begins.
+ Now the node-join task starts. This task assumes that because the previous join request succeeded, that all connection info would still be there.
+ So then the cluster manager computes the new state.
+ Then it tells the followerchecker thread to add this new node.
+ Then it tries to publish the new state to all the nodes.
+ However, at this point, the followerchecker thread fails because the connection was wiped and triggers a new node-left task.
+ If the new node-left task also takes time, we end up in an infinite loop of node-left and node-joins.
+
+Fix:
+ As part of the fix for this, we now reject the initial join request from a node that has an ongoing node-left task.
+ The join request will only succeed after the node-left task completes, so the connection that gets created as part of the join request does not get wiped out and cause node-join task to fail.
+ */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
-
-    private static final String INDEX_NAME = "test-idx-1";
-    private static final String REPO_NAME = "test-repo-1";
-    private static final String SNAP_NAME = "test-snap-1";
-
-    private static final int MIN_DOC_COUNT = 500;
-    private static final int MAX_DOC_COUNT = 1000;
-    private static final int SHARD_COUNT = 1;
-    private static final int REPLICA_COUNT = 0;
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
@@ -90,7 +109,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         internalCluster().assertSameDocIdsOnShards();
     }
 
-    public void testTransientErrorsDuringRecovery1AreRetried() throws Exception {
+    public void testClusterStabilityWhenJoinRequestHappensDuringNodeLeftTask() throws Exception {
         final String indexName = "test";
         final Settings nodeSettings = Settings.builder()
             .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
@@ -129,10 +148,11 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                 }
             }
         });
+        // Toggle to succeed/fail the followerchecker to simulate the initial node leaving.
         AtomicBoolean succeedFollowerChecker = new AtomicBoolean();
 
-        // Simulate followerchecker failure on 1 node when bb is false
-        ConnectionDelay handlingBehavior = new ConnectionDelay(() -> {
+        // Simulate followerchecker failure on 1 node when succeedFollowerChecker is false
+        FollowerCheckerBehaviour simulatedFailureBehaviour = new FollowerCheckerBehaviour(() -> {
             if (succeedFollowerChecker.get()) {
                 return;
             }
@@ -141,28 +161,30 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            throw new NodeHealthCheckFailureException("non writable exception");
+            throw new NodeHealthCheckFailureException("fake followerchecker failure simulated by test to repro race condition");
         });
         MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
             redNodeName
         );
-        redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, handlingBehavior);
+        redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, simulatedFailureBehaviour);
 
         // Loop runs 10 times to ensure race condition gets reproduced
         for (int i = 0; i < 10; i++) {
-            // fail followerchecker by force to trigger node disconnect
-            // now followerchecker should fail and trigger node left
+            // Fail followerchecker by force to trigger node disconnect and node left
+            logger.info("--> simulating followerchecker failure to trigger node-left");
             succeedFollowerChecker.set(false);
             ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
             assertThat(response1.isTimedOut(), is(false));
 
-            // once we know a node has left, we can re-enable followerchecker to work normally
+            // once we know a node has left, we can re-enable followerchecker to work normally and validate node rejoins
+            logger.info("--> re-enabling normal followerchecker and validating cluster is stable");
             succeedFollowerChecker.set(true);
             ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
             assertThat(response2.isTimedOut(), is(false));
 
-            // Checking again to validate stability
+            Thread.sleep(1000);
+            // checking again to validate stability and ensure node did not leave
             ClusterHealthResponse response3 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
             assertThat(response3.isTimedOut(), is(false));
         }
@@ -253,10 +275,10 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         assertThat(response.isTimedOut(), is(false));
     }
 
-    private class ConnectionDelay implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
+    private class FollowerCheckerBehaviour implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
         private final Runnable connectionBreaker;
 
-        private ConnectionDelay(Runnable connectionBreaker) {
+        private FollowerCheckerBehaviour(Runnable connectionBreaker) {
             this.connectionBreaker = connectionBreaker;
         }
 
