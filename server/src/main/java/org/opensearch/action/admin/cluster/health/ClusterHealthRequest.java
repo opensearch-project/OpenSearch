@@ -115,7 +115,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
             ensureNodeWeighedIn = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             applyLevelAtTransportLayer = in.readBoolean();
         }
     }
@@ -153,7 +153,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeBoolean(ensureNodeWeighedIn);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(applyLevelAtTransportLayer);
         }
     }
