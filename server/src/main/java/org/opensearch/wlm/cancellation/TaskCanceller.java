@@ -29,7 +29,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 
 /**
  * Manages the cancellation of tasks enforced by QueryGroup thresholds on resource usage criteria.
- * This class utilizes a strategy pattern through {@link HighestResourceConsumingTaskFirstSelectionStrategy} to identify tasks that exceed
+ * This class utilizes a strategy pattern through {@link MaximumResourceTaskSelectionStrategy} to identify tasks that exceed
  * predefined resource usage limits and are therefore eligible for cancellation.
  *
  * <p>The cancellation process is initiated by evaluating the resource usage of each QueryGroup against its
@@ -40,7 +40,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * views, a set of active QueryGroups, and a task selection strategy. These components collectively facilitate the
  * identification and cancellation of tasks that threaten to breach QueryGroup resource limits.</p>
  *
- * @see HighestResourceConsumingTaskFirstSelectionStrategy
+ * @see MaximumResourceTaskSelectionStrategy
  * @see QueryGroup
  * @see ResourceType
  */
@@ -57,7 +57,7 @@ public class TaskCanceller {
 
     public TaskCanceller(
         WorkloadManagementSettings workloadManagementSettings,
-        HighestResourceConsumingTaskFirstSelectionStrategy taskSelectionStrategy,
+        MaximumResourceTaskSelectionStrategy taskSelectionStrategy,
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
         Collection<QueryGroup> activeQueryGroups,
         Collection<QueryGroup> deletedQueryGroups,

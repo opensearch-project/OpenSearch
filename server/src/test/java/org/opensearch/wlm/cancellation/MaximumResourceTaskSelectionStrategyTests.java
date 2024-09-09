@@ -26,11 +26,11 @@ import java.util.stream.IntStream;
 import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 
-public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends OpenSearchTestCase {
+public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCase {
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
-        HighestResourceConsumingTaskFirstSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
-            new HighestResourceConsumingTaskFirstSelectionStrategy();
+        MaximumResourceTaskSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
+            new MaximumResourceTaskSelectionStrategy();
         double reduceBy = 50000.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
         List<QueryGroupTask> tasks = getListOfTasks(100);
@@ -51,8 +51,8 @@ public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends Ope
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsLesserThanZero() {
-        HighestResourceConsumingTaskFirstSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
-            new HighestResourceConsumingTaskFirstSelectionStrategy();
+        MaximumResourceTaskSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
+            new MaximumResourceTaskSelectionStrategy();
         double reduceBy = -50.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
         List<QueryGroupTask> tasks = getListOfTasks(3);
@@ -65,8 +65,8 @@ public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends Ope
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsEqualToZero() {
-        HighestResourceConsumingTaskFirstSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
-            new HighestResourceConsumingTaskFirstSelectionStrategy();
+        MaximumResourceTaskSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
+            new MaximumResourceTaskSelectionStrategy();
         double reduceBy = 0.0;
         ResourceType resourceType = ResourceType.MEMORY;
         List<QueryGroupTask> tasks = getListOfTasks(50);

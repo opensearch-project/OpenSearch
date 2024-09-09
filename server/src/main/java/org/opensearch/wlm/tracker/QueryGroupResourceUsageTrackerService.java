@@ -13,6 +13,7 @@ import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -49,14 +50,17 @@ public class QueryGroupResourceUsageTrackerService {
         // Iterate over each QueryGroup entry
         for (Map.Entry<String, List<QueryGroupTask>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
             // Compute the QueryGroup resource usage
-            final Map<ResourceType, Double> resourceUsage = new HashMap<>();
+            final Map<ResourceType, Double> queryGroupUsage = new EnumMap<>(ResourceType.class);
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 double usage = resourceType.getResourceUsageCalculator().calculateResourceUsage(queryGroupEntry.getValue());
-                resourceUsage.put(resourceType, usage);
+                queryGroupUsage.put(resourceType, usage);
             }
 
             // Add to the QueryGroup View
-            queryGroupViews.put(queryGroupEntry.getKey(), new QueryGroupLevelResourceUsageView(resourceUsage, queryGroupEntry.getValue()));
+            queryGroupViews.put(
+                queryGroupEntry.getKey(),
+                new QueryGroupLevelResourceUsageView(queryGroupUsage, queryGroupEntry.getValue())
+            );
         }
         return queryGroupViews;
     }

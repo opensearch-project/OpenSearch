@@ -22,9 +22,9 @@ import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
 /**
  * Represents the highest resource consuming task first selection strategy.
  */
-public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskSelectionStrategy {
+public class MaximumResourceTaskSelectionStrategy implements TaskSelectionStrategy {
 
-    public HighestResourceConsumingTaskFirstSelectionStrategy() {}
+    public MaximumResourceTaskSelectionStrategy() {}
 
     /**
      * Returns a comparator that defines the sorting condition for tasks.
