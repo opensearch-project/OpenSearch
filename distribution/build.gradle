@@ -363,7 +363,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     versionFile = {
       copySpec {
         from(rootProject.file('VERSION'))
-        fileMode 0644
+        filePermissions{
+          unix 0644
+        }
       }
     }
 
