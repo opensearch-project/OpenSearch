@@ -445,7 +445,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
         // get doc id set iterators for metrics
         for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
-            for (MetricStat metricStat : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
                 String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                     starTreeValues.getStarTreeField().getName(),
                     metric.getField(),

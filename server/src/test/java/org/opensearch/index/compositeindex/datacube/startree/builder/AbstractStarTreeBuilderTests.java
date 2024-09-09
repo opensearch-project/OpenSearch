@@ -4186,7 +4186,8 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         builder.appendDocumentsToStarTree(starTreeDocumentIterator);
         for (StarTreeDocument starTreeDocument : builder.getStarTreeDocuments()) {
             assertEquals(starTreeDocument.dimensions[0] * 20.0, starTreeDocument.metrics[0]);
-            assertEquals(2L, starTreeDocument.metrics[1]);
+            assertEquals(starTreeDocument.dimensions[0] * 2, starTreeDocument.metrics[1]);
+            assertEquals(2L, starTreeDocument.metrics[2]);
         }
         builder.build(starTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
 
@@ -4443,7 +4444,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             ),
             () -> metricsList1
         );
-        return new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators, Map.of(SEGMENT_DOCS_COUNT, number));
+        return new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators, Map.of(SEGMENT_DOCS_COUNT, number), null);
     }
 
     private StarTreeField getStarTreeFieldWithDateDimension() {

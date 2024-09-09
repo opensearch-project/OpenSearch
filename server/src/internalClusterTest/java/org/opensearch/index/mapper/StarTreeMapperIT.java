@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -22,6 +23,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
@@ -62,10 +64,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "star_tree")
                 .startObject("config")
                 .startObject("date_dimension")
-                .field("name", "numeric_dv_1")
-                .endObject()
-                .startObject()
-                .field("name", "numeric_dv_2")
+                .field("name", "timestamp")
                 .endObject()
                 .startArray("ordered_dimensions")
                 .startObject()
@@ -85,14 +84,6 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "date")
                 .endObject()
                 .startObject("numeric_dv")
-                .field("type", "integer")
-                .field("doc_values", true)
-                .endObject()
-                .startObject("numeric_dv_1")
-                .field("type", "integer")
-                .field("doc_values", true)
-                .endObject()
-                .startObject("numeric_dv_2")
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
@@ -268,7 +259,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "star_tree")
                 .startObject("config")
                 .startObject("date_dimension")
-                .field("name", "numeric_dv1")
+                .field("name", "timestamp")
                 .endObject()
                 .startArray("ordered_dimensions")
                 .startObject()
@@ -288,10 +279,6 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "date")
                 .endObject()
                 .startObject("numeric_dv")
-                .field("type", "integer")
-                .field("doc_values", true)
-                .endObject()
-                .startObject("numeric_dv1")
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
@@ -327,7 +314,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "star_tree")
                 .startObject("config")
                 .startObject("date_dimension")
-                .field("name", "numeric_dv2")
+                .field("name", "timestamp")
                 .endObject()
                 .startArray("ordered_dimensions")
                 .startObject()
@@ -353,10 +340,6 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "date")
                 .endObject()
                 .startObject("numeric_dv")
-                .field("type", "integer")
-                .field("doc_values", true)
-                .endObject()
-                .startObject("numeric_dv2")
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
@@ -723,6 +706,24 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         );
         assertEquals(
             "Failed to parse mapping [_doc]: There cannot be more than [4] base metrics for star tree field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testMaxCalendarIntervalsCompositeIndex() {
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setMapping(createMaxDimTestMapping())
+                .setSettings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING.getKey(), 1)
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                )
+                .get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: At most [1] calendar intervals are allowed in dimension [timestamp]",
             ex.getMessage()
         );
     }

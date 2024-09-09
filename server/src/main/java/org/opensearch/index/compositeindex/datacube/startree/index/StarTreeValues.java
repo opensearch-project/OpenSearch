@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -249,8 +248,6 @@ public class StarTreeValues implements CompositeIndexValues {
 
         if (dimensionDocValuesIteratorMap.containsKey(dimension)) {
             return dimensionDocValuesIteratorMap.get(dimension).get();
-        } else {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Dimension %s not present", dimension));
         }
 
         throw new IllegalArgumentException("dimension [" + dimension + "] does not exist in the segment.");
@@ -266,8 +263,6 @@ public class StarTreeValues implements CompositeIndexValues {
 
         if (metricDocValuesIteratorMap.containsKey(fullyQualifiedMetricName)) {
             return metricDocValuesIteratorMap.get(fullyQualifiedMetricName).get();
-        } else {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Metric %s not present", fullyQualifiedMetricName));
         }
 
         throw new IllegalArgumentException("metric [" + fullyQualifiedMetricName + "] does not exist in the segment.");
