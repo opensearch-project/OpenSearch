@@ -23,6 +23,7 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.WithFieldName;
 import org.opensearch.plugin.correlation.core.index.mapper.VectorFieldMapper;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class CorrelationQueryBuilder extends AbstractQueryBuilder<CorrelationQueryBuilder> {
+public class CorrelationQueryBuilder extends AbstractQueryBuilder<CorrelationQueryBuilder> implements WithFieldName {
 
     private static final Logger log = LogManager.getLogger(CorrelationQueryBuilder.class);
     protected static final ParseField VECTOR_FIELD = new ParseField("vector");
@@ -205,6 +206,7 @@ public class CorrelationQueryBuilder extends AbstractQueryBuilder<CorrelationQue
      * get field name
      * @return field name
      */
+    @Override
     public String fieldName() {
         return fieldName;
     }

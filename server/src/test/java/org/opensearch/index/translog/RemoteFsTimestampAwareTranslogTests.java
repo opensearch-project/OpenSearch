@@ -310,6 +310,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15731")
     public void testSimpleOperationsUpload() throws Exception {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
 

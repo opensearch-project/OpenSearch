@@ -152,6 +152,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
@@ -733,6 +734,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
+                RemoteClusterStateService.REMOTE_PUBLICATION_SETTING,
                 INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
                 METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
@@ -777,6 +779,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX,
+                BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
