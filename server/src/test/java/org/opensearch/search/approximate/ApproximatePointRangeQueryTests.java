@@ -13,9 +13,12 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
@@ -26,6 +29,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
+import static java.util.Arrays.asList;
 import static org.apache.lucene.document.LongPoint.pack;
 import static org.mockito.Mockito.mock;
 
@@ -112,7 +116,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15600")
     public void testApproximateRangeWithSizeUnderDefault() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
@@ -151,7 +154,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15600")
     public void testApproximateRangeWithSizeOverDefault() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
@@ -196,7 +198,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15600")
     public void testApproximateRangeShortCircuit() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
@@ -256,8 +257,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     for (int v = 0; v < dims; v++) {
                         scratch[v] = i;
                     }
-                    doc.add(new LongPoint("point", scratch));
-                    iw.addDocument(doc);
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
                 }
                 iw.flush();
                 iw.forceMerge(1);
@@ -280,8 +280,9 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         Query query = LongPoint.newRangeQuery("point", lower, upper);
                         ;
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        TopDocs topDocs = searcher.search(approximateQuery, 10);
-                        TopDocs topDocs1 = searcher.search(query, 10);
+                        Sort sort = new Sort(new SortField("point", SortField.Type.LONG));
+                        TopDocs topDocs = searcher.search(approximateQuery, 10, sort);
+                        TopDocs topDocs1 = searcher.search(query, 10, sort);
 
                         // since we short-circuit from the approx range at the end of size these will not be equal
                         assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
