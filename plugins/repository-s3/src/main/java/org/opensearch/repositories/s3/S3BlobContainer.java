@@ -91,6 +91,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.S3AsyncDeleteHelper;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.UploadRequest;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
@@ -893,7 +894,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
             CompletableFuture<Void> listingFuture = new CompletableFuture<>();
 
-            listPublisher.subscribe(new Subscriber<ListObjectsV2Response>() {
+            listPublisher.subscribe(new Subscriber<>() {
                 private Subscription subscription;
                 private final List<String> objectsToDelete = new ArrayList<>();
                 private CompletableFuture<Void> deletionChain = CompletableFuture.completedFuture(null);
@@ -925,7 +926,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                             blobStore,
                             batchToDelete,
                             deletionChain,
-                            false,
                             () -> subscription.request(1)
                         );
                     } else {
@@ -946,7 +946,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                             blobStore,
                             objectsToDelete,
                             deletionChain,
-                            false,
                             null
                         );
                     }
@@ -988,20 +987,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
             List<String> keysToDelete = blobNames.stream().map(this::buildKey).collect(Collectors.toList());
 
-            S3AsyncDeleteHelper.executeDeleteChain(
-                s3AsyncClient,
-                blobStore,
-                keysToDelete,
-                CompletableFuture.completedFuture(null),
-                true,
-                null
-            ).whenComplete((v, throwable) -> {
-                if (throwable != null) {
-                    completionListener.onFailure(new IOException("Failed to delete blobs", throwable));
-                } else {
-                    completionListener.onResponse(null);
-                }
-            });
+            S3AsyncDeleteHelper.executeDeleteChain(s3AsyncClient, blobStore, keysToDelete, CompletableFuture.completedFuture(null), null)
+                .whenComplete((v, throwable) -> {
+                    if (throwable != null) {
+                        completionListener.onFailure(new IOException("Failed to delete blobs", throwable));
+                    } else {
+                        completionListener.onResponse(null);
+                    }
+                });
         } catch (Exception e) {
             completionListener.onFailure(new IOException("Failed to initiate async blob deletion", e));
         }
