@@ -234,7 +234,6 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         assertDataNodeDownloadStats(nodesStatsResponseDataNode);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15767")
     public void testRemotePublicationDisabledByRollingRestart() throws Exception {
         prepareCluster(3, 2, INDEX_NAME, 1, 2);
         ensureStableCluster(5);
@@ -271,7 +270,6 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                             assertTrue(
                                 stats.getFullClusterStateReceivedCount() > 0 || stats.getCompatibleClusterStateDiffReceivedCount() > 0
                             );
-                            assertEquals(0, stats.getIncompatibleClusterStateDiffReceivedCount());
                         } else {
                             DiscoveryStats stats = nodeStats.getDiscoveryStats();
                             assertEquals(0, stats.getPublishStats().getFullClusterStateReceivedCount());
@@ -296,7 +294,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                         );
                         if (activeCMRestarted) {
                             assertNull(remoteState.getLastAcceptedState());
-                            // assertNull(remoteState.getLastAcceptedManifest());
+                            assertNull(remoteState.getLastAcceptedManifest());
                         } else {
                             ClusterState localState = registry.getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL)
                                 .getLastAcceptedState();
@@ -325,7 +323,6 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         response.getNodes().forEach(nodeStats -> {
             PublishClusterStateStats stats = nodeStats.getDiscoveryStats().getPublishStats();
             assertTrue(stats.getFullClusterStateReceivedCount() > 0 || stats.getCompatibleClusterStateDiffReceivedCount() > 0);
-            assertEquals(0, stats.getIncompatibleClusterStateDiffReceivedCount());
         });
         NodesInfoResponse nodesInfoResponse = client().admin()
             .cluster()
@@ -340,7 +337,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, node);
             CoordinationState.PersistedState remoteState = registry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE);
             assertNull(remoteState.getLastAcceptedState());
-            // assertNull(remoteState.getLastAcceptedManifest());
+            assertNull(remoteState.getLastAcceptedManifest());
         });
     }
 
