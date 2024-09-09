@@ -68,11 +68,6 @@ public class FeatureFlags {
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
     /**
-     * Gates the functionality of remote routing table.
-     */
-    public static final String REMOTE_PUBLICATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.publication.enabled";
-
-    /**
      * Gates the functionality of background task execution.
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = "opensearch.experimental.feature.task.background.enabled";
@@ -100,12 +95,6 @@ public class FeatureFlags {
     public static final Setting<Boolean> TIERED_REMOTE_INDEX_SETTING = Setting.boolSetting(TIERED_REMOTE_INDEX, false, Property.NodeScope);
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
-
-    public static final Setting<Boolean> REMOTE_PUBLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
-        REMOTE_PUBLICATION_EXPERIMENTAL,
-        false,
-        Property.NodeScope
-    );
 
     public static final Setting<Boolean> READER_WRITER_SPLIT_EXPERIMENTAL_SETTING = Setting.boolSetting(
         READER_WRITER_SPLIT_EXPERIMENTAL,
@@ -148,7 +137,6 @@ public class FeatureFlags {
         DATETIME_FORMATTER_CACHING_SETTING,
         TIERED_REMOTE_INDEX_SETTING,
         PLUGGABLE_CACHE_SETTING,
-        REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
         STAR_TREE_INDEX_SETTING,
         APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         READER_WRITER_SPLIT_EXPERIMENTAL_SETTING

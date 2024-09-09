@@ -107,12 +107,12 @@ import org.mockito.Mockito;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTE;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata1;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata2;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata3;
@@ -151,6 +151,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -272,8 +273,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         super.tearDown();
         remoteClusterStateService.close();
         publicationEnabled = false;
-        Settings nodeSettings = Settings.builder().build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         threadPool.shutdown();
     }
 
@@ -370,8 +369,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void testWriteFullMetadataSuccessPublicationEnabled() throws IOException {
         // TODO Make the publication flag parameterized
         publicationEnabled = true;
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -485,8 +483,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
-        assertEquals(7, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(7, writeContextArgumentCaptor.getAllValues().size());
+        assertEquals(8, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(8, writeContextArgumentCaptor.getAllValues().size());
 
         byte[] writtenBytes = capturedWriteContext.get("metadata")
             .getStreamProvider(Integer.MAX_VALUE)
@@ -610,20 +608,20 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final RemoteClusterStateManifestInfo manifestDetails = remoteClusterStateService.writeIncrementalMetadata(
             clusterState,
             clusterState,
-            null
+            ClusterMetadataManifest.builder().build()
         );
         Assert.assertThat(manifestDetails, nullValue());
         assertEquals(0, remoteClusterStateService.getUploadStats().getSuccessCount());
     }
 
-    public void testFailWriteIncrementalMetadataWhenTermChanged() {
+    public void testFailWriteIncrementalMetadataWhenManifestNull() {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(2L).build();
         final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
             .build();
         assertThrows(
-            AssertionError.class,
+            IllegalArgumentException.class,
             () -> remoteClusterStateService.writeIncrementalMetadata(previousClusterState, clusterState, null)
         );
     }
@@ -722,7 +720,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 eq(false),
                 eq(Collections.emptyMap()),
                 eq(false),
-                eq(Collections.emptyList()),
+                anyList(),
                 Mockito.any(StringKeyDiffProvider.class)
             );
 
@@ -743,13 +741,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getTemplatesMetadata(), notNullValue());
         assertThat(manifest.getCoordinationMetadata(), notNullValue());
         assertThat(manifest.getCustomMetadataMap().size(), is(2));
-        assertThat(manifest.getIndicesRouting().size(), is(0));
+        assertThat(manifest.getIndicesRouting().size(), is(1));
     }
 
     public void testWriteIncrementalMetadataSuccessWhenPublicationEnabled() throws IOException {
         publicationEnabled = true;
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, true).build();
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -2523,7 +2520,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(indices).build();
 
-        final ClusterMetadataManifest manifest = remoteClusterStateService.markLastStateAsCommitted(clusterState, previousManifest)
+        final ClusterMetadataManifest manifest = remoteClusterStateService.markLastStateAsCommitted(clusterState, previousManifest, false)
             .getClusterMetadataManifest();
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
@@ -2642,7 +2639,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteRoutingTableNotInitializedWhenDisabled() {
-        if (publicationEnabled) {
+        if (isRemoteRoutingTableEnabled(settings)) {
             assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
         } else {
             assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof NoopRemoteRoutingTableService);
@@ -2657,7 +2654,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings.applySettings(newSettings);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
         remoteClusterStateService = new RemoteClusterStateService(
@@ -2934,11 +2931,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "remote_store_repository")
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, "true")
             .build();
         clusterSettings.applySettings(newSettings);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -2965,11 +2961,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "remote_store_repository")
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(), mode.name())
+            .put(REMOTE_PUBLICATION_SETTING_KEY, true)
             .build();
         clusterSettings.applySettings(newSettings);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,

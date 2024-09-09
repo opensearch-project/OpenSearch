@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class DeleteSnapshotITV2 extends AbstractSnapshotIntegTestCase {
+public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
 
     private static final String REMOTE_REPO_NAME = "remote-store-repo-name";
 
@@ -206,6 +206,7 @@ public class DeleteSnapshotITV2 extends AbstractSnapshotIntegTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15692")
     public void testRemoteStoreCleanupForDeletedIndexForSnapshotV2() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
@@ -276,9 +277,11 @@ public class DeleteSnapshotITV2 extends AbstractSnapshotIntegTestCase {
         Path indexPath = Path.of(String.valueOf(remoteStoreRepoPath), indexUUID);
         Path shardPath = Path.of(String.valueOf(indexPath), "0");
         Path segmentsPath = Path.of(String.valueOf(shardPath), "segments");
+        Path translogPath = Path.of(String.valueOf(shardPath), "translog");
 
         // Get total segments remote store directory file count for deleted index and shard 0
         int segmentFilesCountBeforeDeletingSnapshot1 = RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath);
+        int translogFilesCountBeforeDeletingSnapshot1 = RemoteStoreBaseIntegTestCase.getFileCount(translogPath);
 
         RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
 
@@ -312,6 +315,13 @@ public class DeleteSnapshotITV2 extends AbstractSnapshotIntegTestCase {
                 assertThat(RemoteStoreBaseIntegTestCase.getFileCount(segmentsPath), lessThan(segmentFilesCountAfterDeletingSnapshot1));
             } catch (Exception e) {}
         }, 60, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            try {
+                assertThat(RemoteStoreBaseIntegTestCase.getFileCount(translogPath), lessThan(translogFilesCountBeforeDeletingSnapshot1));
+            } catch (Exception e) {}
+        }, 60, TimeUnit.SECONDS);
+
     }
 
     private Settings snapshotV2Settings(Path remoteStoreRepoPath) {
