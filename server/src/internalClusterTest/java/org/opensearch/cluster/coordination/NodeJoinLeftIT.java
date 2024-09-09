@@ -117,6 +117,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "200ms")
             .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "100ms")
             .build();
         // start a 3 node cluster with 1 cluster-manager
         final String cm = internalCluster().startNode(nodeSettings);
@@ -174,6 +175,102 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             // Fail followerchecker by force to trigger node disconnect and node left
             logger.info("--> simulating followerchecker failure to trigger node-left");
             succeedFollowerChecker.set(false);
+            ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
+            assertThat(response1.isTimedOut(), is(false));
+
+            // once we know a node has left, we can re-enable followerchecker to work normally and validate node rejoins
+            logger.info("--> re-enabling normal followerchecker and validating cluster is stable");
+            succeedFollowerChecker.set(true);
+            ClusterHealthResponse response2 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+            assertThat(response2.isTimedOut(), is(false));
+
+            Thread.sleep(1000);
+            // checking again to validate stability and ensure node did not leave
+            ClusterHealthResponse response3 = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+            assertThat(response3.isTimedOut(), is(false));
+        }
+
+        succeedFollowerChecker.set(true);
+        response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        assertThat(response.isTimedOut(), is(false));
+    }
+
+    public void testClusterStabilityWhenDisconnectDuringSlowNodeLeftTask() throws Exception {
+        final String indexName = "test";
+        final Settings nodeSettings = Settings.builder()
+            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
+            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10s")
+            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "200ms")
+            .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+        // start a 3 node cluster with 1 cluster-manager
+        final String cm = internalCluster().startNode(nodeSettings);
+        internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
+
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
+        assertThat(response.isTimedOut(), is(false));
+
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .get();
+
+        ClusterService cmClsService = internalCluster().getInstance(ClusterService.class, cm);
+        // Simulate a slow applier on the cm to delay node-left state application
+        cmClsService.addStateApplier(event -> {
+            if (event.nodesRemoved()) {
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        // Toggle to succeed/fail the followerchecker to simulate the initial node leaving.
+        AtomicBoolean succeedFollowerChecker = new AtomicBoolean();
+
+        // Simulate followerchecker failure on 1 node when succeedFollowerChecker is false
+        FollowerCheckerBehaviour simulatedFailureBehaviour = new FollowerCheckerBehaviour(() -> {
+            if (succeedFollowerChecker.get()) {
+                return;
+            }
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            throw new NodeHealthCheckFailureException("fake followerchecker failure simulated by test to repro race condition");
+        });
+        MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            cm
+        );
+        MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            redNodeName
+        );
+        redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, simulatedFailureBehaviour);
+
+        // Loop runs 10 times to ensure race condition gets reproduced
+        for (int i = 0; i < 10; i++) {
+            // Fail followerchecker by force to trigger node disconnect and node left
+            logger.info("--> simulating followerchecker failure to trigger node-left");
+            succeedFollowerChecker.set(false);
+            Thread.sleep(1000);
+
+            // Trigger a node disconnect while node-left task is still processing
+            logger.info("--> triggering a simulated disconnect on red node, after the follower checker failed to see how node-left task deals with this");
+            cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+
             ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
             assertThat(response1.isTimedOut(), is(false));
 
