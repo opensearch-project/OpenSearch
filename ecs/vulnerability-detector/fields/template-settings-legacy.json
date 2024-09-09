@@ -1,29 +1,20 @@
 {
-  "index_patterns": [
-    "wazuh-states-vulnerabilities"
-  ],
+  "index_patterns": ["wazuh-states-vulnerabilities-*"],
   "order": 1,
   "settings": {
     "index": {
       "codec": "best_compression",
-      "mapping": {
-        "total_fields": {
-          "limit": 1000
-        }
-      },
       "number_of_shards": "1",
       "number_of_replicas": "0",
-      "refresh_interval": "2s",
+      "refresh_interval": "5s",
       "query.default_field": [
-        "base.tags",
         "agent.id",
-        "host.os.family",
-        "host.os.full.text",
+        "host.os.full",
         "host.os.version",
         "package.name",
         "package.version",
         "vulnerability.id",
-        "vulnerability.description.text",
+        "vulnerability.description",
         "vulnerability.severity",
         "wazuh.cluster.name"
       ]
