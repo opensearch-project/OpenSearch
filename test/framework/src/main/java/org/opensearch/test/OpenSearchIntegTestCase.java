@@ -221,6 +221,7 @@ import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
@@ -710,7 +711,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         featureSettings.put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey(), true);
-        featureSettings.put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, true);
         return featureSettings.build();
     }
 
@@ -2006,7 +2006,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
-            .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
+            .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, true);
         return builder.build();
     }
 

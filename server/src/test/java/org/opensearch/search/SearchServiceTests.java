@@ -1696,7 +1696,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             .get();
     }
 
-
     /**
      * Test that the Search Context for concurrent segment search enabled is set correctly at the time of construction.
      * The same is used throughout the context object lifetime even if cluster setting changes before the request completion.
