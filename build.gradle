@@ -289,7 +289,8 @@ allprojects {
     }
     compile.options.compilerArgs << '-Xlint:auxiliaryclass'
     compile.options.compilerArgs << '-Xlint:cast'
-    compile.options.compilerArgs << '-Xlint:classfile'
+    // See please https://github.com/apache/logging-log4j2/issues/2144
+    compile.options.compilerArgs << '-Xlint:-classfile'
     compile.options.compilerArgs << '-Xlint:dep-ann'
     compile.options.compilerArgs << '-Xlint:divzero'
     compile.options.compilerArgs << '-Xlint:empty'
