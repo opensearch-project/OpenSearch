@@ -16,6 +16,7 @@ import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -44,28 +45,29 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * @see QueryGroup
  * @see ResourceType
  */
-public class TaskCanceller {
+public class TaskCancellationService {
     public static final double MIN_VALUE = 1e-9;
 
     private final WorkloadManagementSettings workloadManagementSettings;
     private final TaskSelectionStrategy taskSelectionStrategy;
+    private final QueryGroupResourceUsageTrackerService resourceUsageTrackerService;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
-    private final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
+    Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
     private final Collection<QueryGroup> activeQueryGroups;
     private final Collection<QueryGroup> deletedQueryGroups;
     private BooleanSupplier isNodeInDuress;
 
-    public TaskCanceller(
+    public TaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,
-        MaximumResourceTaskSelectionStrategy taskSelectionStrategy,
-        Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
+        TaskSelectionStrategy taskSelectionStrategy,
+        QueryGroupResourceUsageTrackerService resourceUsageTrackerService,
         Collection<QueryGroup> activeQueryGroups,
         Collection<QueryGroup> deletedQueryGroups,
         BooleanSupplier isNodeInDuress
     ) {
         this.workloadManagementSettings = workloadManagementSettings;
         this.taskSelectionStrategy = taskSelectionStrategy;
-        this.queryGroupLevelResourceUsageViews = queryGroupLevelResourceUsageViews;
+        this.resourceUsageTrackerService = resourceUsageTrackerService;
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
         this.isNodeInDuress = isNodeInDuress;
@@ -75,6 +77,7 @@ public class TaskCanceller {
      * Cancel tasks based on the implemented strategy.
      */
     public final void cancelTasks() {
+        queryGroupLevelResourceUsageViews = resourceUsageTrackerService.constructQueryGroupLevelUsageViews();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
         cancelTasks(ResiliencyMode.ENFORCED);
         // if the node is in duress, cancel tasks accordingly.

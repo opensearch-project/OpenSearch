@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.TaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 
 public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCase {

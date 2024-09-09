@@ -31,6 +31,7 @@ public class CpuUsageCalculator extends ResourceUsageCalculator {
 
     @Override
     public double calculateResourceUsage(List<QueryGroupTask> tasks) {
+        assert nanoTimeSupplier != null : "nanoTimeSupplier has to be set in order to calculate the resource usage";
         double usage = tasks.stream().mapToDouble(this::calculateTaskResourceUsage).sum();
 
         usage /= PROCESSOR_COUNT;

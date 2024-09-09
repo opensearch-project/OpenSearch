@@ -17,7 +17,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.TaskCancellationService.MIN_VALUE;
 
 /**
  * Represents the highest resource consuming task first selection strategy.

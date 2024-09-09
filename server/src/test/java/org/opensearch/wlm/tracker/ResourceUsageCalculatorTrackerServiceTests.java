@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.wlm.QueryGroupTask.QUERY_GROUP_ID_HEADER;
-import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.TaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.CpuUsageCalculator.PROCESSOR_COUNT;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 import static org.mockito.ArgumentMatchers.anyString;

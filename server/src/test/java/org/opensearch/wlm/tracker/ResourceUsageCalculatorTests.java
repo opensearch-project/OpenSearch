@@ -20,7 +20,7 @@ import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.Tes
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.TaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.CpuUsageCalculator.PROCESSOR_COUNT;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 import static org.mockito.Mockito.mock;
