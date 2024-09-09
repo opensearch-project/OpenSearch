@@ -10,6 +10,8 @@ package org.opensearch.transport.protobuf;
 
 import com.google.protobuf.ByteString;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -18,6 +20,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.proto.search.SearchHitsProtoDef;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
@@ -28,13 +31,13 @@ import org.opensearch.proto.search.SearchHitsProtoDef.IndexProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SearchShardTargetProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SearchSortValuesProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.ShardIdProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SortValueProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SortFieldProto;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
-
-import static org.opensearch.common.lucene.Lucene.readSortValue;
-import static org.opensearch.common.lucene.Lucene.writeSortValue;
 
 /**
  * SerDe interfaces and protobuf SerDe implementations for some "primitive" types.
@@ -56,7 +59,6 @@ public class ProtoSerDeHelpers {
         }
     }
 
-    // TODO: Lucene definitions should maybe be serialized as generic bytes arrays.
     public static ExplanationProto explanationToProto(Explanation explanation) {
         ExplanationProto.Builder builder = ExplanationProto.newBuilder()
             .setMatch(explanation.isMatch())
@@ -174,26 +176,15 @@ public class ProtoSerDeHelpers {
         return new HighlightField(name, fragments);
     }
 
-    // TODO: Can we write all objects to a single stream?
     public static SearchSortValuesProto searchSortValuesToProto(SearchSortValues searchSortValues) {
         SearchSortValuesProto.Builder builder = SearchSortValuesProto.newBuilder();
 
         for (Object value : searchSortValues.getFormattedSortValues()) {
-            try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
-                writeSortValue(docsOut, value);
-                builder.addFormattedSortValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
-            } catch (IOException e) {
-                builder.addFormattedSortValues(ByteString.EMPTY);
-            }
+            builder.addFormattedSortValues(SortValueToProto(value));
         }
 
         for (Object value : searchSortValues.getRawSortValues()) {
-            try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
-                writeSortValue(docsOut, value);
-                builder.addRawSortValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
-            } catch (IOException e) {
-                builder.addRawSortValues(ByteString.EMPTY);
-            }
+            builder.addRawSortValues(SortValueToProto(value));
         }
 
         return builder.build();
@@ -204,24 +195,96 @@ public class ProtoSerDeHelpers {
         Object[] rawSortValues = new Object[proto.getRawSortValuesCount()];
 
         for (int i = 0; i < formattedSortValues.length; i++) {
-            BytesReference valuesBytes = new BytesArray(proto.getFormattedSortValues(i).toByteArray());
-            try (StreamInput in = valuesBytes.streamInput()) {
-                formattedSortValues[i] = readSortValue(in);
-            } catch (IOException e) {
-                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from protobuf", e);
-            }
+            SortValueProto sortProto = proto.getFormattedSortValues(i);
+            formattedSortValues[i] = SortValueFromProto(sortProto);
         }
 
         for (int i = 0; i < rawSortValues.length; i++) {
-            BytesReference valuesBytes = new BytesArray(proto.getRawSortValues(i).toByteArray());
-            try (StreamInput in = valuesBytes.streamInput()) {
-                rawSortValues[i] = readSortValue(in);
-            } catch (IOException e) {
-                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchSortValues from protobuf", e);
-            }
+            SortValueProto sortProto = proto.getRawSortValues(i);
+            rawSortValues[i] = SortValueFromProto(sortProto);
         }
 
         return new SearchSortValues(formattedSortValues, rawSortValues);
+    }
+
+    public static SortValueProto SortValueToProto(Object sortValue) throws ProtoSerDeHelpers.SerializationException {
+        SortValueProto.Builder builder = SortValueProto.newBuilder();
+
+        if (sortValue.getClass().equals(String.class)) {
+            builder.setStringValue((String) sortValue);
+        } else if (sortValue.getClass().equals(Integer.class)) {
+            builder.setIntValue((Integer) sortValue);
+        } else if (sortValue.getClass().equals(Long.class)) {
+            builder.setLongValue((Long) sortValue);
+        } else if (sortValue.getClass().equals(Float.class)) {
+            builder.setFloatValue((Float) sortValue);
+        } else if (sortValue.getClass().equals(Double.class)) {
+            builder.setDoubleValue((Double) sortValue);
+        } else if (sortValue.getClass().equals(Byte.class)) {
+            builder.setByteValue((Byte) sortValue);
+        } else if (sortValue.getClass().equals(Short.class)) {
+            builder.setShortValue((Short) sortValue);
+        } else if (sortValue.getClass().equals(Boolean.class)) {
+            builder.setBoolValue((Boolean) sortValue);
+        } else if (sortValue.getClass().equals(BytesRef.class)) {
+            builder.setBytesValue(ByteString.copyFrom(
+                ((BytesRef) sortValue).bytes,
+                ((BytesRef) sortValue).offset,
+                ((BytesRef) sortValue).length));
+        } else if (sortValue.getClass().equals(BigInteger.class)) {
+            builder.setBigIntegerValue(sortValue.toString());
+        } else {
+            throw new ProtoSerDeHelpers.SerializationException("Unexpected sortValue: " + sortValue.toString());
+        }
+
+        return builder.build();
+    }
+
+    public static Object SortValueFromProto(SortValueProto proto) throws ProtoSerDeHelpers.SerializationException {
+        switch (proto.getValueCase()) {
+            case STRING_VALUE:
+                return proto.getStringValue();
+            case INT_VALUE:
+                return proto.getIntValue();
+            case LONG_VALUE:
+                return proto.getLongValue();
+            case FLOAT_VALUE:
+                return proto.getFloatValue();
+            case DOUBLE_VALUE:
+                return proto.getDoubleValue();
+            case BYTE_VALUE:
+                return (byte) proto.getByteValue();
+            case SHORT_VALUE:
+                return (short) proto.getShortValue();
+            case BOOL_VALUE:
+                return proto.getBoolValue();
+            case BYTES_VALUE:
+                ByteString byteString = proto.getBytesValue();
+                return new BytesRef(byteString.toByteArray());
+            case BIG_INTEGER_VALUE:
+                return new BigInteger(proto.getBigIntegerValue());
+            case VALUE_NOT_SET:
+                return null;
+            default:
+                throw new ProtoSerDeHelpers.SerializationException("Unexpected value case: " + proto.getValueCase());
+        }
+    }
+
+    public static SortFieldProto sortFieldToProto(SortField sortField) {
+        SortFieldProto.Builder builder = SortFieldProto.newBuilder()
+            .setId(sortField.get)
+            .setReverse()
+            .setType();
+
+        builder.setField();
+
+        return builder.build();
+    }
+
+    public static SortField sortFieldFromProto(SortFieldProto proto) {
+
+
+        return builder.build();
     }
 
     public static SearchShardTargetProto searchShardTargetToProto(SearchShardTarget shardTarget) {

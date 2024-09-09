@@ -69,10 +69,13 @@ public class SearchHitProtobuf extends SearchHit {
     SearchHitProto toProto() {
         SearchHitProto.Builder builder = SearchHitProto.newBuilder()
             .setScore(score)
-            .setId(id.string())
             .setVersion(version)
             .setSeqNo(seqNo)
             .setPrimaryTerm(primaryTerm);
+
+        if (id != null) {
+            builder.setId(id.string());
+        }
 
         if (nestedIdentity != null) {
             builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity));
@@ -115,9 +118,14 @@ public class SearchHitProtobuf extends SearchHit {
         seqNo = proto.getSeqNo();
         version = proto.getVersion();
         primaryTerm = proto.getPrimaryTerm();
-        id = new Text(proto.getId());
         sortValues = searchSortValuesFromProto(proto.getSortValues());
         matchedQueries = proto.getMatchedQueriesMap();
+
+        if (proto.hasId()) {
+            id = new Text(proto.getId());
+        } else {
+            id = null;
+        }
 
         if (proto.hasNestedIdentity()) {
             nestedIdentity = nestedIdentityFromProto(proto.getNestedIdentity());

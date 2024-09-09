@@ -7,9 +7,9 @@ option java_outer_classname = "SearchHitsProtoDef";
 message SearchHitsProto {
   float max_score = 1;
   optional string collapse_field = 2;
-  bytes sort_fields = 3;
-  bytes collapse_values = 4;
   optional TotalHitsProto total_hits = 5;
+  repeated SortValueProto collapse_values = 4;
+  repeated SortFieldProto sort_fields = 3;
   repeated SearchHitProto hits = 6;
 }
 
@@ -18,19 +18,54 @@ message TotalHitsProto {
   int64 relation = 2;
 }
 
+message SortValueProto {
+  oneof value {
+    string string_value = 1;
+    int32 int_value = 2;
+    int64 long_value = 3;
+    float float_value = 4;
+    double double_value = 5;
+    int32 byte_value = 6;
+    int32 short_value = 7;
+    bool bool_value = 8;
+    bytes bytes_value = 9; // BytesRef
+    string big_integer_value = 10;
+  }
+}
+
+message SortFieldProto {
+  int32 missing_value = 1;
+  bool reverse = 2;
+  SortType type = 3;
+  optional string field = 4;
+}
+
+enum SortType {
+  SCORE = 0;
+  DOC = 1;
+  STRING = 2;
+  INT = 3;
+  FLOAT = 4;
+  LONG = 5;
+  DOUBLE = 6;
+  CUSTOM = 7;
+  STRING_VAL = 8;
+  REWRITEABLE = 9;
+}
+
 message SearchHitProto {
   float score = 1;
-  string id = 2;
-  int64 version = 3;
-  int64 seq_no = 4;
-  int64 primary_term = 5;
-  optional bytes source = 6;
-  map<string, DocumentFieldProto> document_fields = 7;
-  map<string, DocumentFieldProto> meta_fields = 8;
-  map<string, HighlightFieldProto> highlight_fields = 9;
-  map<string, float> matched_queries = 10;
-  map<string, SearchHitsProto> inner_hits = 11;
-  SearchSortValuesProto sort_values = 12;
+  int64 version = 2;
+  int64 seq_no = 3;
+  int64 primary_term = 4;
+  optional bytes source = 5; // JSON payload - Move to map?
+  map<string, DocumentFieldProto> document_fields = 6;
+  map<string, DocumentFieldProto> meta_fields = 7;
+  map<string, HighlightFieldProto> highlight_fields = 8;
+  map<string, float> matched_queries = 9;
+  map<string, SearchHitsProto> inner_hits = 10;
+  SearchSortValuesProto sort_values = 11;
+  optional string id = 12;
   optional NestedIdentityProto nested_identity = 13;
   optional SearchShardTargetProto shard = 14;
   optional ExplanationProto explanation = 15;
@@ -44,18 +79,18 @@ message NestedIdentityProto {
 
 message DocumentFieldProto {
   string name = 1;
-  repeated bytes values = 2;
+  repeated bytes values = 2; // List<Object> values - Can we limit this to specific types?
 }
 
 message HighlightFieldProto {
   string name = 1;
-  bool frags_null = 2; // fragments can be null OR empty unfortunately
+  bool frags_null = 2; // fragments can be null OR empty
   repeated string fragments = 3;
 }
 
 message SearchSortValuesProto {
-  repeated bytes formatted_sort_values = 1;
-  repeated bytes raw_sort_values = 2;
+  repeated SortValueProto formatted_sort_values = 1;
+  repeated SortValueProto raw_sort_values = 2;
 }
 
 message ExplanationProto {

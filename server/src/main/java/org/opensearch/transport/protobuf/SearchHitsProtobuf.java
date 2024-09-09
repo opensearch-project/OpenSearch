@@ -23,6 +23,8 @@ import org.opensearch.proto.search.SearchHitsProtoDef.TotalHitsProto;
 
 import java.io.IOException;
 
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.SortValueToProto;
+
 /**
  * SearchHits child which implements serde operations as protobuf.
  * @opensearch.internal
@@ -79,11 +81,10 @@ public class SearchHitsProtobuf extends SearchHits {
             throw new ProtoSerDeHelpers.SerializationException("Failed to serialize SearchHits to proto", e);
         }
 
-        try (BytesStreamOutput collapseOut = new BytesStreamOutput()) {
-            collapseOut.writeOptionalArray(Lucene::writeSortValue, collapseValues);
-            builder.setCollapseValues(ByteString.copyFrom(collapseOut.bytes().toBytesRef().bytes));
-        } catch (IOException e) {
-            throw new ProtoSerDeHelpers.SerializationException("Failed to serialize SearchHits to proto", e);
+        if (collapseValues != null) {
+            for (Object col : collapseValues) {
+                builder.addCollapseValues(SortValueToProto(col));
+            }
         }
 
         return builder.build();
