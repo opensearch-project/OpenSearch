@@ -15,7 +15,6 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
@@ -41,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -76,14 +76,6 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     }
 
     @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled)
-            .build();
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String routingTableRepoName = "remote-routing-repo";
         String routingTableRepoTypeAttributeKey = String.format(
@@ -100,6 +92,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), isRemoteStateEnabled)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
@@ -224,7 +217,6 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             .get();
 
         assertDataNodeDownloadStats(nodesStatsResponseDataNode);
-
     }
 
     private void assertDataNodeDownloadStats(NodesStatsResponse nodesStatsResponse) {
