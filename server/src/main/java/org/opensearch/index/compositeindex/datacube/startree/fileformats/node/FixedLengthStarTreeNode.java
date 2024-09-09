@@ -250,7 +250,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
         }
 
         int high = getInt(LAST_CHILD_ID_OFFSET);
-        // if the current node is null node, increment the low to reduce the search space
+        // if the current node is null node, decrement the high to reduce the search space
         if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, high), StarTreeNodeType.NULL) != null) {
             high--;
         }

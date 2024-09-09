@@ -7,8 +7,8 @@
  */
 
 /**
- * Numeric Types for Composite Index Star Tree
- *
- *  @opensearch.experimental
+ * This package contains classes assist in deciding
+ * whether to run a search request using concurrent search or not.
  */
-package org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype;
+
+package org.opensearch.search.deciders;

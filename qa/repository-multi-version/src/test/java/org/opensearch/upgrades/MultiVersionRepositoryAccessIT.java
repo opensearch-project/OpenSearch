@@ -243,7 +243,7 @@ public class MultiVersionRepositoryAccessIT extends OpenSearchRestTestCase {
     private static void assertSnapshotStatusSuccessful(RestHighLevelClient client, String repoName,
                                                        String[] snapshots, String[] indices) throws IOException {
         final SnapshotsStatusResponse statusResponse = client.snapshot()
-            .status(new SnapshotsStatusRequest(repoName, snapshots, indices), RequestOptions.DEFAULT);
+            .status((new SnapshotsStatusRequest(repoName, snapshots)).indices(indices), RequestOptions.DEFAULT);
         for (SnapshotStatus status : statusResponse.getSnapshots()) {
             assertThat(status.getShardsStats().getFailedShards(), is(0));
         }

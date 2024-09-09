@@ -171,7 +171,7 @@ public class StarTreeValues implements CompositeIndexValues {
 
         // get doc id set iterators for metrics
         for (Metric metric : starTreeMetadata.getMetrics()) {
-            for (MetricStat metricStat : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
                 String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                     starTreeField.getName(),
                     metric.getField(),
