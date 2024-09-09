@@ -19,12 +19,15 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericTypeConverters;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeDocumentBitSetUtil;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 
 /**
  * Abstract class for managing star tree file operations.
@@ -92,24 +95,22 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     protected int writeMetrics(StarTreeDocument starTreeDocument, IndexOutput output, boolean isAggregatedDoc) throws IOException {
         int numBytes = 0;
         for (int i = 0; i < starTreeDocument.metrics.length; i++) {
-            switch (metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType()) {
-                case LONG:
+            FieldValueConverter aggregatedValueType = metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType();
+            if (aggregatedValueType.equals(LONG)) {
+                output.writeLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
+                numBytes += Long.BYTES;
+            } else if (aggregatedValueType.equals(DOUBLE)) {
+                if (isAggregatedDoc) {
+                    long val = NumericUtils.doubleToSortableLong(
+                        starTreeDocument.metrics[i] == null ? 0.0 : (Double) starTreeDocument.metrics[i]
+                    );
+                    output.writeLong(val);
+                } else {
                     output.writeLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
-                    numBytes += Long.BYTES;
-                    break;
-                case DOUBLE:
-                    if (isAggregatedDoc) {
-                        long val = NumericUtils.doubleToSortableLong(
-                            starTreeDocument.metrics[i] == null ? 0.0 : (Double) starTreeDocument.metrics[i]
-                        );
-                        output.writeLong(val);
-                    } else {
-                        output.writeLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
-                    }
-                    numBytes += Long.BYTES;
-                    break;
-                default:
-                    throw new IllegalStateException("Unsupported metric type");
+                }
+                numBytes += Long.BYTES;
+            } else {
+                throw new IllegalStateException("Unsupported metric type");
             }
         }
         numBytes += StarTreeDocumentBitSetUtil.writeBitSet(starTreeDocument.metrics, output);
@@ -159,22 +160,20 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     protected long readMetrics(RandomAccessInput input, long offset, int numMetrics, Object[] metrics, boolean isAggregatedDoc)
         throws IOException {
         for (int i = 0; i < numMetrics; i++) {
-            switch (metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType()) {
-                case LONG:
-                    metrics[i] = input.readLong(offset);
-                    offset += Long.BYTES;
-                    break;
-                case DOUBLE:
-                    long val = input.readLong(offset);
-                    if (isAggregatedDoc) {
-                        metrics[i] = StarTreeNumericTypeConverters.sortableLongtoDouble(val);
-                    } else {
-                        metrics[i] = val;
-                    }
-                    offset += Long.BYTES;
-                    break;
-                default:
-                    throw new IllegalStateException("Unsupported metric type");
+            FieldValueConverter aggregatedValueType = metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType();
+            if (aggregatedValueType.equals(LONG)) {
+                metrics[i] = input.readLong(offset);
+                offset += Long.BYTES;
+            } else if (aggregatedValueType.equals(DOUBLE)) {
+                long val = input.readLong(offset);
+                if (isAggregatedDoc) {
+                    metrics[i] = DOUBLE.toDoubleValue(val);
+                } else {
+                    metrics[i] = val;
+                }
+                offset += Long.BYTES;
+            } else {
+                throw new IllegalStateException("Unsupported metric type");
             }
         }
         offset += StarTreeDocumentBitSetUtil.readBitSet(input, offset, metrics, index -> null);

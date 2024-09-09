@@ -67,6 +67,18 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
      * @param repository repository name
      * @param snapshots  list of snapshots
      */
+    public SnapshotsStatusRequest(String repository, String[] snapshots) {
+        this.repository = repository;
+        this.snapshots = snapshots;
+    }
+
+    /**
+     * Constructs a new get snapshots request with given repository name and list of snapshots
+     *
+     * @param repository repository name
+     * @param snapshots  list of snapshots
+     * @param indices  list of indices
+     */
     public SnapshotsStatusRequest(String repository, String[] snapshots, String[] indices) {
         this.repository = repository;
         this.snapshots = snapshots;
@@ -78,7 +90,7 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         repository = in.readString();
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             indices = in.readOptionalStringArray();
         }
     }
@@ -89,7 +101,7 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         out.writeString(repository);
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalStringArray(indices);
         }
     }

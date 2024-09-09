@@ -75,6 +75,11 @@ public class StarTreeValues implements CompositeIndexValues {
     private final Map<String, String> attributes;
 
     /**
+     * A metadata for the star-tree
+     */
+    private final StarTreeMetadata starTreeMetadata;
+
+    /**
      * Constructs a new StarTreeValues object with the provided parameters.
      * Used for testing.
      *
@@ -89,13 +94,15 @@ public class StarTreeValues implements CompositeIndexValues {
         StarTreeNode root,
         Map<String, Supplier<DocIdSetIterator>> dimensionDocValuesIteratorMap,
         Map<String, Supplier<DocIdSetIterator>> metricDocValuesIteratorMap,
-        Map<String, String> attributes
+        Map<String, String> attributes,
+        StarTreeMetadata compositeIndexMetadata
     ) {
         this.starTreeField = starTreeField;
         this.root = root;
         this.dimensionDocValuesIteratorMap = dimensionDocValuesIteratorMap;
         this.metricDocValuesIteratorMap = metricDocValuesIteratorMap;
         this.attributes = attributes;
+        this.starTreeMetadata = compositeIndexMetadata;
     }
 
     /**
@@ -114,7 +121,7 @@ public class StarTreeValues implements CompositeIndexValues {
         SegmentReadState readState
     ) throws IOException {
 
-        StarTreeMetadata starTreeMetadata = (StarTreeMetadata) compositeIndexMetadata;
+        starTreeMetadata = (StarTreeMetadata) compositeIndexMetadata;
 
         // build skip star node dimensions
         Set<String> skipStarNodeCreationInDims = starTreeMetadata.getSkipStarNodeCreationInDims();
@@ -165,7 +172,7 @@ public class StarTreeValues implements CompositeIndexValues {
 
         // get doc id set iterators for metrics
         for (Metric metric : starTreeMetadata.getMetrics()) {
-            for (MetricStat metricStat : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
                 String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                     starTreeField.getName(),
                     metric.getField(),
@@ -245,6 +252,8 @@ public class StarTreeValues implements CompositeIndexValues {
         } else {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Dimension %s not present", dimension));
         }
+
+        throw new IllegalArgumentException("dimension [" + dimension + "] does not exist in the segment.");
     }
 
     /**
@@ -260,6 +269,11 @@ public class StarTreeValues implements CompositeIndexValues {
         } else {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Metric %s not present", fullyQualifiedMetricName));
         }
+
+        throw new IllegalArgumentException("metric [" + fullyQualifiedMetricName + "] does not exist in the segment.");
     }
 
+    public int getStarTreeDocumentCount() {
+        return starTreeMetadata.getStarTreeDocCount();
+    }
 }

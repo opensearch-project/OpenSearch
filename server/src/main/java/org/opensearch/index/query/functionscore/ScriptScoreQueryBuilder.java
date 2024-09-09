@@ -155,11 +155,6 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public ScriptScoreQueryBuilder setMinScore(float minScore) {
         this.minScore = minScore;
         return this;

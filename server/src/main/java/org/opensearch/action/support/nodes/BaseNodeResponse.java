@@ -67,6 +67,6 @@ public abstract class BaseNodeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        node.writeTo(out);
+        node.writeToWithAttribute(out);
     }
 }

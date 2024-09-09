@@ -75,6 +75,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         public DocCountFieldMapper build(BuilderContext context) {
             return new DocCountFieldMapper();
         }
+
+        @Override
+        public boolean isDataCubeMetricSupported() {
+            return true;
+        }
     }
 
     /**

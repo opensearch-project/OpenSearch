@@ -66,6 +66,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.Priority;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -114,6 +115,8 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 import org.opensearch.index.remote.RemoteStorePathStrategy.SnapshotShardPathInput;
+import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -130,9 +133,14 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.translog.RemoteFsTimestampAwareTranslog;
+import org.opensearch.index.translog.RemoteFsTranslog;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.Repository;
@@ -188,6 +196,7 @@ import java.util.stream.Stream;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
+import static org.opensearch.snapshots.SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -334,6 +343,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    /**
+     * Controls the fixed prefix for the snapshot shard blob path.
+     */
+    public static final Setting<String> SNAPSHOT_SHARD_PATH_PREFIX_SETTING = Setting.simpleString(
+        "cluster.snapshot.shard.path.prefix",
+        "",
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
     protected volatile boolean supportURLRepo;
 
     private volatile int maxShardBlobDeleteBatch;
@@ -425,6 +444,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final NamedXContentRegistry namedXContentRegistry;
 
+    private final String snapshotShardPathPrefix;
+
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
@@ -476,6 +497,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
+        this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX_SETTING.get(clusterService.getSettings());
     }
 
     @Override
@@ -968,11 +990,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return new RepositoryStats(store.stats());
     }
 
-    public void deleteSnapshotsAndReleaseLockFiles(
+    public void deleteSnapshotsInternal(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        Map<SnapshotId, Long> snapshotIdsPinnedTimestampMap,
+        boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
         if (isReadOnly()) {
@@ -994,6 +1020,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         repositoryData,
                         repositoryMetaVersion,
                         remoteStoreLockManagerFactory,
+                        remoteSegmentStoreDirectoryFactory,
+                        remoteStorePinnedTimestampService,
+                        snapshotIdsPinnedTimestampMap,
+                        isShallowSnapshotV2,
                         listener
                     );
                 }
@@ -1007,17 +1037,64 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
+    public void deleteSnapshotsWithPinnedTimestamp(
+        Map<SnapshotId, Long> snapshotIdPinnedTimestampMap,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        ActionListener<RepositoryData> listener
+    ) {
+        deleteSnapshotsInternal(
+            snapshotIdPinnedTimestampMap.keySet(),
+            repositoryStateId,
+            repositoryMetaVersion,
+            null, // Passing null since no remote store lock files need to be cleaned up.
+            remoteSegmentStoreDirectoryFactory,
+            remoteStorePinnedTimestampService,
+            snapshotIdPinnedTimestampMap,
+            true, // true only for shallow snapshot v2
+            listener
+        );
+    }
+
+    @Override
+    public void deleteSnapshotsAndReleaseLockFiles(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<RepositoryData> listener
+    ) {
+        deleteSnapshotsInternal(
+            snapshotIds,
+            repositoryStateId,
+            repositoryMetaVersion,
+            remoteStoreLockManagerFactory,
+            null,
+            null,
+            Collections.emptyMap(),
+            false,
+            listener
+        );
+    }
+
+    @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     ) {
-        deleteSnapshotsAndReleaseLockFiles(
+        deleteSnapshotsInternal(
             snapshotIds,
             repositoryStateId,
             repositoryMetaVersion,
             null, // Passing null since no remote store lock files need to be cleaned up.
+            null, // Passing null since no remote store segment files need to be cleaned up
+            null,
+            Collections.emptyMap(),
+            false,
             listener
         );
     }
@@ -1082,6 +1159,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *                                      delete operation
      * @param repositoryData                RepositoryData found the in the repository before executing this delete
      * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
+     * @param remoteSegmentStoreDirectoryFactory RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
+     * @param remoteStorePinnedTimestampService  RemoteStorePinnedTimestampService to be used for unpinning the snapshot timestamp
+     * @param snapshotIdPinnedTimestampMap       Map of snapshotId and pinned timestamp
+     * @prama isShallowSnapshotV2                true for shallow snapshot v2
      * @param listener                      Listener to invoke once finished
      */
     private void doDeleteShardSnapshots(
@@ -1092,6 +1173,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData repositoryData,
         Version repoMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        Map<SnapshotId, Long> snapshotIdPinnedTimestampMap,
+        boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
         // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
@@ -1127,7 +1212,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
         }, listener::onFailure);
         // Once we have updated the repository, run the clean-ups
+        final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
         writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
+            if (snapshotIdPinnedTimestampMap == null || snapshotIdPinnedTimestampMap.isEmpty()) {
+                pinnedTimestampListener.onResponse(updatedRepoData);
+            } else {
+                removeSnapshotsPinnedTimestamp(
+                    snapshotIdPinnedTimestampMap,
+                    this,
+                    updatedRepoData,
+                    remoteStorePinnedTimestampService,
+                    pinnedTimestampListener
+                );
+            }
+        }, listener::onFailure);
+
+        pinnedTimestampListener.whenComplete(updatedRepoData -> {
+
             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
             final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(
                 ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
@@ -1151,18 +1252,114 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 foundIndices,
                 rootBlobs,
                 updatedRepoData,
+                repositoryData,
                 remoteStoreLockManagerFactory,
+                remoteSegmentStoreDirectoryFactory,
                 afterCleanupsListener,
                 idToShardInfoMap
             );
-            asyncCleanupUnlinkedShardLevelBlobs(
-                repositoryData,
-                snapshotIds,
-                writeShardMetaDataAndComputeDeletesStep.result(),
-                remoteStoreLockManagerFactory,
-                afterCleanupsListener
-            );
+            if (isShallowSnapshotV2) {
+                cleanUpRemoteStoreFilesForDeletedIndicesV2(
+                    repositoryData,
+                    snapshotIds,
+                    writeShardMetaDataAndComputeDeletesStep.result(),
+                    remoteSegmentStoreDirectoryFactory,
+                    afterCleanupsListener
+                );
+            } else {
+                asyncCleanupUnlinkedShardLevelBlobs(
+                    repositoryData,
+                    snapshotIds,
+                    writeShardMetaDataAndComputeDeletesStep.result(),
+                    remoteStoreLockManagerFactory,
+                    afterCleanupsListener
+                );
+            }
         }, listener::onFailure);
+    }
+
+    private void cleanUpRemoteStoreFilesForDeletedIndicesV2(
+        RepositoryData repositoryData,
+        Collection<SnapshotId> snapshotIds,
+        Collection<ShardSnapshotMetaDeleteResult> result,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        ActionListener<Void> afterCleanupsListener
+    ) {
+        try {
+            Set<String> uniqueIndexIds = new HashSet<>();
+            for (ShardSnapshotMetaDeleteResult shardSnapshotMetaDeleteResult : result) {
+                uniqueIndexIds.add(shardSnapshotMetaDeleteResult.indexId.getId());
+            }
+            // iterate through all the indices and trigger remote store directory cleanup for deleted index segments
+            for (String indexId : uniqueIndexIds) {
+                cleanRemoteStoreDirectoryIfNeeded(snapshotIds, indexId, repositoryData, remoteSegmentStoreDirectoryFactory);
+            }
+            afterCleanupsListener.onResponse(null);
+        } catch (Exception e) {
+            logger.warn("Exception during cleanup of remote directory files for snapshot v2", e);
+            afterCleanupsListener.onFailure(e);
+        }
+
+    }
+
+    private void removeSnapshotsPinnedTimestamp(
+        Map<SnapshotId, Long> snapshotsWithPinnedTimestamp,
+        Repository repository,
+        RepositoryData repositoryData,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        ActionListener<RepositoryData> pinnedTimestampListener
+    ) {
+        // Create a GroupedActionListener to aggregate the results of all unpin operations
+        GroupedActionListener<RepositoryData> groupedListener = new GroupedActionListener<>(
+            ActionListener.wrap(
+                // This is called once all operations have succeeded
+                ignored -> pinnedTimestampListener.onResponse(repositoryData),
+                // This is called if any operation fails
+                pinnedTimestampListener::onFailure
+            ),
+            snapshotsWithPinnedTimestamp.size()
+        );
+
+        snapshotsWithPinnedTimestamp.forEach((snapshotId, pinnedTimestamp) -> {
+            removeSnapshotPinnedTimestamp(
+                remoteStorePinnedTimestampService,
+                snapshotId,
+                repository.getMetadata().name(),
+                pinnedTimestamp,
+                groupedListener
+            );
+        });
+    }
+
+    private void removeSnapshotPinnedTimestamp(
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        SnapshotId snapshotId,
+        String repository,
+        long timestampToUnpin,
+        ActionListener<RepositoryData> listener
+    ) {
+        remoteStorePinnedTimestampService.unpinTimestamp(
+            timestampToUnpin,
+            repository + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotId.getUUID(),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.debug("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        "Failed to unpin timestamp {} for snapshot {} with exception {}",
+                        timestampToUnpin,
+                        snapshotId.getName(),
+                        e
+                    );
+                    listener.onFailure(e);
+                }
+            }
+        );
     }
 
     /**
@@ -1181,7 +1378,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData updatedRepoData,
+        RepositoryData oldRepoData,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<Void> listener,
         Map<String, ShardInfo> idToShardInfoMap
     ) {
@@ -1190,7 +1389,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             foundIndices,
             rootBlobs,
             updatedRepoData,
+            oldRepoData,
             remoteStoreLockManagerFactory,
+            remoteSegmentStoreDirectoryFactory,
             ActionListener.map(listener, ignored -> null),
             idToShardInfoMap
         );
@@ -1204,6 +1405,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<Void> listener
     ) {
         final List<Tuple<BlobPath, String>> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
+        long startTimeNs = System.nanoTime();
+        Randomness.shuffle(filesToDelete);
+        logger.debug("[{}] shuffled the filesToDelete with timeElapsedNs={}", metadata.name(), (System.nanoTime() - startTimeNs));
+
         if (filesToDelete.isEmpty()) {
             listener.onResponse(null);
             return;
@@ -1221,8 +1426,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 staleFilesToDeleteInBatch.size()
             );
 
-            // Start as many workers as fit into the snapshot pool at once at the most
-            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), staleFilesToDeleteInBatch.size());
+            // Start as many workers as fit into the snapshot_deletion pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(), staleFilesToDeleteInBatch.size());
             for (int i = 0; i < workers; ++i) {
                 executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, groupedListener);
             }
@@ -1326,7 +1531,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (filesToDelete == null) {
             return;
         }
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.wrap(listener, l -> {
             try {
                 // filtering files for which remote store lock release and cleanup succeeded,
                 // remaining files for which it failed will be retried in next snapshot delete run.
@@ -1390,7 +1595,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION);
         final List<IndexId> indices = oldRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds);
 
         if (indices.isEmpty()) {
@@ -1566,7 +1771,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData newRepoData,
+        RepositoryData oldRepoData,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<DeleteResult> listener,
         Map<String, ShardInfo> idToShardInfoMap
     ) {
@@ -1578,7 +1785,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(deleteResult);
         }, listener::onFailure), 2);
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION);
         final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());
         if (staleRootBlobs.isEmpty()) {
             groupedListener.onResponse(DeleteResult.ZERO);
@@ -1595,9 +1802,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             Map<String, BlobMetadata> snapshotShardPaths = getSnapshotShardPaths();
             cleanupStaleIndices(
+                deletedSnapshots,
                 foundIndices,
                 survivingIndexIds,
                 remoteStoreLockManagerFactory,
+                remoteSegmentStoreDirectoryFactory,
+                oldRepoData,
                 groupedListener,
                 snapshotShardPaths,
                 idToShardInfoMap
@@ -1627,12 +1837,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param repositoryStateId             Current repository state id
      * @param repositoryMetaVersion         version of the updated repository metadata to write
      * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files.
+     * @param remoteSegmentStoreDirectoryFactory    RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segments.
      * @param listener                      Listener to complete when done
      */
     public void cleanup(
         long repositoryStateId,
         Version repositoryMetaVersion,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<RepositoryCleanupResult> listener
     ) {
         try {
@@ -1665,7 +1877,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             foundIndices,
                             rootBlobs,
                             repositoryData,
+                            repositoryData,
                             remoteStoreLockManagerFactory,
+                            remoteSegmentStoreDirectoryFactory,
                             ActionListener.map(listener, RepositoryCleanupResult::new),
                             Collections.emptyMap()
                         ),
@@ -1756,9 +1970,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     void cleanupStaleIndices(
+        Collection<SnapshotId> deletedSnapshots,
         Map<String, BlobContainer> foundIndices,
         Set<String> survivingIndexIds,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RepositoryData oldRepoData,
         GroupedActionListener<DeleteResult> listener,
         Map<String, BlobMetadata> snapshotShardPaths,
         Map<String, ShardInfo> idToShardInfoMap
@@ -1781,13 +1998,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // Start as many workers as fit into the snapshot pool at once at the most
             final int workers = Math.min(
-                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+                threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(),
                 foundIndices.size() - survivingIndexIds.size()
             );
             for (int i = 0; i < workers; ++i) {
                 executeOneStaleIndexDelete(
+                    deletedSnapshots,
                     staleIndicesToDelete,
                     remoteStoreLockManagerFactory,
+                    remoteSegmentStoreDirectoryFactory,
+                    oldRepoData,
                     groupedListener,
                     snapshotShardPaths,
                     idToShardInfoMap
@@ -1822,8 +2042,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     private void executeOneStaleIndexDelete(
+        Collection<SnapshotId> deletedSnapshots,
         BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RepositoryData oldRepoData,
         GroupedActionListener<DeleteResult> listener,
         Map<String, BlobMetadata> snapshotShardPaths,
         Map<String, ShardInfo> idToShardInfoMap
@@ -1833,7 +2056,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final String indexSnId = indexEntry.getKey();
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.supply(listener, () -> {
             try {
                 logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
                 List<String> matchingShardPaths = findMatchingShardPaths(indexSnId, snapshotShardPaths);
@@ -1853,6 +2076,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 // If there are matchingShardPaths, then we delete them after we have deleted the shard data.
                 deleteResult = deleteResult.add(cleanUpStaleSnapshotShardPathsFile(matchingShardPaths, snapshotShardPaths));
+
+                if (remoteSegmentStoreDirectoryFactory != null) {
+                    cleanRemoteStoreDirectoryIfNeeded(deletedSnapshots, indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
+                }
 
                 // Finally, we delete the [base_path]/indexId folder
                 deleteResult = deleteResult.add(indexEntry.getValue().delete()); // Deleting the index folder
@@ -1875,14 +2102,138 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return DeleteResult.ZERO;
             } finally {
                 executeOneStaleIndexDelete(
+                    deletedSnapshots,
                     staleIndicesToDelete,
                     remoteStoreLockManagerFactory,
+                    remoteSegmentStoreDirectoryFactory,
+                    oldRepoData,
                     listener,
                     snapshotShardPaths,
                     idToShardInfoMap
                 );
             }
         }));
+    }
+
+    /**
+     * Cleans up the remote store directory if needed.
+     * <p> This method cleans up segments in the remote store directory for deleted indices.
+     * This cleanup flow is executed only for v2 snapshots. For v1 snapshots,
+     * the cleanup is done per shard after releasing the lock files.
+     * </p>
+     *
+     * <p> Since this method requires old repository data to fetch index metadata of the deleted index,
+     * the cleanup won't happen on retries in case of failures. This is because subsequent retries may
+     * not have access to the older repository data. </p>
+     *
+     * @param indexSnId     The snapshot index id of the index to be cleaned up
+     * @param oldRepoData   The old repository metadata used to fetch the index metadata.
+     * @param remoteSegmentStoreDirectoryFactory RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote
+     *                                          store segments
+     */
+    private void cleanRemoteStoreDirectoryIfNeeded(
+        Collection<SnapshotId> deletedSnapshots,
+        String indexSnId,
+        RepositoryData oldRepoData,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory
+    ) {
+        assert (indexSnId != null);
+
+        IndexId indexId = null;
+        List<SnapshotId> snapshotIds = Collections.emptyList();
+        try {
+            for (Map.Entry<IndexId, List<SnapshotId>> entry : oldRepoData.getIndexSnapshots().entrySet()) {
+                indexId = entry.getKey();
+                if (indexId != null && indexId.getId().equals(indexSnId)) {
+                    snapshotIds = entry.getValue();
+                    break;
+                }
+            }
+            if (snapshotIds.isEmpty()) {
+                logger.info("No snapshots found for indexSnId: {}", indexSnId);
+                return;
+            }
+            for (SnapshotId snapshotId : snapshotIds) {
+                try {
+                    // skip cleanup for snapshot not present in deleted snapshots list
+                    if (!deletedSnapshots.contains(snapshotId)) {
+                        continue;
+                    }
+                    IndexMetadata prevIndexMetadata = this.getSnapshotIndexMetaData(oldRepoData, snapshotId, indexId);
+                    if (prevIndexMetadata != null && !isIndexPresent(clusterService, prevIndexMetadata.getIndexUUID())) {
+                        String remoteStoreRepository = IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(
+                            prevIndexMetadata.getSettings()
+                        );
+                        assert (remoteStoreRepository != null);
+
+                        String remoteTranslogRepositoryName = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
+                            prevIndexMetadata.getSettings()
+                        );
+                        assert (remoteTranslogRepositoryName != null);
+                        Repository remoteTranslogRepository = remoteSegmentStoreDirectoryFactory.getRepositoriesService()
+                            .get()
+                            .repository(remoteTranslogRepositoryName);
+
+                        RemoteStorePathStrategy remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(
+                            prevIndexMetadata
+                        );
+
+                        for (int shardId = 0; shardId < prevIndexMetadata.getNumberOfShards(); shardId++) {
+                            ShardId shard = new ShardId(Index.UNKNOWN_INDEX_NAME, prevIndexMetadata.getIndexUUID(), shardId);
+                            remoteDirectoryCleanupAsync(
+                                remoteSegmentStoreDirectoryFactory,
+                                threadPool,
+                                remoteStoreRepository,
+                                prevIndexMetadata.getIndexUUID(),
+                                shard,
+                                ThreadPool.Names.REMOTE_PURGE,
+                                remoteStorePathStrategy
+                            );
+                            remoteTranslogCleanupAsync(remoteTranslogRepository, shard, remoteStorePathStrategy, prevIndexMetadata);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "Exception during cleanup of remote directory for snapshot [{}] deleted index [{}]",
+                            snapshotId,
+                            indexSnId
+                        ),
+                        e
+                    );
+                }
+            }
+        } catch (Exception e) {
+            logger.error(new ParameterizedMessage("Exception during the remote directory cleanup for indecSnId [{}]", indexSnId), e);
+        }
+
+    }
+
+    private void remoteTranslogCleanupAsync(
+        Repository remoteTranslogRepository,
+        ShardId shardId,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        IndexMetadata prevIndexMetadata
+    ) {
+        assert remoteTranslogRepository instanceof BlobStoreRepository;
+        boolean indexMetadataEnabled = RemoteStoreUtils.determineTranslogMetadataEnabled(prevIndexMetadata);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
+            (BlobStoreRepository) remoteTranslogRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            remoteStorePathStrategy,
+            remoteStoreSettings,
+            indexMetadataEnabled
+        );
+        try {
+            RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager);
+        } catch (IOException e) {
+            logger.error("Exception while cleaning up remote translog for shard: " + shardId, e);
+        }
     }
 
     /**
@@ -2097,8 +2448,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stateTransformer,
                     repositoryUpdatePriority,
                     ActionListener.wrap(newRepoData -> {
-                        cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
-                        listener.onResponse(newRepoData);
+                        cleanupOldShardGens(existingRepositoryData, updatedRepositoryData, newRepoData, listener);
                     }, onUpdateFailure)
                 );
             }, onUpdateFailure), 2 + indices.size());
@@ -2254,7 +2604,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
-    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
+    private void cleanupOldShardGens(
+        RepositoryData existingRepositoryData,
+        RepositoryData updatedRepositoryData,
+        RepositoryData newRepositoryData,
+        ActionListener<RepositoryData> listener
+    ) {
         final List<String> toDelete = new ArrayList<>();
         updatedRepositoryData.shardGenerations()
             .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
@@ -2263,10 +2618,62 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     (shardId, oldGen) -> toDelete.add(shardPath(indexId, shardId).buildAsString() + INDEX_FILE_PREFIX + oldGen)
                 )
             );
+        if (toDelete.isEmpty()) {
+            listener.onResponse(newRepositoryData);
+            return;
+        }
         try {
-            deleteFromContainer(rootBlobContainer(), toDelete);
+            AtomicInteger counter = new AtomicInteger();
+            Collection<List<String>> subList = toDelete.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxShardBlobDeleteBatch))
+                .values();
+            final BlockingQueue<List<String>> staleFilesToDeleteInBatch = new LinkedBlockingQueue<>(subList);
+            logger.info(
+                "[{}] cleanupOldShardGens toDeleteSize={} groupSize={}",
+                metadata.name(),
+                toDelete.size(),
+                staleFilesToDeleteInBatch.size()
+            );
+            final GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.wrap(r -> {
+                logger.info("[{}] completed cleanupOldShardGens", metadata.name());
+                listener.onResponse(newRepositoryData);
+            }, ex -> {
+                logger.error(new ParameterizedMessage("[{}] exception in cleanupOldShardGens", metadata.name()), ex);
+                listener.onResponse(newRepositoryData);
+            }), staleFilesToDeleteInBatch.size());
+
+            // Start as many workers as fit into the snapshot pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(), staleFilesToDeleteInBatch.size());
+            for (int i = 0; i < workers; ++i) {
+                executeOldShardGensCleanup(staleFilesToDeleteInBatch, groupedListener);
+            }
         } catch (Exception e) {
-            logger.warn("Failed to clean up old shard generation blobs", e);
+            logger.warn(new ParameterizedMessage(" [{}] Failed to clean up old shard generation blobs", metadata.name()), e);
+            listener.onResponse(newRepositoryData);
+        }
+    }
+
+    private void executeOldShardGensCleanup(BlockingQueue<List<String>> staleFilesToDeleteInBatch, GroupedActionListener<Void> listener)
+        throws InterruptedException {
+        List<String> filesToDelete = staleFilesToDeleteInBatch.poll(0L, TimeUnit.MILLISECONDS);
+        if (filesToDelete != null) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.wrap(listener, l -> {
+                try {
+                    deleteFromContainer(rootBlobContainer(), filesToDelete);
+                    l.onResponse(null);
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "[{}] Failed to delete following blobs during cleanupOldFiles : {}",
+                            metadata.name(),
+                            filesToDelete
+                        ),
+                        e
+                    );
+                    l.onFailure(e);
+                }
+                executeOldShardGensCleanup(staleFilesToDeleteInBatch, listener);
+            }));
         }
     }
 
@@ -2335,6 +2742,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotShardPathInput shardPathInput = new SnapshotShardPathInput.Builder().basePath(basePath())
             .indexUUID(indexId.getId())
             .shardId(String.valueOf(shardId))
+            .fixedPrefix(snapshotShardPathPrefix)
             .build();
         PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
         return pathType.path(shardPathInput, pathHashAlgorithm);
@@ -2383,10 +2791,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void assertSnapshotOrGenericThread() {
-        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
+        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT_DELETION + ']')
+            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') : "Expected current thread ["
                 + Thread.currentThread()
-                + "] to be the snapshot or generic thread.";
+                + "] to be the snapshot_deletion or snapshot or generic thread.";
     }
 
     @Override
@@ -3749,6 +4158,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return snapshot.getIndexShardSnapshotStatus();
     }
 
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotInfo snapshotInfo, IndexId indexId, ShardId shardId) {
+        IndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotInfo);
+        return snapshot.getIndexShardSnapshotStatus();
+    }
+
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
         if (isSystemRepository == false) {
@@ -3951,6 +4365,38 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new SnapshotException(
                 metadata.name(),
                 snapshotId,
+                "failed to read shard snapshot file for [" + shardContainer.path() + ']',
+                ex
+            );
+        }
+    }
+
+    public IndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotInfo snapshotInfo) {
+        try {
+            SnapshotId snapshotId = snapshotInfo.snapshotId();
+            if (snapshotInfo.getPinnedTimestamp() != 0) {
+                return () -> IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0, 0, "1");
+            } else if (snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()) {
+                if (shardContainer.blobExists(REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
+                    return REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
+                        shardContainer,
+                        snapshotId.getUUID(),
+                        namedXContentRegistry
+                    );
+                } else {
+                    throw new SnapshotMissingException(metadata.name(), snapshotId.getName());
+                }
+            } else {
+                if (shardContainer.blobExists(INDEX_SHARD_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
+                    return INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
+                } else {
+                    throw new SnapshotMissingException(metadata.name(), snapshotId.getName());
+                }
+            }
+        } catch (IOException ex) {
+            throw new SnapshotException(
+                metadata.name(),
+                snapshotInfo.snapshotId(),
                 "failed to read shard snapshot file for [" + shardContainer.path() + ']',
                 ex
             );

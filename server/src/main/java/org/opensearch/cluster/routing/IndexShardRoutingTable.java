@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -62,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -645,15 +647,11 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
             return new PlainShardIterator(shardId, Collections.emptyList());
         }
 
-        LinkedList<ShardRouting> ordered = new LinkedList<>();
-        for (ShardRouting replica : shuffler.shuffle(replicas)) {
-            if (replica.active()) {
-                ordered.addFirst(replica);
-            } else if (replica.initializing()) {
-                ordered.addLast(replica);
-            }
-        }
-        return new PlainShardIterator(shardId, ordered);
+        return filterAndOrderShards(replica -> true);
+    }
+
+    public ShardIterator searchReplicaActiveInitializingShardIt() {
+        return filterAndOrderShards(ShardRouting::isSearchOnly);
     }
 
     /**
@@ -680,6 +678,20 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
         // Add initializing shards last
         if (!allInitializingShards.isEmpty()) {
             ordered.addAll(allInitializingShards);
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    private ShardIterator filterAndOrderShards(Predicate<ShardRouting> filter) {
+        LinkedList<ShardRouting> ordered = new LinkedList<>();
+        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+            if (filter.test(replica)) {
+                if (replica.active()) {
+                    ordered.addFirst(replica);
+                } else if (replica.initializing()) {
+                    ordered.addLast(replica);
+                }
+            }
         }
         return new PlainShardIterator(shardId, ordered);
     }
@@ -1169,6 +1181,27 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
             }
         }
 
+        public static void writeVerifiableTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
+            out.writeVInt(indexShard.shardId.id());
+            out.writeVInt(indexShard.shards.size());
+            // Order allocated shards by allocationId
+            AtomicInteger assignedShardCount = new AtomicInteger();
+            indexShard.shards.stream()
+                .filter(shardRouting -> shardRouting.allocationId() != null)
+                .sorted(Comparator.comparing(o -> o.allocationId().getId()))
+                .forEach(shardRouting -> {
+                    try {
+                        assignedShardCount.getAndIncrement();
+                        shardRouting.writeToThin(out);
+                    } catch (IOException e) {
+                        logger.error(() -> new ParameterizedMessage("Failed to write shard {}. Exception {}", indexShard, e));
+                        throw new RuntimeException("Failed to write IndexShardRoutingTable", e);
+                    }
+                });
+            // is primary assigned
+            out.writeBoolean(indexShard.primaryShard().allocationId() != null);
+            out.writeVInt(indexShard.shards.size() - assignedShardCount.get());
+        }
     }
 
     @Override

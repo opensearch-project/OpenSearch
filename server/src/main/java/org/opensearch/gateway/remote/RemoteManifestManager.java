@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -98,6 +99,7 @@ public class RemoteManifestManager {
         RemoteClusterStateUtils.UploadedMetadataResults uploadedMetadataResult,
         String previousClusterUUID,
         ClusterStateDiffManifest clusterDiffManifest,
+        ClusterStateChecksum clusterStateChecksum,
         boolean committed,
         int codecVersion
     ) {
@@ -126,8 +128,10 @@ public class RemoteManifestManager {
                 .metadataVersion(clusterState.metadata().version())
                 .transientSettingsMetadata(uploadedMetadataResult.uploadedTransientSettingsMetadata)
                 .clusterStateCustomMetadataMap(uploadedMetadataResult.uploadedClusterStateCustomMetadataMap)
-                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings);
+                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings)
+                .checksum(clusterStateChecksum);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
+            logger.trace(() -> new ParameterizedMessage("[{}] uploading manifest", manifest));
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }

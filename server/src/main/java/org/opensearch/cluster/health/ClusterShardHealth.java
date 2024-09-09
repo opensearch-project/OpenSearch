@@ -50,6 +50,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -109,6 +110,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private final int relocatingShards;
     private final int initializingShards;
     private final int unassignedShards;
+    private int delayedUnassignedShards;
     private final boolean primaryActive;
 
     public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
@@ -117,7 +119,10 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
         int computeUnassignedShards = 0;
-        for (ShardRouting shardRouting : shardRoutingTable) {
+        int computeDelayedUnassignedShards = 0;
+        List<ShardRouting> shardRoutings = shardRoutingTable.shards();
+        for (int index = 0; index < shardRoutings.size(); index++) {
+            ShardRouting shardRouting = shardRoutings.get(index);
             if (shardRouting.active()) {
                 computeActiveShards++;
                 if (shardRouting.relocating()) {
@@ -128,24 +133,18 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
                 computeInitializingShards++;
             } else if (shardRouting.unassigned()) {
                 computeUnassignedShards++;
+                if (shardRouting.unassignedInfo() != null && shardRouting.unassignedInfo().isDelayed()) {
+                    computeDelayedUnassignedShards++;
+                }
             }
         }
-        ClusterHealthStatus computeStatus;
         final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-        if (primaryRouting.active()) {
-            if (computeActiveShards == shardRoutingTable.size()) {
-                computeStatus = ClusterHealthStatus.GREEN;
-            } else {
-                computeStatus = ClusterHealthStatus.YELLOW;
-            }
-        } else {
-            computeStatus = getInactivePrimaryHealth(primaryRouting);
-        }
-        this.status = computeStatus;
+        this.status = getShardHealth(primaryRouting, computeActiveShards, shardRoutingTable.size());
         this.activeShards = computeActiveShards;
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
         this.unassignedShards = computeUnassignedShards;
+        this.delayedUnassignedShards = computeDelayedUnassignedShards;
         this.primaryActive = primaryRouting.active();
     }
 
@@ -208,6 +207,10 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         return unassignedShards;
     }
 
+    public int getDelayedUnassignedShards() {
+        return delayedUnassignedShards;
+    }
+
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(shardId);
@@ -217,6 +220,27 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
+    }
+
+    /**
+     * Computes the shard health of an index.
+     * <p>
+     *     Shard health is GREEN when all primary and replica shards of the indices are active.
+     *     Shard health is YELLOW when primary shard is active but at-least one replica shard is inactive.
+     *     Shard health is RED when the primary is not active.
+     * </p>
+     */
+    public static ClusterHealthStatus getShardHealth(final ShardRouting primaryRouting, final int activeShards, final int totalShards) {
+        assert primaryRouting != null : "Primary shard routing can't be null";
+        if (primaryRouting.active()) {
+            if (activeShards == totalShards) {
+                return ClusterHealthStatus.GREEN;
+            } else {
+                return ClusterHealthStatus.YELLOW;
+            }
+        } else {
+            return getInactivePrimaryHealth(primaryRouting);
+        }
     }
 
     /**
