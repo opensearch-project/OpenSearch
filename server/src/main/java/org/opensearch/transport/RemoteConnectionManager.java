@@ -120,6 +120,11 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     @Override
+    public void clearPendingDisconnections() {
+        delegate.clearPendingDisconnections();
+    }
+
+    @Override
     public ConnectionProfile getConnectionProfile() {
         return delegate.getConnectionProfile();
     }

@@ -129,6 +129,11 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
+    public void clearPendingDisconnections() {
+        delegate.clearPendingDisconnections();
+    }
+
+    @Override
     public int size() {
         return delegate.size();
     }

@@ -817,6 +817,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                 if (currentState.nodes().isLocalNodeElectedClusterManager() == false) {
                     allocationService.cleanCaches();
+                    // This set only needs to be maintained on active cluster-manager
+                    // This is cleaned up to avoid stale entries which would block future reconnections
+                    logger.trace("Removing all pending disconnections as part of cluster-manager cleanup");
+                    transportService.clearPendingDisconnections();
                 }
                 return unchanged();
             }

@@ -253,6 +253,11 @@ public class ClusterConnectionManager implements ConnectionManager {
         pendingDisconnections.add(node);
     }
 
+    @Override
+    public void clearPendingDisconnections() {
+        pendingDisconnections.clear();
+    }
+
     /**
      * Returns the number of nodes this manager is connected to.
      */
