@@ -160,7 +160,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
+        int shardCopiesCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute.
             if (isAwarenessAttributeAssociatedWithNode(node, awarenessAttribute) == false) {
@@ -174,25 +174,22 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 );
             }
 
-            int currentNodeCount = getCurrentNodeCountForAttribute(shardRouting, node, allocation, moveToNode, awarenessAttribute);
+            int numShardCopiesAllocatedToCurrentNodeAttributeValue = getNumberOfShardCopiesAllocatedToCurrentNodeAttributeValue(shardRouting, node, allocation, moveToNode, awarenessAttribute);
 
-            // build attr_value -> nodes map
-            Set<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
-            int numberOfAttributes = nodesPerAttribute.size();
+            Set<String> attributeValues = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
+            int distinctAttributeValuesCount = attributeValues.size();
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
 
             if (fullValues != null) {
-                // If forced awareness is enabled, numberOfAttributes = count(distinct((union(discovered_attributes, forced_attributes)))
+                // If forced awareness is enabled, distinctAttributeValuesCount = count(distinct((union(discovered_attributes, forced_attributes)))
                 Set<String> attributesSet = new HashSet<>(fullValues);
-                for (String stringObjectCursor : nodesPerAttribute) {
-                    attributesSet.add(stringObjectCursor);
-                }
-                numberOfAttributes = attributesSet.size();
+                attributesSet.addAll(attributeValues);
+                distinctAttributeValuesCount = attributesSet.size();
             }
 
             // TODO should we remove ones that are not part of full list?
-            final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
-            if (currentNodeCount > maximumNodeCount) {
+            final int maximumShardCopiesAllowedPerAttributeValue = (shardCopiesCount + distinctAttributeValuesCount - 1) / distinctAttributeValuesCount; // ceil(shardCopiesCount/distinctAttributeValuesCount)
+            if (numShardCopiesAllocatedToCurrentNodeAttributeValue > maximumShardCopiesAllowedPerAttributeValue) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
@@ -200,10 +197,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         + "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per "
                         + "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
                     awarenessAttribute,
-                    shardCount,
-                    numberOfAttributes,
-                    currentNodeCount,
-                    maximumNodeCount
+                    shardCopiesCount,
+                    distinctAttributeValuesCount,
+                    numShardCopiesAllocatedToCurrentNodeAttributeValue,
+                    maximumShardCopiesAllowedPerAttributeValue
                 );
             }
         }
@@ -211,7 +208,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
     }
 
-    private int getCurrentNodeCountForAttribute(
+    private int getNumberOfShardCopiesAllocatedToCurrentNodeAttributeValue(
         ShardRouting shardRouting,
         RoutingNode node,
         RoutingAllocation allocation,
@@ -219,8 +216,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         String awarenessAttribute
     ) {
         // build the count of shards per attribute value
-        final String shardAttributeForNode = getAttributeValueForNode(node, awarenessAttribute);
-        int currentNodeCount = 0;
+        final String shardAttributeForCurrentNode = getAttributeValueForNode(node, awarenessAttribute);
+        int currentNodeAttributeValueShardCount = 0;
         final List<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting.shardId());
 
         for (ShardRouting assignedShard : assignedShards) {
@@ -229,8 +226,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 // Relocation sources should not be counted as the shard is moving away
                 RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
                 // Increase node count when
-                if (getAttributeValueForNode(routingNode, awarenessAttribute).equals(shardAttributeForNode)) {
-                    ++currentNodeCount;
+                if (getAttributeValueForNode(routingNode, awarenessAttribute).equals(shardAttributeForCurrentNode)) {
+                    ++currentNodeAttributeValueShardCount;
                 }
             }
         }
@@ -240,19 +237,19 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
                 if (node.nodeId().equals(nodeId) == false) {
                     // we work on different nodes, move counts around
-                    if (getAttributeValueForNode(allocation.routingNodes().node(nodeId), awarenessAttribute).equals(shardAttributeForNode)
-                        && currentNodeCount > 0) {
-                        --currentNodeCount;
+                    if (getAttributeValueForNode(allocation.routingNodes().node(nodeId), awarenessAttribute).equals(shardAttributeForCurrentNode)
+                        && currentNodeAttributeValueShardCount > 0) {
+                        --currentNodeAttributeValueShardCount;
                     }
 
-                    ++currentNodeCount;
+                    ++currentNodeAttributeValueShardCount;
                 }
             } else {
-                ++currentNodeCount;
+                ++currentNodeAttributeValueShardCount;
             }
         }
 
-        return currentNodeCount;
+        return currentNodeAttributeValueShardCount;
     }
 
     private boolean isAwarenessAttributeAssociatedWithNode(RoutingNode node, String awarenessAttribute) {
