@@ -20,7 +20,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.proto.search.SearchHitsProtoDef;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
@@ -33,6 +32,9 @@ import org.opensearch.proto.search.SearchHitsProtoDef.SearchSortValuesProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.ShardIdProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortValueProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortFieldProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SortTypeProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.GenericObjectProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.MissingValueProto;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -58,6 +60,33 @@ public class ProtoSerDeHelpers {
             super(message, cause);
         }
     }
+
+    public static GenericObjectProto genericObjectToProto(Object obj) {
+        GenericObjectProto.Builder builder = GenericObjectProto.newBuilder();
+
+        try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
+            docsOut.writeGenericValue(obj);
+            builder.setValue(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
+        } catch (IOException e) {
+            builder.setValue(ByteString.EMPTY);
+        }
+
+        return builder.build();
+    }
+
+    public static Object genericObjectFromProto(GenericObjectProto proto) {
+        Object obj;
+        BytesReference valuesBytes = new BytesArray(proto.getValue().toByteArray());
+
+        try (StreamInput in = valuesBytes.streamInput()) {
+            obj = in.readGenericValue();
+        } catch (IOException e) {
+            throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize DocumentField values from proto object", e);
+        }
+
+        return obj;
+    }
+
 
     public static ExplanationProto explanationToProto(Explanation explanation) {
         ExplanationProto.Builder builder = ExplanationProto.newBuilder()
@@ -117,17 +146,11 @@ public class ProtoSerDeHelpers {
         return Explanation.noMatch(description, details);
     }
 
-    // TODO: Can we write all objects to a single stream?
     public static DocumentFieldProto documentFieldToProto(DocumentField field) {
         DocumentFieldProto.Builder builder = DocumentFieldProto.newBuilder().setName(field.getName());
 
         for (Object value : field.getValues()) {
-            try (BytesStreamOutput docsOut = new BytesStreamOutput()) {
-                docsOut.writeGenericValue(value);
-                builder.addValues(ByteString.copyFrom(docsOut.bytes().toBytesRef().bytes));
-            } catch (IOException e) {
-                builder.addValues(ByteString.EMPTY);
-            }
+            builder.addValues(genericObjectToProto(value));
         }
 
         return builder.build();
@@ -138,12 +161,8 @@ public class ProtoSerDeHelpers {
         ArrayList<Object> values = new ArrayList<>();
 
         for (int i = 0; i < proto.getValuesCount(); i++) {
-            BytesReference valuesBytes = new BytesArray(proto.getValues(i).toByteArray());
-            try (StreamInput in = valuesBytes.streamInput()) {
-                values.add(in.readGenericValue());
-            } catch (IOException e) {
-                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize DocumentField values from proto object", e);
-            }
+            GenericObjectProto v = proto.getValues(i);
+            values.add(genericObjectFromProto(v));
         }
 
         return new DocumentField(name, values);
@@ -272,19 +291,62 @@ public class ProtoSerDeHelpers {
 
     public static SortFieldProto sortFieldToProto(SortField sortField) {
         SortFieldProto.Builder builder = SortFieldProto.newBuilder()
-            .setId(sortField.get)
-            .setReverse()
-            .setType();
+            .setMissingValue(missingValueToProto(sortField.getMissingValue()))
+            .setType(sortTypeToProto(sortField.getType()))
+            .setReverse(sortField.getReverse());
 
-        builder.setField();
+        if (sortField.getField() != null) {
+            builder.setField(sortField.getField());
+        }
 
         return builder.build();
     }
 
     public static SortField sortFieldFromProto(SortFieldProto proto) {
+        SortField sortField = new SortField(
+            proto.getField(),
+            sortTypeFromProto(proto.getType()),
+            proto.getReverse());
 
+        if (proto.hasMissingValue()) {
+            sortField.setMissingValue(missingValueFromProto(proto.getMissingValue()));
+        }
+
+        return sortField;
+    }
+
+    public static SortTypeProto sortTypeToProto(SortField.Type sortType) {
+        return SortTypeProto.forNumber(sortType.ordinal());
+    }
+
+    public static SortField.Type sortTypeFromProto(SortTypeProto proto) {
+        return SortField.Type.values()[proto.getNumber()];
+    }
+
+    public static MissingValueProto missingValueToProto(Object missingValue) {
+        MissingValueProto.Builder builder = MissingValueProto.newBuilder();
+
+        if (missingValue == SortField.STRING_FIRST) {
+            builder.setIntVal(1);
+        } else if (missingValue == SortField.STRING_LAST) {
+            builder.setIntVal(2);
+        } else {
+            builder.setObjVal(genericObjectToProto(missingValue));
+        }
 
         return builder.build();
+    }
+
+    public static Object missingValueFromProto(MissingValueProto proto) {
+        switch (proto.getValueCase()) {
+            case INT_VAL:
+                if (proto.getIntVal() == 1) { return SortField.STRING_FIRST; }
+                if (proto.getIntVal() == 2) { return SortField.STRING_LAST; }
+            case OBJ_VAL:
+                return genericObjectFromProto(proto.getObjVal());
+            default:
+                throw new ProtoSerDeHelpers.SerializationException("Unexpected value case: " + proto.getValueCase());
+        }
     }
 
     public static SearchShardTargetProto searchShardTargetToProto(SearchShardTarget shardTarget) {

@@ -74,6 +74,10 @@ public class SearchHitsProtobuf extends SearchHits {
             builder.setTotalHits(totHitsBuilder);
         }
 
+        if (sortFields != null) {
+            builder.setSortFields(sortFields);
+        }
+
         try (BytesStreamOutput sortOut = new BytesStreamOutput()) {
             sortOut.writeOptionalArray(Lucene::writeSortField, sortFields);
             builder.setSortFields(ByteString.copyFrom(sortOut.bytes().toBytesRef().bytes));

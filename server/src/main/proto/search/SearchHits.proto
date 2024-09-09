@@ -4,6 +4,12 @@ package org.opensearch.proto.search;
 
 option java_outer_classname = "SearchHitsProtoDef";
 
+// Generic java Object
+// Ideally we are able to remove all usages of this message type
+message GenericObjectProto {
+  bytes value = 1;
+}
+
 message SearchHitsProto {
   float max_score = 1;
   optional string collapse_field = 2;
@@ -34,13 +40,20 @@ message SortValueProto {
 }
 
 message SortFieldProto {
-  int32 missing_value = 1;
+  MissingValueProto missing_value = 1;
   bool reverse = 2;
-  SortType type = 3;
+  SortTypeProto type = 3;
   optional string field = 4;
 }
 
-enum SortType {
+message MissingValueProto {
+  oneof value {
+    int32 int_val = 1;
+    GenericObjectProto obj_val = 2;
+  }
+}
+
+enum SortTypeProto {
   SCORE = 0;
   DOC = 1;
   STRING = 2;
@@ -79,7 +92,7 @@ message NestedIdentityProto {
 
 message DocumentFieldProto {
   string name = 1;
-  repeated bytes values = 2; // List<Object> values - Can we limit this to specific types?
+  repeated GenericObjectProto values = 2;
 }
 
 message HighlightFieldProto {
