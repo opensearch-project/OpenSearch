@@ -250,10 +250,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             }
             throw new NodeHealthCheckFailureException("fake followerchecker failure simulated by test to repro race condition");
         });
-        MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            cm
-        );
+        MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, cm);
         MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
             redNodeName
@@ -268,7 +265,9 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             Thread.sleep(1000);
 
             // Trigger a node disconnect while node-left task is still processing
-            logger.info("--> triggering a simulated disconnect on red node, after the follower checker failed to see how node-left task deals with this");
+            logger.info(
+                "--> triggering a simulated disconnect on red node, after the follower checker failed to see how node-left task deals with this"
+            );
             cmTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
 
             ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
