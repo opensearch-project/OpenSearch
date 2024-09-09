@@ -62,7 +62,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     private static final String REMOTE_STATE_PREFIX = "!";
     private static final String REMOTE_ROUTING_PREFIX = "_";
     private boolean isRemoteStateEnabled = true;
-    private String isRemotePublicationEnabled = "true";
+    private boolean isRemotePublicationEnabled = true;
     private boolean hasRemoteStateCharPrefix;
     private boolean hasRemoteRoutingCharPrefix;
 
@@ -70,7 +70,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     public void setup() {
         asyncUploadMockFsRepo = false;
         isRemoteStateEnabled = true;
-        isRemotePublicationEnabled = "true";
+        isRemotePublicationEnabled = true;
         hasRemoteStateCharPrefix = randomBoolean();
         hasRemoteRoutingCharPrefix = randomBoolean();
     }
@@ -100,6 +100,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(),
                 RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE
             )
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put(
                 RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.getKey(),
                 hasRemoteStateCharPrefix ? REMOTE_STATE_PREFIX : ""
