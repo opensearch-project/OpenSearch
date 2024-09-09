@@ -148,7 +148,6 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    'com.google.auth.oauth2.GdchCredentials',
     'com.google.protobuf.util.JsonFormat',
     'com.google.protobuf.util.JsonFormat$Parser',
     'com.google.protobuf.util.JsonFormat$Printer',
