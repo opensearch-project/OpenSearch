@@ -16,7 +16,6 @@ import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
-import org.opensearch.wlm.tracker.QueryGroupUsageHelper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -70,7 +69,6 @@ public class TaskCanceller {
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
         this.isNodeInDuress = isNodeInDuress;
-        TRACKED_RESOURCES.forEach(resourceType -> resourceType.getQueryGroupUsage().setSettings(workloadManagementSettings));
     }
 
     /**
@@ -132,13 +130,9 @@ public class TaskCanceller {
             if (queryGroup.getResiliencyMode() != resiliencyMode) {
                 continue;
             }
-            Map<ResourceType, Double> queryGroupResourcesUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id())
-                .getResourceUsageData();
-
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 if (queryGroup.getResourceLimits().containsKey(resourceType)) {
-                    final double currentUsage = queryGroupResourcesUsage.get(resourceType);
-                    if (resourceType.getQueryGroupUsage().isBreachingThresholdFor(queryGroup, currentUsage)) {
+                    if (shouldCancelTasks(queryGroup, resourceType)) {
                         queryGroupsToCancelFrom.add(queryGroup);
                         break;
                     }
@@ -231,8 +225,17 @@ public class TaskCanceller {
 
         final QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
         final double currentUsage = queryGroupResourceUsageView.getResourceUsageData().get(resourceType);
-        QueryGroupUsageHelper queryGroupUsageHelper = resourceType.getQueryGroupUsage();
-        return queryGroupUsageHelper.getExcessUsage(queryGroup, currentUsage);
+        return currentUsage - getNormalisedThreshold(queryGroup, resourceType);
+    }
+
+    /**
+     * normalises configured value with respect to node level cancellation thresholds
+     * @param queryGroup instance
+     * @return normalised value with respect to node level cancellation thresholds
+     */
+    private double getNormalisedThreshold(QueryGroup queryGroup, ResourceType resourceType) {
+        double nodeLevelCancellationThreshold = resourceType.getNodeLevelThreshold(workloadManagementSettings);
+        return queryGroup.getResourceLimits().get(resourceType) * nodeLevelCancellationThreshold;
     }
 
     private void callbackOnCancel() {

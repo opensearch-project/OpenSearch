@@ -8,16 +8,15 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.wlm.tracker.CpuUsageCalculator;
 import org.opensearch.wlm.tracker.MemoryUsageCalculator;
-import org.opensearch.wlm.tracker.QueryGroupUsageHelper;
 import org.opensearch.wlm.tracker.ResourceUsageCalculator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Enum to hold the resource type
@@ -26,35 +25,25 @@ import java.util.List;
  */
 @PublicApi(since = "2.17.0")
 public enum ResourceType {
-    CPU("cpu", true, CpuUsageCalculator.INSTANCE, new QueryGroupUsageHelper() {
-        @Override
-        protected double getNormalisedThreshold(QueryGroup queryGroup) {
-            return queryGroup.getResourceLimits().get(ResourceType.CPU) * getSettings().getNodeLevelCpuCancellationThreshold();
-        }
-    }),
-    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, new QueryGroupUsageHelper() {
-        @Override
-        protected double getNormalisedThreshold(QueryGroup queryGroup) {
-            return queryGroup.getResourceLimits().get(ResourceType.MEMORY) * getSettings().getNodeLevelMemoryCancellationThreshold();
-        }
-    });
+    CPU("cpu", true, CpuUsageCalculator.INSTANCE, WorkloadManagementSettings::getNodeLevelCpuCancellationThreshold),
+    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, WorkloadManagementSettings::getNodeLevelMemoryCancellationThreshold);
 
     private final String name;
     private final boolean statsEnabled;
     private final ResourceUsageCalculator resourceUsageCalculator;
-    private final QueryGroupUsageHelper queryGroupUsageHelper;
+    private final Function<WorkloadManagementSettings, Double> nodeLevelThresholdSupplier;
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
     ResourceType(
         String name,
         boolean statsEnabled,
         ResourceUsageCalculator resourceUsageCalculator,
-        QueryGroupUsageHelper queryGroupUsageHelper
+        Function<WorkloadManagementSettings, Double> nodeLevelThresholdSupplier
     ) {
         this.name = name;
         this.statsEnabled = statsEnabled;
         this.resourceUsageCalculator = resourceUsageCalculator;
-        this.queryGroupUsageHelper = queryGroupUsageHelper;
+        this.nodeLevelThresholdSupplier = nodeLevelThresholdSupplier;
     }
 
     /**
@@ -87,8 +76,8 @@ public enum ResourceType {
         return resourceUsageCalculator;
     }
 
-    public QueryGroupUsageHelper getQueryGroupUsage() {
-        return queryGroupUsageHelper;
+    public double getNodeLevelThreshold(WorkloadManagementSettings settings) {
+        return nodeLevelThresholdSupplier.apply(settings);
     }
 
     public static List<ResourceType> getSortedValues() {

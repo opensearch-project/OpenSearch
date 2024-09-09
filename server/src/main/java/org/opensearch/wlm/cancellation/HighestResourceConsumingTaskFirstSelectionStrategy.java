@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
@@ -25,15 +24,7 @@ import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
  */
 public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskSelectionStrategy {
 
-    private final Supplier<Long> nanoTimeSupplier;
-
-    public HighestResourceConsumingTaskFirstSelectionStrategy() {
-        this(System::nanoTime);
-    }
-
-    public HighestResourceConsumingTaskFirstSelectionStrategy(Supplier<Long> nanoTimeSupplier) {
-        this.nanoTimeSupplier = nanoTimeSupplier;
-    }
+    public HighestResourceConsumingTaskFirstSelectionStrategy() {}
 
     /**
      * Returns a comparator that defines the sorting condition for tasks.
@@ -43,9 +34,7 @@ public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskS
      * @return The comparator
      */
     private Comparator<QueryGroupTask> sortingCondition(ResourceType resourceType) {
-        return Comparator.comparingDouble(
-            task -> resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task, nanoTimeSupplier)
-        );
+        return Comparator.comparingDouble(task -> resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task));
     }
 
     /**
@@ -72,7 +61,7 @@ public class HighestResourceConsumingTaskFirstSelectionStrategy implements TaskS
         double accumulated = 0;
         for (QueryGroupTask task : sortedTasks) {
             selectedTasks.add(task);
-            accumulated += resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task, nanoTimeSupplier);
+            accumulated += resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task);
             if ((accumulated - limit) > MIN_VALUE) {
                 break;
             }

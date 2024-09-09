@@ -17,7 +17,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -26,16 +26,15 @@ import java.util.stream.Collectors;
 public class QueryGroupResourceUsageTrackerService {
     public static final EnumSet<ResourceType> TRACKED_RESOURCES = EnumSet.allOf(ResourceType.class);
     private final TaskResourceTrackingService taskResourceTrackingService;
-    private final Supplier<Long> nanoTimeSupplier;
 
     /**
      * QueryGroupResourceTrackerService constructor
      *
      * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
-    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService, Supplier<Long> nanoTimeSupplier) {
+    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService, LongSupplier nanoTimeSupplier) {
         this.taskResourceTrackingService = taskResourceTrackingService;
-        this.nanoTimeSupplier = nanoTimeSupplier;
+        ResourceType.CPU.getResourceUsageCalculator().setNanoTimeSupplier(nanoTimeSupplier);
     }
 
     /**
@@ -52,8 +51,7 @@ public class QueryGroupResourceUsageTrackerService {
             // Compute the QueryGroup resource usage
             final Map<ResourceType, Double> resourceUsage = new HashMap<>();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                double usage = resourceType.getResourceUsageCalculator()
-                    .calculateResourceUsage(queryGroupEntry.getValue(), nanoTimeSupplier);
+                double usage = resourceType.getResourceUsageCalculator().calculateResourceUsage(queryGroupEntry.getValue());
                 resourceUsage.put(resourceType, usage);
             }
 

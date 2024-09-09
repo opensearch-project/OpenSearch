@@ -39,25 +39,23 @@ public class ResourceUsageCalculatorTests extends OpenSearchTestCase {
         double expectedQueryGroupCpuUsage = 1.0 / PROCESSOR_COUNT;
 
         QueryGroupTask mockTask = createMockTaskWithResourceStats(QueryGroupTask.class, fastForwardTime, 200, 0, 123);
-        double actualUsage = ResourceType.CPU.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask), clock::getTime);
+        ResourceType.CPU.getResourceUsageCalculator().setNanoTimeSupplier(clock::getTime);
+        double actualUsage = ResourceType.CPU.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask));
         assertEquals(expectedQueryGroupCpuUsage, actualUsage, MIN_VALUE);
 
-        double taskResourceUsage = ResourceType.CPU.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask, clock::getTime);
+        double taskResourceUsage = ResourceType.CPU.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask);
         assertEquals(1.0, taskResourceUsage, MIN_VALUE);
     }
 
     public void testQueryGroupMemoryUsage() {
-        TestClock clock = new TestClock();
-
         QueryGroupTask mockTask = createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 123);
-        double actualMemoryUsage = ResourceType.MEMORY.getResourceUsageCalculator()
-            .calculateResourceUsage(List.of(mockTask), clock::getTime);
+        double actualMemoryUsage = ResourceType.MEMORY.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask));
         double expectedMemoryUsage = 200.0 / HEAP_SIZE_BYTES;
 
         assertEquals(expectedMemoryUsage, actualMemoryUsage, MIN_VALUE);
         assertEquals(
             200.0 / HEAP_SIZE_BYTES,
-            ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask, clock::getTime),
+            ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask),
             MIN_VALUE
         );
     }

@@ -17,7 +17,6 @@ import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.TestClock;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,12 +27,10 @@ import static org.opensearch.wlm.cancellation.TaskCanceller.MIN_VALUE;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 
 public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends OpenSearchTestCase {
-    private TestClock clock;
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
-        clock = new TestClock();
         HighestResourceConsumingTaskFirstSelectionStrategy testHighestResourceConsumingTaskFirstSelectionStrategy =
-            new HighestResourceConsumingTaskFirstSelectionStrategy(clock::getTime);
+            new HighestResourceConsumingTaskFirstSelectionStrategy();
         double reduceBy = 50000.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
         List<QueryGroupTask> tasks = getListOfTasks(100);
@@ -46,8 +43,8 @@ public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends Ope
         boolean sortedInDescendingResourceUsage = IntStream.range(0, selectedTasks.size() - 1)
             .noneMatch(
                 index -> ResourceType.MEMORY.getResourceUsageCalculator()
-                    .calculateTaskResourceUsage(selectedTasks.get(index), null) < ResourceType.MEMORY.getResourceUsageCalculator()
-                        .calculateTaskResourceUsage(selectedTasks.get(index + 1), null)
+                    .calculateTaskResourceUsage(selectedTasks.get(index)) < ResourceType.MEMORY.getResourceUsageCalculator()
+                        .calculateTaskResourceUsage(selectedTasks.get(index + 1))
             );
         assertTrue(sortedInDescendingResourceUsage);
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
@@ -84,7 +81,7 @@ public class HighestResourceConsumingTaskFirstSelectionStrategyTests extends Ope
     private boolean tasksUsageMeetsThreshold(List<QueryGroupTask> selectedTasks, double threshold) {
         double memory = 0;
         for (QueryGroupTask task : selectedTasks) {
-            memory += ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(task, clock::getTime);
+            memory += ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(task);
             if ((memory - threshold) > MIN_VALUE) {
                 return true;
             }

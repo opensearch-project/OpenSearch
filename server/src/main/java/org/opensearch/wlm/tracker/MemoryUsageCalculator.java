@@ -13,24 +13,23 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * class to help make memory usage calculations for the query group
  */
-public class MemoryUsageCalculator implements ResourceUsageCalculator {
+public class MemoryUsageCalculator extends ResourceUsageCalculator {
     public static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
     public static final MemoryUsageCalculator INSTANCE = new MemoryUsageCalculator();
 
     private MemoryUsageCalculator() {}
 
     @Override
-    public double calculateResourceUsage(List<QueryGroupTask> tasks, Supplier<Long> timeSupplier) {
-        return tasks.stream().mapToDouble(task -> calculateTaskResourceUsage(task, timeSupplier)).sum();
+    public double calculateResourceUsage(List<QueryGroupTask> tasks) {
+        return tasks.stream().mapToDouble(this::calculateTaskResourceUsage).sum();
     }
 
     @Override
-    public double calculateTaskResourceUsage(QueryGroupTask task, Supplier<Long> timeSupplier) {
+    public double calculateTaskResourceUsage(QueryGroupTask task) {
         return (1.0f * task.getTotalResourceUtilization(ResourceStats.MEMORY)) / HEAP_SIZE_BYTES;
     }
 }
