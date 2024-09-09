@@ -482,6 +482,18 @@ public interface Repository extends LifecycleComponent {
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 
     /**
+     * Retrieve shard snapshot status for the stored snapshot
+     *
+     * @param snapshotInfo snapshot info
+     * @param indexId    the snapshotted index id for the shard to get status for
+     * @param shardId    shard id
+     * @return snapshot status
+     */
+    default IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotInfo snapshotInfo, IndexId indexId, ShardId shardId) {
+        return getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
+    }
+
+    /**
      * Update the repository with the incoming cluster state. This method is invoked from {@link RepositoriesService#applyClusterState} and
      * thus the same semantics as with {@link org.opensearch.cluster.ClusterStateApplier#applyClusterState} apply for the
      * {@link ClusterState} that is passed here.
