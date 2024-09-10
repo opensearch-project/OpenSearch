@@ -38,7 +38,6 @@ import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,8 +60,6 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
 
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
 
-    protected Path segmentRepoPath;
-    protected Path translogRepoPath;
     boolean addRemote = false;
     Settings extraSettings = Settings.EMPTY;
 
@@ -94,12 +91,16 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(extraSettings)
-                .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
+                .put(remoteStoreClusterSettings(REPOSITORY_NAME, super.segmentRepoPath, REPOSITORY_2_NAME, super.translogRepoPath))
                 .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
                 .build();
         } else {
             logger.info("Adding docrep node");
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true).build();
+            return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                // .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
+                .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+                .build();
         }
     }
 
