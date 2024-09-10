@@ -9,12 +9,18 @@
 package org.opensearch.wlm.listeners;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.metadata.QueryGroup;
 =======
 >>>>>>> b5cbfa4de9e (changelog)
+=======
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.QueryGroup;
+>>>>>>> 1a471881c21 (add tests)
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -24,9 +30,13 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.opensearch.wlm.MutableQueryGroupFragment;
 =======
 >>>>>>> b5cbfa4de9e (changelog)
+=======
+import org.opensearch.wlm.MutableQueryGroupFragment;
+>>>>>>> 1a471881c21 (add tests)
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.QueryGroupsStateAccessor;
