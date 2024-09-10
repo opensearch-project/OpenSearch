@@ -41,8 +41,10 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -61,7 +63,7 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
+public class MappingMetadata extends AbstractDiffable<MappingMetadata> implements VerifiableWriteable {
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
 
     private final String type;
@@ -166,6 +168,13 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(false); // hasParentField
         }
+    }
+
+    @Override
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeString(type());
+        source().writeVerifiableTo(out);
+        out.writeBoolean(routingRequired);
     }
 
     @Override
