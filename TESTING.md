@@ -562,7 +562,7 @@ For example, in your OpenSearch repository assemble a custom distribution.
 
 Then in your plugin repository, substitute in your OpenSearch build
 
-    ./gradlew run -PcustomDistributionUrl="<YOUR-OPENSEARCH-REPO>/OpenSearch/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz"
+    ./gradlew run -PcustomDistributionUrl="<OPENSEARCH-REPO-PATH>/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz"
 
 # Environment misc
 
