@@ -11,14 +11,15 @@ package org.opensearch.wlm.listeners;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.MutableQueryGroupFragment;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.QueryGroupsStateAccessor;
@@ -122,6 +123,25 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         );
 
         assertSuccess(testQueryGroupId, queryGroupStateMap, expectedStats, testQueryGroupId);
+    }
+
+    public void testResourceLimitBreached() throws IOException {
+        QueryGroup queryGroup = new QueryGroup(
+            "testgroup",
+            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.5))
+        );
+        queryGroupStateMap.put(testQueryGroupId, new QueryGroupState());
+        TransportService mockTransportService = mock(TransportService.class);
+        DiscoveryNode mockDiscoveryNode = mock(DiscoveryNode.class);
+        when(mockTransportService.getLocalNode()).thenReturn(mockDiscoveryNode);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.queryGroups()).thenReturn(Map.of(testQueryGroupId, queryGroup));
+        queryGroupService = new QueryGroupService(mockTransportService.getLocalNode(), clusterService, queryGroupStateMap);
+        assertFalse(queryGroupService.resourceLimitBreached(testQueryGroupId, new QueryGroupState()));
     }
 
     public void testMultiThreadedValidQueryGroupRequestFailures() {
