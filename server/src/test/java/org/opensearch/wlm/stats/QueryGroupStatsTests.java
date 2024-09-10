@@ -8,16 +8,24 @@
 
 package org.opensearch.wlm.stats;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static org.mockito.Mockito.mock;
 
 public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryGroupStats> {
 
@@ -36,7 +44,7 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
             )
         );
         XContentBuilder builder = JsonXContent.contentBuilder();
-        QueryGroupStats queryGroupStats = new QueryGroupStats(stats);
+        QueryGroupStats queryGroupStats = new QueryGroupStats(mock(DiscoveryNode.class), stats);
         builder.startObject();
         queryGroupStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -72,6 +80,13 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
                 )
             )
         );
-        return new QueryGroupStats(stats);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            OpenSearchTestCase.buildNewFakeTransportAddress(),
+            emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
+        );
+        return new QueryGroupStats(discoveryNode, stats);
     }
 }

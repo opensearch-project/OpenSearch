@@ -27,6 +27,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
+import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
@@ -42,6 +43,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 
 /**
  * As of now this is a stub and main implementation PR will be raised soon.Coming PR will collate these changes with core QueryGroupService changes
+ * @opensearch.experimental
  */
 public class QueryGroupService extends AbstractLifecycleComponent
     implements
@@ -49,7 +51,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
         TaskResourceTrackingService.TaskCompletionListener {
 
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
-
     private final QueryGroupTaskCancellationService taskCancellationService;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ThreadPool threadPool;
@@ -59,9 +60,11 @@ public class QueryGroupService extends AbstractLifecycleComponent
     private final Set<QueryGroup> deletedQueryGroups;
     private final NodeDuressTrackers nodeDuressTrackers;
     private final QueryGroupsStateAccessor queryGroupsStateAccessor;
+    private final TransportService transportService;
 
     public QueryGroupService(
         QueryGroupTaskCancellationService taskCancellationService,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
@@ -70,6 +73,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
         this(
             taskCancellationService,
+            transportService,
             clusterService,
             threadPool,
             workloadManagementSettings,
@@ -98,6 +102,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
     public QueryGroupService(
         QueryGroupTaskCancellationService taskCancellationService,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
@@ -107,6 +112,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
         Set<QueryGroup> deletedQueryGroups
     ) {
         this.taskCancellationService = taskCancellationService;
+        this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.workloadManagementSettings = workloadManagementSettings;
@@ -214,7 +220,23 @@ public class QueryGroupService extends AbstractLifecycleComponent
             statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
         }
 
-        return new QueryGroupStats(statsHolderMap);
+        return new QueryGroupStats(transportService.getLocalNode(), statsHolderMap);
+    }
+
+    /**
+     * @return if the QueryGroup breaches any resource limit based on the LastRecordedUsage
+     */
+    public boolean resourceLimitBreached(String id, QueryGroupState currentState) {
+        QueryGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
+
+        return currentState.getResourceState()
+            .entrySet()
+            .stream()
+            .anyMatch(
+                entry -> entry.getValue().getLastRecordedUsage() > queryGroup.getMutableQueryGroupFragment()
+                    .getResourceLimits()
+                    .getOrDefault(entry.getKey(), 100.0)
+            );
     }
 
     /**

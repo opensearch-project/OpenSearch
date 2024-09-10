@@ -8,6 +8,8 @@
 
 package org.opensearch.wlm.stats;
 
+import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -37,19 +39,22 @@ import java.util.Objects;
  *     ...
  * }
  */
-public class QueryGroupStats implements ToXContentObject, Writeable {
+public class QueryGroupStats extends BaseNodeResponse implements ToXContentObject, Writeable {
     private final Map<String, QueryGroupStatsHolder> stats;
 
-    public QueryGroupStats(Map<String, QueryGroupStatsHolder> stats) {
+    public QueryGroupStats(DiscoveryNode node, Map<String, QueryGroupStatsHolder> stats) {
+        super(node);
         this.stats = stats;
     }
 
     public QueryGroupStats(StreamInput in) throws IOException {
+        super(in);
         stats = in.readMap(StreamInput::readString, QueryGroupStatsHolder::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeMap(stats, StreamOutput::writeString, QueryGroupStatsHolder::writeTo);
     }
 

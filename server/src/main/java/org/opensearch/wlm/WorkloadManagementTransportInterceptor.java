@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.common.SetOnce;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -20,11 +21,11 @@ import org.opensearch.transport.TransportRequestHandler;
  */
 public class WorkloadManagementTransportInterceptor implements TransportInterceptor {
     private final ThreadPool threadPool;
-    private final QueryGroupService queryGroupService;
+    private final SetOnce<QueryGroupService> queryGroupService;
 
-    public WorkloadManagementTransportInterceptor(final ThreadPool threadPool, final QueryGroupService queryGroupService) {
+    public WorkloadManagementTransportInterceptor(final ThreadPool threadPool, final SetOnce<QueryGroupService> queryGroupServiceSetOnce) {
         this.threadPool = threadPool;
-        this.queryGroupService = queryGroupService;
+        this.queryGroupService = queryGroupServiceSetOnce;
     }
 
     @Override
@@ -45,9 +46,13 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
 
         private final ThreadPool threadPool;
         TransportRequestHandler<T> actualHandler;
-        private final QueryGroupService queryGroupService;
+        private final SetOnce<QueryGroupService> queryGroupService;
 
-        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler, QueryGroupService queryGroupService) {
+        public RequestHandler(
+            ThreadPool threadPool,
+            TransportRequestHandler<T> actualHandler,
+            SetOnce<QueryGroupService> queryGroupService
+        ) {
             this.threadPool = threadPool;
             this.actualHandler = actualHandler;
             this.queryGroupService = queryGroupService;
@@ -58,7 +63,8 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
             if (isSearchWorkloadRequest(task)) {
                 ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
                 final String queryGroupId = ((QueryGroupTask) (task)).getQueryGroupId();
-                queryGroupService.rejectIfNeeded(queryGroupId);
+                assert queryGroupService.get() != null;
+                queryGroupService.get().rejectIfNeeded(queryGroupId);
             }
             actualHandler.messageReceived(request, channel, task);
         }
