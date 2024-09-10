@@ -1159,6 +1159,7 @@ public class Node implements Closeable {
                 workloadManagementSettings,
                 queryGroupsStateAccessor
             );
+
             queryGroupServiceSetOnce.set(queryGroupService);
             taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
 

@@ -34,10 +34,17 @@ public class RestQueryGroupStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(
             asList(
+<<<<<<< HEAD
                 new Route(GET, "_wlm/stats"),
                 new Route(GET, "_wlm/{nodeId}/stats"),
                 new Route(GET, "_wlm/stats/{queryGroupId}"),
                 new Route(GET, "_wlm/{nodeId}/stats/{queryGroupId}")
+=======
+                new Route(GET, "query_group/stats"),
+                new Route(GET, "query_group/stats/{queryGroupId}"),
+                new Route(GET, "query_group/stats/nodes/{nodeId}"),
+                new Route(GET, "query_group/stats/{queryGroupId}/nodes/{nodeId}")
+>>>>>>> ffe0d7fa2cd (address comments)
             )
         );
     }

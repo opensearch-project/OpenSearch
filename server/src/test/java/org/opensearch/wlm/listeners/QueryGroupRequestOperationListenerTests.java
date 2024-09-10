@@ -16,6 +16,7 @@ import org.opensearch.cluster.metadata.QueryGroup;
 =======
 >>>>>>> b5cbfa4de9e (changelog)
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -157,6 +158,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         DiscoveryNode mockDiscoveryNode = mock(DiscoveryNode.class);
         when(mockTransportService.getLocalNode()).thenReturn(mockDiscoveryNode);
 <<<<<<< HEAD
+<<<<<<< HEAD
         QueryGroupsStateAccessor accessor = new QueryGroupsStateAccessor(queryGroupStateMap);
         setupMockedQueryGroupsFromClusterState();
         queryGroupService = new QueryGroupService(
@@ -172,6 +174,9 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         );
 =======
         queryGroupService = new QueryGroupService(mockTransportService, queryGroupStateMap);
+=======
+        queryGroupService = new QueryGroupService(mockTransportService.getLocalNode(), mock(ClusterService.class), queryGroupStateMap);
+>>>>>>> ffe0d7fa2cd (address comments)
 
 >>>>>>> b5cbfa4de9e (changelog)
         sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
@@ -195,7 +200,9 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             }
         });
 
-        QueryGroupStats actualStats = queryGroupService.nodeStats();
+        Set<String> set = new HashSet<>();
+        set.add("_all");
+        QueryGroupStats actualStats = queryGroupService.nodeStats(set, null);
 
         QueryGroupStats expectedStats = new QueryGroupStats(
             mock(DiscoveryNode.class),
@@ -304,13 +311,23 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             TransportService mockTransportService = mock(TransportService.class);
             DiscoveryNode mockDiscoveryNode = mock(DiscoveryNode.class);
             when(mockTransportService.getLocalNode()).thenReturn(mockDiscoveryNode);
+<<<<<<< HEAD
             queryGroupService = new QueryGroupService(mockTransportService, queryGroupStateMap);
 >>>>>>> b5cbfa4de9e (changelog)
+=======
+            queryGroupService = new QueryGroupService(mockTransportService.getLocalNode(), mock(ClusterService.class), queryGroupStateMap);
+>>>>>>> ffe0d7fa2cd (address comments)
 
             sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
             sut.onRequestFailure(null, null);
 
+<<<<<<< HEAD
             QueryGroupStats actualStats = queryGroupService.nodeStats();
+=======
+            Set<String> set = new HashSet<>();
+            set.add("_all");
+            QueryGroupStats actualStats = queryGroupService.nodeStats(set, null);
+>>>>>>> ffe0d7fa2cd (address comments)
 
             assertEquals(expectedStats, actualStats);
         }
