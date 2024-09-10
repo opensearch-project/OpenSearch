@@ -30,11 +30,11 @@ jobs:
       - name: Setup docker (missing on MacOS)
         id: setup_docker
         if: runner.os == 'macos'
-        uses: douglascamata/setup-docker-macos-action@main
         continue-on-error: true
-        with:
-          upgrade-qemu: true
-          colima:  v0.6.8
+        run: |
+          brew install docker colima coreutils
+          gtimeout 15m colima start
+        shell: bash
       - name: Run Gradle (assemble)
         if: runner.os == 'macos' && steps.setup_docker.outcome != 'success'
         run: |

@@ -16,7 +16,7 @@ import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsage;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,7 +30,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 
 /**
  * Manages the cancellation of tasks enforced by QueryGroup thresholds on resource usage criteria.
- * This class utilizes a strategy pattern through {@link DefaultTaskSelectionStrategy} to identify tasks that exceed
+ * This class utilizes a strategy pattern through {@link MaximumResourceTaskSelectionStrategy} to identify tasks that exceed
  * predefined resource usage limits and are therefore eligible for cancellation.
  *
  * <p>The cancellation process is initiated by evaluating the resource usage of each QueryGroup against its
@@ -41,32 +41,33 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * views, a set of active QueryGroups, and a task selection strategy. These components collectively facilitate the
  * identification and cancellation of tasks that threaten to breach QueryGroup resource limits.</p>
  *
- * @see DefaultTaskSelectionStrategy
+ * @see MaximumResourceTaskSelectionStrategy
  * @see QueryGroup
  * @see ResourceType
  */
-public class DefaultTaskCancellation {
+public class TaskCancellationService {
     public static final double MIN_VALUE = 1e-9;
 
-    protected final WorkloadManagementSettings workloadManagementSettings;
-    protected final DefaultTaskSelectionStrategy defaultTaskSelectionStrategy;
+    private final WorkloadManagementSettings workloadManagementSettings;
+    private final TaskSelectionStrategy taskSelectionStrategy;
+    private final QueryGroupResourceUsageTrackerService resourceUsageTrackerService;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
-    protected final Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
-    protected final Collection<QueryGroup> activeQueryGroups;
-    protected final Collection<QueryGroup> deletedQueryGroups;
-    protected BooleanSupplier isNodeInDuress;
+    Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
+    private final Collection<QueryGroup> activeQueryGroups;
+    private final Collection<QueryGroup> deletedQueryGroups;
+    private BooleanSupplier isNodeInDuress;
 
-    public DefaultTaskCancellation(
+    public TaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,
-        DefaultTaskSelectionStrategy defaultTaskSelectionStrategy,
-        Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews,
+        TaskSelectionStrategy taskSelectionStrategy,
+        QueryGroupResourceUsageTrackerService resourceUsageTrackerService,
         Collection<QueryGroup> activeQueryGroups,
         Collection<QueryGroup> deletedQueryGroups,
         BooleanSupplier isNodeInDuress
     ) {
         this.workloadManagementSettings = workloadManagementSettings;
-        this.defaultTaskSelectionStrategy = defaultTaskSelectionStrategy;
-        this.queryGroupLevelResourceUsageViews = queryGroupLevelResourceUsageViews;
+        this.taskSelectionStrategy = taskSelectionStrategy;
+        this.resourceUsageTrackerService = resourceUsageTrackerService;
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
         this.isNodeInDuress = isNodeInDuress;
@@ -76,6 +77,7 @@ public class DefaultTaskCancellation {
      * Cancel tasks based on the implemented strategy.
      */
     public final void cancelTasks() {
+        queryGroupLevelResourceUsageViews = resourceUsageTrackerService.constructQueryGroupLevelUsageViews();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
         cancelTasks(ResiliencyMode.ENFORCED);
         // if the node is in duress, cancel tasks accordingly.
@@ -106,7 +108,7 @@ public class DefaultTaskCancellation {
      *
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode) {
+    List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode) {
         return getAllCancellableTasks(getQueryGroupsToCancelFrom(resiliencyMode));
     }
 
@@ -115,7 +117,7 @@ public class DefaultTaskCancellation {
      *
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getAllCancellableTasks(Collection<QueryGroup> queryGroups) {
+    List<TaskCancellation> getAllCancellableTasks(Collection<QueryGroup> queryGroups) {
         return queryGroups.stream().flatMap(queryGroup -> getCancellableTasksFrom(queryGroup).stream()).collect(Collectors.toList());
     }
 
@@ -131,13 +133,9 @@ public class DefaultTaskCancellation {
             if (queryGroup.getResiliencyMode() != resiliencyMode) {
                 continue;
             }
-            Map<ResourceType, QueryGroupResourceUsage> queryGroupResourcesUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id())
-                .getResourceUsageData();
-
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 if (queryGroup.getResourceLimits().containsKey(resourceType)) {
-                    final QueryGroupResourceUsage queryGroupResourceUsage = queryGroupResourcesUsage.get(resourceType);
-                    if (queryGroupResourceUsage.isBreachingThresholdFor(queryGroup, workloadManagementSettings)) {
+                    if (shouldCancelTasks(queryGroup, resourceType)) {
                         queryGroupsToCancelFrom.add(queryGroup);
                         break;
                     }
@@ -163,7 +161,7 @@ public class DefaultTaskCancellation {
      * @param queryGroup The QueryGroup from which to get cancellable tasks
      * @return List of tasks that can be cancelled
      */
-    protected List<TaskCancellation> getCancellableTasksFrom(QueryGroup queryGroup) {
+    List<TaskCancellation> getCancellableTasksFrom(QueryGroup queryGroup) {
         return TRACKED_RESOURCES.stream()
             .filter(resourceType -> shouldCancelTasks(queryGroup, resourceType))
             .flatMap(resourceType -> getTaskCancellations(queryGroup, resourceType).stream())
@@ -171,19 +169,13 @@ public class DefaultTaskCancellation {
     }
 
     private boolean shouldCancelTasks(QueryGroup queryGroup, ResourceType resourceType) {
-        if (queryGroup == null || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
-            return false;
-        }
-        QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
-        return queryGroupResourceUsageView.getResourceUsageData()
-            .get(resourceType)
-            .isBreachingThresholdFor(queryGroup, workloadManagementSettings);
+        return getExcessUsage(queryGroup, resourceType) > 0;
     }
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
-        List<QueryGroupTask> selectedTasksToCancel = defaultTaskSelectionStrategy.selectTasksForCancellation(
+        List<QueryGroupTask> selectedTasksToCancel = taskSelectionStrategy.selectTasksForCancellation(
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
-            getReduceBy(queryGroup, resourceType),
+            getExcessUsage(queryGroup, resourceType),
             resourceType
         );
         List<TaskCancellation> taskCancellations = new ArrayList<>();
@@ -214,7 +206,7 @@ public class DefaultTaskCancellation {
         return new TaskCancellation(task, List.of(new TaskCancellation.Reason(cancellationReason, 5)), List.of(this::callbackOnCancel));
     }
 
-    protected List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
+    List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
         List<QueryGroupTask> tasks = queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks();
 
         List<TaskCancellation> taskCancellations = new ArrayList<>();
@@ -228,14 +220,25 @@ public class DefaultTaskCancellation {
         return taskCancellations;
     }
 
-    private double getReduceBy(QueryGroup queryGroup, ResourceType resourceType) {
+    private double getExcessUsage(QueryGroup queryGroup, ResourceType resourceType) {
         if (queryGroup.getResourceLimits().get(resourceType) == null
             || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
             return 0;
         }
-        final QueryGroupLevelResourceUsageView queryGroupLevelResourceUsage = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
-        final QueryGroupResourceUsage queryGroupResourceUsage = queryGroupLevelResourceUsage.getResourceUsageData().get(resourceType);
-        return queryGroupResourceUsage.getReduceByFor(queryGroup, workloadManagementSettings);
+
+        final QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
+        final double currentUsage = queryGroupResourceUsageView.getResourceUsageData().get(resourceType);
+        return currentUsage - getNormalisedThreshold(queryGroup, resourceType);
+    }
+
+    /**
+     * normalises configured value with respect to node level cancellation thresholds
+     * @param queryGroup instance
+     * @return normalised value with respect to node level cancellation thresholds
+     */
+    private double getNormalisedThreshold(QueryGroup queryGroup, ResourceType resourceType) {
+        double nodeLevelCancellationThreshold = resourceType.getNodeLevelThreshold(workloadManagementSettings);
+        return queryGroup.getResourceLimits().get(resourceType) * nodeLevelCancellationThreshold;
     }
 
     private void callbackOnCancel() {

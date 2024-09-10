@@ -10,42 +10,31 @@ package org.opensearch.wlm.cancellation;
 
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.tracker.TaskResourceUsageCalculator;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.wlm.cancellation.DefaultTaskCancellation.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.TaskCancellationService.MIN_VALUE;
 
 /**
- * Represents an abstract task selection strategy.
- * This class implements the DefaultTaskSelectionStrategy interface and provides a method to select tasks for cancellation based on a sorting condition.
- * The specific sorting condition depends on the implementation.
+ * Represents the highest resource consuming task first selection strategy.
  */
-public class DefaultTaskSelectionStrategy {
+public class MaximumResourceTaskSelectionStrategy implements TaskSelectionStrategy {
 
-    private final Supplier<Long> nanoTimeSupplier;
-
-    public DefaultTaskSelectionStrategy() {
-        this(System::nanoTime);
-    }
-
-    public DefaultTaskSelectionStrategy(Supplier<Long> nanoTimeSupplier) {
-        this.nanoTimeSupplier = nanoTimeSupplier;
-    }
+    public MaximumResourceTaskSelectionStrategy() {}
 
     /**
      * Returns a comparator that defines the sorting condition for tasks.
-     * This is the default implementation since the longest running tasks are the ones that consume the most resources.
+     * This is the default implementation since the most resource consuming tasks are the likely to regress the performance.
+     * from resiliency point of view it makes sense to cancel them first
      *
      * @return The comparator
      */
-    public Comparator<QueryGroupTask> sortingCondition() {
-        return Comparator.comparingLong(QueryGroupTask::getStartTime);
+    private Comparator<QueryGroupTask> sortingCondition(ResourceType resourceType) {
+        return Comparator.comparingDouble(task -> resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task));
     }
 
     /**
@@ -66,13 +55,13 @@ public class DefaultTaskSelectionStrategy {
             return Collections.emptyList();
         }
 
-        List<QueryGroupTask> sortedTasks = tasks.stream().sorted(sortingCondition()).collect(Collectors.toList());
+        List<QueryGroupTask> sortedTasks = tasks.stream().sorted(sortingCondition(resourceType).reversed()).collect(Collectors.toList());
 
         List<QueryGroupTask> selectedTasks = new ArrayList<>();
         double accumulated = 0;
         for (QueryGroupTask task : sortedTasks) {
             selectedTasks.add(task);
-            accumulated += TaskResourceUsageCalculator.from(resourceType).calculateFor(task, nanoTimeSupplier);
+            accumulated += resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task);
             if ((accumulated - limit) > MIN_VALUE) {
                 break;
             }

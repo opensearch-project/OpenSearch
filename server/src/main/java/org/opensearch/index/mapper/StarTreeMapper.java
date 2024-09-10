@@ -62,11 +62,6 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
         private ObjectMapper.Builder objbuilder;
-        private static final Set<Class<? extends Mapper.Builder>> ALLOWED_DIMENSION_MAPPER_BUILDERS = Set.of(
-            NumberFieldMapper.Builder.class,
-            DateFieldMapper.Builder.class
-        );
-        private static final Set<Class<? extends Mapper.Builder>> ALLOWED_METRIC_MAPPER_BUILDERS = Set.of(NumberFieldMapper.Builder.class);
 
         @SuppressWarnings("unchecked")
         private final Parameter<StarTreeField> config = new Parameter<>(CONFIG, false, () -> null, (name, context, nodeObj) -> {
@@ -292,11 +287,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             }
             int numBaseMetrics = 0;
             for (Metric metric : metrics) {
-                for (MetricStat metricStat : metric.getMetrics()) {
-                    if (metricStat.isDerivedMetric() == false) {
-                        numBaseMetrics++;
-                    }
-                }
+                numBaseMetrics += metric.getBaseMetrics().size();
             }
             if (numBaseMetrics > context.getSettings()
                 .getAsInt(
@@ -380,11 +371,11 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         }
 
         private static boolean isBuilderAllowedForDimension(Mapper.Builder builder) {
-            return ALLOWED_DIMENSION_MAPPER_BUILDERS.stream().anyMatch(allowedType -> allowedType.isInstance(builder));
+            return builder.getSupportedDataCubeDimensionType().isPresent();
         }
 
         private static boolean isBuilderAllowedForMetric(Mapper.Builder builder) {
-            return ALLOWED_METRIC_MAPPER_BUILDERS.stream().anyMatch(allowedType -> allowedType.isInstance(builder));
+            return builder.isDataCubeMetricSupported();
         }
 
         private Optional<Mapper.Builder> findMapperBuilderByName(String field, List<Mapper.Builder> mappersBuilders) {

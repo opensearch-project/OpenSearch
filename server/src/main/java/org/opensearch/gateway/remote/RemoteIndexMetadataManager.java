@@ -20,6 +20,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -44,10 +45,37 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
         Setting.Property.Deprecated
     );
 
+    /**
+     * This setting is used to set the remote index metadata blob store path type strategy.
+     */
+    public static final Setting<RemoteStoreEnums.PathType> REMOTE_INDEX_METADATA_PATH_TYPE_SETTING = new Setting<>(
+        "cluster.remote_store.index_metadata.path_type",
+        RemoteStoreEnums.PathType.HASHED_PREFIX.toString(),
+        RemoteStoreEnums.PathType::parseString,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * This setting is used to set the remote index metadata blob store path hash algorithm strategy.
+     * This setting will come to effect if the {@link #REMOTE_INDEX_METADATA_PATH_TYPE_SETTING}
+     * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
+     */
+    public static final Setting<RemoteStoreEnums.PathHashAlgorithm> REMOTE_INDEX_METADATA_PATH_HASH_ALGO_SETTING = new Setting<>(
+        "cluster.remote_store.index_metadata.path_hash_algo",
+        RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64.toString(),
+        RemoteStoreEnums.PathHashAlgorithm::parseString,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Compressor compressor;
     private final NamedXContentRegistry namedXContentRegistry;
 
     private volatile TimeValue indexMetadataUploadTimeout;
+
+    private RemoteStoreEnums.PathType pathType;
+    private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
 
     public RemoteIndexMetadataManager(
         ClusterSettings clusterSettings,
@@ -70,7 +98,11 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
         this.compressor = blobStoreRepository.getCompressor();
         this.indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
+        this.pathType = clusterSettings.get(REMOTE_INDEX_METADATA_PATH_TYPE_SETTING);
+        this.pathHashAlgo = clusterSettings.get(REMOTE_INDEX_METADATA_PATH_HASH_ALGO_SETTING);
         clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_INDEX_METADATA_PATH_TYPE_SETTING, this::setPathTypeSetting);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_INDEX_METADATA_PATH_HASH_ALGO_SETTING, this::setPathHashAlgoSetting);
     }
 
     /**
@@ -126,5 +158,21 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
             response -> listener.onResponse(new RemoteReadResult(response, RemoteIndexMetadata.INDEX, component)),
             ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
         );
+    }
+
+    private void setPathTypeSetting(RemoteStoreEnums.PathType pathType) {
+        this.pathType = pathType;
+    }
+
+    private void setPathHashAlgoSetting(RemoteStoreEnums.PathHashAlgorithm pathHashAlgo) {
+        this.pathHashAlgo = pathHashAlgo;
+    }
+
+    protected RemoteStoreEnums.PathType getPathTypeSetting() {
+        return pathType;
+    }
+
+    protected RemoteStoreEnums.PathHashAlgorithm getPathHashAlgoSetting() {
+        return pathHashAlgo;
     }
 }

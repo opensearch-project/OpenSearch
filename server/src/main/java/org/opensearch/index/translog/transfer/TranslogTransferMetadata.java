@@ -19,6 +19,7 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The metadata associated with every transfer {@link TransferSnapshot}. The metadata is uploaded at the end of the
@@ -108,9 +109,26 @@ public class TranslogTransferMetadata {
                 RemoteStoreUtils.invertLong(createdAt),
                 String.valueOf(Objects.hash(nodeId)),
                 RemoteStoreUtils.invertLong(minTranslogGeneration),
+                String.valueOf(getMinPrimaryTermReferred()),
                 String.valueOf(CURRENT_VERSION)
             )
         );
+    }
+
+    private long getMinPrimaryTermReferred() {
+        if (generationToPrimaryTermMapper.get() == null || generationToPrimaryTermMapper.get().values().isEmpty()) {
+            return -1;
+        }
+        Optional<Long> minPrimaryTerm = generationToPrimaryTermMapper.get()
+            .values()
+            .stream()
+            .map(s -> Long.parseLong(s))
+            .min(Long::compareTo);
+        if (minPrimaryTerm.isPresent()) {
+            return minPrimaryTerm.get();
+        } else {
+            return -1;
+        }
     }
 
     public static Tuple<Tuple<Long, Long>, String> getNodeIdByPrimaryTermAndGeneration(String filename) {
@@ -143,12 +161,40 @@ public class TranslogTransferMetadata {
         assert Version.CURRENT.onOrAfter(Version.V_2_17_0);
         try {
             // instead of direct index, we go backwards to avoid running into same separator in nodeId
-            String minGeneration = tokens[tokens.length - 2];
+            String minGeneration = tokens[tokens.length - 3];
             String maxGeneration = tokens[2];
             return new Tuple<>(RemoteStoreUtils.invertLong(minGeneration), RemoteStoreUtils.invertLong(maxGeneration));
-        } catch (NumberFormatException e) {
+        } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("Exception while getting min and max translog generation from: {}", filename), e);
             return null;
+        }
+    }
+
+    public static Tuple<Long, Long> getMinMaxPrimaryTermFromFilename(String filename) {
+        String[] tokens = filename.split(METADATA_SEPARATOR);
+        if (tokens.length < 7) {
+            // For versions < 2.17, we don't have min primary term.
+            return null;
+        }
+        assert Version.CURRENT.onOrAfter(Version.V_2_17_0);
+        try {
+            // instead of direct index, we go backwards to avoid running into same separator in nodeId
+            String minPrimaryTerm = tokens[tokens.length - 2];
+            String maxPrimaryTerm = tokens[1];
+            return new Tuple<>(Long.parseLong(minPrimaryTerm), RemoteStoreUtils.invertLong(maxPrimaryTerm));
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Exception while getting min and max primary term from: {}", filename), e);
+            return null;
+        }
+    }
+
+    public static long getPrimaryTermFromFileName(String filename) {
+        String[] tokens = filename.split(METADATA_SEPARATOR);
+        try {
+            return RemoteStoreUtils.invertLong(tokens[1]);
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Exception while getting max primary term from: {}", filename), e);
+            return -1;
         }
     }
 

@@ -58,12 +58,12 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
     }
 
     public ListDanglingIndicesRequest() {
-        super(Strings.EMPTY_ARRAY);
+        super(false, Strings.EMPTY_ARRAY);
         this.indexUUID = null;
     }
 
     public ListDanglingIndicesRequest(String indexUUID) {
-        super(Strings.EMPTY_ARRAY);
+        super(false, Strings.EMPTY_ARRAY);
         this.indexUUID = indexUUID;
     }
 

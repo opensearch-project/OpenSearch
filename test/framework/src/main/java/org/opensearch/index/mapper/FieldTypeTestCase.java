@@ -46,16 +46,18 @@ import static org.mockito.Mockito.when;
 /** Base test case for subclasses of MappedFieldType */
 public abstract class FieldTypeTestCase extends OpenSearchTestCase {
 
-    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
-    public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
+    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true, false);
+    public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false, false);
+    public static final QueryShardContext MOCK_QSC_ENABLE_INDEX_DOC_VALUES = createMockQueryShardContext(true, true);
 
     protected QueryShardContext randomMockShardContext() {
         return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_EXPENSIVE);
     }
 
-    static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
+    static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries, boolean keywordIndexOrDocValuesEnabled) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(queryShardContext.keywordFieldIndexOrDocValuesEnabled()).thenReturn(keywordIndexOrDocValuesEnabled);
         return queryShardContext;
     }
 
