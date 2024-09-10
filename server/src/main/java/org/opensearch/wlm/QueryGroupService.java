@@ -28,6 +28,7 @@ import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.transport.TransportService;
+
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+
 import java.util.Optional;
 import java.util.Set;
 
@@ -220,7 +222,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
             statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
         }
 
-        return new QueryGroupStats(transportService.getLocalNode(), statsHolderMap);
+        return new QueryGroupStats(statsHolderMap);
     }
 
     /**

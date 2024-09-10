@@ -12,6 +12,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -31,8 +32,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -140,7 +143,6 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             Collections.emptySet(),
             Collections.emptySet()
         );
-
         sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
 
         List<Thread> threads = new ArrayList<>();
@@ -271,6 +273,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             sut.onRequestFailure(null, null);
 
             QueryGroupStats actualStats = queryGroupService.nodeStats();
+
             assertEquals(expectedStats, actualStats);
         }
 
