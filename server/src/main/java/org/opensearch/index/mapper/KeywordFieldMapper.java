@@ -263,7 +263,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static final class KeywordFieldType extends StringFieldType {
+    public static class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;
         private final String nullValue;

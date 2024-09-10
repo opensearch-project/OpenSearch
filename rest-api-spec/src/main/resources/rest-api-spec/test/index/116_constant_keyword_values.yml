@@ -1,0 +1,637 @@
+---
+# The test setup includes two parts:
+# part1: create test_all,test_index,test_doc_values,test_none
+# part2: Verify that mappings
+# part3: Test query
+
+setup:
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0"
+
+  # Create indices with constant_keyword field type
+  - do:
+      indices.create:
+        index: test_all
+        body:
+          mappings:
+            properties:
+              genre:
+                type: constant_keyword
+                values: [ abcde, fgh, xyz, xYy ]
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              genre:
+                type: constant_keyword
+                values: [ abcde, fgh, xyz, xYy ]
+                index: true
+                doc_values: false
+
+  - do:
+      indices.create:
+        index: test_doc_values
+        body:
+          mappings:
+            properties:
+              genre:
+                type: constant_keyword
+                values: [ abcde, fgh, xyz, xYy ]
+                index: false
+                doc_values: true
+
+  - do:
+      indices.create:
+        index: test_none
+        body:
+          mappings:
+            properties:
+              genre:
+                type: constant_keyword
+                values: [ abcde, fgh, xyz, xYy ]
+                index: false
+                doc_values: false
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test_all", "_id": "0"}}
+          {"genre": "abcde"}
+          {"index": {"_index": "test_all", "_id": "1"}}
+          {"genre": "fgh"}
+          {"index": {"_index": "test_all", "_id": "2"}}
+          {"genre": "xyz"}
+          {"index": {"_index": "test_all", "_id": "3"}}
+          {"genre": "xYy"}
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test_index", "_id": "0"}}
+          {"genre": "abcde"}
+          {"index": {"_index": "test_index", "_id": "1"}}
+          {"genre": "fgh"}
+          {"index": {"_index": "test_index", "_id": "2"}}
+          {"genre": "xyz"}
+          {"index": {"_index": "test_index", "_id": "3"}}
+          {"genre": "xYy"}
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test_doc_values", "_id": "0"}}
+          {"genre": "abcde"}
+          {"index": {"_index": "test_doc_values", "_id": "1"}}
+          {"genre": "fgh"}
+          {"index": {"_index": "test_doc_values", "_id": "2"}}
+          {"genre": "xyz"}
+          {"index": {"_index": "test_doc_values", "_id": "3"}}
+          {"genre": "xYy"}
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test_none", "_id": "0"}}
+          {"genre": "abcde"}
+          {"index": {"_index": "test_none", "_id": "1"}}
+          {"genre": "fgh"}
+          {"index": {"_index": "test_none", "_id": "2"}}
+          {"genre": "xyz"}
+          {"index": {"_index": "test_none", "_id": "3"}}
+          {"genre": "xYy"}
+
+---
+# Verify that mappings under the catalog field did not expand
+# and no dynamic fields were created.
+"Mappings":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0"
+
+  - do:
+      indices.get_mapping:
+        index: test_all
+  - is_true: test_all.mappings
+  - match: { test_all.mappings.properties.genre.type: constant_keyword }
+  - match: { test_all.mappings.properties.genre.values: ["abcde", "fgh", "xYy", "xyz"] }
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+  - is_true: test_index.mappings
+  - match: { test_index.mappings.properties.genre.type: constant_keyword }
+  - match: { test_index.mappings.properties.genre.values: ["abcde", "fgh", "xYy", "xyz"] }
+  - match: { test_index.mappings.properties.genre.values: ["abcde", "fgh", "xYy", "xyz"] }
+  - match: { test_index.mappings.properties.genre.doc_values: false }
+
+  - do:
+      indices.get_mapping:
+        index: test_doc_values
+  - is_true: test_doc_values.mappings
+  - match: { test_doc_values.mappings.properties.genre.type: constant_keyword }
+  - match: { test_doc_values.mappings.properties.genre.values: ["abcde", "fgh", "xYy", "xyz"] }
+  - match: { test_doc_values.mappings.properties.genre.index: false }
+
+  - do:
+      indices.get_mapping:
+        index: test_none
+  - is_true: test_none.mappings
+  - match: { test_none.mappings.properties.genre.type: constant_keyword }
+  - match: { test_none.mappings.properties.genre.values: ["abcde", "fgh", "xYy", "xyz"] }
+  - match: { test_none.mappings.properties.genre.index: false }
+  - match: { test_none.mappings.properties.genre.doc_values: false }
+
+---
+"Supported queries":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0"
+
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 4 }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 4 }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 4 }
+
+  - do:
+      search:
+        index: test_none
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 4 }
+
+  # Test termQuery
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            term: {
+              genre: fgh
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            term: {
+              genre: fgh
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            term: {
+              genre: fgh
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  # Test insensitiveTermQuery
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            term: {
+              genre: {
+                value: fGh,
+                case_insensitive: true
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            term: {
+              genre: {
+                value: fGh,
+                case_insensitive: true
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            term: {
+              genre: {
+                value: fGh,
+                case_insensitive: true
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  # Test TermsQuery
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            terms: {
+              genre: ["xyz", "xy2"]
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: xyz }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            terms: {
+              genre: ["xyz", "xy2"]
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: xyz }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            terms: {
+              genre: ["xyz", "xy2"]
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: xyz }
+
+  # Test PrefixQuery with
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            prefix: {
+              genre: x
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            prefix: {
+              genre: x
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            prefix: {
+              genre: x
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  # Test FuzzyQuery with
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            fuzzy: {
+              genre: {
+                value: xz,
+                fuzziness: 2
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            fuzzy: {
+              genre: {
+                value: xz,
+                fuzziness: 2
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            fuzzy: {
+              genre: {
+                value: xz,
+                fuzziness: 2
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  # Test WildcardQuery with
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            wildcard: {
+              genre: "*g*"
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            wildcard: {
+              genre: "*g*"
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            wildcard: {
+              genre: "*g*"
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  # Test ExistsQuery with
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            exists: {
+              field: genre
+            }
+          }
+        }
+
+  - length: { hits.hits: 4 }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            exists: {
+              field: genre
+            }
+          }
+        }
+
+  - length: { hits.hits: 4 }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            exists: {
+              field: genre
+            }
+          }
+        }
+
+  - length: { hits.hits: 4 }
+
+  - do:
+      search:
+        index: test_none
+        body: {
+          query: {
+            exists: {
+              field: genre
+            }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
+  # Test RangeQuery with
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            range: {
+              genre: {
+                gte: f,
+                lt: xYy
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            range: {
+              genre: {
+                gte: f,
+                lt: xYy
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            range: {
+              genre: {
+                gte: f,
+                lt: xYy
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: fgh }
+
+  # Test RegexpQuery with
+  - do:
+      search:
+        index: test_all
+        body: {
+          query: {
+            regexp: {
+              genre: x.*
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  - do:
+      search:
+        index: test_index
+        body: {
+          query: {
+            regexp: {
+              genre: x.*
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  - do:
+      search:
+        index: test_doc_values
+        body: {
+          query: {
+            regexp: {
+              genre: x.*
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.genre: xyz }
+  - match: { hits.hits.1._source.genre: xYy }
+
+  - do:
+      indices.delete:
+        index: test_all,test_index,test_doc_values,test_none

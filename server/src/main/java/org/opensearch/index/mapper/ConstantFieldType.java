@@ -36,7 +36,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
@@ -76,13 +75,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
      */
     protected abstract boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context);
 
-    static String valueToString(Object value) {
-        return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
-    }
-
     @Override
     public final Query termQuery(Object value, QueryShardContext context) {
-        String pattern = valueToString(value);
+        String pattern = inputToString(value);
         if (matches(pattern, false, context)) {
             return Queries.newMatchAllQuery();
         } else {
@@ -92,7 +87,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @Override
     public final Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
-        String pattern = valueToString(value);
+        String pattern = inputToString(value);
         if (matches(pattern, true, context)) {
             return Queries.newMatchAllQuery();
         } else {
@@ -103,7 +98,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query termsQuery(List<?> values, QueryShardContext context) {
         for (Object value : values) {
-            String pattern = valueToString(value);
+            String pattern = inputToString(value);
             if (matches(pattern, false, context)) {
                 // `terms` queries are a disjunction, so one matching term is enough
                 return Queries.newMatchAllQuery();

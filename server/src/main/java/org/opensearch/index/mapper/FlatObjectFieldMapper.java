@@ -24,7 +24,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
@@ -408,40 +407,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 return false;
             } else {
                 return true;
-            }
-        }
-
-        private String inputToString(Object inputValue) {
-            if (inputValue instanceof Integer) {
-                String inputToString = Integer.toString((Integer) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Float) {
-                String inputToString = Float.toString((Float) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Boolean) {
-                String inputToString = Boolean.toString((Boolean) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Short) {
-                String inputToString = Short.toString((Short) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Long) {
-                String inputToString = Long.toString((Long) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Double) {
-                String inputToString = Double.toString((Double) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof BytesRef) {
-                String inputToString = (((BytesRef) inputValue).utf8ToString());
-                return inputToString;
-            } else if (inputValue instanceof String) {
-                String inputToString = (String) inputValue;
-                return inputToString;
-            } else if (inputValue instanceof Version) {
-                String inputToString = inputValue.toString();
-                return inputToString;
-            } else {
-                // default to cast toString
-                return inputValue.toString();
             }
         }
 
