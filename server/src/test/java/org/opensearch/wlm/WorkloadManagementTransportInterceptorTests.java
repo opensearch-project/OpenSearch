@@ -8,9 +8,12 @@
 
 package org.opensearch.wlm;
 
+<<<<<<< HEAD
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+=======
+>>>>>>> b5cbfa4de9e (changelog)
 import org.opensearch.common.SetOnce;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -25,7 +28,10 @@ import java.util.Collections;
 
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 import static org.mockito.Mockito.mock;
+<<<<<<< HEAD
 import static org.mockito.Mockito.when;
+=======
+>>>>>>> b5cbfa4de9e (changelog)
 
 public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestCase {
     private QueryGroupTaskCancellationService mockTaskCancellationService;
@@ -44,6 +50,7 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         mockThreadPool = mock(ThreadPool.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
         threadPool = new TestThreadPool(getTestName());
+<<<<<<< HEAD
         mockTransportService = mock(TransportService.class);
         stateAccessor = new QueryGroupsStateAccessor();
 
@@ -54,6 +61,9 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         when(metadata.queryGroups()).thenReturn(Collections.emptyMap());
         SetOnce<QueryGroupService> queryGroupServiceSetOnce = new SetOnce<>();
         sut = new WorkloadManagementTransportInterceptor(threadPool, queryGroupServiceSetOnce);
+=======
+        sut = new WorkloadManagementTransportInterceptor(threadPool, new SetOnce<>(mock(QueryGroupService.class)));
+>>>>>>> b5cbfa4de9e (changelog)
     }
 
     public void tearDown() throws Exception {

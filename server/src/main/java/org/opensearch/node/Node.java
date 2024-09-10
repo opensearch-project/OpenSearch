@@ -1153,6 +1153,7 @@ public class Node implements Closeable {
                     queryGroupResourceUsageTrackerService,
                     queryGroupsStateAccessor
                 ),
+                transportService,
                 clusterService,
                 threadPool,
                 workloadManagementSettings,
@@ -1160,6 +1161,7 @@ public class Node implements Closeable {
             );
             queryGroupServiceSetOnce.set(queryGroupService);
             taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
+
             final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
                 queryGroupService,
                 threadPool

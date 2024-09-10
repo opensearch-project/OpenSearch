@@ -8,10 +8,13 @@
 
 package org.opensearch.wlm.listeners;
 
+<<<<<<< HEAD
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.metadata.QueryGroup;
+=======
+>>>>>>> b5cbfa4de9e (changelog)
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -19,7 +22,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+<<<<<<< HEAD
 import org.opensearch.wlm.MutableQueryGroupFragment;
+=======
+>>>>>>> b5cbfa4de9e (changelog)
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.QueryGroupsStateAccessor;
@@ -150,6 +156,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         TransportService mockTransportService = mock(TransportService.class);
         DiscoveryNode mockDiscoveryNode = mock(DiscoveryNode.class);
         when(mockTransportService.getLocalNode()).thenReturn(mockDiscoveryNode);
+<<<<<<< HEAD
         QueryGroupsStateAccessor accessor = new QueryGroupsStateAccessor(queryGroupStateMap);
         setupMockedQueryGroupsFromClusterState();
         queryGroupService = new QueryGroupService(
@@ -163,6 +170,10 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             Collections.emptySet(),
             Collections.emptySet()
         );
+=======
+        queryGroupService = new QueryGroupService(mockTransportService, queryGroupStateMap);
+
+>>>>>>> b5cbfa4de9e (changelog)
         sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
 
         List<Thread> threads = new ArrayList<>();
@@ -275,6 +286,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         try (ThreadContext.StoredContext currentContext = testThreadPool.getThreadContext().stashContext()) {
             testThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, threadContextQG_Id);
             queryGroupStateMap.put(testQueryGroupId, new QueryGroupState());
+<<<<<<< HEAD
             setupMockedQueryGroupsFromClusterState();
 
             queryGroupService = new QueryGroupService(
@@ -288,6 +300,12 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 Collections.emptySet(),
                 Collections.emptySet()
             );
+=======
+            TransportService mockTransportService = mock(TransportService.class);
+            DiscoveryNode mockDiscoveryNode = mock(DiscoveryNode.class);
+            when(mockTransportService.getLocalNode()).thenReturn(mockDiscoveryNode);
+            queryGroupService = new QueryGroupService(mockTransportService, queryGroupStateMap);
+>>>>>>> b5cbfa4de9e (changelog)
 
             sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
             sut.onRequestFailure(null, null);

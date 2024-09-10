@@ -29,6 +29,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.transport.TransportService;
 
+import org.opensearch.common.inject.Inject;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
