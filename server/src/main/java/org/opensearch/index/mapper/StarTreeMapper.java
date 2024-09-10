@@ -287,11 +287,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             }
             int numBaseMetrics = 0;
             for (Metric metric : metrics) {
-                for (MetricStat metricStat : metric.getMetrics()) {
-                    if (metricStat.isDerivedMetric() == false) {
-                        numBaseMetrics++;
-                    }
-                }
+                numBaseMetrics += metric.getBaseMetrics().size();
             }
             if (numBaseMetrics > context.getSettings()
                 .getAsInt(
