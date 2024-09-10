@@ -10,6 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.accesscontrol.resources.EntityType;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
+import org.opensearch.accesscontrol.resources.ShareWith;
 
 import java.util.List;
 import java.util.Map;
@@ -50,12 +51,13 @@ public interface ResourceAccessControlPlugin {
 
     /**
      * Adds an entity to the share-with. Resource needs to be in restricted mode.
-     * @param resourceId if of the resource to be updated
+     * Creates a resource sharing record if one doesn't exist.
+     * @param resourceId id of the resource to be updated
      * @param systemIndexName index where this resource is defined
-     * @param entities a map that contains entries of entities with whom the resource should be shared with
+     * @param shareWith an object that contains entries of entities with whom the resource should be shared with
      * @return updated resource sharing record
      */
-    ResourceSharing shareWith(String resourceId, String systemIndexName, Map<EntityType, List<String>> entities);
+    ResourceSharing shareWith(String resourceId, String systemIndexName, ShareWith shareWith);
 
     /**
      * Revokes given permission to a resource
@@ -76,11 +78,11 @@ public interface ResourceAccessControlPlugin {
     boolean deleteResourceSharingRecord(String resourceId, String systemIndexName);
 
     /**
-     * Deletes all entries from .resource_sharing index where requested entity is the creator of the resource
-     * @param entity whose resource sharing records are to be deleted
+     * TODO check if this method is needed
+     * Deletes all entries from .resource_sharing index where current user is the creator of the resource
      * @return true if resource record was deleted, false otherwise
      */
-    boolean deleteAllResourceSharingRecordsFor(String entity);
+    boolean deleteAllResourceSharingRecordsForCurrentUser();
 
     // TODO: Check whether methods for bulk updates are required
 }

@@ -10,6 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.accesscontrol.resources.EntityType;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
+import org.opensearch.accesscontrol.resources.ShareWith;
 
 import java.util.List;
 import java.util.Map;
@@ -55,11 +56,11 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     /**
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
-     * @param revokeAccess a map that contains entries of entities with whom this resource should be shared with
+     * @param shareWith a map that contains entries of entities with whom this resource should be shared with
      * @return null since security plugin is disabled in the cluster
      */
     @Override
-    public ResourceSharing shareWith(String resourceId, String systemIndexName, Map<EntityType, List<String>> revokeAccess) {
+    public ResourceSharing shareWith(String resourceId, String systemIndexName, ShareWith shareWith) {
         return null;
     }
 
@@ -85,11 +86,10 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     }
 
     /**
-     * @param entity whose resource sharing entries are to be deleted
      * @return false since security plugin is disabled
      */
     @Override
-    public boolean deleteAllResourceSharingRecordsFor(String entity) {
+    public boolean deleteAllResourceSharingRecordsForCurrentUser() {
         return false;
     }
 
