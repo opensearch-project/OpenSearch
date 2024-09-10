@@ -35,6 +35,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;

@@ -324,7 +324,6 @@ public interface ClusterAdminClient extends OpenSearchClient {
 
     /**
      * QueryGroup stats of the cluster.
-     *
      * @param request The wlmStatsRequest
      * @param listener A listener to be notified with a result
      */
