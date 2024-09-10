@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.wlm;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.TransportNodesAction;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -80,7 +81,8 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
 
     @Override
     protected QueryGroupStats nodeOperation(NodeQueryGroupStatsRequest nodeQueryGroupStatsRequest) {
-        return queryGroupService.nodeStats();
+        QueryGroupStatsRequest request = nodeQueryGroupStatsRequest.request;
+        return queryGroupService.nodeStats(request.getQueryGroupIds(), request.isBreach());
     }
 
     /**
@@ -105,6 +107,10 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             request.writeTo(out);
+        }
+
+        public DiscoveryNode[] getDiscoveryNodes() {
+            return this.request.concreteNodes();
         }
     }
 }

@@ -17,6 +17,7 @@ import org.opensearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -31,7 +32,14 @@ public class RestQueryGroupStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_wlm/query_group_stats"), new Route(GET, "/_wlm/query_group_stats/{nodeId}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "query_group/stats"),
+                new Route(GET, "query_group/stats/{queryGroupId}"),
+                new Route(GET, "query_group/stats/nodes/{nodeId}"),
+                new Route(GET, "query_group/stats/{queryGroupId}/nodes/{nodeId}")
+            )
+        );
     }
 
     @Override
@@ -42,7 +50,9 @@ public class RestQueryGroupStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        QueryGroupStatsRequest queryGroupStatsRequest = new QueryGroupStatsRequest(nodesIds);
+        Set<String> queryGroupIds = Strings.tokenizeByCommaToSet(request.param("queryGroupId", "_all"));
+        Boolean breach = request.hasParam("breach") ? Boolean.parseBoolean(request.param("boolean")) : null;
+        QueryGroupStatsRequest queryGroupStatsRequest = new QueryGroupStatsRequest(nodesIds, queryGroupIds, breach);
         return channel -> client.admin()
             .cluster()
             .queryGroupStats(queryGroupStatsRequest, new RestActions.NodesResponseRestListener<>(channel));
