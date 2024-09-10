@@ -50,11 +50,7 @@ public class S3AsyncDeleteHelper {
         return batches;
     }
 
-    private static CompletableFuture<Void> executeDeleteBatches(
-        S3AsyncClient s3AsyncClient,
-        S3BlobStore blobStore,
-        List<List<String>> batches
-    ) {
+    static CompletableFuture<Void> executeDeleteBatches(S3AsyncClient s3AsyncClient, S3BlobStore blobStore, List<List<String>> batches) {
         CompletableFuture<Void> allDeletesFuture = CompletableFuture.completedFuture(null);
 
         for (List<String> batch : batches) {
@@ -64,16 +60,12 @@ public class S3AsyncDeleteHelper {
         return allDeletesFuture;
     }
 
-    private static CompletableFuture<Void> executeSingleDeleteBatch(
-        S3AsyncClient s3AsyncClient,
-        S3BlobStore blobStore,
-        List<String> batch
-    ) {
+    static CompletableFuture<Void> executeSingleDeleteBatch(S3AsyncClient s3AsyncClient, S3BlobStore blobStore, List<String> batch) {
         DeleteObjectsRequest deleteRequest = bulkDelete(blobStore.bucket(), batch, blobStore);
         return s3AsyncClient.deleteObjects(deleteRequest).thenApply(S3AsyncDeleteHelper::processDeleteResponse);
     }
 
-    private static Void processDeleteResponse(DeleteObjectsResponse deleteObjectsResponse) {
+    static Void processDeleteResponse(DeleteObjectsResponse deleteObjectsResponse) {
         if (!deleteObjectsResponse.errors().isEmpty()) {
             logger.warn(
                 () -> new ParameterizedMessage(
@@ -88,7 +80,7 @@ public class S3AsyncDeleteHelper {
         return null;
     }
 
-    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs, S3BlobStore blobStore) {
+    static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs, S3BlobStore blobStore) {
         return DeleteObjectsRequest.builder()
             .bucket(bucket)
             .delete(
@@ -97,7 +89,7 @@ public class S3AsyncDeleteHelper {
                     .quiet(true)
                     .build()
             )
-            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().deleteObjectsMetricPublisher))
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().getDeleteObjectsMetricPublisher()))
             .build();
     }
 }

@@ -69,6 +69,7 @@ import software.amazon.awssdk.services.s3.model.StorageClass;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -101,16 +102,19 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -1273,6 +1277,178 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(contentLength, inputStreamContainer.getContentLength());
         assertEquals(0, inputStreamContainer.getOffset());
         assertEquals(inputStream.available(), inputStreamContainer.getInputStream().available());
+    }
+
+    public void testDeleteAsync() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            testDeleteAsync(i + 1);
+        }
+    }
+
+    private void testDeleteAsync(int bulkDeleteSize) throws InterruptedException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.getBulkDeletesSize()).thenReturn(bulkDeleteSize);
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final AmazonAsyncS3Reference asyncClientReference = mock(AmazonAsyncS3Reference.class);
+        when(blobStore.asyncClientReference()).thenReturn(asyncClientReference);
+        AmazonAsyncS3WithCredentials amazonAsyncS3WithCredentials = AmazonAsyncS3WithCredentials.create(
+            s3AsyncClient,
+            s3AsyncClient,
+            s3AsyncClient,
+            null
+        );
+        when(asyncClientReference.get()).thenReturn(amazonAsyncS3WithCredentials);
+
+        final List<S3Object> s3Objects = new ArrayList<>();
+        int numObjects = randomIntBetween(20, 100);
+        long totalSize = 0;
+        for (int i = 0; i < numObjects; i++) {
+            long size = randomIntBetween(1, 100);
+            s3Objects.add(S3Object.builder().key(randomAlphaOfLength(10)).size(size).build());
+            totalSize += size;
+        }
+
+        final List<ListObjectsV2Response> responseList = new ArrayList<>();
+        int size = 0;
+        while (size < numObjects) {
+            int toAdd = randomIntBetween(10, 20);
+            int endIndex = Math.min(numObjects, size + toAdd);
+            responseList.add(ListObjectsV2Response.builder().contents(s3Objects.subList(size, endIndex)).build());
+            size = endIndex;
+        }
+        int expectedDeletedObjectsCall = numObjects / bulkDeleteSize + (numObjects % bulkDeleteSize > 0 ? 1 : 0);
+
+        final ListObjectsV2Publisher listPublisher = mock(ListObjectsV2Publisher.class);
+        AtomicInteger counter = new AtomicInteger();
+        doAnswer(invocation -> {
+            Subscriber<? super ListObjectsV2Response> subscriber = invocation.getArgument(0);
+            subscriber.onSubscribe(new Subscription() {
+                @Override
+                public void request(long n) {
+                    int currentCounter = counter.getAndIncrement();
+                    if (currentCounter < responseList.size()) {
+                        subscriber.onNext(responseList.get(currentCounter));
+                    }
+                    if (currentCounter == responseList.size()) {
+                        subscriber.onComplete();
+                    }
+                }
+
+                @Override
+                public void cancel() {}
+            });
+            return null;
+        }).when(listPublisher).subscribe(ArgumentMatchers.<Subscriber<ListObjectsV2Response>>any());
+        when(s3AsyncClient.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listPublisher);
+
+        when(s3AsyncClient.deleteObjects(any(DeleteObjectsRequest.class))).thenReturn(
+            CompletableFuture.completedFuture(DeleteObjectsResponse.builder().build())
+        );
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DeleteResult> deleteResultRef = new AtomicReference<>();
+        blobContainer.deleteAsync(new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteResult deleteResult) {
+                deleteResultRef.set(deleteResult);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("exception during deleteAsync", e);
+                fail("Unexpected failure: " + e.getMessage());
+            }
+        });
+
+        latch.await();
+
+        DeleteResult deleteResult = deleteResultRef.get();
+        assertEquals(numObjects, deleteResult.blobsDeleted());
+        assertEquals(totalSize, deleteResult.bytesDeleted());
+
+        verify(s3AsyncClient, times(1)).listObjectsV2Paginator(any(ListObjectsV2Request.class));
+        verify(s3AsyncClient, times(expectedDeletedObjectsCall)).deleteObjects(any(DeleteObjectsRequest.class));
+    }
+
+    public void testDeleteBlobsAsyncIgnoringIfNotExists() throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        int bulkDeleteSize = randomIntBetween(1, 10);
+        when(blobStore.getBulkDeletesSize()).thenReturn(bulkDeleteSize);
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final AmazonAsyncS3Reference asyncClientReference = mock(AmazonAsyncS3Reference.class);
+        when(blobStore.asyncClientReference()).thenReturn(asyncClientReference);
+        AmazonAsyncS3WithCredentials amazonAsyncS3WithCredentials = AmazonAsyncS3WithCredentials.create(
+            s3AsyncClient,
+            s3AsyncClient,
+            s3AsyncClient,
+            null
+        );
+        when(asyncClientReference.get()).thenReturn(amazonAsyncS3WithCredentials);
+
+        final List<String> blobNames = new ArrayList<>();
+        int size = randomIntBetween(10, 100);
+        for (int i = 0; i < size; i++) {
+            blobNames.add(randomAlphaOfLength(10));
+        }
+        int expectedDeleteCalls = size / bulkDeleteSize + (size % bulkDeleteSize > 0 ? 1 : 0);
+
+        when(s3AsyncClient.deleteObjects(any(DeleteObjectsRequest.class))).thenReturn(
+            CompletableFuture.completedFuture(DeleteObjectsResponse.builder().build())
+        );
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        blobContainer.deleteBlobsAsyncIgnoringIfNotExists(blobNames, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionRef.set(e);
+                latch.countDown();
+            }
+        });
+
+        latch.await();
+
+        assertNull(exceptionRef.get());
+
+        ArgumentCaptor<DeleteObjectsRequest> deleteRequestCaptor = ArgumentCaptor.forClass(DeleteObjectsRequest.class);
+        verify(s3AsyncClient, times(expectedDeleteCalls)).deleteObjects(deleteRequestCaptor.capture());
+
+        DeleteObjectsRequest capturedRequest = deleteRequestCaptor.getAllValues().stream().findAny().get();
+        assertEquals(bucketName, capturedRequest.bucket());
+        int totalBlobsDeleted = deleteRequestCaptor.getAllValues()
+            .stream()
+            .map(r -> r.delete().objects().size())
+            .reduce(Integer::sum)
+            .get();
+        assertEquals(blobNames.size(), totalBlobsDeleted);
+        List<String> deletedKeys = deleteRequestCaptor.getAllValues()
+            .stream()
+            .flatMap(r -> r.delete().objects().stream())
+            .map(ObjectIdentifier::key)
+            .collect(Collectors.toList());
+        assertTrue(deletedKeys.containsAll(blobNames));
     }
 
     private void mockObjectResponse(S3AsyncClient s3AsyncClient, String bucketName, String blobName, int objectSize) {
