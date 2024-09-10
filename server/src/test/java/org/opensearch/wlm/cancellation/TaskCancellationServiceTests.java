@@ -66,8 +66,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
             new MaximumResourceTaskSelectionStrategy(),
             resourceUsageTrackerService,
             activeQueryGroups,
-            deletedQueryGroups,
-            () -> false
+            deletedQueryGroups
         );
     }
 
@@ -198,8 +197,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
             new MaximumResourceTaskSelectionStrategy(),
             resourceUsageTrackerService,
             activeQueryGroups,
-            deletedQueryGroups,
-            () -> false
+            deletedQueryGroups
         );
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT);
@@ -209,14 +207,15 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
     public void testCancelTasks_cancelsGivenTasks() {
         ResourceType resourceType = ResourceType.CPU;
         double cpuUsage = 0.011;
-        double memoryUsage = 0.0;
+        double memoryUsage = 0.011;
 
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
             "testQueryGroup",
             queryGroupId1,
-            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold,
+                ResourceType.MEMORY, threshold)),
             1L
         );
 
@@ -231,8 +230,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
             new MaximumResourceTaskSelectionStrategy(),
             resourceUsageTrackerService,
             activeQueryGroups,
-            deletedQueryGroups,
-            () -> false
+            deletedQueryGroups
         );
 
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
@@ -243,7 +241,8 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
-        taskCancellation.cancelTasks();
+//        taskCancellation.cancelTasks(activeQueryGroups, deletedQueryGroups);
+        taskCancellation.cancelTasks(() -> false);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
     }
@@ -294,8 +293,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
             new MaximumResourceTaskSelectionStrategy(),
             resourceUsageTrackerService,
             activeQueryGroups,
-            deletedQueryGroups,
-            () -> true
+            deletedQueryGroups
         );
 
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
@@ -313,7 +311,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(1001, cancellableTasksFromDeletedQueryGroups.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
-        taskCancellation.cancelTasks();
+        taskCancellation.cancelTasks(() -> true);
 
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
@@ -368,8 +366,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
             new MaximumResourceTaskSelectionStrategy(),
             resourceUsageTrackerService,
             activeQueryGroups,
-            deletedQueryGroups,
-            () -> false
+            deletedQueryGroups
         );
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
@@ -386,7 +383,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(1001, cancellableTasksFromDeletedQueryGroups.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
-        taskCancellation.cancelTasks();
+        taskCancellation.cancelTasks(() -> false);
 
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
@@ -430,8 +427,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
             new MaximumResourceTaskSelectionStrategy(),
             resourceUsageTrackerService,
             activeQueryGroups,
-            deletedQueryGroups,
-            () -> true
+            deletedQueryGroups
         );
 
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
@@ -447,7 +443,7 @@ public class TaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(8765, cancellableTasksFrom1.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
-        taskCancellation.cancelTasks();
+        taskCancellation.cancelTasks(() -> true);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
         assertTrue(cancellableTasksFrom1.get(0).getTask().isCancelled());

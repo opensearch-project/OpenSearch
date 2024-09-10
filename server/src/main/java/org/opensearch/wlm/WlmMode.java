@@ -8,9 +8,12 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Enum to hold the values whether wlm is enabled or not
  */
+@PublicApi(since = "2.18.0")
 public enum WlmMode {
     ENABLED("enabled"),
     MONITOR_ONLY("monitor_only"),

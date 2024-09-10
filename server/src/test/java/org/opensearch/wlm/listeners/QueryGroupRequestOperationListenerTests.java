@@ -21,6 +21,7 @@ import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
+import org.opensearch.wlm.cancellation.TaskCancellationService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
@@ -35,7 +36,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
     public static final int ITERATIONS = 20;
     ThreadPool testThreadPool;
     QueryGroupService queryGroupService;
-    private QueryGroupResourceUsageTrackerService mockQueryGroupUsageTracker;
+    private TaskCancellationService taskCancellationService;
     private ClusterService mockClusterService;
     private WorkloadManagementSettings mockWorkloadManagementSettings;
     Map<String, QueryGroupState> queryGroupStateMap;
@@ -44,7 +45,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
 
     public void setUp() throws Exception {
         super.setUp();
-        mockQueryGroupUsageTracker = mock(QueryGroupResourceUsageTrackerService.class);
+        taskCancellationService = mock(TaskCancellationService.class);
         mockClusterService = mock(ClusterService.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
         queryGroupStateMap = new HashMap<>();
@@ -102,10 +103,11 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         queryGroupStateMap.put(testQueryGroupId, new QueryGroupState());
         setupMockedQueryGroupsFromClusterState();
         queryGroupService = new QueryGroupService(
-            mockQueryGroupUsageTracker,
+            taskCancellationService,
             mockClusterService,
             testThreadPool,
             mockWorkloadManagementSettings,
+            null,
             queryGroupStateMap
         );
 
@@ -190,10 +192,11 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             setupMockedQueryGroupsFromClusterState();
 
             queryGroupService = new QueryGroupService(
-                mockQueryGroupUsageTracker,
+                taskCancellationService,
                 mockClusterService,
                 testThreadPool,
                 mockWorkloadManagementSettings,
+                null,
                 queryGroupStateMap
             );
 

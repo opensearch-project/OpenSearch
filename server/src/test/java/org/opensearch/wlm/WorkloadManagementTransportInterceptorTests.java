@@ -17,17 +17,16 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor.RequestHandler;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
+import org.opensearch.wlm.cancellation.TaskCancellationService;
 
 import java.util.Collections;
-import java.util.HashMap;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
 public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestCase {
-    private QueryGroupResourceUsageTrackerService mockQueryGroupUsageTracker;
+    private TaskCancellationService mockTaskCancellationService;
     private ClusterService mockClusterService;
     private ThreadPool mockThreadPool;
     private WorkloadManagementSettings mockWorkloadManagementSettings;
@@ -36,7 +35,7 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
 
     public void setUp() throws Exception {
         super.setUp();
-        mockQueryGroupUsageTracker = mock(QueryGroupResourceUsageTrackerService.class);
+        mockTaskCancellationService = mock(TaskCancellationService.class);
         mockClusterService = mock(ClusterService.class);
         mockThreadPool = mock(ThreadPool.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
@@ -48,11 +47,10 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         when(metadata.queryGroups()).thenReturn(Collections.emptyMap());
         sut = new WorkloadManagementTransportInterceptor(threadPool,
             new QueryGroupService(
-                mockQueryGroupUsageTracker,
+                mockTaskCancellationService,
                 mockClusterService,
                 mockThreadPool,
-                mockWorkloadManagementSettings,
-                new HashMap<>()
+                mockWorkloadManagementSettings
             )
         );
     }

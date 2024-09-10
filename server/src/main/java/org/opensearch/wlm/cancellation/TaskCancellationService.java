@@ -9,6 +9,9 @@
 package org.opensearch.wlm.cancellation;
 
 import org.opensearch.cluster.metadata.QueryGroup;
+import org.opensearch.monitor.jvm.JvmStats;
+import org.opensearch.monitor.process.ProcessProbe;
+import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
@@ -18,10 +21,7 @@ import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -53,38 +53,46 @@ public class TaskCancellationService {
     private final QueryGroupResourceUsageTrackerService resourceUsageTrackerService;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
-    private final Collection<QueryGroup> activeQueryGroups;
-    private final Collection<QueryGroup> deletedQueryGroups;
-    private BooleanSupplier isNodeInDuress;
+    private Collection<QueryGroup> activeQueryGroups;
+    private Collection<QueryGroup> deletedQueryGroups;
+
+    public TaskCancellationService(
+            WorkloadManagementSettings workloadManagementSettings,
+            TaskSelectionStrategy taskSelectionStrategy,
+            QueryGroupResourceUsageTrackerService resourceUsageTrackerService
+    ) {
+        this(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, Collections.emptySet(), Collections.emptySet());
+    }
 
     public TaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,
         TaskSelectionStrategy taskSelectionStrategy,
         QueryGroupResourceUsageTrackerService resourceUsageTrackerService,
         Collection<QueryGroup> activeQueryGroups,
-        Collection<QueryGroup> deletedQueryGroups,
-        BooleanSupplier isNodeInDuress
+        Collection<QueryGroup> deletedQueryGroups
     ) {
         this.workloadManagementSettings = workloadManagementSettings;
         this.taskSelectionStrategy = taskSelectionStrategy;
         this.resourceUsageTrackerService = resourceUsageTrackerService;
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
-        this.isNodeInDuress = isNodeInDuress;
     }
 
     /**
      * Cancel tasks based on the implemented strategy.
      */
-    public final void cancelTasks() {
+//    public final void cancelTasks(Collection<QueryGroup> activeQueryGroups, Collection<QueryGroup> deletedQueryGroups) {
+    public final void cancelTasks(BooleanSupplier isNodeInDuress) {
+//        this.activeQueryGroups = activeQueryGroups;
+        this.deletedQueryGroups = deletedQueryGroups;
         queryGroupLevelResourceUsageViews = resourceUsageTrackerService.constructQueryGroupLevelUsageViews();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
         cancelTasks(ResiliencyMode.ENFORCED);
         // if the node is in duress, cancel tasks accordingly.
-        handleNodeDuress();
+        handleNodeDuress(isNodeInDuress);
     }
 
-    private void handleNodeDuress() {
+    private void handleNodeDuress(BooleanSupplier isNodeInDuress) {
         if (!isNodeInDuress.getAsBoolean()) {
             return;
         }

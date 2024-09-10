@@ -22,12 +22,10 @@ import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.cancellation.DefaultTaskCancellation;
-import org.opensearch.wlm.cancellation.DefaultTaskSelectionStrategy;
+import org.opensearch.wlm.cancellation.TaskCancellationService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -44,7 +42,7 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
     private final Map<String, QueryGroupState> queryGroupStateMap;
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
 
-    private final QueryGroupResourceUsageTrackerService queryGroupUsageTracker;
+    private final TaskCancellationService taskCancellationService;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -54,30 +52,34 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
     private NodeDuressTrackers nodeDuressTrackers;
 
     public QueryGroupService(
-        QueryGroupResourceUsageTrackerService queryGroupUsageTracker,
+        TaskCancellationService taskCancellationService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings) {
-        this(queryGroupUsageTracker, clusterService, threadPool, workloadManagementSettings, new HashMap<>());
+
+        this(taskCancellationService, clusterService, threadPool, workloadManagementSettings,
+            new NodeDuressTrackers(
+                Map.of(ResourceType.CPU, new NodeDuressTracker(() ->
+                        workloadManagementSettings.getNodeLevelCpuCancellationThreshold() < ProcessProbe.getInstance().getProcessCpuPercent() / 100.0, () -> 3),
+                    ResourceType.MEMORY, new NodeDuressTracker(
+                        () -> workloadManagementSettings.getNodeLevelMemoryCancellationThreshold() <= JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0, () -> 3))
+            ),
+            new HashMap<>());
     }
 
     public QueryGroupService(
-        QueryGroupResourceUsageTrackerService queryGroupUsageTracker,
+        TaskCancellationService taskCancellationService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
+        NodeDuressTrackers nodeDuressTrackers,
         Map<String, QueryGroupState> queryGroupStateMap
     ) {
-        this.queryGroupUsageTracker = queryGroupUsageTracker;
+        this.taskCancellationService = taskCancellationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.workloadManagementSettings = workloadManagementSettings;
-        this.nodeDuressTrackers = new NodeDuressTrackers(
-            Map.of(ResourceType.CPU, new NodeDuressTracker(() ->
-                workloadManagementSettings.getNodeLevelCpuCancellationThreshold() < ProcessProbe.getInstance().getProcessCpuPercent() / 100.0, () -> 3),
-                ResourceType.MEMORY, new NodeDuressTracker(
-                    () -> workloadManagementSettings.getNodeLevelMemoryCancellationThreshold() <= JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0, () -> 3))
-        );
+        this.nodeDuressTrackers = nodeDuressTrackers;
         this.activeQueryGroups = getActiveQueryGroupsFromClusterState();
 
         // this logic here is to ensure the proper initialisation of queryGroupState for query groups from persisted metadata
@@ -92,18 +94,8 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         if (workloadManagementSettings.getWlmMode() == WlmMode.DISABLED) {
             return;
         }
-
-        Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews = queryGroupUsageTracker
-            .constructQueryGroupLevelUsageViews();
-        DefaultTaskCancellation defaultTaskCancellation = new DefaultTaskCancellation(
-            workloadManagementSettings,
-            new DefaultTaskSelectionStrategy(),
-            queryGroupLevelResourceUsageViews,
-            activeQueryGroups,
-            deletedQueryGroups,
-            () -> nodeDuressTrackers.isNodeInDuress()
-        );
-        defaultTaskCancellation.cancelTasks();
+//        taskCancellationService.cancelTasks(activeQueryGroups, deletedQueryGroups);
+        taskCancellationService.cancelTasks(() -> nodeDuressTrackers.isNodeInDuress());
     }
 
     /**
