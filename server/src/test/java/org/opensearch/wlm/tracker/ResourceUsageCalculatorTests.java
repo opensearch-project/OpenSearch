@@ -8,19 +8,15 @@
 
 package org.opensearch.wlm.tracker;
 
-import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.wlm.MutableQueryGroupFragment;
-import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.TestClock;
 
 import java.util.List;
-import java.util.Map;
 
-import static org.opensearch.wlm.cancellation.TaskCancellationService.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.CpuUsageCalculator.PROCESSOR_COUNT;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 import static org.mockito.Mockito.mock;
@@ -32,14 +28,11 @@ public class ResourceUsageCalculatorTests extends OpenSearchTestCase {
         TestClock clock = new TestClock();
         long fastForwardTime = PROCESSOR_COUNT * 200L;
         clock.fastForwardBy(fastForwardTime);
-        QueryGroup queryGroup = new QueryGroup(
-            "testQG",
-            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5 / PROCESSOR_COUNT))
-        );
+
         double expectedQueryGroupCpuUsage = 1.0 / PROCESSOR_COUNT;
 
         QueryGroupTask mockTask = createMockTaskWithResourceStats(QueryGroupTask.class, fastForwardTime, 200, 0, 123);
-        ResourceType.CPU.getResourceUsageCalculator().setNanoTimeSupplier(clock::getTime);
+        when(mockTask.getElapsedTime()).thenReturn(fastForwardTime);
         double actualUsage = ResourceType.CPU.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask));
         assertEquals(expectedQueryGroupCpuUsage, actualUsage, MIN_VALUE);
 

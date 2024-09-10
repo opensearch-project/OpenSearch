@@ -18,7 +18,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -33,9 +32,8 @@ public class QueryGroupResourceUsageTrackerService {
      *
      * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
-    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService, LongSupplier nanoTimeSupplier) {
+    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService) {
         this.taskResourceTrackingService = taskResourceTrackingService;
-        ResourceType.CPU.getResourceUsageCalculator().setNanoTimeSupplier(nanoTimeSupplier);
     }
 
     /**

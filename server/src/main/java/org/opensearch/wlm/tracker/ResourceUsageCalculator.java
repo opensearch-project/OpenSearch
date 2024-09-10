@@ -12,7 +12,6 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.List;
-import java.util.function.LongSupplier;
 
 /**
  * This class is used to track query group level resource usage
@@ -32,12 +31,4 @@ public abstract class ResourceUsageCalculator {
      * @return task level resource usage
      */
     public abstract double calculateTaskResourceUsage(QueryGroupTask task);
-
-    /**
-     * Since only few implementations might need this
-     * @param nanoTimeSupplier
-     */
-    public void setNanoTimeSupplier(LongSupplier nanoTimeSupplier) {
-
-    }
 }
