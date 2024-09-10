@@ -1278,7 +1278,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
-        out.writeMapValues(mappings, (stream, val) -> val.writeTo(stream));
+        out.writeMapValues(mappings, (stream, val) -> val.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
         out.writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
         out.writeMap(customData, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
         out.writeMap(
@@ -1291,6 +1291,44 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalWriteable(context);
         }
+    }
+
+    @Override
+    public String toString() {
+        return new StringBuilder().append("IndexMetadata{routingNumShards=")
+            .append(routingNumShards)
+            .append(", index=")
+            .append(index)
+            .append(", version=")
+            .append(version)
+            .append(", state=")
+            .append(state)
+            .append(", settingsVersion=")
+            .append(settingsVersion)
+            .append(", mappingVersion=")
+            .append(mappingVersion)
+            .append(", aliasesVersion=")
+            .append(aliasesVersion)
+            .append(", primaryTerms=")
+            .append(Arrays.toString(primaryTerms))
+            .append(", aliases=")
+            .append(aliases)
+            .append(", settings=")
+            .append(settings)
+            .append(", mappings=")
+            .append(mappings)
+            .append(", customData=")
+            .append(customData)
+            .append(", inSyncAllocationIds=")
+            .append(inSyncAllocationIds)
+            .append(", rolloverInfos=")
+            .append(rolloverInfos)
+            .append(", isSystem=")
+            .append(isSystem)
+            .append(", context=")
+            .append(context)
+            .append("}")
+            .toString();
     }
 
     public boolean isSystem() {
