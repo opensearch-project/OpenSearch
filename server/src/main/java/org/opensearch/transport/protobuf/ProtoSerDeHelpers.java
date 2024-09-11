@@ -229,7 +229,9 @@ public class ProtoSerDeHelpers {
     public static SortValueProto sortValueToProto(Object sortValue) throws ProtoSerDeHelpers.SerializationException {
         SortValueProto.Builder builder = SortValueProto.newBuilder();
 
-        if (sortValue.getClass().equals(String.class)) {
+        if (sortValue == null) {
+            builder.setIsNull(true);
+        } else if (sortValue.getClass().equals(String.class)) {
             builder.setStringValue((String) sortValue);
         } else if (sortValue.getClass().equals(Integer.class)) {
             builder.setIntValue((Integer) sortValue);
@@ -282,11 +284,11 @@ public class ProtoSerDeHelpers {
                 return new BytesRef(byteString.toByteArray());
             case BIG_INTEGER_VALUE:
                 return new BigInteger(proto.getBigIntegerValue());
-            case VALUE_NOT_SET:
+            case IS_NULL:
                 return null;
-            default:
-                throw new ProtoSerDeHelpers.SerializationException("Unexpected value case: " + proto.getValueCase());
         }
+
+        throw new ProtoSerDeHelpers.SerializationException("Unexpected value case: " + proto.getValueCase());
     }
 
     public static SortFieldProto sortFieldToProto(SortField sortField) {

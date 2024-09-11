@@ -36,6 +36,7 @@ message SortValueProto {
     bool bool_value = 8;
     bytes bytes_value = 9; // BytesRef
     string big_integer_value = 10;
+    bool is_null = 11;
   }
 }
 
