@@ -10,6 +10,7 @@ package org.opensearch.rest.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.Base64;
 import java.util.List;
@@ -43,32 +44,19 @@ public interface PaginationStrategy<T> {
 
     /**
      *
-     * Utility method to get list of indices sorted by their creation time with {@param latestValidIndexCreateTime}
-     * being used to filter out the indices created after it.
+     * Utility method to get list of indices sorted by their creation time.
      */
-    static List<String> getListOfIndicesSortedByCreateTime(
-        final ClusterState clusterState,
-        String sortOrder,
-        final long latestValidIndexCreateTime
-    ) {
-        // Filter out the indices which have been created after the latest index which was present when
-        // paginated query started. Also, sort the indices list based on their creation timestamps
-        return clusterState.getRoutingTable()
-            .getIndicesRouting()
-            .keySet()
-            .stream()
-            .filter(index -> (latestValidIndexCreateTime >= clusterState.metadata().indices().get(index).getCreationDate()))
-            .sorted((index1, index2) -> {
-                Long index1CreationTimeStamp = clusterState.metadata().indices().get(index1).getCreationDate();
-                Long index2CreationTimeStamp = clusterState.metadata().indices().get(index2).getCreationDate();
-                if (index1CreationTimeStamp.equals(index2CreationTimeStamp)) {
-                    return DESCENDING_SORT_PARAM_VALUE.equals(sortOrder) ? index2.compareTo(index1) : index1.compareTo(index2);
-                }
+    static List<IndexMetadata> getListOfIndicesSortedByCreateTime(final ClusterState clusterState, String sortOrder) {
+        return clusterState.metadata().indices().values().stream().sorted((metadata1, metadata2) -> {
+            if (metadata1.getCreationDate() == metadata2.getCreationDate()) {
                 return DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
-                    ? Long.compare(index2CreationTimeStamp, index1CreationTimeStamp)
-                    : Long.compare(index1CreationTimeStamp, index2CreationTimeStamp);
-            })
-            .collect(Collectors.toList());
+                    ? metadata2.getIndex().getName().compareTo(metadata1.getIndex().getName())
+                    : metadata1.getIndex().getName().compareTo(metadata2.getIndex().getName());
+            }
+            return DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
+                ? Long.compare(metadata2.getCreationDate(), metadata1.getCreationDate())
+                : Long.compare(metadata1.getCreationDate(), metadata2.getCreationDate());
+        }).collect(Collectors.toList());
     }
 
     static String encryptStringToken(String tokenString) {

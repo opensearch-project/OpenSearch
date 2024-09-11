@@ -143,65 +143,75 @@ public class RestIndicesAction extends AbstractCatAction {
                     return RestTable.buildResponse(table, channel);
                 }
             });
-            sendClusterStateRequest(
+
+            sendGetSettingsRequest(
                 indices,
                 indicesOptions,
                 local,
                 clusterManagerNodeTimeout,
                 client,
-                new ActionListener<ClusterStateResponse>() {
+                new ActionListener<GetSettingsResponse>() {
                     @Override
-                    public void onResponse(final ClusterStateResponse clusterStateResponse) {
-                        IndexBasedPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
-                        final String[] indicesToBeQueried = getIndicesToBeQueried(indices, paginationStrategy);
-
-                        final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
-                            request,
-                            4,
-                            listener,
-                            indicesToBeQueried,
-                            getPaginatedQueryResponse(paginationStrategy)
-                        );
-                        groupedListener.onResponse(clusterStateResponse);
-
+                    public void onResponse(final GetSettingsResponse getSettingsResponse) {
                         // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
                         // All the other requests just provide additional detail, and wildcards may be resolved differently depending on the
                         // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
                         // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
                         final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
 
-                        // Indices that were successfully resolved during the cluster state request might be deleted when the subsequent
-                        // get settings, cluster health and indices stats requests execute. We have to distinguish two cases:
-                        // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
-                        // subsequent requests to fail.
-                        // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests
-                        // not to
-                        // fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
-                        // This behavior can be ensured by letting the get settings, cluster health and indices stats requests re-resolve
-                        // the
-                        // index names with the same indices options that we used for the initial cluster state request (strictExpand).
-                        sendGetSettingsRequest(
-                            indicesToBeQueried,
-                            indicesOptions,
-                            local,
-                            clusterManagerNodeTimeout,
-                            client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                        );
-                        sendIndicesStatsRequest(
-                            indicesToBeQueried,
-                            subRequestIndicesOptions,
-                            includeUnloadedSegments,
-                            client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                        );
-                        sendClusterHealthRequest(
-                            indicesToBeQueried,
+                        // Indices that were successfully resolved during the get settings request might be deleted when the
+                        // subsequent cluster state, cluster health and indices stats requests execute. We have to distinguish two cases:
+                        // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we
+                        // want the subsequent requests to fail.
+                        // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent
+                        // requests not to fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+                        // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests
+                        // re-resolve the index names with the same indices options that we used for the initial cluster state
+                        // request (strictExpand).
+                        sendClusterStateRequest(
+                            indices,
                             subRequestIndicesOptions,
                             local,
                             clusterManagerNodeTimeout,
                             client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                            new ActionListener<ClusterStateResponse>() {
+                                @Override
+                                public void onResponse(ClusterStateResponse clusterStateResponse) {
+                                    IndexBasedPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
+                                    final String[] indicesToBeQueried = getIndicesToBeQueried(indices, paginationStrategy);
+                                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
+                                        request,
+                                        4,
+                                        listener,
+                                        indicesToBeQueried,
+                                        getPaginatedQueryResponse(paginationStrategy)
+                                    );
+                                    groupedListener.onResponse(getSettingsResponse);
+                                    groupedListener.onResponse(clusterStateResponse);
+
+                                    sendIndicesStatsRequest(
+                                        indicesToBeQueried,
+                                        subRequestIndicesOptions,
+                                        includeUnloadedSegments,
+                                        client,
+                                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                    );
+
+                                    sendClusterHealthRequest(
+                                        indicesToBeQueried,
+                                        subRequestIndicesOptions,
+                                        local,
+                                        clusterManagerNodeTimeout,
+                                        client,
+                                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                    );
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(e);
+                                }
+                            }
                         );
                     }
 
@@ -212,6 +222,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             );
         };
+
     }
 
     /**
@@ -727,7 +738,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(
+    protected Table buildTable(
         final RestRequest request,
         final Map<String, Settings> indicesSettings,
         final Map<String, ClusterIndexHealth> indicesHealths,
@@ -736,15 +747,8 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indicesToBeQueried,
         final PaginatedQueryResponse paginatedQueryResponse
     ) {
-
         final String healthParam = request.param("health");
         final Table table = getTableWithHeader(request, paginatedQueryResponse);
-
-        if (isActionPaginated() && indicesToBeQueried.length == 0) {
-            // to handle cases where paginationStrategy couldn't find any indices that should be queried
-            // and would have returned an empty list of indicesToBeQueried.
-            return table;
-        }
 
         indicesSettings.forEach((indexName, settings) -> {
             if (indicesMetadatas.containsKey(indexName) == false) {
@@ -752,270 +756,282 @@ public class RestIndicesAction extends AbstractCatAction {
                 // it is likely that the index was deleted in the meanwhile, so we ignore it.
                 return;
             }
-
-            final IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
-            final IndexMetadata.State indexState = indexMetadata.getState();
-            final IndexStats indexStats = indicesStats.get(indexName);
-            final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
-
-            final String health;
-            final ClusterIndexHealth indexHealth = indicesHealths.get(indexName);
-            if (indexHealth != null) {
-                health = indexHealth.getStatus().toString().toLowerCase(Locale.ROOT);
-            } else if (indexStats != null) {
-                health = "red*";
-            } else {
-                health = "";
-            }
-
-            if (healthParam != null) {
-                final ClusterHealthStatus healthStatusFilter = ClusterHealthStatus.fromString(healthParam);
-                boolean skip;
-                if (indexHealth != null) {
-                    // index health is known but does not match the one requested
-                    skip = indexHealth.getStatus() != healthStatusFilter;
-                } else {
-                    // index health is unknown, skip if we don't explicitly request RED health
-                    skip = ClusterHealthStatus.RED != healthStatusFilter;
-                }
-                if (skip) {
-                    return;
-                }
-            }
-
-            final CommonStats primaryStats;
-            final CommonStats totalStats;
-
-            if (indexStats == null || indexState == IndexMetadata.State.CLOSE) {
-                // TODO: expose docs stats for replicated closed indices
-                primaryStats = new CommonStats();
-                totalStats = new CommonStats();
-            } else {
-                primaryStats = indexStats.getPrimaries();
-                totalStats = indexStats.getTotal();
-            }
-            table.startRow();
-            table.addCell(health);
-            table.addCell(indexState.toString().toLowerCase(Locale.ROOT));
-            table.addCell(indexName);
-            table.addCell(indexMetadata.getIndexUUID());
-            table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
-            table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
-
-            table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getCount());
-            table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());
-
-            table.addCell(indexMetadata.getCreationDate());
-            ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetadata.getCreationDate()), ZoneOffset.UTC);
-            table.addCell(STRICT_DATE_TIME_FORMATTER.format(creationTime));
-
-            table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
-            table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
-
-            table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());
-            table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());
-
-            table.addCell(totalStats.getFieldData() == null ? null : totalStats.getFieldData().getMemorySize());
-            table.addCell(primaryStats.getFieldData() == null ? null : primaryStats.getFieldData().getMemorySize());
-
-            table.addCell(totalStats.getFieldData() == null ? null : totalStats.getFieldData().getEvictions());
-            table.addCell(primaryStats.getFieldData() == null ? null : primaryStats.getFieldData().getEvictions());
-
-            table.addCell(totalStats.getQueryCache() == null ? null : totalStats.getQueryCache().getMemorySize());
-            table.addCell(primaryStats.getQueryCache() == null ? null : primaryStats.getQueryCache().getMemorySize());
-
-            table.addCell(totalStats.getQueryCache() == null ? null : totalStats.getQueryCache().getEvictions());
-            table.addCell(primaryStats.getQueryCache() == null ? null : primaryStats.getQueryCache().getEvictions());
-
-            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getMemorySize());
-            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getMemorySize());
-
-            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getEvictions());
-            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getEvictions());
-
-            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getHitCount());
-            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getHitCount());
-
-            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getMissCount());
-            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getMissCount());
-
-            table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotal());
-            table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotal());
-
-            table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotalTime());
-            table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotalTime());
-
-            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().current());
-            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().current());
-
-            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getTime());
-            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getTime());
-
-            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getCount());
-            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getCount());
-
-            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getExistsTime());
-            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getExistsTime());
-
-            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getExistsCount());
-            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getExistsCount());
-
-            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getMissingTime());
-            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getMissingTime());
-
-            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getMissingCount());
-            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getMissingCount());
-
-            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteCurrent());
-            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteCurrent());
-
-            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteTime());
-            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteTime());
-
-            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteCount());
-            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteCount());
-
-            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexCurrent());
-            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexCurrent());
-
-            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexTime());
-            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexTime());
-
-            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexCount());
-            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexCount());
-
-            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedCount());
-            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedCount());
-
-            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());
-            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrent());
-
-            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrentNumDocs());
-            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrentNumDocs());
-
-            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrentSize());
-            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrentSize());
-
-            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotal());
-            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotal());
-
-            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalNumDocs());
-            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalNumDocs());
-
-            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalSize());
-            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalSize());
-
-            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalTime());
-            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalTime());
-
-            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());
-            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());
-
-            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotalTime());
-            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotalTime());
-
-            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotal());
-            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotal());
-
-            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotalTime());
-            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotalTime());
-
-            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getListeners());
-            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getListeners());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchCurrent());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchCurrent());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchTime());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchTime());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchCount());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getOpenContexts());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getOpenContexts());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCurrent());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCurrent());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryTime());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryTime());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryTime());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryTime());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCount());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollTime());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollTime());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCount());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCurrent());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCurrent());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitTime());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitTime());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCount());
-
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
-
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getZeroMemory());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getZeroMemory());
-
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());
-
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getVersionMapMemory());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getVersionMapMemory());
-
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getBitsetMemory());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getBitsetMemory());
-
-            table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().current());
-            table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().current());
-
-            table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().total());
-            table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().total());
-
-            table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().totalTime());
-            table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().totalTime());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCurrent());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCurrent());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestTime());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestTime());
-
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCount());
-
-            table.addCell(totalStats.getTotalMemory());
-            table.addCell(primaryStats.getTotalMemory());
-
-            table.addCell(searchThrottled);
-
-            table.endRow();
+            buildRow(indicesSettings, indicesHealths, indicesStats, indicesMetadatas, healthParam, indexName, table);
         });
 
         return table;
+    }
+
+    protected void buildRow(
+        final Map<String, Settings> indicesSettings,
+        final Map<String, ClusterIndexHealth> indicesHealths,
+        final Map<String, IndexStats> indicesStats,
+        final Map<String, IndexMetadata> indicesMetadatas,
+        final String healthParam,
+        final String indexName,
+        Table table
+    ) {
+        Settings settings = indicesSettings.get(indexName);
+        final IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
+        final IndexMetadata.State indexState = indexMetadata.getState();
+        final IndexStats indexStats = indicesStats.get(indexName);
+        final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
+
+        final String health;
+        final ClusterIndexHealth indexHealth = indicesHealths.get(indexName);
+        if (indexHealth != null) {
+            health = indexHealth.getStatus().toString().toLowerCase(Locale.ROOT);
+        } else if (indexStats != null) {
+            health = "red*";
+        } else {
+            health = "";
+        }
+
+        if (healthParam != null) {
+            final ClusterHealthStatus healthStatusFilter = ClusterHealthStatus.fromString(healthParam);
+            boolean skip;
+            if (indexHealth != null) {
+                // index health is known but does not match the one requested
+                skip = indexHealth.getStatus() != healthStatusFilter;
+            } else {
+                // index health is unknown, skip if we don't explicitly request RED health
+                skip = ClusterHealthStatus.RED != healthStatusFilter;
+            }
+            if (skip) {
+                return;
+            }
+        }
+
+        final CommonStats primaryStats;
+        final CommonStats totalStats;
+
+        if (indexStats == null || indexState == IndexMetadata.State.CLOSE) {
+            // TODO: expose docs stats for replicated closed indices
+            primaryStats = new CommonStats();
+            totalStats = new CommonStats();
+        } else {
+            primaryStats = indexStats.getPrimaries();
+            totalStats = indexStats.getTotal();
+        }
+        table.startRow();
+        table.addCell(health);
+        table.addCell(indexState.toString().toLowerCase(Locale.ROOT));
+        table.addCell(indexName);
+        table.addCell(indexMetadata.getIndexUUID());
+        table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
+        table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
+
+        table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getCount());
+        table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());
+
+        table.addCell(indexMetadata.getCreationDate());
+        ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetadata.getCreationDate()), ZoneOffset.UTC);
+        table.addCell(STRICT_DATE_TIME_FORMATTER.format(creationTime));
+
+        table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
+        table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
+
+        table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());
+        table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());
+
+        table.addCell(totalStats.getFieldData() == null ? null : totalStats.getFieldData().getMemorySize());
+        table.addCell(primaryStats.getFieldData() == null ? null : primaryStats.getFieldData().getMemorySize());
+
+        table.addCell(totalStats.getFieldData() == null ? null : totalStats.getFieldData().getEvictions());
+        table.addCell(primaryStats.getFieldData() == null ? null : primaryStats.getFieldData().getEvictions());
+
+        table.addCell(totalStats.getQueryCache() == null ? null : totalStats.getQueryCache().getMemorySize());
+        table.addCell(primaryStats.getQueryCache() == null ? null : primaryStats.getQueryCache().getMemorySize());
+
+        table.addCell(totalStats.getQueryCache() == null ? null : totalStats.getQueryCache().getEvictions());
+        table.addCell(primaryStats.getQueryCache() == null ? null : primaryStats.getQueryCache().getEvictions());
+
+        table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getMemorySize());
+        table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getMemorySize());
+
+        table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getEvictions());
+        table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getEvictions());
+
+        table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getHitCount());
+        table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getHitCount());
+
+        table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getMissCount());
+        table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getMissCount());
+
+        table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotal());
+        table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotal());
+
+        table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotalTime());
+        table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotalTime());
+
+        table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().current());
+        table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().current());
+
+        table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getTime());
+        table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getTime());
+
+        table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getCount());
+        table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getCount());
+
+        table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getExistsTime());
+        table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getExistsTime());
+
+        table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getExistsCount());
+        table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getExistsCount());
+
+        table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getMissingTime());
+        table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getMissingTime());
+
+        table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getMissingCount());
+        table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getMissingCount());
+
+        table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteCurrent());
+        table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteCurrent());
+
+        table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteTime());
+        table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteTime());
+
+        table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteCount());
+        table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteCount());
+
+        table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexCurrent());
+        table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexCurrent());
+
+        table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexTime());
+        table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexTime());
+
+        table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexCount());
+        table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexCount());
+
+        table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedCount());
+        table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedCount());
+
+        table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());
+        table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrent());
+
+        table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrentNumDocs());
+        table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrentNumDocs());
+
+        table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrentSize());
+        table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrentSize());
+
+        table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotal());
+        table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotal());
+
+        table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalNumDocs());
+        table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalNumDocs());
+
+        table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalSize());
+        table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalSize());
+
+        table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalTime());
+        table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalTime());
+
+        table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());
+        table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());
+
+        table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotalTime());
+        table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotalTime());
+
+        table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotal());
+        table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotal());
+
+        table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotalTime());
+        table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotalTime());
+
+        table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getListeners());
+        table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getListeners());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchCurrent());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchCurrent());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchTime());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchTime());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchCount());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchCount());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getOpenContexts());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getOpenContexts());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCurrent());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCurrent());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryTime());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryTime());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryTime());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryTime());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCount());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCount());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollTime());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollTime());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCount());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCount());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCurrent());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCurrent());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitTime());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitTime());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCount());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCount());
+
+        table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
+        table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
+
+        table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getZeroMemory());
+        table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getZeroMemory());
+
+        table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
+        table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());
+
+        table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getVersionMapMemory());
+        table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getVersionMapMemory());
+
+        table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getBitsetMemory());
+        table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getBitsetMemory());
+
+        table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().current());
+        table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().current());
+
+        table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().total());
+        table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().total());
+
+        table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().totalTime());
+        table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().totalTime());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCurrent());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCurrent());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestTime());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestTime());
+
+        table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCount());
+        table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCount());
+
+        table.addCell(totalStats.getTotalMemory());
+        table.addCell(primaryStats.getTotalMemory());
+
+        table.addCell(searchThrottled);
+
+        table.endRow();
     }
 
     @SuppressWarnings("unchecked")

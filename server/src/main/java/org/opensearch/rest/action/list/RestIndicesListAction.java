@@ -9,6 +9,11 @@
 package org.opensearch.rest.action.list;
 
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.cluster.health.ClusterIndexHealth;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Table;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.rest.pagination.IndexBasedPaginationStrategy;
@@ -16,6 +21,7 @@ import org.opensearch.rest.pagination.PaginatedQueryRequest;
 import org.opensearch.rest.pagination.PaginatedQueryResponse;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
@@ -73,10 +79,31 @@ public class RestIndicesListAction extends RestIndicesAction {
         }
         // Next Token in the request will be validated by the IndexStrategyTokenParser itself.
         if (Objects.nonNull(paginatedQueryRequest.getRequestedTokenStr())) {
-            IndexBasedPaginationStrategy.IndexStrategyTokenParser.validateIndexStrategyToken(paginatedQueryRequest.getRequestedTokenStr());
+            IndexBasedPaginationStrategy.IndexStrategyToken.validateIndexStrategyToken(paginatedQueryRequest.getRequestedTokenStr());
         }
 
         return paginatedQueryRequest;
+    }
+
+    @Override
+    protected Table buildTable(
+        final RestRequest request,
+        final Map<String, Settings> indicesSettings,
+        final Map<String, ClusterIndexHealth> indicesHealths,
+        final Map<String, IndexStats> indicesStats,
+        final Map<String, IndexMetadata> indicesMetadatas,
+        final String[] indicesToBeQueried,
+        final PaginatedQueryResponse paginatedQueryResponse
+    ) {
+        final String healthParam = request.param("health");
+        final Table table = getTableWithHeader(request, paginatedQueryResponse);
+        for (String indexName : indicesToBeQueried) {
+            if (indicesSettings.containsKey(indexName) == false) {
+                continue;
+            }
+            buildRow(indicesSettings, indicesHealths, indicesStats, indicesMetadatas, healthParam, indexName, table);
+        }
+        return table;
     }
 
     @Override
