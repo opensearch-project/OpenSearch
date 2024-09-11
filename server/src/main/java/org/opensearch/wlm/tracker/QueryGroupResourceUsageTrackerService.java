@@ -8,7 +8,6 @@
 
 package org.opensearch.wlm.tracker;
 
-import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
@@ -25,7 +24,6 @@ import java.util.stream.Collectors;
  * This class tracks resource usage per QueryGroup
  */
 public class QueryGroupResourceUsageTrackerService {
-
     public static final EnumSet<ResourceType> TRACKED_RESOURCES = EnumSet.allOf(ResourceType.class);
     private final TaskResourceTrackingService taskResourceTrackingService;
 
@@ -44,19 +42,16 @@ public class QueryGroupResourceUsageTrackerService {
      * @return Map of QueryGroup views
      */
     public Map<String, QueryGroupLevelResourceUsageView> constructQueryGroupLevelUsageViews() {
-        final Map<String, List<Task>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
+        final Map<String, List<QueryGroupTask>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
         final Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = new HashMap<>();
 
         // Iterate over each QueryGroup entry
-        for (Map.Entry<String, List<Task>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
-            // Compute the QueryGroup usage
-            final EnumMap<ResourceType, Long> queryGroupUsage = new EnumMap<>(ResourceType.class);
+        for (Map.Entry<String, List<QueryGroupTask>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
+            // Compute the QueryGroup resource usage
+            final Map<ResourceType, Double> queryGroupUsage = new EnumMap<>(ResourceType.class);
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                long queryGroupResourceUsage = 0;
-                for (Task task : queryGroupEntry.getValue()) {
-                    queryGroupResourceUsage += resourceType.getResourceUsage(task);
-                }
-                queryGroupUsage.put(resourceType, queryGroupResourceUsage);
+                double usage = resourceType.getResourceUsageCalculator().calculateResourceUsage(queryGroupEntry.getValue());
+                queryGroupUsage.put(resourceType, usage);
             }
 
             // Add to the QueryGroup View
@@ -73,12 +68,12 @@ public class QueryGroupResourceUsageTrackerService {
      *
      * @return Map of tasks grouped by QueryGroup
      */
-    private Map<String, List<Task>> getTasksGroupedByQueryGroup() {
+    private Map<String, List<QueryGroupTask>> getTasksGroupedByQueryGroup() {
         return taskResourceTrackingService.getResourceAwareTasks()
             .values()
             .stream()
             .filter(QueryGroupTask.class::isInstance)
             .map(QueryGroupTask.class::cast)
-            .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> (Task) task, Collectors.toList())));
+            .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> task, Collectors.toList())));
     }
 }
