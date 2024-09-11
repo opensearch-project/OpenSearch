@@ -98,7 +98,7 @@ setup:
               my_field.lower: "abcd"
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._id: "7" }
+  - match: { hits.hits.1._id: "7" }
 
   - do:
       search:
