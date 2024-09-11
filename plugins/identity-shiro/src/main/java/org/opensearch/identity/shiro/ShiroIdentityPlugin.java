@@ -113,9 +113,12 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         return AuthcRestHandler::new;
     }
 
-    class AuthcRestHandler extends DelegatingRestHandler {
+    class AuthcRestHandler extends RestHandler.Wrapper {
+        private final RestHandler delegate;
+
         public AuthcRestHandler(RestHandler original) {
             super(original);
+            this.delegate = original;
         }
 
         @Override
