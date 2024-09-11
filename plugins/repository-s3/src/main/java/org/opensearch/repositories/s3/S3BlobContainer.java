@@ -990,7 +990,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             S3AsyncDeleteHelper.executeDeleteChain(s3AsyncClient, blobStore, keysToDelete, CompletableFuture.completedFuture(null), null)
                 .whenComplete((v, throwable) -> {
                     if (throwable != null) {
-                        completionListener.onFailure(new IOException("Failed to delete blobs", throwable));
+                        completionListener.onFailure(new IOException("Failed to delete blobs " + blobNames, throwable));
                     } else {
                         completionListener.onResponse(null);
                     }
