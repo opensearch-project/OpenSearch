@@ -19,13 +19,16 @@ import org.opensearch.indices.RemoteStoreSettings;
 import java.io.IOException;
 
 /**
- * Remote store node level stats
+ * Node level remote store stats
  * @opensearch.internal
  */
 public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
 
+    public static final String STATS_NAME = "remote_store_node_stats";
+    public static final String LAST_SUCCESSFUL_FETCH_OF_PINNED_TIMESTAMPS = "last_successful_fetch_of_pinned_timestamps";
+
     /**
-     * Time stamp for the last successful fetch of pinned timestamps by the RemoteStorePinnedTimestampService
+     * Time stamp for the last successful fetch of pinned timestamps by the {@linkplain  RemoteStorePinnedTimestampService}
      */
     private long lastSuccessfulFetchOfPinnedTimestamps;
 
@@ -52,8 +55,8 @@ public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("remote_store_node_stats");
-        builder.field("last_successful_fetch_of_pinned_timestamps", this.lastSuccessfulFetchOfPinnedTimestamps);
+        builder.startObject(STATS_NAME);
+        builder.field(LAST_SUCCESSFUL_FETCH_OF_PINNED_TIMESTAMPS, this.lastSuccessfulFetchOfPinnedTimestamps);
         return builder.endObject();
     }
 
