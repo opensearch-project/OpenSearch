@@ -199,11 +199,11 @@ public class ProtoSerDeHelpers {
         SearchSortValuesProto.Builder builder = SearchSortValuesProto.newBuilder();
 
         for (Object value : searchSortValues.getFormattedSortValues()) {
-            builder.addFormattedSortValues(SortValueToProto(value));
+            builder.addFormattedSortValues(sortValueToProto(value));
         }
 
         for (Object value : searchSortValues.getRawSortValues()) {
-            builder.addRawSortValues(SortValueToProto(value));
+            builder.addRawSortValues(sortValueToProto(value));
         }
 
         return builder.build();
@@ -215,18 +215,18 @@ public class ProtoSerDeHelpers {
 
         for (int i = 0; i < formattedSortValues.length; i++) {
             SortValueProto sortProto = proto.getFormattedSortValues(i);
-            formattedSortValues[i] = SortValueFromProto(sortProto);
+            formattedSortValues[i] = sortValueFromProto(sortProto);
         }
 
         for (int i = 0; i < rawSortValues.length; i++) {
             SortValueProto sortProto = proto.getRawSortValues(i);
-            rawSortValues[i] = SortValueFromProto(sortProto);
+            rawSortValues[i] = sortValueFromProto(sortProto);
         }
 
         return new SearchSortValues(formattedSortValues, rawSortValues);
     }
 
-    public static SortValueProto SortValueToProto(Object sortValue) throws ProtoSerDeHelpers.SerializationException {
+    public static SortValueProto sortValueToProto(Object sortValue) throws ProtoSerDeHelpers.SerializationException {
         SortValueProto.Builder builder = SortValueProto.newBuilder();
 
         if (sortValue.getClass().equals(String.class)) {
@@ -259,7 +259,7 @@ public class ProtoSerDeHelpers {
         return builder.build();
     }
 
-    public static Object SortValueFromProto(SortValueProto proto) throws ProtoSerDeHelpers.SerializationException {
+    public static Object sortValueFromProto(SortValueProto proto) throws ProtoSerDeHelpers.SerializationException {
         switch (proto.getValueCase()) {
             case STRING_VALUE:
                 return proto.getStringValue();

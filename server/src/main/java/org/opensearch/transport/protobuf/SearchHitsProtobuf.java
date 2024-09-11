@@ -8,22 +8,23 @@
 
 package org.opensearch.transport.protobuf;
 
-import com.google.protobuf.ByteString;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.lucene.Lucene;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitsProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.TotalHitsProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SortFieldProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SortValueProto;
 
 import java.io.IOException;
 
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.SortValueToProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueToProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueFromProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldToProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldFromProto;
 
 /**
  * SearchHits child which implements serde operations as protobuf.
@@ -75,19 +76,14 @@ public class SearchHitsProtobuf extends SearchHits {
         }
 
         if (sortFields != null) {
-            builder.setSortFields(sortFields);
-        }
-
-        try (BytesStreamOutput sortOut = new BytesStreamOutput()) {
-            sortOut.writeOptionalArray(Lucene::writeSortField, sortFields);
-            builder.setSortFields(ByteString.copyFrom(sortOut.bytes().toBytesRef().bytes));
-        } catch (IOException e) {
-            throw new ProtoSerDeHelpers.SerializationException("Failed to serialize SearchHits to proto", e);
+            for (SortField field : sortFields) {
+                builder.addSortFields(sortFieldToProto(field));
+            }
         }
 
         if (collapseValues != null) {
             for (Object col : collapseValues) {
-                builder.addCollapseValues(SortValueToProto(col));
+                builder.addCollapseValues(sortValueToProto(col));
             }
         }
 
@@ -109,16 +105,16 @@ public class SearchHitsProtobuf extends SearchHits {
             totalHits = null;
         }
 
-        try (StreamInput sortBytesInput = new BytesArray(proto.getSortFields().toByteArray()).streamInput()) {
-            sortFields = sortBytesInput.readOptionalArray(Lucene::readSortField, SortField[]::new);
-        } catch (IOException e) {
-            throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchHits from proto", e);
+        sortFields = new SortField[proto.getSortFieldsCount()];
+        for (int i = 0; i < proto.getSortFieldsCount(); i++) {
+            SortFieldProto field = proto.getSortFields(i);
+            sortFields[i] = sortFieldFromProto(field);
         }
 
-        try (StreamInput collapseBytesInput = new BytesArray(proto.getCollapseValues().toByteArray()).streamInput()) {
-            collapseValues = collapseBytesInput.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        } catch (IOException e) {
-            throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize SearchHits from proto", e);
+        collapseValues = new Object[proto.getCollapseValuesCount()];
+        for (int i = 0; i < proto.getCollapseValuesCount(); i++) {
+            SortValueProto val = proto.getCollapseValues(i);
+            collapseValues[i] = sortValueFromProto(val);
         }
 
         hits = new SearchHit[proto.getHitsCount()];
