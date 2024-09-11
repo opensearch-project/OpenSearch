@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -310,7 +311,6 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15731")
     public void testSimpleOperationsUpload() throws Exception {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
 
@@ -366,7 +366,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
                 10,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override
