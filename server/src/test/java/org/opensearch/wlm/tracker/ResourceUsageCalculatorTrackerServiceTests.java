@@ -9,10 +9,8 @@
 package org.opensearch.wlm.tracker;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -32,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.wlm.QueryGroupTask.QUERY_GROUP_ID_HEADER;
-import static org.opensearch.wlm.cancellation.TaskCancellationService.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.CpuUsageCalculator.PROCESSOR_COUNT;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -66,7 +64,7 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         settings = mock(WorkloadManagementSettings.class);
         threadPool = new TestThreadPool(getTestName());
         mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(mockTaskResourceTrackingService, clock::getTime);
+        queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(mockTaskResourceTrackingService);
     }
 
     @After
@@ -76,10 +74,10 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
 
     public void testConstructQueryGroupLevelViews_CreatesQueryGroupLevelUsageView_WhenTasksArePresent() {
         List<String> queryGroupIds = List.of("queryGroup1", "queryGroup2", "queryGroup3");
+        clock.fastForwardBy(2000);
 
         Map<Long, Task> activeSearchShardTasks = createActiveSearchShardTasks(queryGroupIds);
         when(mockTaskResourceTrackingService.getResourceAwareTasks()).thenReturn(activeSearchShardTasks);
-        clock.fastForwardBy(2000);
 
         Map<String, QueryGroupLevelResourceUsageView> stringQueryGroupLevelResourceUsageViewMap = queryGroupResourceUsageTrackerService
             .constructQueryGroupLevelUsageViews();
@@ -107,10 +105,10 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
 
     public void testConstructQueryGroupLevelUsageViews_WithTasksHavingDifferentResourceUsage() {
         Map<Long, Task> activeSearchShardTasks = new HashMap<>();
+        clock.fastForwardBy(2000);
         activeSearchShardTasks.put(1L, createMockTask(SearchShardTask.class, 100, 200, "queryGroup1"));
         activeSearchShardTasks.put(2L, createMockTask(SearchShardTask.class, 200, 400, "queryGroup1"));
         when(mockTaskResourceTrackingService.getResourceAwareTasks()).thenReturn(activeSearchShardTasks);
-        clock.fastForwardBy(2000);
         Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = queryGroupResourceUsageTrackerService
             .constructQueryGroupLevelUsageViews();
 
@@ -138,19 +136,16 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         return activeSearchShardTasks;
     }
 
-    private <T extends CancellableTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage, String queryGroupId) {
+    private <T extends QueryGroupTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage, String queryGroupId) {
         T task = mock(type);
-        if (task instanceof SearchTask || task instanceof SearchShardTask) {
-            // Stash the current thread context to ensure that any existing context is preserved and restored after setting the query group
-            // ID.
-            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-                threadPool.getThreadContext().putHeader(QUERY_GROUP_ID_HEADER, queryGroupId);
-                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
-            }
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(QUERY_GROUP_ID_HEADER, queryGroupId);
+            task.setQueryGroupId(threadPool.getThreadContext());
         }
         when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(cpuUsage);
         when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(heapUsage);
         when(task.getStartTimeNanos()).thenReturn((long) 0);
+        when(task.getElapsedTime()).thenReturn(clock.getTime());
 
         AtomicBoolean isCancelled = new AtomicBoolean(false);
         doAnswer(invocation -> {

@@ -9,9 +9,6 @@
 package org.opensearch.wlm.cancellation;
 
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.monitor.jvm.JvmStats;
-import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
@@ -21,7 +18,10 @@ import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -45,7 +45,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  * @see QueryGroup
  * @see ResourceType
  */
-public class TaskCancellationService {
+public class QueryGroupTaskCancellationService {
     public static final double MIN_VALUE = 1e-9;
 
     private final WorkloadManagementSettings workloadManagementSettings;
@@ -53,18 +53,10 @@ public class TaskCancellationService {
     private final QueryGroupResourceUsageTrackerService resourceUsageTrackerService;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
-    private Collection<QueryGroup> activeQueryGroups;
-    private Collection<QueryGroup> deletedQueryGroups;
+    private final Collection<QueryGroup> activeQueryGroups;
+    private final Collection<QueryGroup> deletedQueryGroups;
 
-    public TaskCancellationService(
-            WorkloadManagementSettings workloadManagementSettings,
-            TaskSelectionStrategy taskSelectionStrategy,
-            QueryGroupResourceUsageTrackerService resourceUsageTrackerService
-    ) {
-        this(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, Collections.emptySet(), Collections.emptySet());
-    }
-
-    public TaskCancellationService(
+    public QueryGroupTaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,
         TaskSelectionStrategy taskSelectionStrategy,
         QueryGroupResourceUsageTrackerService resourceUsageTrackerService,
@@ -81,10 +73,7 @@ public class TaskCancellationService {
     /**
      * Cancel tasks based on the implemented strategy.
      */
-//    public final void cancelTasks(Collection<QueryGroup> activeQueryGroups, Collection<QueryGroup> deletedQueryGroups) {
     public final void cancelTasks(BooleanSupplier isNodeInDuress) {
-//        this.activeQueryGroups = activeQueryGroups;
-        this.deletedQueryGroups = deletedQueryGroups;
         queryGroupLevelResourceUsageViews = resourceUsageTrackerService.constructQueryGroupLevelUsageViews();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
         cancelTasks(ResiliencyMode.ENFORCED);
@@ -117,7 +106,9 @@ public class TaskCancellationService {
      * @return List of tasks that can be cancelled
      */
     List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode) {
-        return getAllCancellableTasks(getQueryGroupsToCancelFrom(resiliencyMode));
+        return getAllCancellableTasks(
+            activeQueryGroups.stream().filter(queryGroup -> queryGroup.getResiliencyMode() == resiliencyMode).collect(Collectors.toList())
+        );
     }
 
     /**
@@ -126,33 +117,51 @@ public class TaskCancellationService {
      * @return List of tasks that can be cancelled
      */
     List<TaskCancellation> getAllCancellableTasks(Collection<QueryGroup> queryGroups) {
-        return queryGroups.stream().flatMap(queryGroup -> getCancellableTasksFrom(queryGroup).stream()).collect(Collectors.toList());
-    }
-
-    /**
-     * returns the list of QueryGroups breaching their resource limits.
-     *
-     * @return List of QueryGroups
-     */
-    private List<QueryGroup> getQueryGroupsToCancelFrom(ResiliencyMode resiliencyMode) {
-        final List<QueryGroup> queryGroupsToCancelFrom = new ArrayList<>();
-
-        for (QueryGroup queryGroup : this.activeQueryGroups) {
-            if (queryGroup.getResiliencyMode() != resiliencyMode) {
-                continue;
-            }
+        List<TaskCancellation> taskCancellations = new ArrayList<>();
+        for (QueryGroup queryGroup : queryGroups) {
+            final List<TaskCancellation.Reason> reasons = new ArrayList<>();
+            List<QueryGroupTask> selectedTasks = new ArrayList<>();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                if (queryGroup.getResourceLimits().containsKey(resourceType)) {
-                    if (shouldCancelTasks(queryGroup, resourceType)) {
-                        queryGroupsToCancelFrom.add(queryGroup);
-                        break;
-                    }
+                // We need to consider the already selected tasks since those tasks also consumed the resources
+                double excessUsage = getExcessUsage(queryGroup, resourceType) - resourceType.getResourceUsageCalculator()
+                    .calculateResourceUsage(selectedTasks);
+                if (excessUsage > MIN_VALUE) {
+                    reasons.add(new TaskCancellation.Reason(generateReasonString(queryGroup, resourceType), 1));
+                    // TODO: We will need to add the cancellation callback for these resources for the queryGroup to reflect stats
 
+                    // Only add tasks not already added to avoid double cancellations
+                    selectedTasks.addAll(
+                        taskSelectionStrategy.selectTasksForCancellation(getTasksFor(queryGroup), excessUsage, resourceType)
+                            .stream()
+                            .filter(x -> selectedTasks.stream().noneMatch(y -> x.getId() != y.getId()))
+                            .collect(Collectors.toList())
+                    );
                 }
             }
-        }
 
-        return queryGroupsToCancelFrom;
+            if (!reasons.isEmpty()) {
+                taskCancellations.addAll(
+                    selectedTasks.stream().map(task -> createTaskCancellation(task, reasons)).collect(Collectors.toList())
+                );
+            }
+        }
+        return taskCancellations;
+    }
+
+    private String generateReasonString(QueryGroup queryGroup, ResourceType resourceType) {
+        final double currentUsage = getCurrentUsage(queryGroup, resourceType);
+        return "QueryGroup ID : "
+            + queryGroup.get_id()
+            + " breached the resource limit: ("
+            + currentUsage
+            + " > "
+            + queryGroup.getResourceLimits().get(resourceType)
+            + ") for resource type : "
+            + resourceType.getName();
+    }
+
+    private List<QueryGroupTask> getTasksFor(QueryGroup queryGroup) {
+        return queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks();
     }
 
     private void cancelTasks(ResiliencyMode resiliencyMode) {
@@ -163,69 +172,8 @@ public class TaskCancellationService {
         cancellableTasks.forEach(TaskCancellation::cancel);
     }
 
-    /**
-     * Get cancellable tasks from a specific queryGroup.
-     *
-     * @param queryGroup The QueryGroup from which to get cancellable tasks
-     * @return List of tasks that can be cancelled
-     */
-    List<TaskCancellation> getCancellableTasksFrom(QueryGroup queryGroup) {
-        return TRACKED_RESOURCES.stream()
-            .filter(resourceType -> shouldCancelTasks(queryGroup, resourceType))
-            .flatMap(resourceType -> getTaskCancellations(queryGroup, resourceType).stream())
-            .collect(Collectors.toList());
-    }
-
-    private boolean shouldCancelTasks(QueryGroup queryGroup, ResourceType resourceType) {
-        return getExcessUsage(queryGroup, resourceType) > 0;
-    }
-
-    private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
-        List<QueryGroupTask> selectedTasksToCancel = taskSelectionStrategy.selectTasksForCancellation(
-            queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
-            getExcessUsage(queryGroup, resourceType),
-            resourceType
-        );
-        List<TaskCancellation> taskCancellations = new ArrayList<>();
-        for (QueryGroupTask task : selectedTasksToCancel) {
-            String cancellationReason = createCancellationReason(queryGroup, task, resourceType);
-            taskCancellations.add(createTaskCancellation(task, cancellationReason));
-        }
-        return taskCancellations;
-    }
-
-    private String createCancellationReason(QueryGroup querygroup, QueryGroupTask task, ResourceType resourceType) {
-        Double thresholdInPercent = getThresholdInPercent(querygroup, resourceType);
-        return "[Workload Management] Cancelling Task ID : "
-            + task.getId()
-            + " from QueryGroup ID : "
-            + querygroup.get_id()
-            + " breached the resource limit of : "
-            + thresholdInPercent
-            + " for resource type : "
-            + resourceType.getName();
-    }
-
-    private Double getThresholdInPercent(QueryGroup querygroup, ResourceType resourceType) {
-        return querygroup.getResourceLimits().get(resourceType) * 100;
-    }
-
-    private TaskCancellation createTaskCancellation(CancellableTask task, String cancellationReason) {
-        return new TaskCancellation(task, List.of(new TaskCancellation.Reason(cancellationReason, 5)), List.of(this::callbackOnCancel));
-    }
-
-    List<TaskCancellation> getTaskCancellationsForDeletedQueryGroup(QueryGroup queryGroup) {
-        List<QueryGroupTask> tasks = queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks();
-
-        List<TaskCancellation> taskCancellations = new ArrayList<>();
-        for (QueryGroupTask task : tasks) {
-            String cancellationReason = "[Workload Management] Cancelling Task ID : "
-                + task.getId()
-                + " from QueryGroup ID : "
-                + queryGroup.get_id();
-            taskCancellations.add(createTaskCancellation(task, cancellationReason));
-        }
-        return taskCancellations;
+    private TaskCancellation createTaskCancellation(CancellableTask task, List<TaskCancellation.Reason> reasons) {
+        return new TaskCancellation(task, reasons, List.of(this::callbackOnCancel));
     }
 
     private double getExcessUsage(QueryGroup queryGroup, ResourceType resourceType) {
@@ -233,10 +181,12 @@ public class TaskCancellationService {
             || !queryGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
             return 0;
         }
+        return getCurrentUsage(queryGroup, resourceType) - getNormalisedThreshold(queryGroup, resourceType);
+    }
 
+    private double getCurrentUsage(QueryGroup queryGroup, ResourceType resourceType) {
         final QueryGroupLevelResourceUsageView queryGroupResourceUsageView = queryGroupLevelResourceUsageViews.get(queryGroup.get_id());
-        final double currentUsage = queryGroupResourceUsageView.getResourceUsageData().get(resourceType);
-        return currentUsage - getNormalisedThreshold(queryGroup, resourceType);
+        return queryGroupResourceUsageView.getResourceUsageData().get(resourceType);
     }
 
     /**
