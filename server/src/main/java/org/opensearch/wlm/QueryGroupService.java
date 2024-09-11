@@ -47,9 +47,9 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final WorkloadManagementSettings workloadManagementSettings;
-    private Set<QueryGroup> activeQueryGroups = new HashSet<>();
-    private Set<QueryGroup> deletedQueryGroups = new HashSet<>();
-    private NodeDuressTrackers nodeDuressTrackers;
+    private final Set<QueryGroup> activeQueryGroups;
+    private final Set<QueryGroup> deletedQueryGroups;
+    private final NodeDuressTrackers nodeDuressTrackers;
 
     public QueryGroupService(
         TaskCancellationService taskCancellationService,
@@ -60,11 +60,16 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         this(taskCancellationService, clusterService, threadPool, workloadManagementSettings,
             new NodeDuressTrackers(
                 Map.of(ResourceType.CPU, new NodeDuressTracker(() ->
-                        workloadManagementSettings.getNodeLevelCpuCancellationThreshold() < ProcessProbe.getInstance().getProcessCpuPercent() / 100.0, () -> 3),
+                        workloadManagementSettings.getNodeLevelCpuCancellationThreshold() < ProcessProbe.getInstance().getProcessCpuPercent() / 100.0,
+                        workloadManagementSettings::getDuressStreak),
                     ResourceType.MEMORY, new NodeDuressTracker(
-                        () -> workloadManagementSettings.getNodeLevelMemoryCancellationThreshold() <= JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0, () -> 3))
+                        () -> workloadManagementSettings.getNodeLevelMemoryCancellationThreshold() <= JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0,
+                        workloadManagementSettings::getDuressStreak))
             ),
-            new HashMap<>());
+            new HashMap<>(),
+            new HashSet<>(clusterService.state().metadata().queryGroups().values()),
+            new HashSet<>()
+        );
     }
 
     public QueryGroupService(
@@ -73,18 +78,19 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
         NodeDuressTrackers nodeDuressTrackers,
-        Map<String, QueryGroupState> queryGroupStateMap
+        Map<String, QueryGroupState> queryGroupStateMap,
+        Set<QueryGroup> activeQueryGroups,
+        Set<QueryGroup> deletedQueryGroups
     ) {
         this.taskCancellationService = taskCancellationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.workloadManagementSettings = workloadManagementSettings;
         this.nodeDuressTrackers = nodeDuressTrackers;
-        this.activeQueryGroups = getActiveQueryGroupsFromClusterState();
+        this.activeQueryGroups = activeQueryGroups;
+        this.deletedQueryGroups = deletedQueryGroups;
 
-        // this logic here is to ensure the proper initialisation of queryGroupState for query groups from persisted metadata
         this.queryGroupStateMap = queryGroupStateMap;
-        this.activeQueryGroups.forEach(queryGroup -> queryGroupStateMap.put(queryGroup.get_id(), new QueryGroupState()));
     }
 
     /**
@@ -95,7 +101,7 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
             return;
         }
 //        taskCancellationService.cancelTasks(activeQueryGroups, deletedQueryGroups);
-        taskCancellationService.cancelTasks(() -> nodeDuressTrackers.isNodeInDuress());
+        taskCancellationService.cancelTasks(nodeDuressTrackers::isNodeInDuress);
     }
 
     /**
@@ -201,13 +207,5 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         if (reject) {
             throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended." + reason.toString());
         }
-    }
-
-    protected Set<QueryGroup> getDeletedQueryGroups() {
-        return deletedQueryGroups;
-    }
-
-    protected Set<QueryGroup> getActiveQueryGroups() {
-        return activeQueryGroups;
     }
 }

@@ -35,6 +35,19 @@ public class WorkloadManagementSettings {
     private Double nodeLevelCpuCancellationThreshold;
     private Double nodeLevelCpuRejectionThreshold;
 
+
+    /**
+     * Setting name for QueryGroupService node duress streak
+     */
+    public static final String QUERYGROUP_SERVICE_DURESS_STREAK_SETTING_NAME = "wlm.query_group.service.duress_streak";
+    private int duressStreak;
+    public static final Setting<Integer> QUERYGROUP_SERVICE_DURESS_STREAK_SETTING = Setting.intSetting(
+        QUERYGROUP_SERVICE_DURESS_STREAK_SETTING_NAME,
+        3,
+        3,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Setting name for Query Group Service run interval
      */
@@ -134,6 +147,7 @@ public class WorkloadManagementSettings {
         nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelCpuRejectionThreshold = NODE_LEVEL_CPU_REJECTION_THRESHOLD.get(settings);
         this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING.get(settings));
+        duressStreak = QUERYGROUP_SERVICE_DURESS_STREAK_SETTING.get(settings);
 
         ensureRejectionThresholdIsLessThanCancellation(
             nodeLevelMemoryRejectionThreshold,
@@ -154,6 +168,24 @@ public class WorkloadManagementSettings {
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_REJECTION_THRESHOLD, this::setNodeLevelCpuRejectionThreshold);
         clusterSettings.addSettingsUpdateConsumer(WLM_MODE_SETTING, this::setWlmMode);
         clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING, this::setQueryGroupServiceRunInterval);
+        clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_DURESS_STREAK_SETTING, this::setDuressStreak);
+    }
+
+
+    /**
+     * node duress streak getter
+     * @return current duressStreak value
+     */
+    public int getDuressStreak() {
+        return duressStreak;
+    }
+
+    /**
+     * node duress streak setter
+     * @param duressStreak new value
+     */
+    public void setDuressStreak(int duressStreak) {
+        this.duressStreak = duressStreak;
     }
 
     /**
