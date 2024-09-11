@@ -32,7 +32,10 @@ jobs:
         if: runner.os == 'macos'
         continue-on-error: true
         run: |
-          brew install docker colima coreutils
+          # Force QEMU 9.0.2 usage
+          curl https://raw.githubusercontent.com/Homebrew/homebrew-core/f1a9cf104a9a51779c7a532b658c490f69974839/Formula/q/qemu.rb > qemu.rb
+          brew install qemu.rb
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install docker colima coreutils
           gtimeout 15m colima start
         shell: bash
       - name: Run Gradle (assemble)
