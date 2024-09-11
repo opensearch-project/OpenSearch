@@ -22,7 +22,7 @@ import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.cancellation.TaskCancellationService;
+import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
@@ -42,7 +42,7 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
     private final Map<String, QueryGroupState> queryGroupStateMap;
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
 
-    private final TaskCancellationService taskCancellationService;
+    private final QueryGroupTaskCancellationService taskCancellationService;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -52,7 +52,7 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
     private final NodeDuressTrackers nodeDuressTrackers;
 
     public QueryGroupService(
-        TaskCancellationService taskCancellationService,
+        QueryGroupTaskCancellationService taskCancellationService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings) {
@@ -73,7 +73,7 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
     }
 
     public QueryGroupService(
-        TaskCancellationService taskCancellationService,
+        QueryGroupTaskCancellationService taskCancellationService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,

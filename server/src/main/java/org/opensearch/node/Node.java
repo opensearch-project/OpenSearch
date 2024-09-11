@@ -271,6 +271,7 @@ import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.cancellation.MaximumResourceTaskSelectionStrategy;
+import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
@@ -1030,8 +1031,7 @@ public class Node implements Closeable {
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
             QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
-                taskResourceTrackingService,
-                System::nanoTime
+                taskResourceTrackingService
             );
             WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(
                 settings,
@@ -1039,7 +1039,7 @@ public class Node implements Closeable {
             );
 
             final QueryGroupService queryGroupService = new QueryGroupService(
-                new org.opensearch.wlm.cancellation.TaskCancellationService(workloadManagementSettings, new MaximumResourceTaskSelectionStrategy(), queryGroupResourceUsageTrackerService),
+                new QueryGroupTaskCancellationService(workloadManagementSettings, new MaximumResourceTaskSelectionStrategy(), queryGroupResourceUsageTrackerService),
                 clusterService,
                 threadPool,
                 workloadManagementSettings

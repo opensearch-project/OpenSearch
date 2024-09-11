@@ -18,10 +18,7 @@ import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -55,6 +52,14 @@ public class QueryGroupTaskCancellationService {
     Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
     private final Collection<QueryGroup> activeQueryGroups;
     private final Collection<QueryGroup> deletedQueryGroups;
+
+    public QueryGroupTaskCancellationService(
+        WorkloadManagementSettings workloadManagementSettings,
+        TaskSelectionStrategy taskSelectionStrategy,
+        QueryGroupResourceUsageTrackerService resourceUsageTrackerService
+    ) {
+        this(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, new HashSet<>(), new HashSet<>());
+    }
 
     public QueryGroupTaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,

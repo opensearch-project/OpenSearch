@@ -14,29 +14,33 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
-import org.opensearch.wlm.cancellation.TaskCancellationService;
+import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase {
     public static final int ITERATIONS = 20;
     ThreadPool testThreadPool;
     QueryGroupService queryGroupService;
-    private TaskCancellationService taskCancellationService;
+    private QueryGroupTaskCancellationService taskCancellationService;
     private ClusterService mockClusterService;
     private WorkloadManagementSettings mockWorkloadManagementSettings;
     Map<String, QueryGroupState> queryGroupStateMap;
@@ -45,7 +49,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
 
     public void setUp() throws Exception {
         super.setUp();
-        taskCancellationService = mock(TaskCancellationService.class);
+        taskCancellationService = mock(QueryGroupTaskCancellationService.class);
         mockClusterService = mock(ClusterService.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
         queryGroupStateMap = new HashMap<>();
@@ -108,7 +112,9 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             testThreadPool,
             mockWorkloadManagementSettings,
             null,
-            queryGroupStateMap
+            queryGroupStateMap,
+            null,
+            null
         );
 
         sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
@@ -197,7 +203,9 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 testThreadPool,
                 mockWorkloadManagementSettings,
                 null,
-                queryGroupStateMap
+                queryGroupStateMap,
+                null,
+                null
             );
 
             sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
