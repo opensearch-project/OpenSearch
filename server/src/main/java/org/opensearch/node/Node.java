@@ -1329,7 +1329,8 @@ public class Node implements Closeable {
                 segmentReplicationStatsTracker,
                 repositoryService,
                 admissionControlService,
-                cacheService
+                cacheService,
+                remoteStoreNodeService
             );
 
             final SearchService searchService = newSearchService(

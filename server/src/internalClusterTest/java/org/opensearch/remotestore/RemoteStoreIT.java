@@ -10,6 +10,8 @@ package org.opensearch.remotestore;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -38,6 +40,7 @@ import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -59,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.REMOTE_STORE_NODE_STATS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
@@ -1077,5 +1081,37 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
         Thread.sleep(10000);
         ensureGreen(INDEX_NAME);
+    }
+
+    public void testLastSuccessfulFetchOfPinnedTimestampsPresentInNodeStats() throws Exception {
+        logger.info("Starting up cluster manager");
+        logger.info("cluster.remote_store.pinned_timestamps.enabled set to true");
+        logger.info("cluster.remote_store.pinned_timestamps.scheduler_interval set to minimum value of 1minute");
+        Settings pinnedTimestampEnabledSettings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.getKey(), "1m")
+            .build();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampEnabledSettings);
+        internalCluster().startDataOnlyNode(pinnedTimestampEnabledSettings);
+        ensureStableCluster(2);
+
+        logger.info("Sleeping for 70 seconds to wait for fetching of pinned timestamps");
+        Thread.sleep(70000);
+
+        long lastSuccessfulFetchOfPinnedTimestamps = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
+        assertTrue(lastSuccessfulFetchOfPinnedTimestamps > 0L);
+        assertBusy(() -> {
+            NodesStatsResponse nodesStatsResponse = internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareNodesStats()
+                .addMetric(REMOTE_STORE_NODE_STATS.metricName())
+                .execute()
+                .actionGet();
+            for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
+                long lastRecordedFetch = nodeStats.getRemoteStoreNodeStats().getLastSuccessfulFetchOfPinnedTimestamps();
+                assertTrue(lastRecordedFetch >= lastSuccessfulFetchOfPinnedTimestamps);
+            }
+        }, 1, TimeUnit.MINUTES);
     }
 }

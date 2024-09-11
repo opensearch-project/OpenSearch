@@ -1027,7 +1027,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             segmentReplicationRejectionStats,
             null,
             admissionControlStats,
-            nodeCacheStats
+            nodeCacheStats,
+            null
         );
     }
 
