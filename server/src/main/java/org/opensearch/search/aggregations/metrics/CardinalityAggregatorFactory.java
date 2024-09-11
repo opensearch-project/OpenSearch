@@ -72,6 +72,11 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                 throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [direct, ordinals]");
             }
         }
+
+        @Override
+        public String toString() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
     }
 
     private final ExecutionMode executionMode;
