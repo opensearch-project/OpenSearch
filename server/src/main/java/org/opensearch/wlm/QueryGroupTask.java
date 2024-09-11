@@ -32,7 +32,7 @@ public class QueryGroupTask extends CancellableTask {
     private static final Logger logger = LogManager.getLogger(QueryGroupTask.class);
     public static final String QUERY_GROUP_ID_HEADER = "queryGroupId";
     public static final Supplier<String> DEFAULT_QUERY_GROUP_ID_SUPPLIER = () -> "DEFAULT_QUERY_GROUP";
-    private LongSupplier nanoTimeSupplier;
+    private final LongSupplier nanoTimeSupplier;
     private String queryGroupId;
 
     public QueryGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
@@ -48,7 +48,7 @@ public class QueryGroupTask extends CancellableTask {
         Map<String, String> headers,
         TimeValue cancelAfterTimeInterval
     ) {
-        super(id, type, action, description, parentTaskId, headers, cancelAfterTimeInterval);
+        this(id, type, action, description, parentTaskId, headers, cancelAfterTimeInterval, System::nanoTime);
     }
 
     public QueryGroupTask(
