@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         java: [ 11, 17, 21 ]
-        os: [ubuntu-latest, windows-latest, macos-13]
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK ${{ matrix.java }}
@@ -27,28 +27,7 @@ jobs:
         shell: bash
         run: |
           echo "JAVA${{ matrix.java }}_HOME=$JAVA_HOME_${{ matrix.java }}_${{ runner.arch }}" >> $GITHUB_ENV
-      - name: Setup docker (missing on MacOS)
-        id: setup_docker
-        if: runner.os == 'macos'
-        continue-on-error: true
-        run: |
-          # Force QEMU 9.0.2 usage
-          curl https://raw.githubusercontent.com/Homebrew/homebrew-core/f1a9cf104a9a51779c7a532b658c490f69974839/Formula/q/qemu.rb > qemu.rb
-          brew install qemu.rb
-          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install docker colima coreutils
-          gtimeout 15m colima start
-        shell: bash
-      - name: Run Gradle (assemble)
-        if: runner.os == 'macos' && steps.setup_docker.outcome != 'success'
-        run: |
-          # Report success even if previous step failed (Docker on MacOS runner is very unstable)
-          exit 0;
       - name: Run Gradle (assemble)
         shell: bash
-        if: runner.os != 'macos'
         run: |
           ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=${{ matrix.java }} 
-      - name: Run Gradle (assemble)
-        if: runner.os == 'macos' && steps.setup_docker.outcome == 'success'
-        run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE -Druntime.java=${{ matrix.java }}
