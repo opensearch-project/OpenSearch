@@ -184,11 +184,11 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     // for tests
     protected ShardsBatchGatewayAllocator() {
-        this(DEFAULT_SHARD_BATCH_SIZE);
+        this(DEFAULT_SHARD_BATCH_SIZE, null);
     }
 
-    protected ShardsBatchGatewayAllocator(long batchSize) {
-        this.rerouteService = null;
+    protected ShardsBatchGatewayAllocator(long batchSize, RerouteService rerouteService) {
+        this.rerouteService = rerouteService;
         this.batchStartedAction = null;
         this.primaryShardBatchAllocator = null;
         this.batchStoreAction = null;
@@ -277,17 +277,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         }
         List<TimeoutAwareRunnable> runnables = new ArrayList<>();
         if (primary) {
+            Set<ShardId> timedOutPrimaryShardIds = new HashSet<>();
             batchIdToStartedShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
                 .forEach(shardsBatch -> runnables.add(new TimeoutAwareRunnable() {
                     @Override
                     public void onTimeout() {
-                        primaryBatchShardAllocator.allocateUnassignedBatchOnTimeout(
-                            shardsBatch.getBatchedShardRoutings(),
-                            allocation,
-                            true
-                        );
+                        timedOutPrimaryShardIds.addAll(shardsBatch.getBatchedShards());
                     }
 
                     @Override
@@ -295,15 +292,34 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                         primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation);
                     }
                 }));
-            return new BatchRunnableExecutor(runnables, () -> primaryShardsBatchGatewayAllocatorTimeout);
+            return new BatchRunnableExecutor(runnables, () -> primaryShardsBatchGatewayAllocatorTimeout) {
+                @Override
+                public void onComplete() {
+                    logger.trace("Triggering oncomplete after timeout for [{}] primary shards", timedOutPrimaryShardIds.size());
+                    primaryBatchShardAllocator.allocateUnassignedBatchOnTimeout(timedOutPrimaryShardIds, allocation, true);
+                    if (timedOutPrimaryShardIds.isEmpty() == false) {
+                        logger.trace("scheduling reroute after existing shards allocator timed out for primary shards");
+                        assert rerouteService != null;
+                        rerouteService.reroute(
+                            "reroute after existing shards allocator timed out",
+                            Priority.HIGH,
+                            ActionListener.wrap(
+                                r -> logger.trace("reroute after existing shards allocator timed out completed"),
+                                e -> logger.debug("reroute after existing shards allocator timed out failed", e)
+                            )
+                        );
+                    }
+                }
+            };
         } else {
+            Set<ShardId> timedOutReplicaShardIds = new HashSet<>();
             batchIdToStoreShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
                 .forEach(batch -> runnables.add(new TimeoutAwareRunnable() {
                     @Override
                     public void onTimeout() {
-                        replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(batch.getBatchedShardRoutings(), allocation, false);
+                        timedOutReplicaShardIds.addAll(batch.getBatchedShards());
                     }
 
                     @Override
@@ -311,7 +327,25 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                         replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation);
                     }
                 }));
-            return new BatchRunnableExecutor(runnables, () -> replicaShardsBatchGatewayAllocatorTimeout);
+            return new BatchRunnableExecutor(runnables, () -> replicaShardsBatchGatewayAllocatorTimeout) {
+                @Override
+                public void onComplete() {
+                    logger.trace("Triggering oncomplete after timeout for [{}] replica shards", timedOutReplicaShardIds.size());
+                    replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(timedOutReplicaShardIds, allocation, false);
+                    if (timedOutReplicaShardIds.isEmpty() == false) {
+                        logger.trace("scheduling reroute after existing shards allocator timed out for replica shards");
+                        assert rerouteService != null;
+                        rerouteService.reroute(
+                            "reroute after existing shards allocator timed out",
+                            Priority.HIGH,
+                            ActionListener.wrap(
+                                r -> logger.trace("reroute after existing shards allocator timed out completed"),
+                                e -> logger.debug("reroute after existing shards allocator timed out failed", e)
+                            )
+                        );
+                    }
+                }
+            };
         }
     }
 
@@ -846,11 +880,11 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         return batchIdToStoreShardBatch.size();
     }
 
-    private void setPrimaryBatchAllocatorTimeout(TimeValue primaryShardsBatchGatewayAllocatorTimeout) {
+    protected void setPrimaryBatchAllocatorTimeout(TimeValue primaryShardsBatchGatewayAllocatorTimeout) {
         this.primaryShardsBatchGatewayAllocatorTimeout = primaryShardsBatchGatewayAllocatorTimeout;
     }
 
-    private void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
+    protected void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
         this.replicaShardsBatchGatewayAllocatorTimeout = replicaShardsBatchGatewayAllocatorTimeout;
     }
 }

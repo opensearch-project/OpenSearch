@@ -47,6 +47,8 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
 
     protected boolean local = false;
 
+    protected boolean shouldCancelOnTimeout = false;
+
     protected ClusterManagerNodeReadRequest() {}
 
     protected ClusterManagerNodeReadRequest(StreamInput in) throws IOException {
@@ -73,5 +75,13 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
      */
     public final boolean local() {
         return local;
+    }
+
+    public void setShouldCancelOnTimeout(boolean shouldCancelOnTimeout) {
+        this.shouldCancelOnTimeout = shouldCancelOnTimeout;
+    }
+
+    public boolean getShouldCancelOnTimeout() {
+        return this.shouldCancelOnTimeout;
     }
 }

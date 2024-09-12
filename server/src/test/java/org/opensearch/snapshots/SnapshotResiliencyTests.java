@@ -229,6 +229,7 @@ import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -1501,12 +1502,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     private StepListener<CreateIndexResponse> createRepoAndIndex(String repoName, String index, int shards) {
         final StepListener<AcknowledgedResponse> createRepositoryListener = new StepListener<>();
 
-        client().admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType(FsRepository.TYPE)
-            .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
-            .execute(createRepositoryListener);
+        Settings.Builder settings = Settings.builder().put("location", randomAlphaOfLength(10));
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, FsRepository.TYPE, settings, createRepositoryListener);
 
         final StepListener<CreateIndexResponse> createIndexResponseStepListener = new StepListener<>();
 
@@ -2015,7 +2012,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,
-                    actionFilters
+                    actionFilters,
+                    null,
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
@@ -2072,7 +2071,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     null,
                     emptyMap(),
-                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
+                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
                     repositoriesServiceReference::get,
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
@@ -2286,7 +2285,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
                     null,
-                    new TaskResourceTrackingService(settings, clusterSettings, threadPool)
+                    new TaskResourceTrackingService(settings, clusterSettings, threadPool),
+                    Collections.emptyList()
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
@@ -2368,7 +2368,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         snapshotsService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        DefaultRemoteStoreSettings.INSTANCE
                     )
                 );
                 actions.put(
@@ -2378,6 +2379,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         snapshotsService,
+                        repositoriesService,
                         actionFilters,
                         indexNameExpressionResolver
                     )

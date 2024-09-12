@@ -32,6 +32,9 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -39,9 +42,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -54,6 +61,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
+import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
@@ -65,6 +73,7 @@ import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -457,6 +466,29 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testTopLevelRangeQuery() throws IOException {
+        NumberFieldType fieldType = new NumberFieldType(NumberType.INTEGER.typeName(), NumberType.INTEGER);
+        String fieldName = fieldType.numberType().typeName();
+        Query query = IntPoint.newRangeQuery(fieldName, 5, 20);
+
+        testRewriteOptimizationCase(
+            fieldType,
+            new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } },
+            query,
+            new Number[] { 0.1, 4.0, 9, 11, 12, 19 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+                assertEquals(3, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            false
+        );
+    }
+
     public void testUnsignedLongType() throws IOException {
         testRewriteOptimizationCase(
             new NumberFieldType(NumberType.UNSIGNED_LONG.typeName(), NumberType.UNSIGNED_LONG),
@@ -491,6 +523,76 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             },
             true
         );
+    }
+
+    /**
+     * Expect no optimization as top level query excludes documents.
+     */
+    public void testTopLevelFilterTermQuery() throws IOException {
+        final String KEYWORD_FIELD_NAME = "route";
+        final NumberFieldType NUM_FIELD_TYPE = new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE);
+        final NumberType numType = NUM_FIELD_TYPE.numberType();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(0);
+        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
+        Query boolQuery = builder.build();
+
+        List<Document> docList = new ArrayList<>();
+        for (int i = 0; i < 3; i++)
+            docList.add(new Document());
+
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route2", Field.Store.NO));
+
+        testRewriteOptimizationCase(NUM_FIELD_TYPE, new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } }, boolQuery, docList, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+            assertEquals(1, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, false);
+    }
+
+    /**
+     * Expect optimization as top level query is effective match all.
+     */
+    public void testTopLevelEffectiveMatchAll() throws IOException {
+        final String KEYWORD_FIELD_NAME = "route";
+        final NumberFieldType NUM_FIELD_TYPE = new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE);
+        final NumberType numType = NUM_FIELD_TYPE.numberType();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(0);
+        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
+        Query boolQuery = builder.build();
+
+        List<Document> docList = new ArrayList<>();
+        for (int i = 0; i < 3; i++)
+            docList.add(new Document());
+
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+
+        testRewriteOptimizationCase(NUM_FIELD_TYPE, new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } }, boolQuery, docList, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+            assertEquals(2, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, true);
     }
 
     private void testCase(
@@ -556,11 +658,33 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         NumberType numberType = fieldType.numberType();
         String fieldName = numberType.typeName();
+        List<Document> docs = new ArrayList<>();
 
+        for (Number dataPoint : dataPoints) {
+            Document doc = new Document();
+            List<Field> fieldList = numberType.createFields(fieldName, dataPoint, true, true, false);
+            for (Field fld : fieldList)
+                doc.add(fld);
+            docs.add(doc);
+        }
+
+        testRewriteOptimizationCase(fieldType, ranges, query, docs, verify, optimized);
+    }
+
+    private void testRewriteOptimizationCase(
+        NumberFieldType fieldType,
+        double[][] ranges,
+        Query query,
+        List<Document> documents,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+        boolean optimized
+    ) throws IOException {
+        NumberType numberType = fieldType.numberType();
+        String fieldName = numberType.typeName();
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
-                for (Number dataPoint : dataPoints) {
-                    indexWriter.addDocument(numberType.createFields(fieldName, dataPoint, true, true, false));
+                for (Document doc : documents) {
+                    indexWriter.addDocument(doc);
                 }
             }
 

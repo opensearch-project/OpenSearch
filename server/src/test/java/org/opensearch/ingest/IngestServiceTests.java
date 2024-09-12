@@ -58,6 +58,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
@@ -151,8 +152,12 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testIngestPlugin() {
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         IngestService ingestService = new IngestService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -186,8 +191,12 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecuteIndexPipelineDoesNotExist() {
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         IngestService ingestService = new IngestService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -718,6 +727,124 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestService.validatePipeline(ingestInfos, putRequest);
+    }
+
+    public void testValidateProcessorCountForIngestPipelineThrowsException() {
+        IngestService ingestService = createWithProcessors();
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray(
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
+                    + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
+            ),
+            MediaTypeRegistry.JSON
+        );
+
+        DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
+        ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
+
+        Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 1).build();
+        ingestService.getClusterService().getClusterSettings().applySettings(newSettings);
+
+        expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
+    }
+
+    public void testValidateProcessorCountForWithNestedOnFailureProcessorThrowsException() {
+        IngestService ingestService = createWithProcessors();
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray(
+                "{\n"
+                    + "  \"processors\": [\n"
+                    + "    {\n"
+                    + "      \"set\": {\n"
+                    + "        \"field\": \"timestamp_field_1\",\n"
+                    + "        \"value\": \"value\",\n"
+                    + "        \"on_failure\": [\n"
+                    + "          {\n"
+                    + "            \"set\": {\n"
+                    + "              \"field\": \"ingest_error1\",\n"
+                    + "              \"value\": \"failed\",\n"
+                    + "              \"tag\": \"tagggg\",\n"
+                    + "              \"on_failure\": [\n"
+                    + "                {\n"
+                    + "                  \"set\": {\n"
+                    + "                    \"field\": \"ingest_error1\",\n"
+                    + "                    \"value\": \"failed\",\n"
+                    + "                    \"tag\": \"tagggg\",\n"
+                    + "                    \"on_failure\": [\n"
+                    + "                      {\n"
+                    + "                        \"set\": {\n"
+                    + "                          \"field\": \"ingest_error1\",\n"
+                    + "                          \"value\": \"failed\",\n"
+                    + "                          \"tag\": \"tagggg\",\n"
+                    + "                          \"on_failure\": [\n"
+                    + "                            {\n"
+                    + "                              \"set\": {\n"
+                    + "                                \"field\": \"ingest_error1\",\n"
+                    + "                                \"value\": \"failed\",\n"
+                    + "                                \"tag\": \"tagggg\"\n"
+                    + "                              }\n"
+                    + "                            },\n"
+                    + "                            {\n"
+                    + "                              \"set\": {\n"
+                    + "                                \"field\": \"ingest_error2\",\n"
+                    + "                                \"value\": \"failed\",\n"
+                    + "                                \"tag\": \"tagggg\"\n"
+                    + "                              }\n"
+                    + "                            }\n"
+                    + "                        ]\n"
+                    + "                        }\n"
+                    + "                      },\n"
+                    + "                      {\n"
+                    + "                        \"set\": {\n"
+                    + "                          \"field\": \"ingest_error2\",\n"
+                    + "                          \"value\": \"failed\",\n"
+                    + "                          \"tag\": \"tagggg\"\n"
+                    + "                        }\n"
+                    + "                      }\n"
+                    + "                    ]\n"
+                    + "                  }\n"
+                    + "                },\n"
+                    + "                {\n"
+                    + "                  \"set\": {\n"
+                    + "                    \"field\": \"ingest_error2\",\n"
+                    + "                    \"value\": \"failed\",\n"
+                    + "                    \"tag\": \"tagggg\"\n"
+                    + "                  }\n"
+                    + "                }\n"
+                    + "            ]\n"
+                    + "            }\n"
+                    + "          },\n"
+                    + "          {\n"
+                    + "            \"set\": {\n"
+                    + "              \"field\": \"ingest_error2\",\n"
+                    + "              \"value\": \"failed\",\n"
+                    + "              \"tag\": \"tagggg\"\n"
+                    + "            }\n"
+                    + "          }\n"
+                    + "        ]\n"
+                    + "      }\n"
+                    + "    }\n"
+                    + "  ]\n"
+                    + "}"
+            ),
+            MediaTypeRegistry.JSON
+        );
+
+        DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
+        ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
+
+        Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 7).build();
+        ingestService.getClusterService().getClusterSettings().applySettings(newSettings);
+
+        expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
@@ -1506,8 +1633,12 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         // Create ingest service:
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         IngestService ingestService = new IngestService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -1995,6 +2126,42 @@ public class IngestServiceTests extends OpenSearchTestCase {
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }
 
+    public void testExecuteEmptyPipelineInBatch() throws Exception {
+        IngestService ingestService = createWithProcessors(emptyMap());
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
+            MediaTypeRegistry.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest3);
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest4);
+        bulkRequest.batchSize(4);
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        ingestService.executeBulkRequest(
+            4,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            indexReq -> {},
+            Names.WRITE,
+            bulkRequest
+        );
+        assertTrue(failureHandler.isEmpty());
+        assertEquals(Set.of(Thread.currentThread()), completionHandler.keySet());
+    }
+
     public void testPrepareBatches_same_index_pipeline() {
         IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
         IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
@@ -2020,6 +2187,18 @@ public class IngestServiceTests extends OpenSearchTestCase {
             Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4)
         );
         assertEquals(4, batches.size());
+    }
+
+    public void testUpdateMaxIngestProcessorCountSetting() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // verify defaults
+        assertEquals(Integer.MAX_VALUE, clusterSettings.get(IngestService.MAX_NUMBER_OF_INGEST_PROCESSORS).intValue());
+
+        // verify update max processor
+        Settings newSettings = Settings.builder().put("cluster.ingest.max_number_processors", 3).build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(3, clusterSettings.get(IngestService.MAX_NUMBER_OF_INGEST_PROCESSORS).intValue());
     }
 
     private IngestService.IndexRequestWrapper createIndexRequestWrapper(String index, List<String> pipelines) {
@@ -2057,7 +2236,11 @@ public class IngestServiceTests extends OpenSearchTestCase {
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        return new IngestService(mock(ClusterService.class), threadPool, null, null, null, Collections.singletonList(new IngestPlugin() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        return new IngestService(clusterService, threadPool, null, null, null, Collections.singletonList(new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;

@@ -105,6 +105,7 @@ import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.dfs.DfsPhase;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -147,6 +148,7 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -257,6 +259,34 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.concurrent_segment_search.enabled",
         false,
         Property.Dynamic,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+
+    // Allow concurrent segment search for all requests
+    public static final String CONCURRENT_SEGMENT_SEARCH_MODE_ALL = "all";
+
+    // Disallow concurrent search for all requests
+    public static final String CONCURRENT_SEGMENT_SEARCH_MODE_NONE = "none";
+
+    // Make decision for concurrent search based on concurrent search deciders
+    public static final String CONCURRENT_SEGMENT_SEARCH_MODE_AUTO = "auto";
+
+    public static final Setting<String> CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
+        "search.concurrent_segment_search.mode",
+        CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
+                case CONCURRENT_SEGMENT_SEARCH_MODE_NONE:
+                case CONCURRENT_SEGMENT_SEARCH_MODE_AUTO:
+                    // valid setting
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [all, none, auto]");
+            }
+        },
+        Property.Dynamic,
         Property.NodeScope
     );
 
@@ -308,6 +338,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> KEYWORD_INDEX_OR_DOC_VALUES_ENABLED = Setting.boolSetting(
+        "search.keyword_index_or_doc_values_enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -328,6 +365,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final QueryPhase queryPhase;
 
     private final FetchPhase fetchPhase;
+    private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
     private volatile long defaultKeepAlive;
 
@@ -372,7 +410,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -427,6 +466,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
+
+        this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1126,7 +1167,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 clusterService.state().nodes().getMinNodeVersion(),
                 validate,
                 indexSearcherExecutor,
-                this::aggReduceContextBuilder
+                this::aggReduceContextBuilder,
+                concurrentSearchDeciderFactories
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1139,6 +1181,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
             );
             context.setDerivedFieldResolver(derivedFieldResolver);
+            context.setKeywordFieldIndexOrDocValuesEnabled(searchContext.keywordIndexOrDocValuesEnabled());
             searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
             Rewriteable.rewrite(request.getRewriteable(), context, true);
             assert searchContext.getQueryShardContext().isCacheable();

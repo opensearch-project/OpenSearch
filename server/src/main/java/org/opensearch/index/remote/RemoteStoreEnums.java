@@ -13,6 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.hash.FNV1a;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.remote.RemoteStorePathStrategy.BasePathInput;
 
 import java.util.HashMap;
@@ -107,7 +108,11 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return BlobPath.cleanPath().add(hashAlgorithm.hash(pathInput)).add(pathInput.basePath()).add(pathInput.fixedSubPath());
+                String fixedPrefix = pathInput.fixedPrefix();
+                return BlobPath.cleanPath()
+                    .add(Strings.isNullOrEmpty(fixedPrefix) ? hashAlgorithm.hash(pathInput) : fixedPrefix + hashAlgorithm.hash(pathInput))
+                    .add(pathInput.basePath())
+                    .add(pathInput.fixedSubPath());
             }
 
             @Override
@@ -119,7 +124,10 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return pathInput.basePath().add(hashAlgorithm.hash(pathInput)).add(pathInput.fixedSubPath());
+                String fixedPrefix = pathInput.fixedPrefix();
+                return pathInput.basePath()
+                    .add(Strings.isNullOrEmpty(fixedPrefix) ? hashAlgorithm.hash(pathInput) : fixedPrefix + hashAlgorithm.hash(pathInput))
+                    .add(pathInput.fixedSubPath());
             }
 
             @Override
@@ -213,7 +221,7 @@ public class RemoteStoreEnums {
             @Override
             String hash(BasePathInput pathInput) {
                 StringBuilder input = new StringBuilder();
-                for (String path : pathInput.fixedSubPath().toArray()) {
+                for (String path : pathInput.hashPath().toArray()) {
                     input.append(path);
                 }
                 long hash = FNV1a.hash64(input.toString());
@@ -228,7 +236,7 @@ public class RemoteStoreEnums {
             @Override
             String hash(BasePathInput pathInput) {
                 StringBuilder input = new StringBuilder();
-                for (String path : pathInput.fixedSubPath().toArray()) {
+                for (String path : pathInput.hashPath().toArray()) {
                     input.append(path);
                 }
                 long hash = FNV1a.hash64(input.toString());

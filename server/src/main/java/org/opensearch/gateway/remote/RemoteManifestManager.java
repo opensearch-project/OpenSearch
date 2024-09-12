@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -98,7 +99,9 @@ public class RemoteManifestManager {
         RemoteClusterStateUtils.UploadedMetadataResults uploadedMetadataResult,
         String previousClusterUUID,
         ClusterStateDiffManifest clusterDiffManifest,
-        boolean committed
+        ClusterStateChecksum clusterStateChecksum,
+        boolean committed,
+        int codecVersion
     ) {
         synchronized (this) {
             ClusterMetadataManifest.Builder manifestBuilder = ClusterMetadataManifest.builder();
@@ -109,7 +112,7 @@ public class RemoteManifestManager {
                 .opensearchVersion(Version.CURRENT)
                 .nodeId(nodeId)
                 .committed(committed)
-                .codecVersion(RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION)
+                .codecVersion(codecVersion)
                 .indices(uploadedMetadataResult.uploadedIndexMetadata)
                 .previousClusterUUID(previousClusterUUID)
                 .clusterUUIDCommitted(clusterState.metadata().clusterUUIDCommitted())
@@ -125,8 +128,10 @@ public class RemoteManifestManager {
                 .metadataVersion(clusterState.metadata().version())
                 .transientSettingsMetadata(uploadedMetadataResult.uploadedTransientSettingsMetadata)
                 .clusterStateCustomMetadataMap(uploadedMetadataResult.uploadedClusterStateCustomMetadataMap)
-                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings);
+                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings)
+                .checksum(clusterStateChecksum);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
+            logger.trace(() -> new ParameterizedMessage("[{}] uploading manifest", manifest));
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }

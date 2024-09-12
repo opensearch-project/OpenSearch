@@ -40,7 +40,6 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -430,22 +429,27 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 finalValue = value;
             }
             Predicate<String> matchPredicate;
-            if (value.contains("?")) {
-                Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue));
-                CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
+            Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue));
+            CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
+            if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.SINGLE) {
+                // when type equals SINGLE, #compiledAutomaton.runAutomaton is null
+                matchPredicate = s -> {
+                    if (caseInsensitive) {
+                        s = s.toLowerCase(Locale.ROOT);
+                    }
+                    return s.equals(finalValue);
+                };
+            } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.ALL) {
+                return existsQuery(context);
+            } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.NONE) {
+                return new MatchNoDocsQuery("Wildcard expression matches nothing");
+            } else {
                 matchPredicate = s -> {
                     if (caseInsensitive) {
                         s = s.toLowerCase(Locale.ROOT);
                     }
                     BytesRef valueBytes = BytesRefs.toBytesRef(s);
                     return compiledAutomaton.runAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length);
-                };
-            } else {
-                matchPredicate = s -> {
-                    if (caseInsensitive) {
-                        s = s.toLowerCase(Locale.ROOT);
-                    }
-                    return Regex.simpleMatch(finalValue, s);
                 };
             }
 
@@ -468,11 +472,18 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         // Package-private for testing
         static Set<String> getRequiredNGrams(String value) {
             Set<String> terms = new HashSet<>();
+
+            if (value.isEmpty()) {
+                return terms;
+            }
+
             int pos = 0;
+            String rawSequence = null;
             String currentSequence = null;
             if (!value.startsWith("?") && !value.startsWith("*")) {
                 // Can add prefix term
-                currentSequence = getNonWildcardSequence(value, 0);
+                rawSequence = getNonWildcardSequence(value, 0);
+                currentSequence = performEscape(rawSequence);
                 if (currentSequence.length() == 1) {
                     terms.add(new String(new char[] { 0, currentSequence.charAt(0) }));
                 } else {
@@ -480,10 +491,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 }
             } else {
                 pos = findNonWildcardSequence(value, pos);
-                currentSequence = getNonWildcardSequence(value, pos);
+                rawSequence = getNonWildcardSequence(value, pos);
             }
             while (pos < value.length()) {
-                boolean isEndOfValue = pos + currentSequence.length() == value.length();
+                boolean isEndOfValue = pos + rawSequence.length() == value.length();
+                currentSequence = performEscape(rawSequence);
                 if (!currentSequence.isEmpty() && currentSequence.length() < 3 && !isEndOfValue && pos > 0) {
                     // If this is a prefix or suffix of length < 3, then we already have a longer token including the anchor.
                     terms.add(currentSequence);
@@ -502,8 +514,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                         terms.add(new String(new char[] { a, b, 0 }));
                     }
                 }
-                pos = findNonWildcardSequence(value, pos + currentSequence.length());
-                currentSequence = getNonWildcardSequence(value, pos);
+                pos = findNonWildcardSequence(value, pos + rawSequence.length());
+                rawSequence = getNonWildcardSequence(value, pos);
             }
             return terms;
         }
@@ -511,7 +523,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         private static String getNonWildcardSequence(String value, int startFrom) {
             for (int i = startFrom; i < value.length(); i++) {
                 char c = value.charAt(i);
-                if (c == '?' || c == '*') {
+                if ((c == '?' || c == '*') && (i == 0 || value.charAt(i - 1) != '\\')) {
                     return value.substring(startFrom, i);
                 }
             }
@@ -527,6 +539,22 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 }
             }
             return value.length();
+        }
+
+        private static String performEscape(String str) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < str.length(); i++) {
+                if (str.charAt(i) == '\\' && (i + 1) < str.length()) {
+                    char c = str.charAt(i + 1);
+                    if (c == '*' || c == '?') {
+                        i++;
+                    }
+                }
+                sb.append(str.charAt(i));
+            }
+            assert !sb.toString().contains("\\*");
+            assert !sb.toString().contains("\\?");
+            return sb.toString();
         }
 
         @Override
@@ -635,7 +663,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
-            return wildcardQuery(value.toString(), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
+            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 
         @Override
@@ -649,7 +677,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Set<String> expectedValues = new HashSet<>();
             StringBuilder pattern = new StringBuilder();
             for (Object value : values) {
-                String stringVal = value.toString();
+                String stringVal = BytesRefs.toString(value);
                 builder.add(matchAllTermsQuery(name(), getRequiredNGrams(stringVal)), BooleanClause.Occur.SHOULD);
                 expectedValues.add(stringVal);
                 if (pattern.length() > 0) {

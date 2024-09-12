@@ -227,7 +227,8 @@ public class RemoteStoreRestoreService {
                     .build();
             }
 
-            IndexId indexId = new IndexId(indexName, updatedIndexMetadata.getIndexUUID());
+            // This instance of IndexId is not related to Snapshot Restore. Hence, we are using the ctor without pathType.
+            IndexId indexId = new IndexId(indexName, updatedIndexMetadata.getIndexUUID(), IndexId.DEFAULT_SHARD_PATH_TYPE);
 
             if (metadataFromRemoteStore == false) {
                 Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = currentState.routingTable()

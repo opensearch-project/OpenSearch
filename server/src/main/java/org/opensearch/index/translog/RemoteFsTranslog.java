@@ -67,30 +67,30 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 public class RemoteFsTranslog extends Translog {
 
     private final Logger logger;
-    private final TranslogTransferManager translogTransferManager;
-    private final FileTransferTracker fileTransferTracker;
-    private final BooleanSupplier startedPrimarySupplier;
+    protected final TranslogTransferManager translogTransferManager;
+    protected final FileTransferTracker fileTransferTracker;
+    protected final BooleanSupplier startedPrimarySupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
 
     // min generation referred by last uploaded translog
-    private volatile long minRemoteGenReferenced;
+    protected volatile long minRemoteGenReferenced;
 
     // clean up translog folder uploaded by previous primaries once
-    private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
+    protected final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
-    private static final int REMOTE_DELETION_PERMITS = 2;
+    protected static final int REMOTE_DELETION_PERMITS = 2;
     private static final int DOWNLOAD_RETRIES = 2;
 
     // Semaphore used to allow only single remote generation to happen at a time
-    private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
+    protected final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
 
     // These permits exist to allow any inflight background triggered upload.
     private static final int SYNC_PERMIT = 1;
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
-    private final AtomicBoolean pauseSync = new AtomicBoolean(false);
+    protected final AtomicBoolean pauseSync = new AtomicBoolean(false);
     private final boolean isTranslogMetadataEnabled;
 
     public RemoteFsTranslog(
@@ -123,7 +123,9 @@ public class RemoteFsTranslog extends Translog {
             isTranslogMetadataEnabled
         );
         try {
-            download(translogTransferManager, location, logger, config.shouldSeedRemote());
+            if (config.downloadRemoteTranslogOnInit()) {
+                download(translogTransferManager, location, logger, config.shouldSeedRemote(), 0);
+            }
             Checkpoint checkpoint = readCheckpoint(location);
             logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
             this.readers.addAll(recoverFromFiles(checkpoint));
@@ -131,6 +133,9 @@ public class RemoteFsTranslog extends Translog {
                 String errorMsg = String.format(Locale.ROOT, "%s at least one reader must be recovered", shardId);
                 logger.error(errorMsg);
                 throw new IllegalStateException(errorMsg);
+            }
+            if (config.downloadRemoteTranslogOnInit() == false) {
+                translogTransferManager.populateFileTrackerWithLocalState(this.readers);
             }
             boolean success = false;
             current = null;
@@ -173,7 +178,8 @@ public class RemoteFsTranslog extends Translog {
         RemoteStoreSettings remoteStoreSettings,
         Logger logger,
         boolean seedRemote,
-        boolean isTranslogMetadataEnabled
+        boolean isTranslogMetadataEnabled,
+        long timestamp
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
             Locale.ROOT,
@@ -195,11 +201,12 @@ public class RemoteFsTranslog extends Translog {
             remoteStoreSettings,
             isTranslogMetadataEnabled
         );
-        RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote);
+        RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote, timestamp);
         logger.trace(remoteTranslogTransferTracker.toString());
     }
 
-    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
+    // Visible for testing
+    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote, long timestamp)
         throws IOException {
         /*
         In Primary to Primary relocation , there can be concurrent upload and download of translog.
@@ -213,7 +220,7 @@ public class RemoteFsTranslog extends Translog {
             boolean success = false;
             long startTimeMs = System.currentTimeMillis();
             try {
-                downloadOnce(translogTransferManager, location, logger, seedRemote);
+                downloadOnce(translogTransferManager, location, logger, seedRemote, timestamp);
                 success = true;
                 return;
             } catch (FileNotFoundException | NoSuchFileException e) {
@@ -227,13 +234,18 @@ public class RemoteFsTranslog extends Translog {
         throw ex;
     }
 
-    private static void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
-        throws IOException {
+    private static void downloadOnce(
+        TranslogTransferManager translogTransferManager,
+        Path location,
+        Logger logger,
+        boolean seedRemote,
+        long timestamp
+    ) throws IOException {
         logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
         long prevDownloadTimeInMillis = statsTracker.getTotalDownloadTimeInMillis();
-        TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
+        TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata(timestamp);
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
                 Files.createDirectories(location);
@@ -310,6 +322,7 @@ public class RemoteFsTranslog extends Translog {
             .shardId(shardIdStr)
             .dataCategory(TRANSLOG)
             .dataType(DATA)
+            .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
             .build();
         BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
         RemoteStorePathStrategy.PathInput mdPathInput = RemoteStorePathStrategy.PathInput.builder()
@@ -318,6 +331,7 @@ public class RemoteFsTranslog extends Translog {
             .shardId(shardIdStr)
             .dataCategory(TRANSLOG)
             .dataType(METADATA)
+            .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
             .build();
         BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
         BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);

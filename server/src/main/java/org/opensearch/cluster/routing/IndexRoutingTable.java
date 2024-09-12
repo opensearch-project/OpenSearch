@@ -49,6 +49,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,7 +140,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         // check the replicas
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
-            if (routingNumberOfReplicas != indexMetadata.getNumberOfReplicas()) {
+            if (routingNumberOfReplicas != indexMetadata.getNumberOfReplicas() + indexMetadata.getNumberOfSearchOnlyReplicas()) {
                 throw new IllegalStateException(
                     "Shard ["
                         + indexShardRoutingTable.shardId().id()
@@ -157,7 +158,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     );
                 }
                 final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
-                if (shardRouting.active() && inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
+                if (shardRouting.active()
+                    && inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false
+                    && shardRouting.isSearchOnly() == false) {
                     throw new IllegalStateException(
                         "active shard routing "
                             + shardRouting
@@ -351,6 +354,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return result;
     }
 
+    @Override
+    public String toString() {
+        return "IndexRoutingTable{" + "shards=" + shards + ", index=" + index + '}';
+    }
+
     public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
         Index index = new Index(in);
         Builder builder = new Builder(index);
@@ -374,6 +382,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         for (IndexShardRoutingTable indexShard : this) {
             IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
         }
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        index.writeTo(out);
+        out.writeMapValues(
+            shards,
+            (stream, value) -> IndexShardRoutingTable.Builder.writeVerifiableTo(value, (BufferedChecksumStreamOutput) stream)
+        );
     }
 
     public static Builder builder(Index index) {
@@ -594,6 +610,17 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                         )
                     );
                 }
+                for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
+                    indexShardRoutingBuilder.addShard(
+                        ShardRouting.newUnassigned(
+                            shardId,
+                            false,
+                            true,
+                            PeerRecoverySource.INSTANCE, // TODO: Update to remote store if enabled
+                            unassignedInfo
+                        )
+                    );
+                }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
             }
             return this;
@@ -607,6 +634,26 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     shardId,
                     false,
                     PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
+                );
+                shards.put(shardNumber, new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build());
+            }
+            return this;
+        }
+
+        /**
+         * Add a Search only replica to the IndexShardRoutingTable
+         * @return The Builder
+         */
+        public Builder addSearchReplica() {
+            for (final int shardNumber : shards.keySet()) {
+                ShardId shardId = new ShardId(index, shardNumber);
+                // version 0, will get updated when reroute will happen
+                ShardRouting shard = ShardRouting.newUnassigned(
+                    shardId,
+                    false,
+                    true,
+                    PeerRecoverySource.INSTANCE, // TODO: Change to remote store if enabled
                     new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
                 );
                 shards.put(shardNumber, new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build());
@@ -629,7 +676,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 // first check if there is one that is not assigned to a node, and remove it
                 boolean removed = false;
                 for (ShardRouting shardRouting : indexShard) {
-                    if (!shardRouting.primary() && !shardRouting.assignedToNode()) {
+                    if (!shardRouting.primary() && !shardRouting.assignedToNode() && !shardRouting.isSearchOnly()) {
                         builder.removeShard(shardRouting);
                         removed = true;
                         break;
@@ -637,7 +684,45 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
                 if (!removed) {
                     for (ShardRouting shardRouting : indexShard) {
-                        if (!shardRouting.primary()) {
+                        if (!shardRouting.primary() && !shardRouting.isSearchOnly()) {
+                            builder.removeShard(shardRouting);
+                            break;
+                        }
+                    }
+                }
+                shards.put(shardId, builder.build());
+            }
+            return this;
+        }
+
+        /**
+         * Remove a Search only replica from the IndexShardRoutingTable
+         * @return The Builder
+         */
+        public Builder removeSearchReplica() {
+            for (final int shardId : shards.keySet()) {
+                IndexShardRoutingTable indexShardRoutingTable = shards.get(shardId);
+                if (indexShardRoutingTable.searchOnlyReplicas().isEmpty()) {
+                    // nothing to do here!
+                    return this;
+                }
+                // re-add all the current ones
+                IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(indexShardRoutingTable.shardId());
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    builder.addShard(shardRouting);
+                }
+                // first check if there is one that is not assigned to a node, and remove it
+                boolean removed = false;
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.isSearchOnly() && !shardRouting.assignedToNode()) {
+                        builder.removeShard(shardRouting);
+                        removed = true;
+                        break;
+                    }
+                }
+                if (!removed) {
+                    for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        if (shardRouting.isSearchOnly()) {
                             builder.removeShard(shardRouting);
                             break;
                         }

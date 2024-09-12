@@ -11,7 +11,6 @@ package org.opensearch.gateway.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Strings;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.service.ClusterApplierService;
@@ -23,6 +22,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -81,7 +81,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         RemoteRoutingTableService remoteRoutingTableService
     ) {
         this.remoteClusterStateService = remoteClusterStateService;
-        this.remoteStateStats = remoteClusterStateService.getStats();
+        this.remoteStateStats = remoteClusterStateService.getRemoteStateStats();
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.clusterApplierService = clusterService.getClusterApplierService();
         this.staleFileCleanupInterval = clusterSettings.get(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING);
@@ -125,8 +125,8 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         ClusterState currentAppliedState = clusterApplierService.state();
         if (currentAppliedState.nodes().isLocalNodeElectedClusterManager()) {
             long cleanUpAttemptStateVersion = currentAppliedState.version();
-            assert Strings.isNotEmpty(currentAppliedState.getClusterName().value()) : "cluster name is not set";
-            assert Strings.isNotEmpty(currentAppliedState.metadata().clusterUUID()) : "cluster uuid is not set";
+            assert !Strings.isNullOrEmpty(currentAppliedState.getClusterName().value()) : "cluster name is not set";
+            assert !Strings.isNullOrEmpty(currentAppliedState.metadata().clusterUUID()) : "cluster uuid is not set";
             if (cleanUpAttemptStateVersion - lastCleanupAttemptStateVersion > SKIP_CLEANUP_STATE_CHANGES) {
                 logger.info(
                     "Cleaning up stale remote state files for cluster [{}] with uuid [{}]. Last clean was done before {} updates",

@@ -44,6 +44,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -66,6 +67,7 @@ import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -385,17 +387,47 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            writeToUtil(out, false);
+        } else {
+            writeToUtil(out, true);
+        }
+    }
+
+    public void writeToWithAttribute(StreamOutput out) throws IOException {
+        writeToUtil(out, true);
+    }
+
+    public void writeToUtil(StreamOutput out, boolean includeAllAttributes) throws IOException {
+        writeNodeDetails(out);
+        if (includeAllAttributes) {
+            out.writeVInt(attributes.size());
+            for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        } else {
+            out.writeVInt(0);
+        }
+        writeRolesAndVersion(out);
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        writeNodeDetails(out);
+        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        writeRolesAndVersion(out);
+    }
+
+    private void writeNodeDetails(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         out.writeString(nodeId);
         out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
-        }
+    }
+
+    private void writeRolesAndVersion(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             out.writeVInt(roles.size());
             for (final DiscoveryNodeRole role : roles) {
@@ -523,7 +555,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @return true if the node contains remote store node attributes, false otherwise
      */
     public boolean isRemoteStoreNode() {
-        return this.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
+        return this.getAttributes().keySet().stream().anyMatch(key -> key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY))
+            && this.getAttributes().keySet().stream().anyMatch(key -> key.equals(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY));
     }
 
     /**

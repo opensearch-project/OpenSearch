@@ -8,7 +8,7 @@
 
 package org.opensearch.search;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.tasks.Task;
@@ -18,8 +18,12 @@ import java.util.function.Function;
 
 /**
  * Enum to hold the resource type
+ *
+ * @opensearch.api
+ *
  */
-@PublicApi(since = "2.x")
+@DeprecatedApi(since = "2.17.0")
+@Deprecated(forRemoval = true)
 public enum ResourceType {
     CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU)),
     MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY));
