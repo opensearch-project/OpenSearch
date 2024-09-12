@@ -719,6 +719,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         + minVersionInCluster
                 );
             }
+            if (repositoryName.contains(SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER)) {
+                throw new RepositoryException(
+                    repositoryName,
+                    "setting "
+                        + SHALLOW_SNAPSHOT_V2.getKey()
+                        + " cannot be enabled for repository with "
+                        + SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER
+                        + " in the name as this delimiter is used to create pinning entity"
+                );
+            }
             if (repositoryWithShallowV2Exists(repositories)) {
                 throw new RepositoryException(
                     repositoryName,
@@ -766,17 +776,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             settings,
             repositoriesService
         );
-        for (String pinningEntiy : pinningEntityTimestampMap.keySet()) {
-            String[] tokens = pinningEntiy.split(SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER);
-            if (tokens.length > 2) {
-                logger.warn(
-                    "With more than one {} in the pinning entity = {}, not able to determine if there is a pinned timestamp created with different repository",
-                    SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER,
-                    pinningEntiy
-                );
-                return true;
-            }
-            if (tokens[0].equals(newRepoName) == false) {
+        for (String pinningEntity : pinningEntityTimestampMap.keySet()) {
+            String repoNameWithPinnedTimestamps = pinningEntity.split(SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER)[0];
+            if (repoNameWithPinnedTimestamps.equals(newRepoName) == false) {
                 return true;
             }
         }

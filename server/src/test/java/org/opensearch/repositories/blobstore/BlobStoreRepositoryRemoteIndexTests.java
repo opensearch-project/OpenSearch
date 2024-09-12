@@ -52,6 +52,7 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -390,6 +391,18 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             .put(REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
             .put(SHALLOW_SNAPSHOT_V2.getKey(), true)
             .build();
+
+        String invalidRepoName = "test" + SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + "repo-1";
+        try {
+            createRepository(client, invalidRepoName, snapshotRepoSettings1);
+        } catch (RepositoryException e) {
+            assertEquals(
+                "["
+                    + invalidRepoName
+                    + "] setting shallow_snapshot_v2 cannot be enabled for repository with __ in the name as this delimiter is used to create pinning entity",
+                e.getMessage()
+            );
+        }
 
         // Create repo with shallow snapshot V2 enabled
         createRepository(client, "test-repo-1", snapshotRepoSettings1);
