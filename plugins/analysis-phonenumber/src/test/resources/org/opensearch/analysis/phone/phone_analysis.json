@@ -1,0 +1,22 @@
+{
+  "index": {
+    "analysis": {
+      "analyzer": {
+        "phone": {
+          "type": "phone"
+        },
+        "phone-search": {
+          "type": "phone-search"
+        },
+        "phone-ch": {
+          "type": "phone",
+          "phone-region": "CH"
+        },
+        "phone-search-ch": {
+          "type": "phone-search",
+          "phone-region": "CH"
+        }
+      }
+    }
+  }
+}
