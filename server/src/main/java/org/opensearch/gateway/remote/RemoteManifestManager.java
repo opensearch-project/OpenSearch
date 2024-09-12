@@ -194,6 +194,17 @@ public class RemoteManifestManager {
         return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
     }
 
+    public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
+        String clusterName,
+        String clusterUUID,
+        long term,
+        long version
+    ) {
+        String prefix = RemoteManifestManager.getManifestFilePrefixForTermVersion(term, version);
+        Optional<String> latestManifestFileName = getManifestFileNameByPrefix(clusterName, clusterUUID, prefix);
+        return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
+    }
+
     public ClusterMetadataManifest getRemoteClusterMetadataManifestByFileName(String clusterUUID, String filename)
         throws IllegalStateException {
         try {
@@ -293,7 +304,7 @@ public class RemoteManifestManager {
         }
     }
 
-    static String getManifestFilePrefixForTermVersion(long term, long version) {
+    public static String getManifestFilePrefixForTermVersion(long term, long version) {
         return String.join(
             DELIMITER,
             RemoteClusterMetadataManifest.MANIFEST,
@@ -316,6 +327,16 @@ public class RemoteManifestManager {
             RemoteClusterMetadataManifest.MANIFEST + DELIMITER,
             1
         );
+        if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
+            return Optional.of(manifestFilesMetadata.get(0).name());
+        }
+        logger.info("No manifest file present in remote store for cluster name: {}, cluster UUID: {}", clusterName, clusterUUID);
+        return Optional.empty();
+    }
+
+    private Optional<String> getManifestFileNameByPrefix(String clusterName, String clusterUUID, String filePrefix)
+        throws IllegalStateException {
+        List<BlobMetadata> manifestFilesMetadata = getManifestFileNames(clusterName, clusterUUID, filePrefix, 1);
         if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
             return Optional.of(manifestFilesMetadata.get(0).name());
         }
