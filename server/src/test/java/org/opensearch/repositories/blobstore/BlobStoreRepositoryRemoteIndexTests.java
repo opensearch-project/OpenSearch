@@ -33,6 +33,8 @@
 package org.opensearch.repositories.blobstore;
 
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
@@ -41,13 +43,16 @@ import org.opensearch.env.Environment;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -64,6 +69,9 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -80,6 +88,7 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), tempDir.getParent())
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
             .build();
     }
 
@@ -372,4 +381,119 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 
+    public void testRepositoryCreationShallowV2() throws Exception {
+        Client client = client();
+
+        Settings snapshotRepoSettings1 = Settings.builder()
+            .put(node().settings())
+            .put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
+            .put(REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(SHALLOW_SNAPSHOT_V2.getKey(), true)
+            .build();
+
+        String invalidRepoName = "test" + SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + "repo-1";
+        try {
+            createRepository(client, invalidRepoName, snapshotRepoSettings1);
+        } catch (RepositoryException e) {
+            assertEquals(
+                "["
+                    + invalidRepoName
+                    + "] setting shallow_snapshot_v2 cannot be enabled for repository with __ in the name as this delimiter is used to create pinning entity",
+                e.getMessage()
+            );
+        }
+
+        // Create repo with shallow snapshot V2 enabled
+        createRepository(client, "test-repo-1", snapshotRepoSettings1);
+
+        logger.info("--> verify the repository");
+        VerifyRepositoryResponse verifyRepositoryResponse = client.admin().cluster().prepareVerifyRepository("test-repo-1").get();
+        assertNotNull(verifyRepositoryResponse.getNodes());
+
+        GetRepositoriesResponse getRepositoriesResponse = client.admin().cluster().prepareGetRepositories("test-repo-1").get();
+        assertTrue(SHALLOW_SNAPSHOT_V2.get(getRepositoriesResponse.repositories().get(0).settings()));
+
+        Settings snapshotRepoSettings2 = Settings.builder()
+            .put(node().settings())
+            .put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
+            .put(REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(SHALLOW_SNAPSHOT_V2.getKey(), true)
+            .build();
+
+        // Create another repo with shallow snapshot V2 enabled, this should fail.
+        try {
+            createRepository(client, "test-repo-2", snapshotRepoSettings2);
+        } catch (RepositoryException e) {
+            assertEquals(
+                "[test-repo-2] setting shallow_snapshot_v2 cannot be enabled as this setting can be enabled only on one repository  and one or more repositories in the cluster have the setting as enabled",
+                e.getMessage()
+            );
+        }
+
+        // Disable shallow snapshot V2 setting on test-repo-1
+        updateRepository(
+            client,
+            "test-repo-1",
+            Settings.builder().put(snapshotRepoSettings1).put(SHALLOW_SNAPSHOT_V2.getKey(), false).build()
+        );
+        getRepositoriesResponse = client.admin().cluster().prepareGetRepositories("test-repo-1").get();
+        assertFalse(SHALLOW_SNAPSHOT_V2.get(getRepositoriesResponse.repositories().get(0).settings()));
+
+        // Create test-repo-2 with shallow snapshot V2 enabled, this should pass now.
+        createRepository(client, "test-repo-2", snapshotRepoSettings2);
+        getRepositoriesResponse = client.admin().cluster().prepareGetRepositories("test-repo-2").get();
+        assertTrue(SHALLOW_SNAPSHOT_V2.get(getRepositoriesResponse.repositories().get(0).settings()));
+
+        final String indexName = "test-idx";
+        createIndex(indexName);
+        ensureGreen();
+        indexDocuments(client, indexName);
+
+        // Create pinned timestamp snapshot in test-repo-2
+        SnapshotInfo snapshotInfo = createSnapshot("test-repo-2", "test-snap-2", new ArrayList<>());
+        assertNotNull(snapshotInfo.snapshotId());
+
+        // As snapshot is present, even after disabling shallow snapshot setting in test-repo-2, we will not be able to
+        // enable shallow snapshot v2 setting in test-repo-1
+        updateRepository(
+            client,
+            "test-repo-2",
+            Settings.builder().put(snapshotRepoSettings2).put(SHALLOW_SNAPSHOT_V2.getKey(), false).build()
+        );
+        getRepositoriesResponse = client.admin().cluster().prepareGetRepositories("test-repo-2").get();
+        assertFalse(SHALLOW_SNAPSHOT_V2.get(getRepositoriesResponse.repositories().get(0).settings()));
+
+        try {
+            updateRepository(client, "test-repo-1", snapshotRepoSettings1);
+        } catch (RepositoryException e) {
+            assertEquals(
+                "[test-repo-1] setting shallow_snapshot_v2 cannot be enabled if there are existing snapshots created with shallow V2 setting using different repository.",
+                e.getMessage()
+            );
+        }
+
+        // After deleting the snapshot, we will be able to enable shallow snapshot v2 setting in test-repo-1
+        AcknowledgedResponse deleteSnapshotResponse = client().admin().cluster().prepareDeleteSnapshot("test-repo-2", "test-snap-2").get();
+
+        assertAcked(deleteSnapshotResponse);
+
+        updateRepository(client, "test-repo-1", snapshotRepoSettings1);
+        getRepositoriesResponse = client.admin().cluster().prepareGetRepositories("test-repo-1").get();
+        assertTrue(SHALLOW_SNAPSHOT_V2.get(getRepositoriesResponse.repositories().get(0).settings()));
+
+        // Having a snapshot in the same repo should allow disabling and re-enabling shallow snapshot v2 setting
+        snapshotInfo = createSnapshot("test-repo-1", "test-snap-1", new ArrayList<>());
+        assertNotNull(snapshotInfo.snapshotId());
+        updateRepository(
+            client,
+            "test-repo-1",
+            Settings.builder().put(snapshotRepoSettings1).put(SHALLOW_SNAPSHOT_V2.getKey(), false).build()
+        );
+        getRepositoriesResponse = client.admin().cluster().prepareGetRepositories("test-repo-1").get();
+        assertFalse(SHALLOW_SNAPSHOT_V2.get(getRepositoriesResponse.repositories().get(0).settings()));
+
+        updateRepository(client, "test-repo-1", snapshotRepoSettings1);
+        getRepositoriesResponse = client.admin().cluster().prepareGetRepositories("test-repo-1").get();
+        assertTrue(SHALLOW_SNAPSHOT_V2.get(getRepositoriesResponse.repositories().get(0).settings()));
+    }
 }
