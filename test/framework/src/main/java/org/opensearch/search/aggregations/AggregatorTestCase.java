@@ -1331,6 +1331,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     protected static class CountingAggregator extends Aggregator {
         private final AtomicInteger collectCounter;
         public final Aggregator delegate;
+        private LeafBucketCollector selectedCollector;
 
         public CountingAggregator(AtomicInteger collectCounter, Aggregator delegate) {
             this.collectCounter = collectCounter;
@@ -1340,6 +1341,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         public AtomicInteger getCollectCount() {
             return collectCounter;
         }
+
+        public LeafBucketCollector getSelectedCollector() { return selectedCollector; }
 
         @Override
         public void close() {
@@ -1381,7 +1384,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    delegate.getLeafCollector(ctx).collect(doc, bucket);
+                    selectedCollector = delegate.getLeafCollector(ctx);
+                    selectedCollector.collect(doc, bucket);
                     collectCounter.incrementAndGet();
                 }
             };
