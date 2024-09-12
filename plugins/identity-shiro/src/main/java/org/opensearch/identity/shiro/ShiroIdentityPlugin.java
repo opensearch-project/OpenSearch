@@ -16,7 +16,6 @@ import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -48,7 +47,6 @@ import java.util.function.UnaryOperator;
 /**
  * Identity implementation with Shiro
  */
-@ExperimentalApi
 public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin, ActionPlugin {
     private Logger log = LogManager.getLogger(this.getClass());
 
@@ -122,7 +120,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         @Override
         public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
             try {
-                final AuthToken token = RestTokenExtractor.extractToken(request);
+                final AuthToken token = ShiroTokenExtractor.extractToken(request);
                 // If no token was found, continue executing the request
                 if (token == null) {
                     // Authentication did not fail so return true. Authorization is handled at the action level.

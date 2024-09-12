@@ -20,9 +20,9 @@ import java.util.Optional;
 /**
  * Extracts tokens from RestRequests used for authentication
  */
-public class RestTokenExtractor {
+public class ShiroTokenExtractor {
 
-    private static final Logger logger = LogManager.getLogger(RestTokenExtractor.class);
+    private static final Logger logger = LogManager.getLogger(ShiroTokenExtractor.class);
 
     public final static String AUTH_HEADER_NAME = "Authorization";
 

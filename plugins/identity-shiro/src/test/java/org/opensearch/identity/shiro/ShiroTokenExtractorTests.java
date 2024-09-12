@@ -22,14 +22,14 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestTokenExtractorTests extends OpenSearchTestCase {
+public class ShiroTokenExtractorTests extends OpenSearchTestCase {
 
     public void testAuthorizationHeaderExtractionWithBasicAuthToken() {
         String basicAuthHeader = Base64.getEncoder().encodeToString("foo:bar".getBytes(StandardCharsets.UTF_8));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of(RestTokenExtractor.AUTH_HEADER_NAME, List.of(BasicAuthToken.TOKEN_IDENTIFIER + " " + basicAuthHeader))
+            Map.of(ShiroTokenExtractor.AUTH_HEADER_NAME, List.of(BasicAuthToken.TOKEN_IDENTIFIER + " " + basicAuthHeader))
         ).build();
-        AuthToken extractedToken = RestTokenExtractor.extractToken(fakeRequest);
+        AuthToken extractedToken = ShiroTokenExtractor.extractToken(fakeRequest);
         assertThat(extractedToken, instanceOf(BasicAuthToken.class));
         assertThat(extractedToken.asAuthHeaderValue(), equalTo(basicAuthHeader));
     }
@@ -37,9 +37,9 @@ public class RestTokenExtractorTests extends OpenSearchTestCase {
     public void testAuthorizationHeaderExtractionWithUnknownToken() {
         String authHeader = "foo";
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of(RestTokenExtractor.AUTH_HEADER_NAME, List.of(authHeader))
+            Map.of(ShiroTokenExtractor.AUTH_HEADER_NAME, List.of(authHeader))
         ).build();
-        AuthToken extractedToken = RestTokenExtractor.extractToken(fakeRequest);
+        AuthToken extractedToken = ShiroTokenExtractor.extractToken(fakeRequest);
         assertNull(extractedToken);
     }
 }
