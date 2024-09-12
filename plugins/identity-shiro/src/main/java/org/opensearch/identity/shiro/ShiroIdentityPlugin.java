@@ -114,11 +114,9 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
     }
 
     class AuthcRestHandler extends RestHandler.Wrapper {
-        private final RestHandler delegate;
 
         public AuthcRestHandler(RestHandler original) {
             super(original);
-            this.delegate = original;
         }
 
         @Override
@@ -128,13 +126,13 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
                 // If no token was found, continue executing the request
                 if (token == null) {
                     // Authentication did not fail so return true. Authorization is handled at the action level.
-                    delegate.handleRequest(request, channel, client);
+                    super.handleRequest(request, channel, client);
                     return;
                 }
                 ShiroSubject shiroSubject = (ShiroSubject) getCurrentSubject();
                 shiroSubject.authenticate(token);
                 // Caller was authorized, forward the request to the handler
-                delegate.handleRequest(request, channel, client);
+                super.handleRequest(request, channel, client);
             } catch (final Exception e) {
                 final BytesRestResponse bytesRestResponse = new BytesRestResponse(RestStatus.UNAUTHORIZED, e.getMessage());
                 channel.sendResponse(bytesRestResponse);
