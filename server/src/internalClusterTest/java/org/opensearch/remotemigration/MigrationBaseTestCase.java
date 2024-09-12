@@ -92,7 +92,7 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(extraSettings)
-                .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
+                .put(remoteStoreClusterSettings(REPOSITORY_NAME, super.segmentRepoPath, REPOSITORY_2_NAME, super.translogRepoPath))
                 .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
                 .build();
         } else {

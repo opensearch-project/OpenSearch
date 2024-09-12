@@ -412,8 +412,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private ReplicationType randomReplicationType;
 
     private String randomStorageType;
-    private Path translogRepoPath;
-    private Path segmentRepoPath;
+    protected Path translogRepoPath;
+    protected Path segmentRepoPath;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
