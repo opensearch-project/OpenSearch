@@ -15,7 +15,6 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
@@ -41,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -62,7 +62,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     private static final String REMOTE_STATE_PREFIX = "!";
     private static final String REMOTE_ROUTING_PREFIX = "_";
     private boolean isRemoteStateEnabled = true;
-    private String isRemotePublicationEnabled = "true";
+    private boolean isRemotePublicationEnabled = true;
     private boolean hasRemoteStateCharPrefix;
     private boolean hasRemoteRoutingCharPrefix;
 
@@ -70,17 +70,9 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     public void setup() {
         asyncUploadMockFsRepo = false;
         isRemoteStateEnabled = true;
-        isRemotePublicationEnabled = "true";
+        isRemotePublicationEnabled = true;
         hasRemoteStateCharPrefix = randomBoolean();
         hasRemoteRoutingCharPrefix = randomBoolean();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, isRemotePublicationEnabled)
-            .build();
     }
 
     @Override
@@ -100,6 +92,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), isRemoteStateEnabled)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
@@ -107,6 +100,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING.getKey(),
                 RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE
             )
+            .put(REMOTE_PUBLICATION_SETTING_KEY, isRemotePublicationEnabled)
             .put(
                 RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.getKey(),
                 hasRemoteStateCharPrefix ? REMOTE_STATE_PREFIX : ""
@@ -224,7 +218,6 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             .get();
 
         assertDataNodeDownloadStats(nodesStatsResponseDataNode);
-
     }
 
     private void assertDataNodeDownloadStats(NodesStatsResponse nodesStatsResponse) {

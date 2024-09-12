@@ -116,6 +116,7 @@ import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStorePathStrategy.BasePathInput;
 import org.opensearch.index.remote.RemoteStorePathStrategy.SnapshotShardPathInput;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -132,6 +133,10 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.translog.RemoteFsTimestampAwareTranslog;
+import org.opensearch.index.translog.RemoteFsTranslog;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -339,6 +344,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    /**
+     * Controls the fixed prefix for the snapshot shard blob path.
+     */
+    public static final Setting<String> SNAPSHOT_SHARD_PATH_PREFIX_SETTING = Setting.simpleString(
+        "cluster.snapshot.shard.path.prefix",
+        "",
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
     protected volatile boolean supportURLRepo;
 
     private volatile int maxShardBlobDeleteBatch;
@@ -430,6 +445,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final NamedXContentRegistry namedXContentRegistry;
 
+    private final String snapshotShardPathPrefix;
+
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
@@ -484,6 +501,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
+        this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX_SETTING.get(clusterService.getSettings());
     }
 
     @Override
@@ -2217,25 +2235,35 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     IndexMetadata prevIndexMetadata = this.getSnapshotIndexMetaData(oldRepoData, snapshotId, indexId);
                     if (prevIndexMetadata != null && !isIndexPresent(clusterService, prevIndexMetadata.getIndexUUID())) {
-                        String remoteStoreRepository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
+                        String remoteStoreRepository = IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(
                             prevIndexMetadata.getSettings()
                         );
                         assert (remoteStoreRepository != null);
+
+                        String remoteTranslogRepositoryName = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
+                            prevIndexMetadata.getSettings()
+                        );
+                        assert (remoteTranslogRepositoryName != null);
+                        Repository remoteTranslogRepository = remoteSegmentStoreDirectoryFactory.getRepositoriesService()
+                            .get()
+                            .repository(remoteTranslogRepositoryName);
 
                         RemoteStorePathStrategy remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(
                             prevIndexMetadata
                         );
 
                         for (int shardId = 0; shardId < prevIndexMetadata.getNumberOfShards(); shardId++) {
+                            ShardId shard = new ShardId(Index.UNKNOWN_INDEX_NAME, prevIndexMetadata.getIndexUUID(), shardId);
                             remoteDirectoryCleanupAsync(
                                 remoteSegmentStoreDirectoryFactory,
                                 threadPool,
                                 remoteStoreRepository,
                                 prevIndexMetadata.getIndexUUID(),
-                                new ShardId(Index.UNKNOWN_INDEX_NAME, prevIndexMetadata.getIndexUUID(), shardId),
+                                shard,
                                 ThreadPool.Names.REMOTE_PURGE,
                                 remoteStorePathStrategy
                             );
+                            remoteTranslogCleanupAsync(remoteTranslogRepository, shard, remoteStorePathStrategy, prevIndexMetadata);
                         }
                     }
                 } catch (Exception e) {
@@ -2253,6 +2281,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.error(new ParameterizedMessage("Exception during the remote directory cleanup for indecSnId [{}]", indexSnId), e);
         }
 
+    }
+
+    private void remoteTranslogCleanupAsync(
+        Repository remoteTranslogRepository,
+        ShardId shardId,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        IndexMetadata prevIndexMetadata
+    ) {
+        assert remoteTranslogRepository instanceof BlobStoreRepository;
+        boolean indexMetadataEnabled = RemoteStoreUtils.determineTranslogMetadataEnabled(prevIndexMetadata);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
+            (BlobStoreRepository) remoteTranslogRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            remoteStorePathStrategy,
+            remoteStoreSettings,
+            indexMetadataEnabled
+        );
+        try {
+            RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager);
+        } catch (IOException e) {
+            logger.error("Exception while cleaning up remote translog for shard: " + shardId, e);
+        }
     }
 
     /**
@@ -2786,6 +2841,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotShardPathInput shardPathInput = new SnapshotShardPathInput.Builder().basePath(basePath())
             .indexUUID(indexId.getId())
             .shardId(String.valueOf(shardId))
+            .fixedPrefix(snapshotShardPathPrefix)
             .build();
         PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
         return pathType.path(shardPathInput, pathHashAlgorithm);

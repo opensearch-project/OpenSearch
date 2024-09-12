@@ -10,8 +10,9 @@ package org.opensearch.wlm;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.tasks.Task;
+import org.opensearch.wlm.tracker.CpuUsageCalculator;
+import org.opensearch.wlm.tracker.MemoryUsageCalculator;
+import org.opensearch.wlm.tracker.ResourceUsageCalculator;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,19 +26,25 @@ import java.util.function.Function;
  */
 @PublicApi(since = "2.17.0")
 public enum ResourceType {
-    CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU), true),
-    MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY), true);
+    CPU("cpu", true, CpuUsageCalculator.INSTANCE, WorkloadManagementSettings::getNodeLevelCpuCancellationThreshold),
+    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, WorkloadManagementSettings::getNodeLevelMemoryCancellationThreshold);
 
     private final String name;
-    private final Function<Task, Long> getResourceUsage;
     private final boolean statsEnabled;
-
+    private final ResourceUsageCalculator resourceUsageCalculator;
+    private final Function<WorkloadManagementSettings, Double> nodeLevelThresholdSupplier;
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
-    ResourceType(String name, Function<Task, Long> getResourceUsage, boolean statsEnabled) {
+    ResourceType(
+        String name,
+        boolean statsEnabled,
+        ResourceUsageCalculator resourceUsageCalculator,
+        Function<WorkloadManagementSettings, Double> nodeLevelThresholdSupplier
+    ) {
         this.name = name;
-        this.getResourceUsage = getResourceUsage;
         this.statsEnabled = statsEnabled;
+        this.resourceUsageCalculator = resourceUsageCalculator;
+        this.nodeLevelThresholdSupplier = nodeLevelThresholdSupplier;
     }
 
     /**
@@ -62,18 +69,16 @@ public enum ResourceType {
         return name;
     }
 
-    /**
-     * Gets the resource usage for a given resource type and task.
-     *
-     * @param task the task for which to calculate resource usage
-     * @return the resource usage
-     */
-    public long getResourceUsage(Task task) {
-        return getResourceUsage.apply(task);
-    }
-
     public boolean hasStatsEnabled() {
         return statsEnabled;
+    }
+
+    public ResourceUsageCalculator getResourceUsageCalculator() {
+        return resourceUsageCalculator;
+    }
+
+    public double getNodeLevelThreshold(WorkloadManagementSettings settings) {
+        return nodeLevelThresholdSupplier.apply(settings);
     }
 
     public static List<ResourceType> getSortedValues() {

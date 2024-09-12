@@ -62,7 +62,7 @@ dependencies {
   api 'com.microsoft.azure:msal4j-persistence-extension:1.3.0'
   api "net.java.dev.jna:jna-platform:${versions.jna}"
   api 'com.microsoft.azure:msal4j:1.17.0'
-  api 'com.nimbusds:oauth2-oidc-sdk:11.9.1'
+  api 'com.nimbusds:oauth2-oidc-sdk:11.19.1'
   api 'com.nimbusds:nimbus-jose-jwt:9.40'
   api 'com.nimbusds:content-type:2.3'
   api 'com.nimbusds:lang-tag:1.7'
