@@ -386,6 +386,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.get().handleCommit(applyCommitRequest);
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(committedState) : committedState;
+            clusterApplier.setPreCommitState(applierState);
+
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // cluster-manager node applies the committed state at the end of the publication process, not here.
                 applyListener.onResponse(null);
@@ -1861,5 +1863,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
         return Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false"));
+    }
+
+    public boolean isRemotePublicationEnabled() {
+        if (coordinationState.get() != null) {
+            return coordinationState.get().isRemotePublicationEnabled();
+        }
+        return false;
     }
 }
