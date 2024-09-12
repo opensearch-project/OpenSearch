@@ -39,7 +39,7 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
     - [Expect a specific segment topology](#expect-a-specific-segment-topology)
     - [Leave environment in an unstable state after test](#leave-environment-in-an-unstable-state-after-test)
 - [Test coverage analysis](#test-coverage-analysis)
-- [Building with extra plugins](#building-with-extra-plugins)
+- [Testing with plugins](#testing-with-plugins)
 - [Environment misc](#environment-misc)
 
 # Requirements
