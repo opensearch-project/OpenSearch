@@ -30,6 +30,8 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,23 +77,44 @@ public class RemoteStorePinnedTimestampService implements Closeable {
      * and starts the asynchronous update task.
      */
     public void start() {
-        validateRemoteStoreConfiguration();
+        blobContainer = validateAndCreateBlobContainer(settings, repositoriesService.get());
         startAsyncUpdateTask(RemoteStoreSettings.getPinnedTimestampsSchedulerInterval());
     }
 
-    private void validateRemoteStoreConfiguration() {
+    private static BlobContainer validateAndCreateBlobContainer(Settings settings, RepositoriesService repositoriesService) {
         final String remoteStoreRepo = settings.get(
             Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
         assert remoteStoreRepo != null : "Remote Segment Store repository is not configured";
-        final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
+        final Repository repository = repositoriesService.repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        blobContainer = blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath().add(PINNED_TIMESTAMPS_PATH_TOKEN));
+        return blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath().add(PINNED_TIMESTAMPS_PATH_TOKEN));
     }
 
     private void startAsyncUpdateTask(TimeValue pinnedTimestampsSchedulerInterval) {
         asyncUpdatePinnedTimestampTask = new AsyncUpdatePinnedTimestampTask(logger, threadPool, pinnedTimestampsSchedulerInterval, true);
+    }
+
+    public static Map<String, Set<Long>> fetchPinnedTimestamps(Settings settings, RepositoriesService repositoriesService)
+        throws IOException {
+        BlobContainer blobContainer = validateAndCreateBlobContainer(settings, repositoriesService);
+        Set<String> pinnedTimestamps = blobContainer.listBlobs().keySet();
+        Map<String, Set<Long>> pinningEntityTimestampMap = new HashMap<>();
+        for (String pinnedTimestamp : pinnedTimestamps) {
+            try {
+                String[] tokens = pinnedTimestamp.split(PINNED_TIMESTAMPS_FILENAME_SEPARATOR);
+                Long timestamp = Long.parseLong(tokens[tokens.length - 1]);
+                String pinningEntity = pinnedTimestamp.substring(0, pinnedTimestamp.lastIndexOf(PINNED_TIMESTAMPS_FILENAME_SEPARATOR));
+                if (pinningEntityTimestampMap.containsKey(pinningEntity) == false) {
+                    pinningEntityTimestampMap.put(pinningEntity, new HashSet<>());
+                }
+                pinningEntityTimestampMap.get(pinningEntity).add(timestamp);
+            } catch (NumberFormatException e) {
+                logger.error("Exception while parsing pinned timestamp from {}, skipping this entry", pinnedTimestamp);
+            }
+        }
+        return pinningEntityTimestampMap;
     }
 
     /**
