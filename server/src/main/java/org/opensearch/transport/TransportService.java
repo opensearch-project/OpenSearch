@@ -773,8 +773,8 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.disconnectFromNode(node);
     }
 
-    public void setPendingDisconnections(Set<DiscoveryNode> nodes) {
-        nodes.forEach(connectionManager::setPendingDisconnection);
+    public void setPendingDisconnection(DiscoveryNode node) {
+        connectionManager.setPendingDisconnection(node);
     }
 
     /**

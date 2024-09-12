@@ -1191,6 +1191,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
                     null
                 );
+                coordinator.setNodeConnectionsService(nodeConnectionsService);
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,

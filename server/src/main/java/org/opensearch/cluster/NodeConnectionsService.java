@@ -164,6 +164,14 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         runnables.forEach(Runnable::run);
     }
 
+    public void setPendingDisconnections(Set<DiscoveryNode> nodes) {
+        nodes.forEach(transportService::setPendingDisconnection);
+    }
+
+    public void clearPendingDisconnections() {
+        transportService.clearPendingDisconnections();
+    }
+
     /**
      * Disconnect from any nodes to which we are currently connected which do not appear in the given nodes. Does not wait for the
      * disconnections to complete, because they might have to wait for ongoing connection attempts first.

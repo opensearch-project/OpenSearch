@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
+import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -187,6 +188,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
     private final RemoteStoreNodeService remoteStoreNodeService;
+    private NodeConnectionsService nodeConnectionsService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -820,7 +822,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     // This set only needs to be maintained on active cluster-manager
                     // This is cleaned up to avoid stale entries which would block future reconnections
                     logger.trace("Removing all pending disconnections as part of cluster-manager cleanup");
-                    transportService.clearPendingDisconnections();
+                    nodeConnectionsService.clearPendingDisconnections();
                 }
                 return unchanged();
             }
@@ -925,6 +927,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             becomeCandidate("startInitialJoin");
         }
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
+    }
+
+    @Override
+    public void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
+        assert this.nodeConnectionsService == null : "nodeConnectionsService is already set";
+        this.nodeConnectionsService = nodeConnectionsService;
     }
 
     @Override
@@ -1366,7 +1374,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 // marking pending disconnects before publish
                 // if a nodes tries to send a joinRequest while it is pending disconnect, it should fail
-                transportService.setPendingDisconnections(new HashSet<>(clusterChangedEvent.nodesDelta().removedNodes()));
+                nodeConnectionsService.setPendingDisconnections(new HashSet<>(clusterChangedEvent.nodesDelta().removedNodes()));
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);

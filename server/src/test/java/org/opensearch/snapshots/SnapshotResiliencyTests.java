@@ -2576,10 +2576,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
                     null
                 );
+                coordinator.setNodeConnectionsService(nodeConnectionsService);
                 clusterManagerService.setClusterStatePublisher(coordinator);
-                coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();
+                coordinator.start();
                 clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();
