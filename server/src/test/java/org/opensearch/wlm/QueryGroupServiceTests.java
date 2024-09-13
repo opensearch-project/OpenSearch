@@ -167,7 +167,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
     }
 
-    public void testRejectIfNeeded_whenQueryGroupIdIsNull() {
+    public void testRejectIfNeeded_whenQueryGroupIdIsNullOrDefaultOne() {
         QueryGroup testQueryGroup = new QueryGroup(
             "testQueryGroup",
             "queryGroupId1",
@@ -196,6 +196,9 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         );
         queryGroupService.rejectIfNeeded(null);
 
+        verify(spyMap, never()).get(any());
+
+        queryGroupService.rejectIfNeeded(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
         verify(spyMap, never()).get(any());
     }
 

@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.TRACKED_RESOURCES;
@@ -89,7 +90,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
                 )
             ),
             new HashMap<>(),
-            new HashSet<>(clusterService.state().metadata().queryGroups().values()),
+            new HashSet<>(),
             new HashSet<>()
         );
     }
@@ -115,6 +116,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
         this.queryGroupStateMap = stateMap;
         this.queryGroupStateMap.put(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(), new QueryGroupState());
         taskCancellationService.setQueryGroupStateMapAccessor(this::getQueryGroupState);
+        clusterService.addStateApplier(this);
     }
 
     /**
@@ -126,6 +128,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
         }
         taskCancellationService.refreshQueryGroups(activeQueryGroups, deletedQueryGroups);
         taskCancellationService.cancelTasks(nodeDuressTrackers::isNodeInDuress);
+        taskCancellationService.pruneDeletedQueryGroups();
     }
 
     private QueryGroupState getQueryGroupState(final String queryGroupId) {
@@ -223,7 +226,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
      * @param queryGroupId query group identifier
      */
     public void rejectIfNeeded(String queryGroupId) {
-        if (queryGroupId == null) return;
+        if (queryGroupId == null || queryGroupId.equals(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get())) return;
         QueryGroupState queryGroupState = queryGroupStateMap.get(queryGroupId);
 
         // This can happen if the request failed for a deleted query group
@@ -232,36 +235,40 @@ public class QueryGroupService extends AbstractLifecycleComponent
             return;
         }
 
-        boolean reject = false;
-        final StringBuilder reason = new StringBuilder();
-
         // rejections will not happen for SOFT mode QueryGroups
-        QueryGroup queryGroup = activeQueryGroups.stream().filter(x -> x.get_id().equals(queryGroupId)).findFirst().get();
+        Optional<QueryGroup> optionalQueryGroup = activeQueryGroups.stream().filter(x -> x.get_id().equals(queryGroupId)).findFirst();
 
-        if (queryGroup.getResiliencyMode() == MutableQueryGroupFragment.ResiliencyMode.SOFT) return;
+        if (optionalQueryGroup.isPresent() && optionalQueryGroup.get().getResiliencyMode() == MutableQueryGroupFragment.ResiliencyMode.SOFT)
+            return;
 
-        for (ResourceType resourceType : TRACKED_RESOURCES) {
-            if (queryGroup.getResourceLimits().containsKey(resourceType)) {
-                final double threshold = queryGroup.getResourceLimits().get(resourceType);
-                final double lastRecordedUsage = queryGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
-                if (threshold < lastRecordedUsage) {
-                    reject = true;
-                    reason.append(resourceType)
-                        .append(" limit is breaching for ENFORCED type QueryGroup: (")
-                        .append(threshold)
-                        .append(" < ")
-                        .append(lastRecordedUsage)
-                        .append("). ");
-                    queryGroupState.getResourceState().get(resourceType).rejections.inc();
-                    // should not double count even if both the resource limits are breaching
-                    break;
+        optionalQueryGroup.ifPresent(queryGroup -> {
+            boolean reject = false;
+            final StringBuilder reason = new StringBuilder();
+            for (ResourceType resourceType : TRACKED_RESOURCES) {
+                if (queryGroup.getResourceLimits().containsKey(resourceType)) {
+                    final double threshold = queryGroup.getResourceLimits().get(resourceType);
+                    final double lastRecordedUsage = queryGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
+                    if (threshold < lastRecordedUsage) {
+                        reject = true;
+                        reason.append(resourceType)
+                            .append(" limit is breaching for ENFORCED type QueryGroup: (")
+                            .append(threshold)
+                            .append(" < ")
+                            .append(lastRecordedUsage)
+                            .append("). ");
+                        queryGroupState.getResourceState().get(resourceType).rejections.inc();
+                        // should not double count even if both the resource limits are breaching
+                        break;
+                    }
                 }
             }
-        }
-        if (reject) {
-            queryGroupState.totalRejections.inc();
-            throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended. " + reason.toString());
-        }
+            if (reject) {
+                queryGroupState.totalRejections.inc();
+                throw new OpenSearchRejectedExecutionException(
+                    "QueryGroup " + queryGroupId + " is already contended. " + reason.toString()
+                );
+            }
+        });
     }
 
     public Set<QueryGroup> getActiveQueryGroups() {

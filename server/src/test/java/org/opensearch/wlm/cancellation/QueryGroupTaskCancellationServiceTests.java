@@ -24,6 +24,7 @@ import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.TestClock;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -516,6 +518,50 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(queryGroup2));
         assertEquals(0, cancellableTasksFrom.size());
+    }
+
+    public void testPruneDeletedQueryGroups() {
+        QueryGroup queryGroup1 = new QueryGroup(
+            "testQueryGroup1",
+            queryGroupId1,
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.2)),
+            1L
+        );
+        QueryGroup queryGroup2 = new QueryGroup(
+            "testQueryGroup2",
+            queryGroupId2,
+            new MutableQueryGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.1)),
+            1L
+        );
+        List<QueryGroup> deletedQueryGroups = new ArrayList<>();
+        deletedQueryGroups.add(queryGroup1);
+        deletedQueryGroups.add(queryGroup2);
+        QueryGroupLevelResourceUsageView resourceUsageView1 = createResourceUsageViewMock();
+
+        List<QueryGroupTask> activeTasks = IntStream.range(0, 5).mapToObj(this::getRandomSearchTask).collect(Collectors.toList());
+        when(resourceUsageView1.getActiveTasks()).thenReturn(activeTasks);
+
+        QueryGroupLevelResourceUsageView resourceUsageView2 = createResourceUsageViewMock();
+        when(resourceUsageView2.getActiveTasks()).thenReturn(new ArrayList<>());
+
+        queryGroupLevelViews.put(queryGroupId1, resourceUsageView1);
+        queryGroupLevelViews.put(queryGroupId2, resourceUsageView2);
+
+        QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
+            workloadManagementSettings,
+            new MaximumResourceTaskSelectionStrategy(),
+            resourceUsageTrackerService,
+            activeQueryGroups,
+            deletedQueryGroups
+        );
+        taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
+        taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
+
+        taskCancellation.pruneDeletedQueryGroups();
+
+        assertEquals(1, deletedQueryGroups.size());
+        assertEquals(queryGroupId1, deletedQueryGroups.get(0).get_id());
+
     }
 
     private QueryGroupLevelResourceUsageView createResourceUsageViewMock() {

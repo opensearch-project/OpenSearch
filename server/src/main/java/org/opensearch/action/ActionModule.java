@@ -476,6 +476,7 @@ import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
+import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -559,7 +560,10 @@ public class ActionModule extends AbstractModule {
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
-            Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
+            Stream.of(
+                new RestHeaderDefinition(Task.X_OPAQUE_ID, false),
+                new RestHeaderDefinition(QueryGroupTask.QUERY_GROUP_ID_HEADER, false)
+            )
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {

@@ -239,8 +239,25 @@ public class QueryGroupTaskCancellationService {
         return queryGroupStateAccessor.apply(queryGroupId);
     }
 
+    /**
+     * sets the current active and deleted query groups
+     * @param activeQueryGroups
+     * @param deletedQueryGroups
+     */
     public void refreshQueryGroups(Collection<QueryGroup> activeQueryGroups, Collection<QueryGroup> deletedQueryGroups) {
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
+    }
+
+    /**
+     * Removes the queryGroups from deleted list if it doesn't have any tasks running
+     */
+    public void pruneDeletedQueryGroups() {
+        List<QueryGroup> currentDeletedQueryGroups = new ArrayList<>(deletedQueryGroups);
+        for (QueryGroup queryGroup : currentDeletedQueryGroups) {
+            if (queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks().isEmpty()) {
+                deletedQueryGroups.remove(queryGroup);
+            }
+        }
     }
 }
