@@ -41,6 +41,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.IncompatibleClusterStateVersionException;
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.action.ActionListener;
@@ -69,12 +70,16 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+
 /**
  * Transport handler for publication
  *
  * @opensearch.internal
  */
-public class PublicationTransportHandler {
+public class PublicationTransportHandler
+
+{
 
     private static final Logger logger = LogManager.getLogger(PublicationTransportHandler.class);
 
@@ -240,6 +245,7 @@ public class PublicationTransportHandler {
 
     // package private for testing
     PublishWithJoinResponse handleIncomingRemotePublishRequest(RemotePublishRequest request) throws IOException, IllegalStateException {
+        remoteClusterStateService.start();
         boolean applyFullState = false;
         try {
             if (transportService.getLocalNode().equals(request.getSourceNode())) {
@@ -354,12 +360,24 @@ public class PublicationTransportHandler {
         boolean isRemotePublicationEnabled,
         PersistedStateRegistry persistedStateRegistry
     ) {
+        AtomicBoolean allNodesRemotePublicationEnabled = new AtomicBoolean();
+        // validate if repoMetadata is present in the cluster-state before starting remote-publication
         if (isRemotePublicationEnabled == true) {
             if (allNodesRemotePublicationEnabled.get() == false) {
-                if (validateRemotePublicationOnAllNodes(clusterChangedEvent.state().nodes()) == true) {
-                    allNodesRemotePublicationEnabled.set(true);
+                RepositoriesMetadata custom = clusterChangedEvent.previousState().getMetadata().custom(RepositoriesMetadata.TYPE);
+                String clusterStateRepo = clusterChangedEvent.state()
+                    .nodes()
+                    .getLocalNode()
+                    .getAttributes()
+                    .get(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                boolean isRepoInitialized = custom != null && custom.repository(clusterStateRepo) != null;
+                if (isRepoInitialized) {
+                    if (validateRemotePublicationOnAllNodes(clusterChangedEvent.state().nodes()) == true) {
+                        allNodesRemotePublicationEnabled.set(true);
+                    }
                 }
             }
+
             if (allNodesRemotePublicationEnabled.get() == true) {
                 // if all nodes are remote then create remote publication context
                 return new RemotePublicationContext(clusterChangedEvent, persistedStateRegistry);
@@ -542,7 +560,7 @@ public class PublicationTransportHandler {
         }
 
         public void sendClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            logger.debug("sending cluster state over transport to node: {}", destination.getName());
+            logger.info("sending cluster state over transport to node: {}", destination.getName());
             if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);

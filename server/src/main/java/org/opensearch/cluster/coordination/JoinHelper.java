@@ -59,8 +59,10 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -131,6 +133,8 @@ public class JoinHelper {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<Tuple<Long, BytesReference>> serializedState = new AtomicReference<>();
 
+    private final boolean remoteStateEnabled;
+
     JoinHelper(
         Settings settings,
         AllocationService allocationService,
@@ -153,7 +157,8 @@ public class JoinHelper {
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.nodeCommissioned = nodeCommissioned;
         this.namedWriteableRegistry = namedWriteableRegistry;
-
+        this.remoteStoreNodeService = remoteStoreNodeService;
+        this.remoteStateEnabled = RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings);
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(
             settings,
             allocationService,
@@ -227,6 +232,9 @@ public class JoinHelper {
             ValidateJoinRequest::new,
             (request, channel, task) -> {
                 runJoinValidators(currentStateSupplier, request.getState(), joinValidators);
+                if (request.isRemoteStateEnabled) {
+                    remoteStoreNodeService.createAndVerifyRepositories(currentStateSupplier.get().nodes().getLocalNode());
+                }
                 channel.sendResponse(Empty.INSTANCE);
             }
         );
@@ -242,6 +250,8 @@ public class JoinHelper {
         );
 
     }
+
+    private final RemoteStoreNodeService remoteStoreNodeService;
 
     private void runJoinValidators(
         Supplier<ClusterState> currentStateSupplier,
@@ -455,11 +465,11 @@ public class JoinHelper {
     }
 
     public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        if (node.getVersion().before(Version.V_2_9_0)) {
+        if (node.getVersion().after(Version.V_2_9_0)) {
             transportService.sendRequest(
                 node,
                 VALIDATE_JOIN_ACTION_NAME,
-                new ValidateJoinRequest(state),
+                new ValidateJoinRequest(state, remoteStateEnabled),
                 new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
             );
         } else {

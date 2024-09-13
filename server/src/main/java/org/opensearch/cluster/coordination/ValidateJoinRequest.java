@@ -46,19 +46,28 @@ import java.io.IOException;
 public class ValidateJoinRequest extends TransportRequest {
     private ClusterState state;
 
+     boolean isRemoteStateEnabled;
+
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);
         this.state = ClusterState.readFrom(in, null);
+        this.isRemoteStateEnabled = in.readBoolean();
     }
 
     public ValidateJoinRequest(ClusterState state) {
         this.state = state;
     }
 
+    public ValidateJoinRequest(ClusterState state, boolean isRemoteStateEnabled) {
+        this.state = state;
+        this.isRemoteStateEnabled = isRemoteStateEnabled;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         this.state.writeTo(out);
+        out.writeBoolean(this.isRemoteStateEnabled);
     }
 
     public ClusterState getState() {

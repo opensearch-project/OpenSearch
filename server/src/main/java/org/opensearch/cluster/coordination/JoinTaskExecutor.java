@@ -158,6 +158,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         final DiscoveryNodes currentNodes = currentState.nodes();
         boolean nodesChanged = false;
         ClusterState.Builder newState;
+        DiscoveryNode remotePublishNode = null;
 
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
             return results.successes(joiningNodes).build(currentState);
@@ -168,6 +169,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough
             newState = becomeClusterManagerAndTrimConflictingNodes(currentState, joiningNodes);
+            if (currentNodes.getLocalNode().isRemoteStatePublicationEnabled()) {
+                remotePublishNode = currentNodes.getLocalNode();
+            }
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedClusterManager() == false) {
             logger.trace(
@@ -185,12 +189,20 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // for every set of node join task which we can optimize to not compute if cluster state already has
         // repository information.
         Optional<DiscoveryNode> remoteDN = currentNodes.getNodes().values().stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
-        DiscoveryNode dn = remoteDN.orElseGet(() -> (currentNodes.getNodes().values()).stream().findFirst().get());
-        RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
-            dn,
-            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
-        );
+        RepositoriesMetadata repositoriesMetadata = null;
 
+        if (remotePublishNode != null) {
+            repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+                remotePublishNode,
+                currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+            );
+        } else {
+            DiscoveryNode dn = remoteDN.orElseGet(() -> (currentNodes.getNodes().values()).stream().findFirst().get());
+            repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+                dn,
+                currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+            );
+        }
         assert nodesBuilder.isLocalNodeElectedClusterManager();
 
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
