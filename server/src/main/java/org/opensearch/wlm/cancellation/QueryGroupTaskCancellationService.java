@@ -91,7 +91,7 @@ public class QueryGroupTaskCancellationService {
     /**
      * Cancel tasks based on the implemented strategy.
      */
-    public void cancelTasks(BooleanSupplier isNodeInDuress) {
+    public final void cancelTasks(BooleanSupplier isNodeInDuress) {
         queryGroupLevelResourceUsageViews = resourceUsageTrackerService.constructQueryGroupLevelUsageViews();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
         cancelTasks(ResiliencyMode.ENFORCED);
@@ -159,7 +159,6 @@ public class QueryGroupTaskCancellationService {
                     .calculateResourceUsage(selectedTasks);
                 if (excessUsage > MIN_VALUE) {
                     reasons.add(new TaskCancellation.Reason(generateReasonString(queryGroup, resourceType), 1));
-
                     // TODO: We will need to add the cancellation callback for these resources for the queryGroup to reflect stats
                     onCancelCallbacks.add(this.getResourceTypeOnCancelCallback(queryGroup.get_id(), resourceType));
                     // Only add tasks not already added to avoid double cancellations
