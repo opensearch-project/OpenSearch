@@ -54,6 +54,11 @@ import java.util.Map;
  */
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    /**
+     * Execution mode for cardinality agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         UNSET,
