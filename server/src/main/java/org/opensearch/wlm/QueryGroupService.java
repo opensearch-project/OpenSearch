@@ -7,6 +7,7 @@
  */
 
 package org.opensearch.wlm;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -33,6 +34,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.TRACKED_RESOURCES;
+
 /**
  * As of now this is a stub and main implementation PR will be raised soon.Coming PR will collate these changes with core QueryGroupService changes
  */
@@ -55,16 +58,30 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         QueryGroupTaskCancellationService taskCancellationService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        WorkloadManagementSettings workloadManagementSettings) {
+        WorkloadManagementSettings workloadManagementSettings
+    ) {
 
-        this(taskCancellationService, clusterService, threadPool, workloadManagementSettings,
+        this(
+            taskCancellationService,
+            clusterService,
+            threadPool,
+            workloadManagementSettings,
             new NodeDuressTrackers(
-                Map.of(ResourceType.CPU, new NodeDuressTracker(() ->
-                        workloadManagementSettings.getNodeLevelCpuCancellationThreshold() < ProcessProbe.getInstance().getProcessCpuPercent() / 100.0,
-                        workloadManagementSettings::getDuressStreak),
-                    ResourceType.MEMORY, new NodeDuressTracker(
-                        () -> workloadManagementSettings.getNodeLevelMemoryCancellationThreshold() <= JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0,
-                        workloadManagementSettings::getDuressStreak))
+                Map.of(
+                    ResourceType.CPU,
+                    new NodeDuressTracker(
+                        () -> workloadManagementSettings.getNodeLevelCpuCancellationThreshold() < ProcessProbe.getInstance()
+                            .getProcessCpuPercent() / 100.0,
+                        workloadManagementSettings::getDuressStreak
+                    ),
+                    ResourceType.MEMORY,
+                    new NodeDuressTracker(
+                        () -> workloadManagementSettings.getNodeLevelMemoryCancellationThreshold() <= JvmStats.jvmStats()
+                            .getMem()
+                            .getHeapUsedPercent() / 100.0,
+                        workloadManagementSettings::getDuressStreak
+                    )
+                )
             ),
             new HashMap<>(),
             new HashSet<>(clusterService.state().metadata().queryGroups().values()),
@@ -78,7 +95,7 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
         NodeDuressTrackers nodeDuressTrackers,
-        Map<String, QueryGroupState> queryGroupStateMap,
+        Map<String, QueryGroupState> stateMap,
         Set<QueryGroup> activeQueryGroups,
         Set<QueryGroup> deletedQueryGroups
     ) {
@@ -89,8 +106,10 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
-
-        this.queryGroupStateMap = queryGroupStateMap;
+        activeQueryGroups.forEach(queryGroup -> stateMap.putIfAbsent(queryGroup.get_id(), new QueryGroupState()));
+        this.queryGroupStateMap = stateMap;
+        this.queryGroupStateMap.put(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(), new QueryGroupState());
+        taskCancellationService.setQueryGroupStateMapAccessor(this::getQueryGroupState);
     }
 
     /**
@@ -100,8 +119,12 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
         if (workloadManagementSettings.getWlmMode() == WlmMode.DISABLED) {
             return;
         }
-//        taskCancellationService.cancelTasks(activeQueryGroups, deletedQueryGroups);
+        taskCancellationService.refreshQueryGroups(activeQueryGroups, deletedQueryGroups);
         taskCancellationService.cancelTasks(nodeDuressTrackers::isNodeInDuress);
+    }
+
+    private QueryGroupState getQueryGroupState(final String queryGroupId) {
+        return queryGroupStateMap.get(queryGroupId);
     }
 
     /**
@@ -128,11 +151,6 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
     @Override
     protected void doClose() throws IOException {}
 
-    protected Set<QueryGroup> getActiveQueryGroupsFromClusterState() {
-        Map<String, QueryGroup> queryGroups = clusterService.state().metadata().queryGroups();
-        return new HashSet<>(queryGroups.values());
-    }
-
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         // Retrieve the current and previous cluster states
@@ -150,6 +168,7 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
                 QueryGroup newQueryGroup = currentQueryGroups.get(queryGroupName);
                 // Perform any necessary actions with the new query group
                 this.activeQueryGroups.add(newQueryGroup);
+                queryGroupStateMap.put(newQueryGroup.get_id(), new QueryGroupState());
             }
         }
 
@@ -160,9 +179,10 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
                 QueryGroup deletedQueryGroup = previousQueryGroups.get(queryGroupName);
                 // Perform any necessary actions with the deleted query group
                 this.deletedQueryGroups.add(deletedQueryGroup);
+                queryGroupStateMap.remove(deletedQueryGroup.get_id());
             }
         }
-    } // tested
+    }
 
     /**
      * updates the failure stats for the query group
@@ -199,13 +219,51 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
      */
     public void rejectIfNeeded(String queryGroupId) {
         if (queryGroupId == null) return;
+        QueryGroupState queryGroupState = queryGroupStateMap.get(queryGroupId);
+
+        // This can happen if the request failed for a deleted query group
+        // or new queryGroup is being created and has not been acknowledged yet
+        if (queryGroupState == null) {
+            return;
+        }
+
         boolean reject = false;
         final StringBuilder reason = new StringBuilder();
-        // TODO: At this point this is dummy and we need to decide whether to cancel the request based on last
-        // reported resource usage for the queryGroup. We also need to increment the rejection count here for the
-        // query group
-        if (reject) {
-            throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended." + reason.toString());
+
+        // rejections will not happen for SOFT mode QueryGroups
+        QueryGroup queryGroup = activeQueryGroups.stream().filter(x -> x.get_id().equals(queryGroupId)).findFirst().get();
+
+        if (queryGroup.getResiliencyMode() == MutableQueryGroupFragment.ResiliencyMode.SOFT) return;
+
+        for (ResourceType resourceType : TRACKED_RESOURCES) {
+            if (queryGroup.getResourceLimits().containsKey(resourceType)) {
+                final double threshold = queryGroup.getResourceLimits().get(resourceType);
+                final double lastRecordedUsage = queryGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
+                if (threshold < lastRecordedUsage) {
+                    reject = true;
+                    reason.append(resourceType)
+                        .append(" limit is breaching for ENFORCED type QueryGroup: (")
+                        .append(threshold)
+                        .append(" < ")
+                        .append(lastRecordedUsage)
+                        .append("). ");
+                    queryGroupState.getResourceState().get(resourceType).rejections.inc();
+                    // should not double count even if both the resource limits are breaching
+                    break;
+                }
+            }
         }
+        if (reject) {
+            queryGroupState.totalRejections.inc();
+            throw new OpenSearchRejectedExecutionException("QueryGroup " + queryGroupId + " is already contended. " + reason.toString());
+        }
+    }
+
+    public Set<QueryGroup> getActiveQueryGroups() {
+        return activeQueryGroups;
+    }
+
+    public Set<QueryGroup> getDeletedQueryGroups() {
+        return deletedQueryGroups;
     }
 }

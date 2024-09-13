@@ -20,6 +20,7 @@ public enum WlmMode {
     DISABLED("disabled");
 
     private final String name;
+
     WlmMode(String name) {
         this.name = name;
     }
@@ -29,7 +30,7 @@ public enum WlmMode {
     }
 
     public static WlmMode fromName(String name) {
-        for (WlmMode wlmMode: values()) {
+        for (WlmMode wlmMode : values()) {
             if (wlmMode.getName().equals(name)) {
                 return wlmMode;
             }

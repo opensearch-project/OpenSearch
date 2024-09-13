@@ -793,7 +793,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
-                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
+                WorkloadManagementSettings.WLM_MODE_SETTING,
+                WorkloadManagementSettings.QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING,
+                WorkloadManagementSettings.QUERYGROUP_SERVICE_DURESS_STREAK_SETTING
             )
         )
     );

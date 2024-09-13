@@ -35,7 +35,6 @@ public class WorkloadManagementSettings {
     private Double nodeLevelCpuCancellationThreshold;
     private Double nodeLevelCpuRejectionThreshold;
 
-
     /**
      * Setting name for QueryGroupService node duress streak
      */
@@ -45,6 +44,7 @@ public class WorkloadManagementSettings {
         QUERYGROUP_SERVICE_DURESS_STREAK_SETTING_NAME,
         3,
         3,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -61,6 +61,7 @@ public class WorkloadManagementSettings {
         QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING_NAME,
         DEFAULT_QUERYGROUP_SERVICE_RUN_INTERVAL_MILLIS,
         1000,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -170,7 +171,6 @@ public class WorkloadManagementSettings {
         clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING, this::setQueryGroupServiceRunInterval);
         clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_DURESS_STREAK_SETTING, this::setDuressStreak);
     }
-
 
     /**
      * node duress streak getter

@@ -95,6 +95,19 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                         ResourceType.MEMORY,
                         new QueryGroupStats.ResourceStats(0, 0, 0)
                     )
+                ),
+                QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(),
+                new QueryGroupStats.QueryGroupStatsHolder(
+                    0,
+                    0,
+                    0,
+                    0,
+                    Map.of(
+                        ResourceType.CPU,
+                        new QueryGroupStats.ResourceStats(0, 0, 0),
+                        ResourceType.MEMORY,
+                        new QueryGroupStats.ResourceStats(0, 0, 0)
+                    )
                 )
             )
         );
@@ -113,8 +126,8 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             mockWorkloadManagementSettings,
             null,
             queryGroupStateMap,
-            null,
-            null
+            Collections.emptySet(),
+            Collections.emptySet()
         );
 
         sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
@@ -154,6 +167,19 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                         ResourceType.MEMORY,
                         new QueryGroupStats.ResourceStats(0, 0, 0)
                     )
+                ),
+                QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(),
+                new QueryGroupStats.QueryGroupStatsHolder(
+                    0,
+                    0,
+                    0,
+                    0,
+                    Map.of(
+                        ResourceType.CPU,
+                        new QueryGroupStats.ResourceStats(0, 0, 0),
+                        ResourceType.MEMORY,
+                        new QueryGroupStats.ResourceStats(0, 0, 0)
+                    )
                 )
             )
         );
@@ -165,6 +191,19 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         QueryGroupStats expectedStats = new QueryGroupStats(
             Map.of(
                 testQueryGroupId,
+                new QueryGroupStats.QueryGroupStatsHolder(
+                    0,
+                    0,
+                    0,
+                    0,
+                    Map.of(
+                        ResourceType.CPU,
+                        new QueryGroupStats.ResourceStats(0, 0, 0),
+                        ResourceType.MEMORY,
+                        new QueryGroupStats.ResourceStats(0, 0, 0)
+                    )
+                ),
+                QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(),
                 new QueryGroupStats.QueryGroupStatsHolder(
                     0,
                     0,
@@ -204,8 +243,8 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 mockWorkloadManagementSettings,
                 null,
                 queryGroupStateMap,
-                null,
-                null
+                Collections.emptySet(),
+                Collections.emptySet()
             );
 
             sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);

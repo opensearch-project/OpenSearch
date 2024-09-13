@@ -21,9 +21,9 @@ import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 
 import java.util.Collections;
 
+import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
 public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestCase {
     private QueryGroupTaskCancellationService mockTaskCancellationService;
@@ -45,13 +45,9 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         when(mockClusterService.state()).thenReturn(state);
         when(state.metadata()).thenReturn(metadata);
         when(metadata.queryGroups()).thenReturn(Collections.emptyMap());
-        sut = new WorkloadManagementTransportInterceptor(threadPool,
-            new QueryGroupService(
-                mockTaskCancellationService,
-                mockClusterService,
-                mockThreadPool,
-                mockWorkloadManagementSettings
-            )
+        sut = new WorkloadManagementTransportInterceptor(
+            threadPool,
+            new QueryGroupService(mockTaskCancellationService, mockClusterService, mockThreadPool, mockWorkloadManagementSettings)
         );
     }
 
