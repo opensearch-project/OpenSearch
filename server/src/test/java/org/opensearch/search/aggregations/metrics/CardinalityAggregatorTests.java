@@ -50,7 +50,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.network.InetAddresses;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.*;
@@ -59,8 +58,6 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
-import java.net.Inet4Address;
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -527,6 +524,21 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 verifyCollector.accept(aggregator.getSelectedCollector());
             }
         }
+    }
+
+    public void testInvalidExecutionHint() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number").executionHint("invalid");
+        assertThrows(IllegalArgumentException.class, () -> testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 9)));
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof CardinalityAggregator.DirectCollector);
+        }, fieldType));
     }
 
     public void testNoExecutionHintWithNumericDocValues() throws IOException {
