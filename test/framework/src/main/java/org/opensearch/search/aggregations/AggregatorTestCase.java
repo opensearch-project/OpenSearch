@@ -1169,7 +1169,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             return collectCounter;
         }
 
-        public LeafBucketCollector getSelectedCollector() { return selectedCollector; }
+        public LeafBucketCollector getSelectedCollector() {
+            return selectedCollector;
+        }
 
         @Override
         public void close() {
