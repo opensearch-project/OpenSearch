@@ -167,7 +167,9 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         return this;
     }
 
-    public String executionHint() { return executionHint; }
+    public String executionHint() {
+        return executionHint;
+    }
 
     @Override
     protected CardinalityAggregatorFactory innerBuild(
@@ -176,7 +178,16 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, executionHint, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new CardinalityAggregatorFactory(
+            name,
+            config,
+            precisionThreshold,
+            executionHint,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override
@@ -201,8 +212,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         CardinalityAggregationBuilder other = (CardinalityAggregationBuilder) obj;
-        return Objects.equals(precisionThreshold, other.precisionThreshold)
-            && Objects.equals(executionHint, other.executionHint);
+        return Objects.equals(precisionThreshold, other.precisionThreshold) && Objects.equals(executionHint, other.executionHint);
     }
 
     @Override
