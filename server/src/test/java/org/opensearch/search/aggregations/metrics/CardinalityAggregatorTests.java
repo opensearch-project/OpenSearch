@@ -571,7 +571,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    public void testOrdinalExecutionHintWithNumericDocValues() throws IOException {
+    public void testOrdinalsExecutionHintWithNumericDocValues() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number").executionHint("ordinals");
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -612,7 +612,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    public void testOrdinalExecutionHintWithByteValues() throws IOException {
+    public void testOrdinalsExecutionHintWithByteValues() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field").executionHint("ordinals");
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
