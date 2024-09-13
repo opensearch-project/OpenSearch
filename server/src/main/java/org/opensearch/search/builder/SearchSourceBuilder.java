@@ -224,6 +224,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> searchPipelineSource = null;
 
+    private String searchPipeline;
+
     /**
      * Constructs a new search source builder.
      */
@@ -273,6 +275,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
         profile = in.readBoolean();
+        searchPipeline = in.readOptionalString();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
@@ -347,6 +350,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
         out.writeBoolean(profile);
+        out.writeOptionalString(searchPipeline);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
@@ -1112,10 +1116,25 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * @return a search pipeline name defined within the search source (see {@link org.opensearch.search.pipeline.SearchPipelineService})
+     */
+    public String pipeline() {
+        return searchPipeline;
+    }
+
+    /**
      * Define a search pipeline to process this search request and/or its response. See {@link org.opensearch.search.pipeline.SearchPipelineService}.
      */
     public SearchSourceBuilder searchPipelineSource(Map<String, Object> searchPipelineSource) {
         this.searchPipelineSource = searchPipelineSource;
+        return this;
+    }
+
+    /**
+     * Define a search pipeline name to process this search request and/or its response. See {@link org.opensearch.search.pipeline.SearchPipelineService}.
+     */
+    public SearchSourceBuilder pipeline(String searchPipeline) {
+        this.searchPipeline = searchPipeline;
         return this;
     }
 
@@ -1283,6 +1302,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     sort(parser.text());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     profile = parser.booleanValue();
+                } else if (SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    searchPipeline = parser.text();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
