@@ -38,7 +38,7 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
     - [Expect a specific segment topology](#expect-a-specific-segment-topology)
     - [Leave environment in an unstable state after test](#leave-environment-in-an-unstable-state-after-test)
 - [Test coverage analysis](#test-coverage-analysis)
-- [Building with extra plugins](#building-with-extra-plugins)
+- [Testing with plugins](#testing-with-plugins)
 - [Environment misc](#environment-misc)
 
 # Requirements
@@ -528,11 +528,17 @@ Apart from using Gradle, it is also possible to gain insight in code coverage us
 
 Please read your IDE documentation for how to attach a debugger to a JVM process.
 
-# Building with extra plugins
+# Testing with plugins
 
-Additional plugins may be built alongside OpenSearch, where their dependency on OpenSearch will be substituted with the local OpenSearch build. To add your plugin, create a directory called `opensearch-extra` as a sibling of OpenSearch. Checkout your plugin underneath `opensearch-extra` and the build will automatically pick it up. You can verify the plugin is included as part of the build by checking the projects of the build.
+To test a plugin with a custom build of OpenSearch, build OpenSearch and use the `customDistributionUrl` setting supported by each plugin to override the OpenSearch distribution.
 
-    ./gradlew projects
+For example, in your OpenSearch repository assemble a custom distribution.
+
+    ./gradlew :distribution:archives:linux-tar:assemble
+
+Then in your plugin repository, substitute in your OpenSearch build
+
+    ./gradlew run -PcustomDistributionUrl="<OPENSEARCH-REPO-PATH>/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz"
 
 # Environment misc
 
