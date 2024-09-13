@@ -463,7 +463,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    public static class EmptyCollector extends Collector {
+    private static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {

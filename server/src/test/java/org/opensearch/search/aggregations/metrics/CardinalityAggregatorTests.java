@@ -32,7 +32,14 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.apache.lucene.document.*;
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -52,8 +59,16 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.index.mapper.*;
-import org.opensearch.search.aggregations.*;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.mapper.RangeType;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -501,7 +516,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                CountingAggregator aggregator = new CountingAggregator(new AtomicInteger(), createAggregator(aggregationBuilder, indexSearcher, fieldType));
+                CountingAggregator aggregator = new CountingAggregator(
+                    new AtomicInteger(),
+                    createAggregator(aggregationBuilder, indexSearcher, fieldType)
+                );
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
@@ -528,7 +546,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testInvalidExecutionHint() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number").executionHint("invalid");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number")
+            .executionHint("invalid");
         assertThrows(IllegalArgumentException.class, () -> testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 8)));
@@ -536,9 +555,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(3, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof CardinalityAggregator.DirectCollector);
-        }, fieldType));
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.DirectCollector); }, fieldType));
     }
 
     public void testNoExecutionHintWithNumericDocValues() throws IOException {
@@ -551,14 +568,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(3, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof CardinalityAggregator.DirectCollector);
-        }, fieldType);
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.DirectCollector); }, fieldType);
     }
 
     public void testDirectExecutionHintWithNumericDocValues() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number").executionHint("direct");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number")
+            .executionHint("direct");
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 8)));
@@ -566,14 +582,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(3, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof CardinalityAggregator.DirectCollector);
-        }, fieldType);
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.DirectCollector); }, fieldType);
     }
 
     public void testOrdinalsExecutionHintWithNumericDocValues() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number").executionHint("ordinals");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number")
+            .executionHint("ordinals");
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 8)));
@@ -581,47 +596,42 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(3, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof CardinalityAggregator.DirectCollector);
-        }, fieldType);
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.DirectCollector); }, fieldType);
     }
 
     public void testNoExecutionHintWithByteValues() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field").executionHint("direct");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field")
+            .executionHint("direct");
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("field", new BytesRef())));
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector);
-        }, fieldType);
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector); }, fieldType);
     }
 
     public void testDirectExecutionHintWithByteValues() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field").executionHint("direct");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field")
+            .executionHint("direct");
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("field", new BytesRef())));
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector);
-        }, fieldType);
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector); }, fieldType);
     }
 
     public void testOrdinalsExecutionHintWithByteValues() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field").executionHint("ordinals");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field")
+            .executionHint("ordinals");
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("field", new BytesRef())));
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector);
-        }, fieldType);
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector); }, fieldType);
     }
 }
