@@ -61,33 +61,8 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.hamcrest.Matchers.is;
 
 /**
- ITs for reproducing the scenario and validating some new cases for https://github.com/opensearch-project/OpenSearch/issues/4874
- This issue is about an infinite loop of node joining and leaving the cluster.
- This race condition would happen when a node-join task was queued into cluster-manager thread while a node-left task for the same node was still processing.
-
- Scenario:
- Suppose a node disconnects from the cluster due to some normal reason.
- This queues a node-left task on cluster manager thread.
- Then cluster manager then computes the new cluster state based on the node-left task.
- The cluster manager now tries to send the new state to all the nodes and waits for all nodes to ack back.
- Suppose this takes a long time due to lagging nodes or slow applying of the state or any other reason.
- While this is happening, the node that just left sends a join request to the cluster manager to rejoin the cluster.
- The role of this join request is to re-establish any required connections and do some pre-validations before queuing a new task.
- After join request is validated by cluster manager node, cluster manager queues a node-join task into its thread.
- This node-join task would only start after the node-left task is completed.
- Now suppose the node-left task has completed publication and has started to apply the new state on the cluster manager.
- As part of applying the cluster state of node-left task, cluster manager wipes out the connection info of the leaving node.
- The node-left task then completes and the node-join task begins.
- Now the node-join task starts. This task assumes that because the previous join request succeeded, that all connection info would still be there.
- So then the cluster manager computes the new state.
- Then it tells the followerchecker thread to add this new node.
- Then it tries to publish the new state to all the nodes.
- However, at this point, the followerchecker thread fails because the connection was wiped and triggers a new node-left task.
- If the new node-left task also takes time, we end up in an infinite loop of node-left and node-joins.
-
-Fix:
- As part of the fix for this, we now reject the initial join request from a node that has an ongoing node-left task.
- The join request will only succeed after the node-left task completes, so the connection that gets created as part of the join request does not get wiped out and cause node-join task to fail.
+ Check https://github.com/opensearch-project/OpenSearch/issues/4874 and
+ https://github.com/opensearch-project/OpenSearch/pull/15521 for context
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
