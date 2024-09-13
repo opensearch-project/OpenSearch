@@ -91,7 +91,7 @@ public class QueryGroupTaskCancellationService {
     /**
      * Cancel tasks based on the implemented strategy.
      */
-    public final void cancelTasks(BooleanSupplier isNodeInDuress) {
+    public void cancelTasks(BooleanSupplier isNodeInDuress) {
         queryGroupLevelResourceUsageViews = resourceUsageTrackerService.constructQueryGroupLevelUsageViews();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
         cancelTasks(ResiliencyMode.ENFORCED);

@@ -1048,6 +1048,7 @@ public class Node implements Closeable {
                 threadPool,
                 workloadManagementSettings
             );
+            taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
 
             final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
                 queryGroupService,

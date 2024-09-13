@@ -16,14 +16,15 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
+import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.cancellation.TaskSelectionStrategy;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -35,6 +36,7 @@ import java.util.function.BooleanSupplier;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import static org.opensearch.wlm.tracker.ResourceUsageCalculatorTests.createMockTaskWithResourceStats;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -54,8 +56,8 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     private Map<String, QueryGroupState> mockQueryGroupStateMap;
     NodeDuressTrackers mockNodeDuressTrackers;
 
-    @Before
-    public void setup() {
+    public void setUp() throws Exception {
+        super.setUp();
         mockClusterService = Mockito.mock(ClusterService.class);
         mockThreadPool = Mockito.mock(ThreadPool.class);
         mockScheduledFuture = Mockito.mock(Scheduler.Cancellable.class);
@@ -74,6 +76,11 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             new HashSet<>(),
             new HashSet<>()
         );
+    }
+
+    public void tearDown() throws Exception {
+        super.tearDown();
+        mockThreadPool.shutdown();
     }
 
     public void testApplyClusterState() {
@@ -309,6 +316,38 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
                 .get(ResourceType.MEMORY).rejections.count()
         );
         assertEquals(1, queryGroupState.totalRejections.count());
+    }
+
+    public void testOnTaskCompleted() {
+        Task task = createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 12);
+        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
+        QueryGroupState queryGroupState = new QueryGroupState();
+        mockQueryGroupStateMap.put("testId", queryGroupState);
+        queryGroupService = new QueryGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockQueryGroupStateMap,
+            new HashSet<>(),
+            new HashSet<>()
+        );
+
+        ((QueryGroupTask) task).setQueryGroupId(mockThreadPool.getThreadContext());
+        queryGroupService.onTaskCompleted(task);
+
+        assertEquals(1, queryGroupState.completions.count());
+
+        // test non QueryGroupTask
+        task = new Task(1, "simple", "test", "mock task", null, null);
+        queryGroupService.onTaskCompleted(task);
+
+        // It should still be 1
+        assertEquals(1, queryGroupState.completions.count());
+
+        mockThreadPool.shutdown();
     }
 
     // This is needed to test the behavior of QueryGroupService#doRun method

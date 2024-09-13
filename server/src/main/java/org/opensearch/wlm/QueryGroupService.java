@@ -21,6 +21,8 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
@@ -39,7 +41,10 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 /**
  * As of now this is a stub and main implementation PR will be raised soon.Coming PR will collate these changes with core QueryGroupService changes
  */
-public class QueryGroupService extends AbstractLifecycleComponent implements ClusterStateApplier {
+public class QueryGroupService extends AbstractLifecycleComponent
+    implements
+        ClusterStateApplier,
+        TaskResourceTrackingService.TaskCompletionListener {
     // This map does not need to be concurrent since we will process the cluster state change serially and update
     // this map with new additions and deletions of entries. QueryGroupState is thread safe
     private final Map<String, QueryGroupState> queryGroupStateMap;
@@ -265,5 +270,15 @@ public class QueryGroupService extends AbstractLifecycleComponent implements Clu
 
     public Set<QueryGroup> getDeletedQueryGroups() {
         return deletedQueryGroups;
+    }
+
+    @Override
+    public void onTaskCompleted(Task task) {
+        if (!(task instanceof QueryGroupTask)) {
+            return;
+        }
+        final QueryGroupTask queryGroupTask = (QueryGroupTask) task;
+        final String queryGroupId = queryGroupTask.getQueryGroupId();
+        queryGroupStateMap.get(queryGroupId).completions.inc();
     }
 }
