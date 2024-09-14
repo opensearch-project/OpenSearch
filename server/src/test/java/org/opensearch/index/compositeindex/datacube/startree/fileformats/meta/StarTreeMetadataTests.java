@@ -31,8 +31,8 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
-import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -62,6 +62,7 @@ public class StarTreeMetadataTests extends OpenSearchTestCase {
     private List<Metric> metrics;
     private List<MetricAggregatorInfo> metricAggregatorInfos = new ArrayList<>();
     private int segmentDocumentCount;
+    private int numStarTreeDocs;
     private long dataFilePointer;
     private long dataFileLength;
 
@@ -136,7 +137,7 @@ public class StarTreeMetadataTests extends OpenSearchTestCase {
                     metricType,
                     metric.getField(),
                     starTreeField.getName(),
-                    IndexNumericFieldData.NumericType.DOUBLE
+                    NumberFieldMapper.NumberType.DOUBLE
                 );
                 metricAggregatorInfos.add(metricAggregatorInfo);
             }
@@ -145,6 +146,7 @@ public class StarTreeMetadataTests extends OpenSearchTestCase {
         dataFileLength = randomNonNegativeLong();
         dataFilePointer = randomNonNegativeLong();
         segmentDocumentCount = randomInt(Integer.MAX_VALUE);
+        numStarTreeDocs = randomInt(Integer.MAX_VALUE);
         metaOut = directory.createOutput("star-tree-metadata", IOContext.DEFAULT);
         StarTreeWriter starTreeWriter = new StarTreeWriter();
         int numberOfNodes = randomInt(Integer.MAX_VALUE);
@@ -154,6 +156,7 @@ public class StarTreeMetadataTests extends OpenSearchTestCase {
             metricAggregatorInfos,
             numberOfNodes,
             segmentDocumentCount,
+            numStarTreeDocs,
             dataFilePointer,
             dataFileLength
         );

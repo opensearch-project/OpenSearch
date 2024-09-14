@@ -220,4 +220,50 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
         assertFalse(resolver.isTranslogMetadataEnabled());
     }
 
+    public void testTranslogPathFixedPathSetting() {
+
+        // Default settings
+        Settings settings = Settings.builder().build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        assertEquals("", remoteStoreSettings.getTranslogPathFixedPrefix());
+
+        // Any other random value
+        String randomPrefix = randomAlphaOfLengthBetween(2, 5);
+        settings = Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), randomPrefix).build();
+        remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        assertEquals(randomPrefix, remoteStoreSettings.getTranslogPathFixedPrefix());
+
+        // Set any other random value, the setting still points to the old value
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), randomAlphaOfLengthBetween(2, 5))
+                .build()
+        );
+        assertEquals(randomPrefix, remoteStoreSettings.getTranslogPathFixedPrefix());
+    }
+
+    public void testSegmentsPathFixedPathSetting() {
+
+        // Default settings
+        Settings settings = Settings.builder().build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        assertEquals("", remoteStoreSettings.getSegmentsPathFixedPrefix());
+
+        // Any other random value
+        String randomPrefix = randomAlphaOfLengthBetween(2, 5);
+        settings = Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), randomPrefix).build();
+        remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        assertEquals(randomPrefix, remoteStoreSettings.getSegmentsPathFixedPrefix());
+
+        // Set any other random value, the setting still points to the old value
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.getKey(), randomAlphaOfLengthBetween(2, 5))
+                .build()
+        );
+        assertEquals(randomPrefix, remoteStoreSettings.getSegmentsPathFixedPrefix());
+
+    }
 }
