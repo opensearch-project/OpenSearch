@@ -37,7 +37,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Service for managing pinned timestamps in a remote store.
@@ -48,7 +47,8 @@ import java.util.stream.Collectors;
 @ExperimentalApi
 public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
-    private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
+    private static Tuple<Long, Map<String, Set<Long>>> pinningEntityTimestampMap = new Tuple<>(-1L, Map.of());
+
     public static final String PINNED_TIMESTAMPS_PATH_TOKEN = "pinned_timestamps";
     public static final String PINNED_TIMESTAMPS_FILENAME_SEPARATOR = "__";
 
@@ -199,21 +199,23 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         }
     }
 
-    private String getBlobName(long timestamp, String pinningEntity) {
+    public static String getBlobName(long timestamp, String pinningEntity) {
         return String.join(PINNED_TIMESTAMPS_FILENAME_SEPARATOR, pinningEntity, String.valueOf(timestamp));
     }
 
-    private long getTimestampFromBlobName(String blobName) {
+    public static Tuple<String, Long> getPinningEntityTimestampFromBlobName(String blobName) {
         String[] blobNameTokens = blobName.split(PINNED_TIMESTAMPS_FILENAME_SEPARATOR);
         if (blobNameTokens.length < 2) {
             logger.error("Pinned timestamps blob name contains invalid format: {}", blobName);
         }
         try {
-            return Long.parseLong(blobNameTokens[blobNameTokens.length - 1]);
+            String pinningEntity = blobName.substring(blobName.lastIndexOf(PINNED_TIMESTAMPS_FILENAME_SEPARATOR));
+            Long timestamp = Long.parseLong(blobNameTokens[blobNameTokens.length - 1]);
+            return new Tuple<>(pinningEntity, timestamp);
         } catch (NumberFormatException e) {
             logger.error(() -> new ParameterizedMessage("Pinned timestamps blob name contains invalid format: {}", blobName), e);
         }
-        return -1;
+        return null;
     }
 
     /**
@@ -248,14 +250,32 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     // Used in integ tests
     public void rescheduleAsyncUpdatePinnedTimestampTask(TimeValue pinnedTimestampsSchedulerInterval) {
         if (pinnedTimestampsSchedulerInterval != null) {
-            pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
+            pinningEntityTimestampMap = new Tuple<>(-1L, Map.of());
             asyncUpdatePinnedTimestampTask.close();
             startAsyncUpdateTask(pinnedTimestampsSchedulerInterval);
         }
     }
 
     public static Tuple<Long, Set<Long>> getPinnedTimestamps() {
-        return pinnedTimestampsSet;
+        return getPinnedTimestamps(null);
+    }
+
+    public static Tuple<Long, Set<Long>> getPinnedTimestamps(Map<String, Long> pinnedTimestampsToSkip) {
+        Set<Long> allPinnedTimestamps = new HashSet<>();
+        if (pinnedTimestampsToSkip == null || pinnedTimestampsToSkip.isEmpty()) {
+            pinningEntityTimestampMap.v2().values().forEach(allPinnedTimestamps::addAll);
+        } else {
+            for (String pinningEntity : pinningEntityTimestampMap.v2().keySet()) {
+                if (pinnedTimestampsToSkip.containsKey(pinningEntity)) {
+                    Set<Long> timestamps = new HashSet<>(pinningEntityTimestampMap.v2().get(pinningEntity));
+                    timestamps.remove(pinnedTimestampsToSkip.get(pinningEntity));
+                    allPinnedTimestamps.addAll(timestamps);
+                } else {
+                    allPinnedTimestamps.addAll(pinningEntityTimestampMap.v2().get(pinningEntity));
+                }
+            }
+        }
+        return new Tuple<>(pinningEntityTimestampMap.v1(), allPinnedTimestamps);
     }
 
     /**
@@ -278,16 +298,22 @@ public class RemoteStorePinnedTimestampService implements Closeable {
             try {
                 Map<String, BlobMetadata> pinnedTimestampList = blobContainer.listBlobs();
                 if (pinnedTimestampList.isEmpty()) {
-                    pinnedTimestampsSet = new Tuple<>(triggerTimestamp, Set.of());
+                    logger.debug("Fetched empty pinned timestamps from remote store: {}", triggerTimestamp);
+                    pinningEntityTimestampMap = new Tuple<>(triggerTimestamp, Map.of());
                     return;
                 }
-                Set<Long> pinnedTimestamps = pinnedTimestampList.keySet()
-                    .stream()
-                    .map(RemoteStorePinnedTimestampService.this::getTimestampFromBlobName)
-                    .filter(timestamp -> timestamp != -1)
-                    .collect(Collectors.toSet());
+                Map<String, Set<Long>> pinnedTimestamps = new HashMap<>();
+                for (String blobName : pinnedTimestampList.keySet()) {
+                    Tuple<String, Long> pinningEntityTimestamp = getPinningEntityTimestampFromBlobName(blobName);
+                    if (pinningEntityTimestamp != null) {
+                        if (pinnedTimestamps.containsKey(pinningEntityTimestamp.v1()) == false) {
+                            pinnedTimestamps.put(pinningEntityTimestamp.v1(), new HashSet<>());
+                        }
+                        pinnedTimestamps.get(pinningEntityTimestamp.v1()).add(pinningEntityTimestamp.v2());
+                    }
+                }
                 logger.debug("Fetched pinned timestamps from remote store: {} - {}", triggerTimestamp, pinnedTimestamps);
-                pinnedTimestampsSet = new Tuple<>(triggerTimestamp, pinnedTimestamps);
+                pinningEntityTimestampMap = new Tuple<>(triggerTimestamp, pinnedTimestamps);
             } catch (Throwable t) {
                 logger.error("Exception while fetching pinned timestamp details", t);
             }

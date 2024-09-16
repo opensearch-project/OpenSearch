@@ -613,7 +613,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     ) {
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
-            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshot.getSnapshotId().getUUID(),
+            getPinningEntity(snapshot.getRepository(), snapshot.getSnapshotId().getUUID()),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -631,6 +631,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
     }
 
+    public static String getPinningEntity(String repositoryName, String snapshotUUID) {
+        return repositoryName + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotUUID;
+    }
+
     private void cloneSnapshotPinnedTimestamp(
         RepositoryData repositoryData,
         SnapshotId sourceSnapshot,
@@ -640,8 +644,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     ) {
         remoteStorePinnedTimestampService.cloneTimestamp(
             timestampToPin,
-            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + sourceSnapshot.getUUID(),
-            snapshot.getRepository() + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshot.getSnapshotId().getUUID(),
+            getPinningEntity(snapshot.getRepository(), sourceSnapshot.getUUID()),
+            getPinningEntity(snapshot.getRepository(), snapshot.getSnapshotId().getUUID()),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
