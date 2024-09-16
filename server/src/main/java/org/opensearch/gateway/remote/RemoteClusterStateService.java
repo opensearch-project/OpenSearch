@@ -112,6 +112,8 @@ import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLA
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * A Service which provides APIs to upload and download cluster metadata from remote store.
@@ -132,7 +134,7 @@ public class RemoteClusterStateService implements Closeable {
         REMOTE_PUBLICATION_SETTING_KEY,
         false,
         Property.NodeScope,
-        Property.Final
+        Property.Dynamic
     );
 
     /**
@@ -232,7 +234,7 @@ public class RemoteClusterStateService implements Closeable {
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
-    private final boolean isPublicationEnabled;
+    private boolean isPublicationEnabled;
     private final String remotePathPrefix;
 
     private final RemoteClusterStateCache remoteClusterStateCache;
@@ -273,9 +275,10 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-        this.isPublicationEnabled = REMOTE_PUBLICATION_SETTING.get(settings)
+        this.isPublicationEnabled = clusterSettings.get(REMOTE_PUBLICATION_SETTING)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_PUBLICATION_SETTING, this::setRemotePublicationSetting);
         this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
@@ -1113,6 +1116,14 @@ public class RemoteClusterStateService implements Closeable {
 
     private void setChecksumValidationMode(RemoteClusterStateValidationMode remoteClusterStateValidationMode) {
         this.remoteClusterStateValidationMode = remoteClusterStateValidationMode;
+    }
+
+    private void setRemotePublicationSetting(boolean remotePublicationSetting) {
+        if (remotePublicationSetting == false) {
+            this.isPublicationEnabled = false;
+        } else {
+            this.isPublicationEnabled = isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableEnabled(settings);
+        }
     }
 
     // Package private for unit test

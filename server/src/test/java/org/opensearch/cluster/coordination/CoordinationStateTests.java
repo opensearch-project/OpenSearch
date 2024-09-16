@@ -1283,7 +1283,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         DiscoveryNode localNode,
         Settings settings
     ) {
-        return new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, settings);
+        return new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, settings, null);
     }
 
     public static ClusterState clusterState(

@@ -187,9 +187,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
+    private final RemoteClusterStateService remoteClusterStateService;
     private final RemoteStoreNodeService remoteStoreNodeService;
     private NodeConnectionsService nodeConnectionsService;
     private final RemoteClusterStateService remoteClusterStateService;
+    private final ClusterSettings clusterSettings;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -314,6 +316,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.localNodeCommissioned = true;
         this.remoteStoreNodeService = remoteStoreNodeService;
         this.remoteClusterStateService = remoteClusterStateService;
+        this.clusterSettings = clusterSettings;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -869,7 +872,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     protected void doStart() {
         synchronized (mutex) {
-            coordinationState.set(new CoordinationState(getLocalNode(), persistedStateRegistry, electionStrategy, settings));
+            coordinationState.set(
+                new CoordinationState(getLocalNode(), persistedStateRegistry, electionStrategy, settings, clusterSettings)
+            );
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
