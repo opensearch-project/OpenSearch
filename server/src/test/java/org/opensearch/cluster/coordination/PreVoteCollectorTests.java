@@ -302,7 +302,8 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
             localNode,
             persistedStateRegistry,
             ElectionStrategy.DEFAULT_INSTANCE,
-            Settings.EMPTY
+            Settings.EMPTY,
+            null
         );
 
         final long newTerm = randomLongBetween(currentTerm + 1, Long.MAX_VALUE);
