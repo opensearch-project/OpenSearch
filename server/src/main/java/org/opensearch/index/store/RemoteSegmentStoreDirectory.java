@@ -817,6 +817,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return metadataFilesToFilterActiveSegments;
     }
 
+    public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
+        deleteStaleSegments(lastNMetadataFilesToKeep, Map.of());
+    }
+
     /**
      * Delete stale segment and metadata files
      * One metadata file is kept per commit (refresh updates the same file). To read segments uploaded to remote store,
@@ -832,7 +836,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
      */
-    public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
+    private void deleteStaleSegments(int lastNMetadataFilesToKeep, Map<String, Long> pinnedTimestampsToSkip) throws IOException {
         if (lastNMetadataFilesToKeep == -1) {
             logger.info(
                 "Stale segment deletion is disabled if cluster.remote_store.index.segment_metadata.retention.max_count is set to -1"
@@ -854,12 +858,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         // Check last fetch status of pinned timestamps. If stale, return.
-        if (RemoteStoreUtils.isPinnedTimestampStateStale()) {
+        if (lastNMetadataFilesToKeep != 0 && RemoteStoreUtils.isPinnedTimestampStateStale()) {
             logger.warn("Skipping remote segment store garbage collection as last fetch of pinned timestamp is stale");
             return;
         }
 
-        Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps();
+        Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps(pinnedTimestampsToSkip);
 
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             sortedMetadataFileList,
@@ -994,7 +998,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteStoreRepoForIndex,
         String indexUUID,
         ShardId shardId,
-        RemoteStorePathStrategy pathStrategy
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean,
+        Map<String, Long> pinnedTimestampsToSkip
     ) {
         try {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
@@ -1003,8 +1009,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 shardId,
                 pathStrategy
             );
-            remoteSegmentStoreDirectory.deleteStaleSegments(0);
-            remoteSegmentStoreDirectory.deleteIfEmpty();
+            if (forceClean) {
+                remoteSegmentStoreDirectory.delete();
+            } else {
+                remoteSegmentStoreDirectory.deleteStaleSegments(0, pinnedTimestampsToSkip);
+                remoteSegmentStoreDirectory.deleteIfEmpty();
+            }
         } catch (Exception e) {
             staticLogger.error("Exception occurred while deleting directory", e);
         }
@@ -1023,7 +1033,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             logger.info("Remote directory still has files, not deleting the path");
             return false;
         }
+        return delete();
+    }
 
+    private boolean delete() {
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();

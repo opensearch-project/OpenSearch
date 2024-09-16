@@ -685,10 +685,11 @@ public class RemoteFsTranslog extends Translog {
             maxRemoteTranslogGenerationUploaded = generation;
             minRemoteGenReferenced = getMinFileGeneration();
             logger.debug(
-                "Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}",
+                "Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}, minRemoteGenReferenced = {}",
                 primaryTerm,
                 generation,
-                maxSeqNo
+                maxSeqNo,
+                minRemoteGenReferenced
             );
         }
 
