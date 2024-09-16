@@ -1,0 +1,59 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+option java_outer_classname = "ClusterStateResponseProto";
+
+message ClusterStateResponse {
+  string clusterName = 1;
+  ClusterState clusterState = 2;
+  bool waitForTimedOut = 3;
+
+  message ClusterState {
+    string clusterName = 1;
+    int64 version = 2;
+    string stateUUID = 3;
+    DiscoveryNodes nodes = 4;
+
+    message DiscoveryNodes {
+        repeated Node allNodes = 1;
+        string clusterManagerNodeId = 2;
+        string localNodeId = 3;
+        string minNonClientNodeVersion = 4;
+        string maxNonClientNodeVersion = 5;
+        string maxNodeVersion = 6;
+        string minNodeVersion = 7;
+
+        message Node {
+            string nodeName = 1;
+            string nodeId = 2;
+            string ephemeralId = 3;
+            string hostName = 4;
+            string hostAddress = 5;
+            string transportAddress = 6;
+            map<string, string> attributes = 7;
+            repeated NodeRole roles = 8;
+            string version = 9;
+
+            message NodeRole {
+                bool isKnownRole = 1;
+                bool isDynamicRole = 2;
+                string roleName = 3;
+                string roleNameAbbreviation = 4;
+                bool canContainData = 5;
+            }
+        }
+    }  
+  }
+  
+}

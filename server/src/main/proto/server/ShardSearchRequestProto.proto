@@ -1,0 +1,71 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+option java_outer_classname = "ShardSearchRequestProto";
+
+message ShardSearchRequest {
+  OriginalIndices originalIndices = 1;
+  ShardId shardId = 2;
+  int32 numberOfShards = 3;
+  SearchType searchType = 4;
+  bytes source = 5;
+  bool requestCache = 6;
+  bytes aliasFilter = 7;
+  float indexBoost = 8;
+  bool allowPartialSearchResults = 9;
+  repeated string indexRoutings = 10;
+  string preference = 11;
+  bytes scroll = 12;
+  int64 nowInMillis = 13;
+  optional string clusterAlias = 14;
+  optional ShardSearchContextId readerId = 15;
+  optional string timeValue = 16;
+  int64 inboundNetworkTime = 17;
+  int64 outboundNetworkTime = 18;
+  bool canReturnNullResponseIfMatchNoDocs = 19;
+
+  enum SearchType {
+    QUERY_THEN_FETCH = 0;
+    DFS_QUERY_THEN_FETCH = 1;
+  }
+}
+
+message ShardSearchContextId {
+  string sessionId = 1;
+  int64 id = 2;
+}
+
+message ShardId {
+  int32 shardId = 1;
+  int32 hashCode = 2;
+  string indexName = 3;
+  string indexUUID = 4;
+}
+
+message OriginalIndices {
+  repeated string indices = 1;
+  IndicesOptions indicesOptions = 2;
+
+  message IndicesOptions {
+    bool ignoreUnavailable = 1;
+    bool allowNoIndices = 2;
+    bool expandWildcardsOpen = 3;
+    bool expandWildcardsClosed = 4;
+    bool expandWildcardsHidden = 5;
+    bool allowAliasesToMultipleIndices = 6;
+    bool forbidClosedIndices = 7;
+    bool ignoreAliases = 8;
+    bool ignoreThrottled = 9;
+  }
+}

@@ -1,0 +1,57 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+import "server/ClusterStateRequestProto.proto";
+import "server/ClusterStateResponseProto.proto";
+import "server/NodesInfoRequestProto.proto";
+import "server/NodesInfoProto.proto";
+import "server/NodesStatsRequestProto.proto";
+import "server/NodesStatsProto.proto";
+import "server/ShardSearchRequestProto.proto";
+import "server/QueryFetchSearchResultProto.proto";
+
+option java_outer_classname = "MessageProto";
+
+message OutboundInboundMessage {
+  Header header = 1;
+  map<string, string> requestHeaders = 2;
+  map<string, ResponseHandlersList> responseHandlers = 3;
+  string version = 4;
+  repeated string features = 5;
+  bytes status = 6;
+  string action = 7;
+  int64 requestId = 8;
+  oneof message {
+    ClusterStateRequest clusterStateRequest = 9;
+    ClusterStateResponse clusterStateResponse = 10;
+    NodesInfoRequest nodesInfoRequest = 11;
+    NodesInfo nodesInfoResponse = 12;
+    NodesStatsRequest nodesStatsRequest = 13;
+    NodesStats nodesStatsResponse = 14;
+    ShardSearchRequest shardSearchRequest = 15;
+    QueryFetchSearchResult queryFetchSearchResult = 16;
+  }
+  bool isProtobuf = 17;
+  
+  message Header {
+    repeated bytes prefix = 1;
+    int64 requestId = 2;
+    bytes status = 3;
+    int32 versionId = 4;
+  }
+
+  message ResponseHandlersList {
+    repeated string setOfResponseHandlers = 1;
+  }
+}
