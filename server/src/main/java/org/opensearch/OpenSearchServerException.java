@@ -1212,14 +1212,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException.class,
-                org.opensearch.snapshots.TooManyShardsInSnapshotsStatusException::new,
-                175,
-                V_2_17_0
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
                 org.opensearch.cluster.block.IndexCreateBlockException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
