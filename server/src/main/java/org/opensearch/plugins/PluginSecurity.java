@@ -74,7 +74,7 @@ class PluginSecurity {
     ) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty() && requestedClusterActions.isEmpty() && requestedIndexActions.isEmpty()) {
-            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
+            terminal.println(Verbosity.VERBOSE, "plugin has not requested any additional permissions");
         } else {
 
             // sort permissions in a reasonable order
