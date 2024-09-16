@@ -736,17 +736,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
             logger.debug("Loading plugin [" + name + "]...");
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-            if (loader != pluginClass.getClassLoader()) {
-                throw new IllegalStateException(
-                    "Plugin ["
-                        + name
-                        + "] must reference a class loader local Plugin class ["
-                        + bundle.plugin.getClassname()
-                        + "] (class loader ["
-                        + pluginClass.getClassLoader()
-                        + "])"
-                );
-            }
             if (!IdentityAwarePlugin.class.isAssignableFrom(pluginClass)) {
                 return null;
             }

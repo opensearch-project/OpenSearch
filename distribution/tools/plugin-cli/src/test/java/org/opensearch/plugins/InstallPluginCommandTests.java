@@ -279,6 +279,11 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         return createPlugin(name, structure, additionalProps).toUri().toURL().toString();
     }
 
+    /** creates a plugin .zip and returns the url for testing */
+    static String createIdentityAwarePluginUrl(String name, Path structure, String... additionalProps) throws IOException {
+        return createIdentityAwarePlugin(name, structure, additionalProps).toUri().toURL().toString();
+    }
+
     static class JavaSourceFromString extends SimpleJavaFileObject {
         private final String code;
 
@@ -331,8 +336,83 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         return pluginClassName;
     }
 
+    private static String compileIdentityAwareFakePlugin(Path structure) throws IOException {
+        String pluginClassName = "org.opensearch.plugins.FakePlugin";
+        String javaSourceCode = "package org.opensearch.plugins;\n"
+            + "\n"
+            + "import java.util.Set;\n"
+            + "\n"
+            + "public class FakePlugin extends Plugin implements IdentityAwarePlugin {\n"
+            + "\n"
+            + "    public FakePlugin() {}\n"
+            + "\n"
+            + "    @Override\n"
+            + "    public Set<String> getClusterActions() {\n"
+            + "        return Set.of(\"cluster:monitor/health\");\n"
+            + "    }\n"
+            + "}\n";
+        if (Files.notExists(structure)) {
+            Files.createDirectories(structure);
+        }
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+
+        StandardJavaFileManager standardFileManager = compiler.getStandardFileManager(null, null, null);
+        JavaFileManager fileManager = new ForwardingJavaFileManager<StandardJavaFileManager>(standardFileManager) {
+            @Override
+            public JavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind, FileObject sibling) {
+                Path classFile = structure.resolve(className.replace('.', '/') + ".class");
+                if (Files.notExists(classFile.getParent())) {
+                    try {
+                        Files.createDirectories(classFile.getParent());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                return new SimpleJavaFileObject(classFile.toUri(), kind) {
+                    @Override
+                    public OutputStream openOutputStream() throws IOException {
+                        return Files.newOutputStream(classFile);
+                    }
+                };
+            }
+        };
+
+        JavaFileObject javaFileObject = new JavaSourceFromString(pluginClassName, javaSourceCode);
+        Iterable<String> options = Arrays.asList("-d", structure.toUri().toString());
+        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, null, options, null, Arrays.asList(javaFileObject));
+        boolean success = task.call();
+        // Close the file manager
+        fileManager.close();
+        return pluginClassName;
+    }
+
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
         String pluginClassName = compileFakePlugin(structure);
+        String[] properties = Stream.concat(
+            Stream.of(
+                "description",
+                "fake desc",
+                "name",
+                name,
+                "version",
+                "1.0",
+                "opensearch.version",
+                Version.CURRENT.toString(),
+                "java.version",
+                System.getProperty("java.specification.version"),
+                "classname",
+                pluginClassName
+            ),
+            Arrays.stream(additionalProps)
+        ).toArray(String[]::new);
+
+        PluginTestUtil.writePluginProperties(structure, properties);
+        String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
+        writeJar(structure.resolve("plugin.jar"), className, pluginClassName);
+    }
+
+    static void writeIdentityAwarePlugin(String name, Path structure, String... additionalProps) throws IOException {
+        String pluginClassName = compileIdentityAwareFakePlugin(structure);
         String[] properties = Stream.concat(
             Stream.of(
                 "description",
@@ -399,6 +479,11 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
         writePlugin(name, structure, additionalProps);
+        return writeZip(structure, null);
+    }
+
+    static Path createIdentityAwarePlugin(String name, Path structure, String... additionalProps) throws IOException {
+        writeIdentityAwarePlugin(name, structure, additionalProps);
         return writeZip(structure, null);
     }
 
@@ -1611,43 +1696,37 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     // checks the plugin requires a policy confirmation, and does not install when that is rejected by the user
     // the plugin is installed after this method completes
     private void assertPolicyConfirmation(Tuple<Path, Environment> env, String pluginZip, String... warnings) throws Exception {
-        for (int i = 0; i < warnings.length; ++i) {
-            String warning = warnings[i];
-            for (int j = 0; j < i; ++j) {
-                terminal.addTextInput("y"); // accept warnings we have already tested
-            }
-            // default answer, does not install
-            terminal.addTextInput("");
-            UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-            assertEquals("installation aborted by user", e.getMessage());
+        // default answer, does not install
+        terminal.addTextInput("");
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertEquals("installation aborted by user", e.getMessage());
 
-            assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
-            try (Stream<Path> fileStream = Files.list(env.v2().pluginsDir())) {
-                assertThat(fileStream.collect(Collectors.toList()), empty());
-            }
+        try (Stream<Path> fileStream = Files.list(env.v2().pluginsDir())) {
+            assertThat(fileStream.collect(Collectors.toList()), empty());
+        }
 
-            // explicitly do not install
-            terminal.reset();
-            for (int j = 0; j < i; ++j) {
-                terminal.addTextInput("y"); // accept warnings we have already tested
-            }
-            terminal.addTextInput("n");
-            e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-            assertEquals("installation aborted by user", e.getMessage());
-            assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
-            try (Stream<Path> fileStream = Files.list(env.v2().pluginsDir())) {
-                assertThat(fileStream.collect(Collectors.toList()), empty());
-            }
+        for (String warning : warnings) {
+            assertThat(terminal.getErrorOutput(), containsString(warning));
+        }
+
+        // explicitly do not install
+        terminal.reset();
+        terminal.addTextInput("n");
+        e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertEquals("installation aborted by user", e.getMessage());
+        try (Stream<Path> fileStream = Files.list(env.v2().pluginsDir())) {
+            assertThat(fileStream.collect(Collectors.toList()), empty());
+        }
+        for (String warning : warnings) {
+            assertThat(terminal.getErrorOutput(), containsString(warning));
         }
 
         // allow installation
         terminal.reset();
-        for (int j = 0; j < warnings.length; ++j) {
-            terminal.addTextInput("y");
-        }
+        terminal.addTextInput("y");
         installPlugin(pluginZip, env.v1());
         for (String warning : warnings) {
-            assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
+            assertThat(terminal.getErrorOutput(), containsString(warning));
         }
     }
 
@@ -1657,7 +1736,16 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         writePluginSecurityPolicy(pluginDir, "setAccessible", "setFactory");
         String pluginZip = createPluginUrl("fake", pluginDir);
 
-        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");
+        assertPolicyConfirmation(env, pluginZip, "WARNING: plugin requires additional permissions");
+        assertPlugin("fake", pluginDir, env.v2());
+    }
+
+    public void testRequestedActionsConfirmation() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createIdentityAwarePluginUrl("fake", pluginDir);
+
+        assertPolicyConfirmation(env, pluginZip, "WARNING: plugin requires additional permissions", "Cluster Actions", "Index Actions");
         assertPlugin("fake", pluginDir, env.v2());
     }
 
