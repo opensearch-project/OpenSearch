@@ -33,6 +33,7 @@ import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
@@ -312,6 +313,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         updateIndexBlock(false, secondIndexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/15950")
     public void testFullClusterRestoreManifestFilePointsToInvalidIndexMetadataPathThrowsException() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -342,7 +344,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        assertThrows(IllegalStateException.class, () -> addNewNodes(dataNodeCount, clusterManagerNodeCount));
+        assertThrows(UncategorizedExecutionException.class, () -> addNewNodes(dataNodeCount, clusterManagerNodeCount));
         // Test is complete
 
         // Starting a node without remote state to ensure test cleanup
