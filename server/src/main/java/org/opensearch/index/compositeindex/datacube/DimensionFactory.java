@@ -12,9 +12,7 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
-import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.Mapper;
-import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -55,11 +53,13 @@ public class DimensionFactory {
         Map<String, Object> dimensionMap,
         Mapper.TypeParser.ParserContext c
     ) {
-        if (builder instanceof DateFieldMapper.Builder) {
+        if (builder.getSupportedDataCubeDimensionType().isPresent()
+            && builder.getSupportedDataCubeDimensionType().get().equals(DimensionType.DATE)) {
             return parseAndCreateDateDimension(name, dimensionMap, c);
-        } else if (builder instanceof NumberFieldMapper.Builder) {
-            return new NumericDimension(name);
-        }
+        } else if (builder.getSupportedDataCubeDimensionType().isPresent()
+            && builder.getSupportedDataCubeDimensionType().get().equals(DimensionType.NUMERIC)) {
+                return new NumericDimension(name);
+            }
         throw new IllegalArgumentException(
             String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
         );

@@ -391,15 +391,24 @@ public class RemoteStoreUtils {
      * @param pinnedTimestampSet A set of timestamps representing pinned points in time.
      * @param getTimestampFunction A function that extracts the timestamp from a metadata file name.
      * @param prefixFunction A function that extracts a tuple of prefix information from a metadata file name.
+     * @param ignorePinnedTimestampEnabledSetting A flag to ignore pinned timestamp enabled setting
      * @return A set of metadata file names that are implicitly locked based on the pinned timestamps.
      */
     public static Set<String> getPinnedTimestampLockedFiles(
         List<String> metadataFiles,
         Set<Long> pinnedTimestampSet,
         Function<String, Long> getTimestampFunction,
-        Function<String, Tuple<String, String>> prefixFunction
+        Function<String, Tuple<String, String>> prefixFunction,
+        boolean ignorePinnedTimestampEnabledSetting
     ) {
-        return getPinnedTimestampLockedFiles(metadataFiles, pinnedTimestampSet, new HashMap<>(), getTimestampFunction, prefixFunction);
+        return getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            new HashMap<>(),
+            getTimestampFunction,
+            prefixFunction,
+            ignorePinnedTimestampEnabledSetting
+        );
     }
 
     /**
@@ -432,9 +441,27 @@ public class RemoteStoreUtils {
         Function<String, Long> getTimestampFunction,
         Function<String, Tuple<String, String>> prefixFunction
     ) {
+        return getPinnedTimestampLockedFiles(
+            metadataFiles,
+            pinnedTimestampSet,
+            metadataFilePinnedTimestampMap,
+            getTimestampFunction,
+            prefixFunction,
+            false
+        );
+    }
+
+    private static Set<String> getPinnedTimestampLockedFiles(
+        List<String> metadataFiles,
+        Set<Long> pinnedTimestampSet,
+        Map<Long, String> metadataFilePinnedTimestampMap,
+        Function<String, Long> getTimestampFunction,
+        Function<String, Tuple<String, String>> prefixFunction,
+        boolean ignorePinnedTimestampEnabledSetting
+    ) {
         Set<String> implicitLockedFiles = new HashSet<>();
 
-        if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+        if (ignorePinnedTimestampEnabledSetting == false && RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
             return implicitLockedFiles;
         }
 
@@ -515,8 +542,11 @@ public class RemoteStoreUtils {
         if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
             return new ArrayList<>(metadataFiles);
         }
-        long maximumAllowedTimestamp = lastSuccessfulFetchOfPinnedTimestamps - RemoteStoreSettings.getPinnedTimestampsLookbackInterval()
-            .getMillis();
+        // We allow now() - loopback interval to be pinned. Also, the actual pinning can take at most loopback interval
+        // This means the pinned timestamp can be available for read after at most (2 * loopback interval)
+        long maximumAllowedTimestamp = lastSuccessfulFetchOfPinnedTimestamps - (2 * RemoteStoreSettings
+            .getPinnedTimestampsLookbackInterval()
+            .getMillis());
         List<String> metadataFilesWithMinAge = new ArrayList<>();
         for (String metadataFileName : metadataFiles) {
             long metadataTimestamp = getTimestampFunction.apply(metadataFileName);

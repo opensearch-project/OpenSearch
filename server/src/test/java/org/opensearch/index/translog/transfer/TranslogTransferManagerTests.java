@@ -23,8 +23,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
@@ -51,7 +53,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
@@ -623,7 +628,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         String mdFilename = tm.getFileName();
         long count = mdFilename.chars().filter(ch -> ch == METADATA_SEPARATOR.charAt(0)).count();
         // There should not be any `_` in mdFile name as it is used a separator .
-        assertEquals(10, count);
+        assertEquals(14, count);
         Thread.sleep(1);
         TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node--2");
         String mdFilename2 = tm2.getFileName();
@@ -752,5 +757,171 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(tlogBytes.length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
         // Expect delay for both tlog and ckp file
         assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= delayForBlobDownload);
+    }
+
+    public void testlistTranslogMetadataFilesAsync() throws Exception {
+        String tm1 = new TranslogTransferMetadata(1, 1, 1, 2).getFileName();
+        String tm2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
+        String tm3 = new TranslogTransferMetadata(2, 3, 1, 2).getFileName();
+        doAnswer(invocation -> {
+            ActionListener<List<BlobMetadata>> actionListener = invocation.getArgument(4);
+            List<BlobMetadata> bmList = new LinkedList<>();
+            bmList.add(new PlainBlobMetadata(tm1, 1));
+            bmList.add(new PlainBlobMetadata(tm2, 1));
+            bmList.add(new PlainBlobMetadata(tm3, 1));
+            actionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrderAsync(
+                eq(ThreadPool.Names.REMOTE_PURGE),
+                any(BlobPath.class),
+                eq(TranslogTransferMetadata.METADATA_PREFIX),
+                anyInt(),
+                any(ActionListener.class)
+            );
+        AtomicBoolean fetchCompleted = new AtomicBoolean(false);
+        translogTransferManager.listTranslogMetadataFilesAsync(new ActionListener<>() {
+            @Override
+            public void onResponse(List<BlobMetadata> blobMetadata) {
+                assertEquals(3, blobMetadata.size());
+                assertEquals(blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()), List.of(tm1, tm2, tm3));
+                fetchCompleted.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fetchCompleted.set(true);
+                throw new RuntimeException(e);
+            }
+        });
+        assertBusy(() -> assertTrue(fetchCompleted.get()));
+    }
+
+    public void testReadMetadataForGivenTimestampNoFile() throws IOException {
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            List<BlobMetadata> bmList = new LinkedList<>();
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        assertNull(translogTransferManager.readMetadata(1234L));
+        assertNoDownloadStats(false);
+    }
+
+    public void testReadMetadataForGivenTimestampNoMatchingFile() throws IOException {
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            String timestamp1 = RemoteStoreUtils.invertLong(2345L);
+            BlobMetadata bm1 = new PlainBlobMetadata("metadata__1__12__" + timestamp1 + "__node1__1", 1);
+            String timestamp2 = RemoteStoreUtils.invertLong(3456L);
+            BlobMetadata bm2 = new PlainBlobMetadata("metadata__1__12__" + timestamp2 + "__node1__1", 1);
+            List<BlobMetadata> bmList = List.of(bm1, bm2);
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        assertNull(translogTransferManager.readMetadata(1234L));
+        assertNoDownloadStats(false);
+    }
+
+    public void testReadMetadataForGivenTimestampFile() throws IOException {
+        AtomicReference<String> mdFilename1 = new AtomicReference<>();
+        String timestamp1 = RemoteStoreUtils.invertLong(2345L);
+        mdFilename1.set("metadata__1__12__" + timestamp1 + "__node1__1");
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            BlobMetadata bm1 = new PlainBlobMetadata(mdFilename1.get(), 1);
+            String timestamp2 = RemoteStoreUtils.invertLong(3456L);
+            BlobMetadata bm2 = new PlainBlobMetadata("metadata__1__12__" + timestamp2 + "__node1__1", 1);
+            List<BlobMetadata> bmList = List.of(bm1, bm2);
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        long delayForMdDownload = 1;
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename1.get()))).thenAnswer(invocation -> {
+            Thread.sleep(delayForMdDownload);
+            return new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata));
+        });
+
+        assertEquals(metadata, translogTransferManager.readMetadata(3000L));
+
+        assertEquals(translogTransferManager.getMetadataBytes(metadata).length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
+        assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= delayForMdDownload);
+    }
+
+    public void testReadMetadataForGivenTimestampException() throws IOException {
+        AtomicReference<String> mdFilename1 = new AtomicReference<>();
+        String timestamp1 = RemoteStoreUtils.invertLong(2345L);
+        mdFilename1.set("metadata__1__12__" + timestamp1 + "__node1__1");
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            BlobMetadata bm1 = new PlainBlobMetadata(mdFilename1.get(), 1);
+            String timestamp2 = RemoteStoreUtils.invertLong(3456L);
+            BlobMetadata bm2 = new PlainBlobMetadata("metadata__1__12__" + timestamp2 + "__node1__1", 1);
+            List<BlobMetadata> bmList = List.of(bm1, bm2);
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename1.get()))).thenThrow(new IOException("Something went wrong"));
+
+        assertThrows(IOException.class, () -> translogTransferManager.readMetadata(3000L));
+        assertNoDownloadStats(true);
+    }
+
+    public void testPopulateFileTrackerWithLocalStateNoReaders() {
+        translogTransferManager.populateFileTrackerWithLocalState(null);
+        assertTrue(translogTransferManager.getFileTransferTracker().allUploaded().isEmpty());
+
+        translogTransferManager.populateFileTrackerWithLocalState(List.of());
+        assertTrue(translogTransferManager.getFileTransferTracker().allUploaded().isEmpty());
+    }
+
+    public void testPopulateFileTrackerWithLocalState() {
+        TranslogReader reader1 = mock(TranslogReader.class);
+        when(reader1.getGeneration()).thenReturn(12L);
+        TranslogReader reader2 = mock(TranslogReader.class);
+        when(reader2.getGeneration()).thenReturn(23L);
+        TranslogReader reader3 = mock(TranslogReader.class);
+        when(reader3.getGeneration()).thenReturn(34L);
+        TranslogReader reader4 = mock(TranslogReader.class);
+        when(reader4.getGeneration()).thenReturn(45L);
+
+        translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2, reader3, reader4));
+        assertEquals(
+            Set.of("translog-12.tlog", "translog-23.tlog", "translog-34.tlog", "translog-45.tlog"),
+            translogTransferManager.getFileTransferTracker().allUploaded()
+        );
+    }
+
+    public void testPopulateFileTrackerWithLocalStateNoCkpAsMetadata() {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            true
+        );
+
+        TranslogReader reader1 = mock(TranslogReader.class);
+        when(reader1.getGeneration()).thenReturn(12L);
+        TranslogReader reader2 = mock(TranslogReader.class);
+        when(reader2.getGeneration()).thenReturn(23L);
+
+        translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2));
+        assertEquals(
+            Set.of("translog-12.tlog", "translog-12.ckp", "translog-23.tlog", "translog-23.ckp"),
+            translogTransferManager.getFileTransferTracker().allUploaded()
+        );
     }
 }

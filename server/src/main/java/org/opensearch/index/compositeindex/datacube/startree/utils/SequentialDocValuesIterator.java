@@ -29,6 +29,11 @@ public class SequentialDocValuesIterator {
     private final DocIdSetIterator docIdSetIterator;
 
     /**
+     * The value associated with the latest document.
+     */
+    private Long docValue;
+
+    /**
      * The id of the latest document.
      */
     private int docId = -1;
@@ -47,8 +52,17 @@ public class SequentialDocValuesIterator {
      *
      * @return the id of the latest document
      */
-    int getDocId() {
+    public int getDocId() {
         return docId;
+    }
+
+    /**
+     * Sets the id of the latest document.
+     *
+     * @param docId the ID of the latest document
+     */
+    private void setDocId(int docId) {
+        this.docId = docId;
     }
 
     /**
@@ -65,7 +79,7 @@ public class SequentialDocValuesIterator {
         if (docId >= currentDocId) {
             return docId;
         }
-        docId = this.docIdSetIterator.nextDoc();
+        setDocId(this.docIdSetIterator.nextDoc());
         return docId;
     }
 
