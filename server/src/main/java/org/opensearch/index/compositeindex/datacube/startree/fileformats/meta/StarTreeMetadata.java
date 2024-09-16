@@ -220,16 +220,37 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     private List<Metric> readMetricEntries() throws IOException {
         int metricCount = readMetricsCount();
 
-        Map<String, Metric> starTreeMetricMap = new LinkedHashMap<>();
+        Map<String, List<MetricStat>> starTreeMetricStatMap = new LinkedHashMap<>();
         for (int i = 0; i < metricCount; i++) {
             String metricName = meta.readString();
             int metricStatOrdinal = meta.readVInt();
             MetricStat metricStat = MetricStat.fromMetricOrdinal(metricStatOrdinal);
-            Metric metric = starTreeMetricMap.computeIfAbsent(metricName, field -> new Metric(field, new ArrayList<>()));
-            metric.getMetrics().add(metricStat);
+            List<MetricStat> metricStats = starTreeMetricStatMap.computeIfAbsent(metricName, field -> new ArrayList<>());
+            metricStats.add(metricStat);
         }
+        List<Metric> starTreeMetricMap = new ArrayList<>();
+        for (Map.Entry<String, List<MetricStat>> metricStatsEntry : starTreeMetricStatMap.entrySet()) {
+            addEligibleDerivedMetrics(metricStatsEntry.getValue());
+            starTreeMetricMap.add(new Metric(metricStatsEntry.getKey(), metricStatsEntry.getValue()));
 
-        return new ArrayList<>(starTreeMetricMap.values());
+        }
+        return starTreeMetricMap;
+    }
+
+    /**
+     * Add derived metrics if all associated base metrics are present
+     */
+    private void addEligibleDerivedMetrics(List<MetricStat> metricStatsList) {
+        Set<MetricStat> metricStatsSet = new HashSet<>(metricStatsList);
+        for (MetricStat metric : MetricStat.values()) {
+            if (metric.isDerivedMetric() && !metricStatsSet.contains(metric)) {
+                List<MetricStat> sourceMetrics = metric.getBaseMetrics();
+                if (metricStatsSet.containsAll(sourceMetrics)) {
+                    metricStatsList.add(metric);
+                    metricStatsSet.add(metric);
+                }
+            }
+        }
     }
 
     private int readSegmentAggregatedDocCount() throws IOException {

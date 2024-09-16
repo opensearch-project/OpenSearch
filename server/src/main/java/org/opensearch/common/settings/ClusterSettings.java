@@ -76,6 +76,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
@@ -107,6 +108,7 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.RemoteIndexMetadataManager;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
@@ -150,6 +152,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
@@ -549,6 +552,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
                 SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
+                SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
@@ -730,10 +734,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
+                RemoteClusterStateService.REMOTE_PUBLICATION_SETTING,
                 INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
                 METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
                 RemoteClusterStateService.REMOTE_STATE_READ_TIMEOUT_SETTING,
+                RemoteClusterStateService.CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX,
+                RemoteIndexMetadataManager.REMOTE_INDEX_METADATA_PATH_TYPE_SETTING,
+                RemoteIndexMetadataManager.REMOTE_INDEX_METADATA_PATH_HASH_ALGO_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
@@ -741,6 +749,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING,
                 RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING,
+                RemoteRoutingTableBlobStore.CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX,
 
                 // Admission Control Settings
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
@@ -770,6 +779,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX,
+                BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
@@ -813,6 +823,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
                 CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
             )
-        )
+        ),
+        List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
+        List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING)
     );
 }

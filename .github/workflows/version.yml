@@ -62,7 +62,7 @@ jobs:
 
       - name: Create PR for BASE
         id: base_pr
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           base: ${{ env.BASE }}
           branch: 'create-pull-request/patch-${{ env.BASE }}'
@@ -88,7 +88,7 @@ jobs:
 
       - name: Create PR for BASE_X
         id: base_x_pr
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           base: ${{ env.BASE_X }}
           branch: 'create-pull-request/patch-${{ env.BASE_X }}'
@@ -114,7 +114,7 @@ jobs:
 
       - name: Create PR for main
         id: main_pr
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           base: main
           branch: 'create-pull-request/patch-main'

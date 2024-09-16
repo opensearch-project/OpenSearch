@@ -33,6 +33,7 @@ import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.ClusterSettings;
@@ -40,7 +41,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -92,7 +92,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.ClusterState.CUSTOM_VALUE_SERIALIZER;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
@@ -119,9 +118,22 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
  *
  * @opensearch.internal
  */
+@InternalApi
 public class RemoteClusterStateService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
+
+    /**
+     * Gates the functionality of remote publication.
+     */
+    public static final String REMOTE_PUBLICATION_SETTING_KEY = "cluster.remote_store.publication.enabled";
+
+    public static final Setting<Boolean> REMOTE_PUBLICATION_SETTING = Setting.boolSetting(
+        REMOTE_PUBLICATION_SETTING_KEY,
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
 
     /**
      * Used to specify if cluster state metadata should be published to remote store
@@ -148,6 +160,16 @@ public class RemoteClusterStateService implements Closeable {
         RemoteClusterStateValidationMode::parseString,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    );
+
+    /**
+    * Controls the fixed prefix for the cluster state path on remote store.
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX = Setting.simpleString(
+        "cluster.remote_store.state.path.prefix",
+        "",
+        Property.NodeScope,
+        Property.Final
     );
 
     /**
@@ -211,7 +233,9 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
     private final boolean isPublicationEnabled;
+    private final String remotePathPrefix;
 
+    private final RemoteClusterStateCache remoteClusterStateCache;
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
     public static final ToXContent.Params FORMAT_PARAMS;
@@ -249,9 +273,10 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-        this.isPublicationEnabled = FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
+        this.isPublicationEnabled = REMOTE_PUBLICATION_SETTING.get(settings)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
+        this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
             settings,
@@ -260,6 +285,7 @@ public class RemoteClusterStateService implements Closeable {
             ClusterName.CLUSTER_NAME_SETTING.get(settings).value()
         );
         remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService, remoteRoutingTableService);
+        remoteClusterStateCache = new RemoteClusterStateCache();
     }
 
     /**
@@ -341,12 +367,20 @@ public class RemoteClusterStateService implements Closeable {
      *
      * @return {@link RemoteClusterStateManifestInfo} object containing uploaded manifest detail
      */
-    @Nullable
     public RemoteClusterStateManifestInfo writeIncrementalMetadata(
         ClusterState previousClusterState,
         ClusterState clusterState,
         ClusterMetadataManifest previousManifest
     ) throws IOException {
+        if (previousClusterState == null) {
+            throw new IllegalArgumentException("previousClusterState cannot be null");
+        }
+        if (clusterState == null) {
+            throw new IllegalArgumentException("clusterState cannot be null");
+        }
+        if (previousManifest == null) {
+            throw new IllegalArgumentException("previousManifest cannot be null");
+        }
         logger.trace("WRITING INCREMENTAL STATE");
 
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
@@ -354,7 +388,6 @@ public class RemoteClusterStateService implements Closeable {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
-        assert previousClusterState.metadata().coordinationMetadata().term() == clusterState.metadata().coordinationMetadata().term();
 
         boolean firstUploadForSplitGlobalMetadata = !previousManifest.hasMetadataAttributesFiles();
 
@@ -728,7 +761,10 @@ public class RemoteClusterStateService implements Closeable {
                     indexMetadata,
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    blobStoreRepository.getNamedXContentRegistry()
+                    blobStoreRepository.getNamedXContentRegistry(),
+                    remoteIndexMetadataManager.getPathTypeSetting(),
+                    remoteIndexMetadataManager.getPathHashAlgoSetting(),
+                    remotePathPrefix
                 ),
                 listener
             );
@@ -924,18 +960,41 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     @Nullable
-    public RemoteClusterStateManifestInfo markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
-        throws IOException {
+    public RemoteClusterStateManifestInfo markLastStateAsCommitted(
+        ClusterState clusterState,
+        ClusterMetadataManifest previousManifest,
+        boolean commitVotingConfig
+    ) throws IOException {
         assert clusterState != null : "Last accepted cluster state is not set";
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
         assert previousManifest != null : "Last cluster metadata manifest is not set";
+        UploadedMetadataAttribute uploadedCoordinationMetadata = previousManifest.getCoordinationMetadata();
+        if (commitVotingConfig) {
+            // update the coordination metadata if voting config is committed
+            uploadedCoordinationMetadata = writeMetadataInParallel(
+                clusterState,
+                emptyList(),
+                emptyMap(),
+                emptyMap(),
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                emptyMap(),
+                false,
+                emptyList(),
+                null
+            ).uploadedCoordinationMetadata;
+        }
         UploadedMetadataResults uploadedMetadataResults = new UploadedMetadataResults(
             previousManifest.getIndices(),
             previousManifest.getCustomMetadataMap(),
-            previousManifest.getCoordinationMetadata(),
+            uploadedCoordinationMetadata,
             previousManifest.getSettingsMetadata(),
             previousManifest.getTemplatesMetadata(),
             previousManifest.getTransientSettingsMetadata(),
@@ -975,6 +1034,15 @@ public class RemoteClusterStateService implements Closeable {
 
     public ClusterMetadataManifest getClusterMetadataManifestByFileName(String clusterUUID, String fileName) {
         return remoteManifestManager.getRemoteClusterMetadataManifestByFileName(clusterUUID, fileName);
+    }
+
+    public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
+        String clusterName,
+        String clusterUUID,
+        long term,
+        long version
+    ) {
+        return remoteManifestManager.getClusterMetadataManifestByTermVersion(clusterName, clusterUUID, term, version);
     }
 
     @Override
@@ -1387,6 +1455,11 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean includeEphemeral
     ) throws IOException {
+        ClusterState stateFromCache = remoteClusterStateCache.getState(clusterName, manifest);
+        if (stateFromCache != null) {
+            return stateFromCache;
+        }
+
         final ClusterState clusterState;
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
@@ -1443,7 +1516,10 @@ public class RemoteClusterStateService implements Closeable {
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         remoteStateStats.stateFullDownloadSucceeded();
         remoteStateStats.stateFullDownloadTook(durationMillis);
-
+        if (includeEphemeral) {
+            // cache only if the entire cluster-state is present
+            remoteClusterStateCache.putState(clusterState);
+        }
         return clusterState;
     }
 
@@ -1451,6 +1527,8 @@ public class RemoteClusterStateService implements Closeable {
         assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         ClusterStateDiffManifest diff = manifest.getDiffManifest();
+        boolean includeEphemeral = true;
+
         List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
             Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
                 .stream()
@@ -1499,7 +1577,7 @@ public class RemoteClusterStateService implements Closeable {
             manifest.getDiffManifest() != null
                 && manifest.getDiffManifest().getIndicesRoutingDiffPath() != null
                 && !manifest.getDiffManifest().getIndicesRoutingDiffPath().isEmpty(),
-            true
+            includeEphemeral
         );
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(updatedClusterState);
         Metadata.Builder metadataBuilder = Metadata.builder(updatedClusterState.metadata());
@@ -1533,7 +1611,6 @@ public class RemoteClusterStateService implements Closeable {
             .metadata(metadataBuilder)
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
-
         if (!remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) && manifest.getClusterStateChecksum() != null) {
             validateClusterStateFromChecksum(manifest, clusterState, previousState.getClusterName().value(), localNodeId, false);
         }
@@ -1541,6 +1618,9 @@ public class RemoteClusterStateService implements Closeable {
         remoteStateStats.stateDiffDownloadSucceeded();
         remoteStateStats.stateDiffDownloadTook(durationMillis);
 
+        assert includeEphemeral == true;
+        // newState includes all the fields of cluster-state (includeEphemeral=true always)
+        remoteClusterStateCache.putState(clusterState);
         return clusterState;
     }
 
@@ -1737,6 +1817,10 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
+    public boolean isRemotePublicationEnabled() {
+        return this.isPublicationEnabled;
+    }
+
     public void setRemoteStateReadTimeout(TimeValue remoteStateReadTimeout) {
         this.remoteStateReadTimeout = remoteStateReadTimeout;
     }
@@ -1930,4 +2014,9 @@ public class RemoteClusterStateService implements Closeable {
     public void diffDownloadFailed() {
         remoteStateStats.stateDiffDownloadFailed();
     }
+
+    RemoteClusterStateCache getRemoteClusterStateCache() {
+        return remoteClusterStateCache;
+    }
+
 }
