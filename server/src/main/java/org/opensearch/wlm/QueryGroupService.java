@@ -10,6 +10,7 @@ package org.opensearch.wlm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.metadata.Metadata;
@@ -230,7 +231,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
         QueryGroupState queryGroupState = queryGroupStateMap.get(queryGroupId);
 
         // This can happen if the request failed for a deleted query group
-        // or new queryGroup is being created and has not been acknowledged yet
+        // or new queryGroup is being created and has not been acknowledged yet or invalid query group id
         if (queryGroupState == null) {
             return;
         }
@@ -285,7 +286,20 @@ public class QueryGroupService extends AbstractLifecycleComponent
             return;
         }
         final QueryGroupTask queryGroupTask = (QueryGroupTask) task;
-        final String queryGroupId = queryGroupTask.getQueryGroupId();
-        queryGroupStateMap.get(queryGroupId).completions.inc();
+        String queryGroupId = queryGroupTask.getQueryGroupId();
+
+        // set the default queryGroupId if not existing in the active query groups
+        String finalQueryGroupId = queryGroupId;
+        boolean exists = activeQueryGroups.stream().anyMatch(queryGroup -> queryGroup.get_id().equals(finalQueryGroupId));
+
+        if (!exists) {
+            queryGroupId = QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get();
+        }
+
+        if (task instanceof SearchShardTask) {
+            queryGroupStateMap.get(queryGroupId).shardCompletions.inc();
+        } else {
+            queryGroupStateMap.get(queryGroupId).completions.inc();
+        }
     }
 }

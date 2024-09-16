@@ -18,6 +18,7 @@ import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
@@ -236,6 +237,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> false);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
@@ -303,6 +305,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(1001, cancellableTasksFromDeletedQueryGroups.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> true);
 
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
@@ -374,6 +377,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(1001, cancellableTasksFromDeletedQueryGroups.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> false);
 
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
@@ -435,6 +439,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         assertEquals(8765, cancellableTasksFrom1.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> true);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());

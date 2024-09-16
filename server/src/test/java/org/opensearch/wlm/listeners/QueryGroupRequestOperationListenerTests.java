@@ -89,6 +89,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                     0,
                     1,
                     0,
+                    0,
                     Map.of(
                         ResourceType.CPU,
                         new QueryGroupStats.ResourceStats(0, 0, 0),
@@ -98,6 +99,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 ),
                 QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(),
                 new QueryGroupStats.QueryGroupStatsHolder(
+                    0,
                     0,
                     0,
                     0,
@@ -161,6 +163,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                     0,
                     ITERATIONS,
                     0,
+                    0,
                     Map.of(
                         ResourceType.CPU,
                         new QueryGroupStats.ResourceStats(0, 0, 0),
@@ -170,6 +173,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 ),
                 QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(),
                 new QueryGroupStats.QueryGroupStatsHolder(
+                    0,
                     0,
                     0,
                     0,
@@ -196,6 +200,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                     0,
                     0,
                     0,
+                    0,
                     Map.of(
                         ResourceType.CPU,
                         new QueryGroupStats.ResourceStats(0, 0, 0),
@@ -205,6 +210,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 ),
                 QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(),
                 new QueryGroupStats.QueryGroupStatsHolder(
+                    0,
                     0,
                     0,
                     0,

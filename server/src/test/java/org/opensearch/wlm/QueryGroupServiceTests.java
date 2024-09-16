@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.action.search.SearchTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
@@ -322,7 +323,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     }
 
     public void testOnTaskCompleted() {
-        Task task = createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 12);
+        Task task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
         mockThreadPool = new TestThreadPool("queryGroupServiceTests");
         mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
         QueryGroupState queryGroupState = new QueryGroupState();
@@ -334,7 +335,21 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
             mockQueryGroupStateMap,
-            new HashSet<>(),
+            new HashSet<>() {
+                {
+                    add(
+                        new QueryGroup(
+                            "testQueryGroup",
+                            "testId",
+                            new MutableQueryGroupFragment(
+                                MutableQueryGroupFragment.ResiliencyMode.ENFORCED,
+                                Map.of(ResourceType.CPU, 0.10, ResourceType.MEMORY, 0.10)
+                            ),
+                            1L
+                        )
+                    );
+                }
+            },
             new HashSet<>()
         );
 

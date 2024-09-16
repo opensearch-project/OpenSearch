@@ -19,9 +19,14 @@ import java.util.Map;
  */
 public class QueryGroupState {
     /**
-     * completions at the query group level, this is a cumulative counter since the Opensearch start time
+     * co-ordinator level completions at the query group level, this is a cumulative counter since the Opensearch start time
      */
     public final CounterMetric completions = new CounterMetric();
+
+    /**
+     * shard level completions at the query group level, this is a cumulative counter since the Opensearch start time
+     */
+    public final CounterMetric shardCompletions = new CounterMetric();
 
     /**
      * rejections at the query group level, this is a cumulative counter since the OpenSearch start time
@@ -54,10 +59,18 @@ public class QueryGroupState {
 
     /**
      *
-     * @return completions in the query group
+     * @return co-ordinator completions in the query group
      */
     public long getCompletions() {
         return completions.count();
+    }
+
+    /**
+     *
+     * @return shard completions in the query group
+     */
+    public long getShardCompletions() {
+        return shardCompletions.count();
     }
 
     /**

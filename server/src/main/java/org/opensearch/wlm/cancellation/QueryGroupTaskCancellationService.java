@@ -16,6 +16,7 @@ import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
@@ -202,7 +203,22 @@ public class QueryGroupTaskCancellationService {
     }
 
     private void cancelTasks(List<TaskCancellation> cancellableTasks) {
-        cancellableTasks.forEach(TaskCancellation::cancel);
+
+        Consumer<TaskCancellation> cancellationLoggingConsumer = (taskCancellation -> {
+            log.warn(
+                "Task {} is eligible for cancellation for reason {}",
+                taskCancellation.getTask().getId(),
+                taskCancellation.getReasonString()
+            );
+        });
+        Consumer<TaskCancellation> cancellationConsumer = cancellationLoggingConsumer;
+        if (workloadManagementSettings.getWlmMode() == WlmMode.ENABLED) {
+            cancellationConsumer = (taskCancellation -> {
+                cancellationLoggingConsumer.accept(taskCancellation);
+                taskCancellation.cancel();
+            });
+        }
+        cancellableTasks.forEach(cancellationConsumer);
     }
 
     private double getExcessUsage(QueryGroup queryGroup, ResourceType resourceType) {
