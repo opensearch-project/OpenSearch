@@ -1644,6 +1644,12 @@ public class RemoteClusterStateService implements Closeable {
                 failedValidation
             )
         );
+        if (isFullStateDownload) {
+            remoteStateStats.stateFullDownloadValidationFailed();
+        } else {
+            remoteStateStats.stateDiffDownloadValidationFailed();
+        }
+
         if (isFullStateDownload && remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)) {
             throw new IllegalStateException(
                 "Cluster state checksums do not match during full state read. Validation failed for " + failedValidation
