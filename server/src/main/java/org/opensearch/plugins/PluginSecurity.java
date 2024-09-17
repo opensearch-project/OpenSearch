@@ -36,6 +36,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.Terminal.Verbosity;
 import org.opensearch.cli.UserException;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
@@ -68,8 +69,8 @@ class PluginSecurity {
     static void confirmPolicyExceptions(
         Terminal terminal,
         Set<String> permissions,
-        Set<String> requestedClusterActions,
-        Map<String, Set<String>> requestedIndexActions,
+        List<String> requestedClusterActions,
+        Map<String, List<String>> requestedIndexActions,
         boolean batch
     ) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
@@ -119,7 +120,7 @@ class PluginSecurity {
                 if (requestedIndexActions.isEmpty()) {
                     terminal.errorPrintln(Verbosity.NORMAL, "None");
                 } else {
-                    for (Map.Entry<String, Set<String>> entry : requestedIndexActions.entrySet()) {
+                    for (Map.Entry<String, List<String>> entry : requestedIndexActions.entrySet()) {
                         terminal.errorPrintln(Verbosity.NORMAL, "Index Pattern: " + entry.getKey());
                         terminal.errorPrintln(Verbosity.NORMAL, "");
                         for (String indexAction : entry.getValue()) {
@@ -217,5 +218,13 @@ class PluginSecurity {
             }
         }
         return Collections.list(actualPermissions.elements()).stream().map(PluginSecurity::formatPermission).collect(Collectors.toSet());
+    }
+
+    /**
+     * Parses plugin-permissions.yml file.
+     */
+    @SuppressWarnings("removal")
+    public static Settings parseRequestedActions(Path file) throws IOException {
+        return Settings.builder().loadFromPath(file).build();
     }
 }

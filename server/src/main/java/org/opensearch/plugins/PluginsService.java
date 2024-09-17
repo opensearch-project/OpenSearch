@@ -695,60 +695,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("removal")
-    static IdentityAwarePlugin maybeLoadIdentityAwarePluginFromBundle(Bundle bundle, Settings settings, Path configPath, Path pluginPath)
-        throws IOException {
-        String name = bundle.plugin.getName();
-
-        verifyCompatibility(bundle.plugin);
-
-        // create a child to load the plugin in this bundle
-        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(PluginsService.class.getClassLoader(), Collections.emptyList());
-        if (!Files.exists(pluginPath)) {
-            throw new IllegalStateException("Path should exist at this time");
-        }
-
-        List<Path> jarPaths = Files.list(pluginPath)
-            .filter((fileName) -> fileName.toString().toLowerCase(Locale.ROOT).endsWith(".jar"))
-            .collect(Collectors.toList());
-
-        if (jarPaths.isEmpty()) {
-            throw new IllegalStateException("No JAR files found");
-        }
-
-        URL[] urls = new URL[jarPaths.size()];
-        for (int i = 0; i < jarPaths.size(); i++) {
-            urls[i] = jarPaths.get(i).toUri().toURL();
-        }
-        URLClassLoader loader = new URLClassLoader(urls, parentLoader);
-
-        // reload SPI with any new services from the plugin
-        reloadLuceneSPI(loader);
-
-        ClassLoader cl = Thread.currentThread().getContextClassLoader();
-        try {
-            // Set context class loader to plugin's class loader so that plugins
-            // that have dependencies with their own SPI endpoints have a chance to load
-            // and initialize them appropriately.
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(loader);
-                return null;
-            });
-
-            logger.debug("Loading plugin [" + name + "]...");
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-            if (!IdentityAwarePlugin.class.isAssignableFrom(pluginClass)) {
-                return null;
-            }
-            return (IdentityAwarePlugin) loadPlugin(pluginClass, settings, configPath);
-        } finally {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(cl);
-                return null;
-            });
-        }
-    }
-
-    @SuppressWarnings("removal")
     private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
         String name = bundle.plugin.getName();
 

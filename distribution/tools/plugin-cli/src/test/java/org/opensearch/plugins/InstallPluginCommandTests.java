@@ -280,8 +280,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     }
 
     /** creates a plugin .zip and returns the url for testing */
-    static String createIdentityAwarePluginUrl(String name, Path structure, String... additionalProps) throws IOException {
-        return createIdentityAwarePlugin(name, structure, additionalProps).toUri().toURL().toString();
+    static String createPluginWithRequestedActionsUrl(String name, Path structure, String... additionalProps) throws IOException {
+        return createPluginWithRequestedActions(name, structure, additionalProps).toUri().toURL().toString();
     }
 
     static class JavaSourceFromString extends SimpleJavaFileObject {
@@ -301,56 +301,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     private static String compileFakePlugin(Path structure) throws IOException {
         String pluginClassName = "org.opensearch.plugins.FakePlugin";
         String javaSourceCode = "package org.opensearch.plugins;\n" + "\n" + "class FakePlugin extends Plugin {}\n";
-        if (Files.notExists(structure)) {
-            Files.createDirectories(structure);
-        }
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-
-        StandardJavaFileManager standardFileManager = compiler.getStandardFileManager(null, null, null);
-        JavaFileManager fileManager = new ForwardingJavaFileManager<StandardJavaFileManager>(standardFileManager) {
-            @Override
-            public JavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind, FileObject sibling) {
-                Path classFile = structure.resolve(className.replace('.', '/') + ".class");
-                if (Files.notExists(classFile.getParent())) {
-                    try {
-                        Files.createDirectories(classFile.getParent());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                return new SimpleJavaFileObject(classFile.toUri(), kind) {
-                    @Override
-                    public OutputStream openOutputStream() throws IOException {
-                        return Files.newOutputStream(classFile);
-                    }
-                };
-            }
-        };
-
-        JavaFileObject javaFileObject = new JavaSourceFromString(pluginClassName, javaSourceCode);
-        Iterable<String> options = Arrays.asList("-d", structure.toUri().toString());
-        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, null, options, null, Arrays.asList(javaFileObject));
-        boolean success = task.call();
-        // Close the file manager
-        fileManager.close();
-        return pluginClassName;
-    }
-
-    private static String compileIdentityAwareFakePlugin(Path structure) throws IOException {
-        String pluginClassName = "org.opensearch.plugins.FakePlugin";
-        String javaSourceCode = "package org.opensearch.plugins;\n"
-            + "\n"
-            + "import java.util.Set;\n"
-            + "\n"
-            + "public class FakePlugin extends Plugin implements IdentityAwarePlugin {\n"
-            + "\n"
-            + "    public FakePlugin() {}\n"
-            + "\n"
-            + "    @Override\n"
-            + "    public Set<String> getClusterActions() {\n"
-            + "        return Set.of(\"cluster:monitor/health\");\n"
-            + "    }\n"
-            + "}\n";
         if (Files.notExists(structure)) {
             Files.createDirectories(structure);
         }
@@ -411,8 +361,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         writeJar(structure.resolve("plugin.jar"), className, pluginClassName);
     }
 
-    static void writeIdentityAwarePlugin(String name, Path structure, String... additionalProps) throws IOException {
-        String pluginClassName = compileIdentityAwareFakePlugin(structure);
+    static void writePluginWithRequestedActions(String name, Path structure, String... additionalProps) throws IOException {
+        String pluginClassName = compileFakePlugin(structure);
         String[] properties = Stream.concat(
             Stream.of(
                 "description",
@@ -432,6 +382,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         ).toArray(String[]::new);
 
         PluginTestUtil.writePluginProperties(structure, properties);
+        writePluginPermissionsYaml(structure);
         String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
         writeJar(structure.resolve("plugin.jar"), className, pluginClassName);
     }
@@ -477,13 +428,22 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
     }
 
+    static void writePluginPermissionsYaml(Path pluginDir, String... permissions) throws IOException {
+        String permissionsYamlContent = "cluster.actions:\n"
+            + "  - cluster:monitor/health\n"
+            + "indices.actions:\n"
+            + "  example-index*:\n"
+            + "    - indices:data/write/index*";
+        Files.write(pluginDir.resolve("plugin-permissions.yml"), permissionsYamlContent.getBytes(StandardCharsets.UTF_8));
+    }
+
     static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
         writePlugin(name, structure, additionalProps);
         return writeZip(structure, null);
     }
 
-    static Path createIdentityAwarePlugin(String name, Path structure, String... additionalProps) throws IOException {
-        writeIdentityAwarePlugin(name, structure, additionalProps);
+    static Path createPluginWithRequestedActions(String name, Path structure, String... additionalProps) throws IOException {
+        writePluginWithRequestedActions(name, structure, additionalProps);
         return writeZip(structure, null);
     }
 
@@ -1743,7 +1703,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testRequestedActionsConfirmation() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createIdentityAwarePluginUrl("fake", pluginDir);
+        String pluginZip = createPluginWithRequestedActionsUrl("fake", pluginDir);
 
         assertPolicyConfirmation(env, pluginZip, "WARNING: plugin requires additional permissions", "Cluster Actions", "Index Actions");
         assertPlugin("fake", pluginDir, env.v2());

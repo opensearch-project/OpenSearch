@@ -60,6 +60,7 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
@@ -102,6 +103,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
@@ -193,6 +195,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     static final Set<PosixFilePermission> CONFIG_FILES_PERMS;
     static final Set<PosixFilePermission> PLUGIN_DIR_PERMS;
     static final Set<PosixFilePermission> PLUGIN_FILES_PERMS;
+
+    static final Setting<List<String>> CLUSTER_ACTIONS_SETTING = Setting.listSetting(
+        "cluster.actions",
+        Collections.emptyList(),
+        Function.identity()
+    );
+
+    static final Setting<Settings> INDEX_ACTIONS_SETTING = Setting.groupSetting("index.actions.");
 
     static {
         // Bin directory get chmod 755
@@ -881,21 +891,25 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         } else {
             permissions = Collections.emptySet();
         }
-        final PluginsService.Bundle bundle = new PluginsService.Bundle(info, env.pluginsDir());
 
-        final Set<String> requestedClusterActions = new HashSet<>();
-        final Map<String, Set<String>> requestedIndexActions = new HashMap<>();
+        Path actions = tmpRoot.resolve(PluginInfo.OPENSEARCH_PLUGIN_ACTIONS);
+        Settings requestedActions = Settings.EMPTY;
 
-        final IdentityAwarePlugin plugin = PluginsService.maybeLoadIdentityAwarePluginFromBundle(
-            bundle,
-            Settings.EMPTY,
-            env.configDir(),
-            tmpRoot
-        );
-        if (plugin != null) {
-            requestedClusterActions.addAll(plugin.getClusterActions());
-            requestedIndexActions.putAll(plugin.getIndexActions());
+        if (Files.exists(actions)) {
+            requestedActions = PluginSecurity.parseRequestedActions(actions);
         }
+
+        final Map<String, List<String>> requestedIndexActions = new HashMap<>();
+
+        final List<String> requestedClusterActions = CLUSTER_ACTIONS_SETTING.get(requestedActions);
+        final Settings requestedIndexActionsGroup = INDEX_ACTIONS_SETTING.get(requestedActions);
+        if (!requestedIndexActionsGroup.keySet().isEmpty()) {
+            for (String indexPattern : requestedIndexActionsGroup.keySet()) {
+                List<String> indexActionsForPattern = requestedIndexActionsGroup.getAsList(indexPattern);
+                requestedIndexActions.put(indexPattern, indexActionsForPattern);
+            }
+        }
+
         PluginSecurity.confirmPolicyExceptions(terminal, permissions, requestedClusterActions, requestedIndexActions, isBatch);
 
         String targetFolderName = info.getTargetFolderName();

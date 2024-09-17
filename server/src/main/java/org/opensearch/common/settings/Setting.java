@@ -2345,6 +2345,20 @@ public class Setting<T> implements ToXContentObject {
         return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
     }
 
+    public static Setting<List<Map<String, Set<String>>>> listSetting(
+        final String key,
+        final List<String> defaultStringValue,
+        final Property... properties
+    ) {
+        Function<Settings, List<String>> defaultStringValueFn = (s) -> defaultStringValue;
+        if (defaultStringValueFn.apply(Settings.EMPTY) == null) {
+            throw new IllegalArgumentException("default value function must not return null");
+        }
+        Function<String, List<Map<String, Set<String>>>> parser = (s) -> new ArrayList<>(parseableMapToList(s));
+
+        return new ListSetting<>(key, null, defaultStringValueFn, parser, v -> {}, properties);
+    }
+
     private static List<String> parseableStringToList(String parsableString) {
         // fromXContent doesn't use named xcontent or deprecation.
         try (
@@ -2361,6 +2375,31 @@ public class Setting<T> implements ToXContentObject {
                     throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
                 }
                 list.add(xContentParser.text());
+            }
+            return list;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("failed to parse array", e);
+        }
+    }
+
+    private static List<Map<String, Set<String>>> parseableMapToList(String parsableString) {
+        // fromXContent doesn't use named xcontent or deprecation.
+        try (
+            XContentParser xContentParser = MediaTypeRegistry.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)
+        ) {
+            XContentParser.Token token = xContentParser.nextToken();
+            if (token != XContentParser.Token.START_ARRAY) {
+                throw new IllegalArgumentException("expected START_ARRAY but got " + token);
+            }
+            ArrayList<Map<String, Set<String>>> list = new ArrayList<>();
+            while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                list.add(
+                    xContentParser.map(
+                        HashMap::new,
+                        p -> p.list().stream().map(object -> Objects.toString(object, null)).collect(Collectors.toSet())
+                    )
+                );
             }
             return list;
         } catch (IOException e) {
