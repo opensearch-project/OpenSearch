@@ -61,8 +61,14 @@ public class SearchBackpressureSettings {
     public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
         "search_backpressure.cancellation_ratio",
         Defaults.CANCELLATION_RATIO,
-        0.0,
-        1.0,
+        value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("search_backpressure.cancellation_ratio must be > 0");
+            }
+            if (value > 1.0) {
+                throw new IllegalArgumentException("search_backpressure.cancellation_ratio must be <= 1.0");
+            }
+        },
         Setting.Property.Deprecated,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -78,7 +84,11 @@ public class SearchBackpressureSettings {
     public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
         "search_backpressure.cancellation_rate",
         Defaults.CANCELLATION_RATE,
-        0.0,
+        value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("search_backpressure.cancellation_rate must be > 0");
+            }
+        },
         Setting.Property.Deprecated,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
