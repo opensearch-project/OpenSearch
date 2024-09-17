@@ -174,21 +174,29 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 );
             }
 
-            int numShardCopiesAllocatedToCurrentNodeAttributeValue = getNumberOfShardCopiesAllocatedToCurrentNodeAttributeValue(shardRouting, node, allocation, moveToNode, awarenessAttribute);
+            int numShardCopiesAllocatedToCurrentNodeAttributeValue = getNumberOfShardCopiesAllocatedToCurrentNodeAttributeValue(
+                shardRouting,
+                node,
+                allocation,
+                moveToNode,
+                awarenessAttribute
+            );
 
             Set<String> attributeValues = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
             int distinctAttributeValuesCount = attributeValues.size();
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
 
             if (fullValues != null) {
-                // If forced awareness is enabled, distinctAttributeValuesCount = count(distinct((union(discovered_attributes, forced_attributes)))
+                // If forced awareness is enabled, distinctAttributeValuesCount = count(distinct((union(discovered_attributes,
+                // forced_attributes)))
                 Set<String> attributesSet = new HashSet<>(fullValues);
                 attributesSet.addAll(attributeValues);
                 distinctAttributeValuesCount = attributesSet.size();
             }
 
             // TODO should we remove ones that are not part of full list?
-            final int maximumShardCopiesAllowedPerAttributeValue = (shardCopiesCount + distinctAttributeValuesCount - 1) / distinctAttributeValuesCount; // ceil(shardCopiesCount/distinctAttributeValuesCount)
+            final int maximumShardCopiesAllowedPerAttributeValue = (shardCopiesCount + distinctAttributeValuesCount - 1)
+                / distinctAttributeValuesCount; // ceil(shardCopiesCount/distinctAttributeValuesCount)
             if (numShardCopiesAllocatedToCurrentNodeAttributeValue > maximumShardCopiesAllowedPerAttributeValue) {
                 return allocation.decision(
                     Decision.NO,
@@ -237,8 +245,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
                 if (node.nodeId().equals(nodeId) == false) {
                     // we work on different nodes, move counts around
-                    if (getAttributeValueForNode(allocation.routingNodes().node(nodeId), awarenessAttribute).equals(shardAttributeForCurrentNode)
-                        && currentNodeAttributeValueShardCount > 0) {
+                    if (getAttributeValueForNode(allocation.routingNodes().node(nodeId), awarenessAttribute).equals(
+                        shardAttributeForCurrentNode
+                    ) && currentNodeAttributeValueShardCount > 0) {
                         --currentNodeAttributeValueShardCount;
                     }
 
