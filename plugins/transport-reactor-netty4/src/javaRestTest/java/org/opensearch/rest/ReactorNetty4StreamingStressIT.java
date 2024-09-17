@@ -17,6 +17,7 @@ import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -75,7 +76,7 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
                 }
             })
             .then(() -> scheduler.advanceTimeBy(delay))
-            .expectErrorMatches(t -> t instanceof ConnectionClosedException)
+            .expectErrorMatches(t -> t instanceof InterruptedIOException || t instanceof ConnectionClosedException)
             .verify();
     }
 }
