@@ -14,6 +14,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -51,10 +52,12 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
 
     private final Logger logger;
     private final String type;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
-    protected AsyncShardFetchCache(Logger logger, String type) {
+    protected AsyncShardFetchCache(Logger logger, String type, ClusterManagerMetrics clusterManagerMetrics) {
         this.logger = logger;
         this.type = type;
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     abstract void initData(DiscoveryNode node);
@@ -167,8 +170,10 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
             if (nodeEntry != null) {
                 if (validateNodeResponse(nodeEntry, fetchingRound)) {
                     // if the entry is there, for the right fetching round and not marked as failed already, process it
-                    logger.trace("marking {} as done for [{}], result is [{}]", nodeEntry.getNodeId(), type, response);
+                    logger.info("marking {} as done for [{}], result is [{}]", nodeEntry.getNodeId(), type, response);
                     putData(response.getNode(), response);
+                    logger.info("incrementing async fetch total counter");
+                    clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchTotalFetchesCounter, 1.0);
                 }
             }
         }
@@ -202,6 +207,9 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
                 nodeEntry.getFetchingRound(),
                 fetchingRound
             );
+            logger.info("incrementing async fetch total counter and async fetch failure counter");
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchTotalFetchesCounter, 1.0);
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchFailureCounter, 1.0);
         } else if (nodeEntry.isFailed() == false) {
             // if the entry is there, for the right fetching round and not marked as failed already, process it
             Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());

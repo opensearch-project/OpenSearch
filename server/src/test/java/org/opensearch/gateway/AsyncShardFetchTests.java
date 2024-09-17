@@ -35,10 +35,12 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -399,7 +401,14 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         private AtomicInteger reroute = new AtomicInteger();
 
         TestFetch(ThreadPool threadPool) {
-            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), "", null);
+            super(
+                LogManager.getLogger(TestFetch.class),
+                "test",
+                new ShardId("test", "_na_", 1),
+                "",
+                null,
+                new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            );
             this.threadPool = threadPool;
         }
 

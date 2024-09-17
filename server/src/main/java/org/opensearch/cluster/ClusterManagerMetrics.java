@@ -34,6 +34,8 @@ public final class ClusterManagerMetrics {
 
     public final Counter leaderCheckFailureCounter;
     public final Counter followerChecksFailureCounter;
+    public final Counter asyncFetchFailureCounter;
+    public final Counter asyncFetchTotalFetchesCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
         clusterStateAppliersHistogram = metricsRegistry.createHistogram(
@@ -71,6 +73,17 @@ public final class ClusterManagerMetrics {
             "Counter for number of failed leader checks",
             COUNTER_METRICS_UNIT
         );
+        asyncFetchFailureCounter = metricsRegistry.createCounter(
+            "allocation.reroute.async.fetch.failure.count",
+            "Counter for number of failed async fetches",
+            COUNTER_METRICS_UNIT
+        );
+        asyncFetchTotalFetchesCounter = metricsRegistry.createCounter(
+            "allocation.reroute.async.fetch.total.count",
+            "Counter for total number of async fetches",
+            COUNTER_METRICS_UNIT
+        );
+
     }
 
     public void recordLatency(Histogram histogram, Double value) {

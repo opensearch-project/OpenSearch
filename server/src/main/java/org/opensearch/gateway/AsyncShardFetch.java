@@ -35,6 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -94,7 +95,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         String type,
         ShardId shardId,
         String customDataPath,
-        Lister<? extends BaseNodesResponse<T>, T> action
+        Lister<? extends BaseNodesResponse<T>, T> action,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.logger = logger;
         this.type = type;
@@ -102,7 +104,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         shardAttributesMap.put(shardId, new ShardAttributes(customDataPath));
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.reroutingKey = "ShardId=[" + shardId.toString() + "]";
-        cache = new ShardCache<>(logger, reroutingKey, type);
+        cache = new ShardCache<>(logger, reroutingKey, type, clusterManagerMetrics);
     }
 
     /**
@@ -223,7 +225,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             logger.trace("{} ignoring fetched [{}] results, already closed", reroutingKey, type);
             return;
         }
-        logger.trace("{} processing fetched [{}] results", reroutingKey, type);
+        logger.info("{} processing fetched [{}] results", reroutingKey, type);
 
         if (responses != null) {
             cache.processResponses(responses, fetchingRound);
@@ -264,6 +266,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
             @Override
             public void onFailure(Exception e) {
+                // TODO: add failure metrics here
                 List<FailedNodeException> failures = new ArrayList<>(nodes.length);
                 for (final DiscoveryNode node : nodes) {
                     failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
@@ -284,8 +287,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         private final Map<String, NodeEntry<K>> cache;
 
-        public ShardCache(Logger logger, String logKey, String type) {
-            super(Loggers.getLogger(logger, "_" + logKey), type);
+        public ShardCache(Logger logger, String logKey, String type, ClusterManagerMetrics clusterManagerMetrics) {
+            super(Loggers.getLogger(logger, "_" + logKey), type, clusterManagerMetrics);
             cache = new HashMap<>();
         }
 
