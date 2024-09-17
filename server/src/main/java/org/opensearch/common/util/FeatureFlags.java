@@ -69,6 +69,11 @@ public class FeatureFlags {
 
     public static final String READER_WRITER_SPLIT_EXPERIMENTAL = "opensearch.experimental.feature.read.write.split.enabled";
 
+    /**
+     * Gates the functionality of background task execution.
+     */
+    public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = "opensearch.experimental.feature.task.background.enabled";
+
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
