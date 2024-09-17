@@ -69,6 +69,7 @@ class PluginSecurity {
     static void confirmPolicyExceptions(
         Terminal terminal,
         Set<String> permissions,
+        String description,
         List<String> requestedClusterActions,
         Map<String, List<String>> requestedIndexActions,
         boolean batch
@@ -103,6 +104,10 @@ class PluginSecurity {
             }
             if (!requestedClusterActions.isEmpty() || !requestedIndexActions.isEmpty()) {
                 terminal.errorPrintln(Verbosity.NORMAL, "");
+                if (description != null) {
+                    terminal.errorPrintln(Verbosity.NORMAL, description);
+                    terminal.errorPrintln(Verbosity.NORMAL, "");
+                }
                 terminal.errorPrintln(Verbosity.NORMAL, "Cluster Actions");
                 terminal.errorPrintln(Verbosity.NORMAL, "---------------");
                 terminal.errorPrintln(Verbosity.NORMAL, "");

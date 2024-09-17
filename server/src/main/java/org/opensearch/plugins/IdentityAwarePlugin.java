@@ -12,10 +12,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-
 /**
  * Plugin that performs transport actions with a plugin system context. IdentityAwarePlugins are initialized
  * with a {@link Subject} that they can utilize to perform transport actions outside the default subject.
@@ -35,22 +31,4 @@ public interface IdentityAwarePlugin {
      *                      interaction
      */
     default void assignSubject(PluginSubject pluginSubject) {}
-
-    /**
-     * Returns a set of cluster actions this plugin can perform within a pluginSubject.runAs(() -> { ... }) block.
-     *
-     * @return Set of cluster actions
-     */
-    default Set<String> getClusterActions() {
-        return Collections.emptySet();
-    }
-
-    /**
-     * Returns a map of index pattern -> allowed index actions this plugin can perform within a pluginSubject.runAs(() -> { ... }) block.
-     *
-     * @return Map of index pattern -> allowed index actions
-     */
-    default Map<String, Set<String>> getIndexActions() {
-        return Collections.emptyMap();
-    }
 }

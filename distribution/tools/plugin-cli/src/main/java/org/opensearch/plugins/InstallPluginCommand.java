@@ -204,6 +204,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     static final Setting<Settings> INDEX_ACTIONS_SETTING = Setting.groupSetting("index.actions.");
 
+    static final Setting<String> DESCRIPTION_SETTING = Setting.simpleString("description");
+
     static {
         // Bin directory get chmod 755
         BIN_DIR_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rwxr-xr-x"));
@@ -903,6 +905,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         final List<String> requestedClusterActions = CLUSTER_ACTIONS_SETTING.get(requestedActions);
         final Settings requestedIndexActionsGroup = INDEX_ACTIONS_SETTING.get(requestedActions);
+        final String pluginActionDescription = DESCRIPTION_SETTING.get(requestedActions);
         if (!requestedIndexActionsGroup.keySet().isEmpty()) {
             for (String indexPattern : requestedIndexActionsGroup.keySet()) {
                 List<String> indexActionsForPattern = requestedIndexActionsGroup.getAsList(indexPattern);
@@ -910,7 +913,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
 
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, requestedClusterActions, requestedIndexActions, isBatch);
+        PluginSecurity.confirmPolicyExceptions(
+            terminal,
+            permissions,
+            pluginActionDescription,
+            requestedClusterActions,
+            requestedIndexActions,
+            isBatch
+        );
 
         String targetFolderName = info.getTargetFolderName();
         final Path destination = env.pluginsDir().resolve(targetFolderName);
