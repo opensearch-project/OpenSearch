@@ -109,6 +109,8 @@ public class GatewayMetaState implements Closeable {
      */
     public static final String STALE_STATE_CONFIG_NODE_ID = "STALE_STATE_CONFIG";
 
+    private final Logger logger = LogManager.getLogger(GatewayMetaState.class);
+
     private PersistedStateRegistry persistedStateRegistry;
 
     public PersistedState getPersistedState() {
@@ -260,9 +262,10 @@ public class GatewayMetaState implements Closeable {
         String lastKnownClusterUUID
     ) {
         int maxAttempts = 5;
-        int delayInMills = 100;
+        int delayInMills = 200;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
+                logger.info("Attempt {} to restore cluster state", attempt);
                 return restoreClusterState(remoteStoreRestoreService, clusterState, lastKnownClusterUUID);
             } catch (Exception e) {
                 if (attempt == maxAttempts) {

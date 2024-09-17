@@ -33,7 +33,6 @@ import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
@@ -43,6 +42,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -313,7 +313,6 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         updateIndexBlock(false, secondIndexName);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/15950")
     public void testFullClusterRestoreManifestFilePointsToInvalidIndexMetadataPathThrowsException() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -341,10 +340,11 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
             for (UploadedIndexMetadata md : manifest.getIndices()) {
                 Files.move(segmentRepoPath.resolve(md.getUploadedFilename()), segmentRepoPath.resolve("cluster-state/"));
             }
+            internalCluster().stopAllNodes();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        assertThrows(UncategorizedExecutionException.class, () -> addNewNodes(dataNodeCount, clusterManagerNodeCount));
+        assertThrows(IOError.class, () -> internalCluster().client());
         // Test is complete
 
         // Starting a node without remote state to ensure test cleanup
