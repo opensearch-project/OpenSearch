@@ -202,7 +202,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map.of(),
             false,
             false// initialising to false, will be updated in startCloning method of SnapshotsService while updating entry with
-                  // clone jobs
+                 // clone jobs
         );
     }
 
@@ -231,7 +231,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             source,
             Map.of(),
             remoteStoreIndexShallowCopyV2,
-            remoteStoreIndexShallowCopyV2// initialising to false, will be updated in startCloning method of SnapshotsService while updating entry with
+            remoteStoreIndexShallowCopyV2// initialising to false, will be updated in startCloning method of SnapshotsService while updating
+                                         // entry with
             // clone jobs
         );
     }
@@ -388,7 +389,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
             this.remoteStoreIndexShallowCopyV2 = remoteStoreIndexShallowCopyV2;
-            assert this.remoteStoreIndexShallowCopyV2 || assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.clones);
+            assert this.remoteStoreIndexShallowCopyV2
+                || assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.clones);
         }
 
         private Entry(StreamInput in) throws IOException {
