@@ -105,8 +105,13 @@ public class SearchHitProtobuf extends SearchHit {
         highlightFields = new HashMap<>();
         proto.getHighlightFieldsMap().forEach((key, value) -> highlightFields.put(key, highlightFieldFromProto(value)));
 
-        innerHits = new HashMap<>();
-        proto.getInnerHitsMap().forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
+        // innerHits is nullable
+        if (proto.getInnerHitsCount() < 1) {
+            innerHits = null;
+        } else {
+            innerHits = new HashMap<>();
+            proto.getInnerHitsMap().forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
+        }
 
         source = proto.hasSource()? BytesReference.fromByteBuffer(proto.getSource().asReadOnlyByteBuffer()) : null;
         id = proto.hasId()? new Text(proto.getId()) : null;

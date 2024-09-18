@@ -73,14 +73,12 @@ message SearchHitProto {
   int64 seq_no = 3;
   int64 primary_term = 4;
   SearchSortValuesProto sort_values = 5;
-
   map<string, DocumentFieldProto> document_fields = 6;
   map<string, DocumentFieldProto> meta_fields = 7;
   map<string, HighlightFieldProto> highlight_fields = 8;
   map<string, float> matched_queries = 9;
   map<string, SearchHitsProto> inner_hits = 10;
-
-  optional bytes source = 5; // JSON payload - Move to map?
+  optional bytes source = 11; // JSON payload - Move to map?
   optional string id = 12;
   optional NestedIdentityProto nested_identity = 13;
   optional SearchShardTargetProto shard = 14;
