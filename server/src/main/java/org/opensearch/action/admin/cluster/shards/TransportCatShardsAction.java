@@ -19,9 +19,14 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.NotifyOnceListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.rest.RequestLimitSettings;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+
+import static org.opensearch.rest.RequestLimitSettings.BlockAction.CAT_SHARDS;
 
 /**
  * Perform cat shards action
@@ -31,11 +36,18 @@ import org.opensearch.transport.TransportService;
 public class TransportCatShardsAction extends HandledTransportAction<CatShardsRequest, CatShardsResponse> {
 
     private final NodeClient client;
+    private final RequestLimitSettings requestLimitSettings;
 
     @Inject
-    public TransportCatShardsAction(NodeClient client, TransportService transportService, ActionFilters actionFilters) {
+    public TransportCatShardsAction(
+        NodeClient client,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        RequestLimitSettings requestLimitSettings
+    ) {
         super(CatShardsAction.NAME, transportService, actionFilters, CatShardsRequest::new);
         this.client = client;
+        this.requestLimitSettings = requestLimitSettings;
     }
 
     @Override
@@ -73,6 +85,10 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
             client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
                 @Override
                 public void onResponse(ClusterStateResponse clusterStateResponse) {
+                    if (shardsRequest.isRequestLimitCheckSupported()
+                        && requestLimitSettings.isCircuitLimitBreached(clusterStateResponse.getState(), CAT_SHARDS)) {
+                        listener.onFailure(new CircuitBreakingException("Too many shards requested.", CircuitBreaker.Durability.TRANSIENT));
+                    }
                     catShardsResponse.setClusterStateResponse(clusterStateResponse);
                     IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                     indicesStatsRequest.setShouldCancelOnTimeout(true);

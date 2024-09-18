@@ -39,6 +39,7 @@ import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.RequestLimitSettings;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -98,4 +99,12 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
+    /**
+     * Method to check if limits defined in {@link RequestLimitSettings} are applicable to an action.
+     *
+     * @return True / False status
+     */
+    protected boolean isRequestLimitCheckSupported() {
+        return false;
+    }
 }

@@ -57,7 +57,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.rest.RequestLimitSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -80,6 +83,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+import static org.opensearch.rest.RequestLimitSettings.BlockAction.CAT_INDICES;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -95,6 +99,12 @@ public class RestIndicesAction extends AbstractCatAction {
         "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+
+    private final RequestLimitSettings requestLimitSettings;
+
+    public RestIndicesAction(RequestLimitSettings requestLimitSettings) {
+        this.requestLimitSettings = requestLimitSettings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -115,6 +125,11 @@ public class RestIndicesAction extends AbstractCatAction {
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/indices\n");
         sb.append("/_cat/indices/{index}\n");
+    }
+
+    @Override
+    public boolean isRequestLimitCheckSupported() {
+        return true;
     }
 
     @Override
@@ -151,48 +166,67 @@ public class RestIndicesAction extends AbstractCatAction {
                 new ActionListener<GetSettingsResponse>() {
                     @Override
                     public void onResponse(final GetSettingsResponse getSettingsResponse) {
-                        final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
-                        groupedListener.onResponse(getSettingsResponse);
-
                         // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
                         // All the other requests just provide additional detail, and wildcards may be resolved differently depending on the
                         // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
                         // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
                         final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
 
-                        // Indices that were successfully resolved during the get settings request might be deleted when the subsequent
-                        // cluster
-                        // state, cluster health and indices stats requests execute. We have to distinguish two cases:
-                        // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
-                        // subsequent requests to fail.
-                        // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests
-                        // not to
-                        // fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
-                        // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve
-                        // the
-                        // index names with the same indices options that we used for the initial cluster state request (strictExpand).
-                        sendIndicesStatsRequest(
-                            indices,
-                            subRequestIndicesOptions,
-                            includeUnloadedSegments,
-                            client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                        );
+                        // Indices that were successfully resolved during the get settings request might be deleted when the
+                        // subsequent cluster state, cluster health and indices stats requests execute. We have to distinguish two cases:
+                        // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we
+                        // want the subsequent requests to fail.
+                        // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent
+                        // requests not to fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+                        // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests
+                        // re-resolve the index names with the same indices options that we used for the initial cluster state
+                        // request (strictExpand).
                         sendClusterStateRequest(
                             indices,
                             subRequestIndicesOptions,
                             local,
                             clusterManagerNodeTimeout,
                             client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                        );
-                        sendClusterHealthRequest(
-                            indices,
-                            subRequestIndicesOptions,
-                            local,
-                            clusterManagerNodeTimeout,
-                            client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                            new ActionListener<ClusterStateResponse>() {
+                                @Override
+                                public void onResponse(ClusterStateResponse clusterStateResponse) {
+                                    if (isRequestLimitCheckSupported()
+                                        && requestLimitSettings.isCircuitLimitBreached(clusterStateResponse.getState(), CAT_INDICES)) {
+                                        listener.onFailure(
+                                            new CircuitBreakingException("Too many indices requested.", CircuitBreaker.Durability.TRANSIENT)
+                                        );
+                                    }
+                                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
+                                        request,
+                                        4,
+                                        listener
+                                    );
+                                    groupedListener.onResponse(getSettingsResponse);
+                                    groupedListener.onResponse(clusterStateResponse);
+
+                                    sendIndicesStatsRequest(
+                                        indices,
+                                        subRequestIndicesOptions,
+                                        includeUnloadedSegments,
+                                        client,
+                                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                    );
+
+                                    sendClusterHealthRequest(
+                                        indices,
+                                        subRequestIndicesOptions,
+                                        local,
+                                        clusterManagerNodeTimeout,
+                                        client,
+                                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                    );
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(e);
+                                }
+                            }
                         );
                     }
 
