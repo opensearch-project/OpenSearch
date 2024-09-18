@@ -41,10 +41,10 @@ message SortValueProto {
 }
 
 message SortFieldProto {
-  MissingValueProto missing_value = 1;
-  bool reverse = 2;
-  SortTypeProto type = 3;
-  optional string field = 4;
+  bool reverse = 1;
+  SortTypeProto type = 2;
+  optional string field = 3;
+  optional MissingValueProto missing_value = 4;
 }
 
 message MissingValueProto {

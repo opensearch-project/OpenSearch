@@ -50,6 +50,8 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
         ExplanationProto proto = explanationToProto(orig);
         Explanation cpy = explanationFromProto(proto);
         assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
     }
 
     public void testProtoDocumentFieldSerDe() {
@@ -57,6 +59,8 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
         DocumentFieldProto proto = documentFieldToProto(orig);
         DocumentField cpy = documentFieldFromProto(proto);
         assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
     }
 
     public void testProtoHighlightFieldSerDe() {
@@ -64,6 +68,8 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
         HighlightFieldProto proto = highlightFieldToProto(orig);
         HighlightField cpy = highlightFieldFromProto(proto);
         assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
     }
 
     public void testProtoSearchSortValuesSerDe() {
@@ -71,6 +77,8 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
         SearchSortValuesProto proto = searchSortValuesToProto(orig);
         SearchSortValues cpy = searchSortValuesFromProto(proto);
         assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
     }
 
     public void testProtoSearchShardTargetSerDe() {
@@ -86,6 +94,8 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
         SearchShardTargetProto proto = searchShardTargetToProto(orig);
         SearchShardTarget cpy = searchShardTargetFromProto(proto);
         assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
     }
 
     public void testProtoShardIdSerDe() {
@@ -93,6 +103,8 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
         ShardIdProto proto = shardIdToProto(orig);
         ShardId cpy = shardIdFromProto(proto);
         assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
     }
 
     public void testProtoIndexSerDe() {
@@ -100,5 +112,7 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
         IndexProto proto = indexToProto(orig);
         Index cpy = indexFromProto(proto);
         assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
     }
 }

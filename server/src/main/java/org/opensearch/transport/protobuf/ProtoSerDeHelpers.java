@@ -293,9 +293,12 @@ public class ProtoSerDeHelpers {
 
     public static SortFieldProto sortFieldToProto(SortField sortField) {
         SortFieldProto.Builder builder = SortFieldProto.newBuilder()
-            .setMissingValue(missingValueToProto(sortField.getMissingValue()))
             .setType(sortTypeToProto(sortField.getType()))
             .setReverse(sortField.getReverse());
+
+        if (sortField.getMissingValue() != null) {
+            builder.setMissingValue(missingValueToProto(sortField.getMissingValue()));
+        }
 
         if (sortField.getField() != null) {
             builder.setField(sortField.getField());
@@ -305,8 +308,13 @@ public class ProtoSerDeHelpers {
     }
 
     public static SortField sortFieldFromProto(SortFieldProto proto) {
+        String field = null;
+        if (proto.hasField()) {
+            field = proto.getField();
+        }
+
         SortField sortField = new SortField(
-            proto.getField(),
+            field,
             sortTypeFromProto(proto.getType()),
             proto.getReverse());
 

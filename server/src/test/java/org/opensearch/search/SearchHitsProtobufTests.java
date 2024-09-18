@@ -33,16 +33,40 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.common.lucene.LuceneTests;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.proto.search.SearchHitsProtoDef;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.transport.protobuf.SearchHitsProtobuf;
 
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldFromProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldToProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueFromProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueToProto;
+
 public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<SearchHitsProtobuf> {
+
+    public void testSortFieldProtoSerialization () {
+        SortField[] fields = SearchHitsTests.createSortFields(randomIntBetween(1, 5));
+        for (SortField orig : fields) {
+            SearchHitsProtoDef.SortFieldProto proto = sortFieldToProto(orig);
+            SortField cpy = sortFieldFromProto(proto);
+            assertEquals(orig, cpy);
+            assertEquals(orig.hashCode(), cpy.hashCode());
+            assertNotSame(orig, cpy);
+        }
+    }
+
+    public void testSortValueProtoSerialization () {
+        Object[] values = SearchHitsTests.createCollapseValues(randomIntBetween(1, 10));
+        for (Object orig : values) {
+            SearchHitsProtoDef.SortValueProto proto = sortValueToProto(orig);
+            Object cpy = sortValueFromProto(proto);
+            assertEquals(orig, cpy);
+            assertEquals(orig.hashCode(), cpy.hashCode());
+            assertNotSame(orig, cpy);
+        }
+    }
 
     @Override
     protected Writeable.Reader<SearchHitsProtobuf> instanceReader() {
@@ -51,157 +75,11 @@ public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<Sea
 
     @Override
     protected SearchHitsProtobuf createTestInstance() {
-        // This instance is used to test the transport serialization so it's fine
-        // to produce shard targets (withShardTarget is true) since they are serialized
-        // in this layer.
-        return createTestItem(randomFrom(XContentType.values()), true, true);
-    }
-
-    public static SearchHitsProtobuf createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
-        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
-    }
-
-    public static SearchHitsProtobuf createTestItem(
-        final MediaType mediaType,
-        boolean withOptionalInnerHits,
-        boolean transportSerialization
-    ) {
-        return createTestItem(mediaType, withOptionalInnerHits, transportSerialization, randomFrom(TotalHits.Relation.values()));
-    }
-
-    private static SearchHitsProtobuf createTestItem(
-        final MediaType mediaType,
-        boolean withOptionalInnerHits,
-        boolean transportSerialization,
-        TotalHits.Relation totalHitsRelation
-    ) {
-        int searchHits = randomIntBetween(0, 5);
-        SearchHit[] hits = createSearchHitArray(searchHits, mediaType, withOptionalInnerHits, transportSerialization);
-        TotalHits totalHits = frequently() ? randomTotalHits(totalHitsRelation) : null;
-        float maxScore = frequently() ? randomFloat() : Float.NaN;
-        SortField[] sortFields = null;
-        String collapseField = null;
-        Object[] collapseValues = null;
-        if (transportSerialization) {
-            sortFields = randomBoolean() ? createSortFields(randomIntBetween(1, 5)) : null;
-            collapseField = randomAlphaOfLengthBetween(5, 10);
-            collapseValues = randomBoolean() ? createCollapseValues(randomIntBetween(1, 10)) : null;
-        }
-        return new SearchHitsProtobuf(new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues));
-    }
-
-    private static SearchHit[] createSearchHitArray(
-        int size,
-        final MediaType mediaType,
-        boolean withOptionalInnerHits,
-        boolean transportSerialization
-    ) {
-        SearchHit[] hits = new SearchHit[size];
-        for (int i = 0; i < hits.length; i++) {
-            hits[i] = SearchHitTests.createTestItem(mediaType, withOptionalInnerHits, transportSerialization);
-        }
-        return hits;
-    }
-
-    private static TotalHits randomTotalHits(TotalHits.Relation relation) {
-        long totalHits = TestUtil.nextLong(random(), 0, Long.MAX_VALUE);
-        return new TotalHits(totalHits, relation);
-    }
-
-    private static SortField[] createSortFields(int size) {
-        SortField[] sortFields = new SortField[size];
-        for (int i = 0; i < sortFields.length; i++) {
-            // sort fields are simplified before serialization, we write directly the simplified version
-            // otherwise equality comparisons become complicated
-            sortFields[i] = LuceneTests.randomSortField().v2();
-        }
-        return sortFields;
-    }
-
-    private static Object[] createCollapseValues(int size) {
-        Object[] collapseValues = new Object[size];
-        for (int i = 0; i < collapseValues.length; i++) {
-            collapseValues[i] = LuceneTests.randomSortValue();
-        }
-        return collapseValues;
+        return new SearchHitsProtobuf(SearchHitsTests.createTestItem(randomFrom(XContentType.values()), true, true));
     }
 
     @Override
     protected SearchHitsProtobuf mutateInstance(SearchHitsProtobuf instance) {
-        return new SearchHitsProtobuf(mutate(instance));
-    }
-
-    protected SearchHits mutate(SearchHits instance) {
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                return new SearchHits(
-                    createSearchHitArray(instance.getHits().length + 1, randomFrom(XContentType.values()), false, randomBoolean()),
-                    instance.getTotalHits(),
-                    instance.getMaxScore()
-                );
-            case 1:
-                final TotalHits totalHits;
-                if (instance.getTotalHits() == null) {
-                    totalHits = randomTotalHits(randomFrom(TotalHits.Relation.values()));
-                } else {
-                    totalHits = null;
-                }
-                return new SearchHits(instance.getHits(), totalHits, instance.getMaxScore());
-            case 2:
-                final float maxScore;
-                if (Float.isNaN(instance.getMaxScore())) {
-                    maxScore = randomFloat();
-                } else {
-                    maxScore = Float.NaN;
-                }
-                return new SearchHits(instance.getHits(), instance.getTotalHits(), maxScore);
-            case 3:
-                SortField[] sortFields;
-                if (instance.getSortFields() == null) {
-                    sortFields = createSortFields(randomIntBetween(1, 5));
-                } else {
-                    sortFields = randomBoolean() ? createSortFields(instance.getSortFields().length + 1) : null;
-                }
-                return new SearchHits(
-                    instance.getHits(),
-                    instance.getTotalHits(),
-                    instance.getMaxScore(),
-                    sortFields,
-                    instance.getCollapseField(),
-                    instance.getCollapseValues()
-                );
-            case 4:
-                String collapseField;
-                if (instance.getCollapseField() == null) {
-                    collapseField = randomAlphaOfLengthBetween(5, 10);
-                } else {
-                    collapseField = randomBoolean() ? instance.getCollapseField() + randomAlphaOfLengthBetween(2, 5) : null;
-                }
-                return new SearchHits(
-                    instance.getHits(),
-                    instance.getTotalHits(),
-                    instance.getMaxScore(),
-                    instance.getSortFields(),
-                    collapseField,
-                    instance.getCollapseValues()
-                );
-            case 5:
-                Object[] collapseValues;
-                if (instance.getCollapseValues() == null) {
-                    collapseValues = createCollapseValues(randomIntBetween(1, 5));
-                } else {
-                    collapseValues = randomBoolean() ? createCollapseValues(instance.getCollapseValues().length + 1) : null;
-                }
-                return new SearchHits(
-                    instance.getHits(),
-                    instance.getTotalHits(),
-                    instance.getMaxScore(),
-                    instance.getSortFields(),
-                    instance.getCollapseField(),
-                    collapseValues
-                );
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return new SearchHitsProtobuf(SearchHitsTests.mutate(instance));
     }
 }
