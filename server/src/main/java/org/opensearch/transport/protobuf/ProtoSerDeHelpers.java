@@ -19,18 +19,18 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.proto.search.SearchHitsProtoDef.DocumentFieldProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.ExplanationProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.GenericObjectProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.HighlightFieldProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.IndexProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.MissingValueProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SearchShardTargetProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.ShardIdProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortFieldProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortTypeProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.GenericObjectProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.MissingValueProto;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.transport.TransportSerializationException;
 
 import java.io.IOException;
@@ -198,10 +198,7 @@ public class ProtoSerDeHelpers {
             field = proto.getField();
         }
 
-        SortField sortField = new SortField(
-            field,
-            sortTypeFromProto(proto.getType()),
-            proto.getReverse());
+        SortField sortField = new SortField(field, sortTypeFromProto(proto.getType()), proto.getReverse());
 
         if (proto.hasMissingValue()) {
             sortField.setMissingValue(missingValueFromProto(proto.getMissingValue()));
@@ -235,8 +232,12 @@ public class ProtoSerDeHelpers {
     public static Object missingValueFromProto(MissingValueProto proto) {
         switch (proto.getValueCase()) {
             case INT_VAL:
-                if (proto.getIntVal() == 1) { return SortField.STRING_FIRST; }
-                if (proto.getIntVal() == 2) { return SortField.STRING_LAST; }
+                if (proto.getIntVal() == 1) {
+                    return SortField.STRING_FIRST;
+                }
+                if (proto.getIntVal() == 2) {
+                    return SortField.STRING_LAST;
+                }
                 throw new TransportSerializationException("Unexpected sortField missingValue (INT_VAL): " + proto.getIntVal());
             case OBJ_VAL:
                 return genericObjectFromProto(proto.getObjVal());

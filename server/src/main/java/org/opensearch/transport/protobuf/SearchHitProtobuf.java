@@ -15,9 +15,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.proto.search.SearchHitsProtoDef;
-import org.opensearch.search.SearchHit;
-import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.NestedIdentityProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitProto;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.transport.TransportSerializationException;
 
@@ -77,14 +77,28 @@ public class SearchHitProtobuf extends SearchHit {
         metaFields.forEach((key, value) -> builder.putMetaFields(key, documentFieldToProto(value)));
         matchedQueries.forEach(builder::putMatchedQueries);
 
-        if (highlightFields != null) { highlightFields.forEach((key, value) -> builder.putHighlightFields(key, highlightFieldToProto(value))); }
-        if (innerHits != null) { innerHits.forEach((key, value) -> builder.putInnerHits(key, new SearchHitsProtobuf(value).toProto())); }
+        if (highlightFields != null) {
+            highlightFields.forEach((key, value) -> builder.putHighlightFields(key, highlightFieldToProto(value)));
+        }
+        if (innerHits != null) {
+            innerHits.forEach((key, value) -> builder.putInnerHits(key, new SearchHitsProtobuf(value).toProto()));
+        }
 
-        if (source != null) { builder.setSource(ByteString.copyFrom(source.toBytesRef().bytes)); }
-        if (id != null) { builder.setId(id.string()); }
-        if (nestedIdentity != null) { builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity)); }
-        if (shard != null) { builder.setShard(searchShardTargetToProto(shard)); }
-        if (explanation != null) { builder.setExplanation(explanationToProto(explanation)); }
+        if (source != null) {
+            builder.setSource(ByteString.copyFrom(source.toBytesRef().bytes));
+        }
+        if (id != null) {
+            builder.setId(id.string());
+        }
+        if (nestedIdentity != null) {
+            builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity));
+        }
+        if (shard != null) {
+            builder.setShard(searchShardTargetToProto(shard));
+        }
+        if (explanation != null) {
+            builder.setExplanation(explanationToProto(explanation));
+        }
 
         return builder.build();
     }
@@ -116,10 +130,10 @@ public class SearchHitProtobuf extends SearchHit {
             proto.getInnerHitsMap().forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
         }
 
-        source = proto.hasSource()? BytesReference.fromByteBuffer(proto.getSource().asReadOnlyByteBuffer()) : null;
-        id = proto.hasId()? new Text(proto.getId()) : null;
-        nestedIdentity = proto.hasNestedIdentity()? nestedIdentityFromProto(proto.getNestedIdentity()) : null;
-        explanation = proto.hasExplanation()? explanationFromProto(proto.getExplanation()) : null;
+        source = proto.hasSource() ? BytesReference.fromByteBuffer(proto.getSource().asReadOnlyByteBuffer()) : null;
+        id = proto.hasId() ? new Text(proto.getId()) : null;
+        nestedIdentity = proto.hasNestedIdentity() ? nestedIdentityFromProto(proto.getNestedIdentity()) : null;
+        explanation = proto.hasExplanation() ? explanationFromProto(proto.getExplanation()) : null;
 
         if (proto.hasShard()) {
             shard = searchShardTargetFromProto(proto.getShard());
@@ -170,7 +184,8 @@ public class SearchHitProtobuf extends SearchHit {
         return builder.build();
     }
 
-    public static SearchSortValues searchSortValuesFromProto(SearchHitsProtoDef.SearchSortValuesProto proto) throws TransportSerializationException {
+    public static SearchSortValues searchSortValuesFromProto(SearchHitsProtoDef.SearchSortValuesProto proto)
+        throws TransportSerializationException {
         Object[] formattedSortValues = new Object[proto.getFormattedSortValuesCount()];
         Object[] rawSortValues = new Object[proto.getRawSortValuesCount()];
 
@@ -209,10 +224,9 @@ public class SearchHitProtobuf extends SearchHit {
         } else if (sortValue.getClass().equals(Boolean.class)) {
             builder.setBoolValue((Boolean) sortValue);
         } else if (sortValue.getClass().equals(BytesRef.class)) {
-            builder.setBytesValue(ByteString.copyFrom(
-                ((BytesRef) sortValue).bytes,
-                ((BytesRef) sortValue).offset,
-                ((BytesRef) sortValue).length));
+            builder.setBytesValue(
+                ByteString.copyFrom(((BytesRef) sortValue).bytes, ((BytesRef) sortValue).offset, ((BytesRef) sortValue).length)
+            );
         } else if (sortValue.getClass().equals(BigInteger.class)) {
             builder.setBigIntegerValue(sortValue.toString());
         } else {

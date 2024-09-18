@@ -45,7 +45,7 @@ import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueFromP
 import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueToProto;
 
 public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<SearchHitsProtobuf> {
-    public void testSortFieldProtoSerialization () {
+    public void testSortFieldProtoSerialization() {
         SortField[] fields = SearchHitsTests.createSortFields(randomIntBetween(1, 5));
         for (SortField orig : fields) {
             SearchHitsProtoDef.SortFieldProto proto = sortFieldToProto(orig);
@@ -56,7 +56,7 @@ public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<Sea
         }
     }
 
-    public void testSortValueProtoSerialization () {
+    public void testSortValueProtoSerialization() {
         Object[] values = SearchHitsTests.createCollapseValues(randomIntBetween(1, 10));
         for (Object orig : values) {
             SearchHitsProtoDef.SortValueProto proto = sortValueToProto(orig);

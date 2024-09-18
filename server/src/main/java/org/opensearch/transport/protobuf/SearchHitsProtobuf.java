@@ -12,19 +12,19 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.search.SearchHit;
-import org.opensearch.search.SearchHits;
 import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitsProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.TotalHitsProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortFieldProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortValueProto;
+import org.opensearch.proto.search.SearchHitsProtoDef.TotalHitsProto;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
 import org.opensearch.transport.TransportSerializationException;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldFromProto;
+import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldToProto;
 import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueFromProto;
 import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueToProto;
 
@@ -100,10 +100,10 @@ public class SearchHitsProtobuf extends SearchHits {
             hits[i] = new SearchHitProtobuf(proto.getHits(i));
         }
 
-        collapseField = proto.hasCollapseField()? proto.getCollapseField() : null;
-        totalHits = proto.hasTotalHits()? totalHitsFromProto(proto.getTotalHits()) : null;
-        sortFields = proto.getSortFieldsCount() > 0? sortFieldsFromProto(proto.getSortFieldsList()) : null;
-        collapseValues = proto.getCollapseValuesCount() > 0? collapseValuesFromProto(proto.getCollapseValuesList()) : null;
+        collapseField = proto.hasCollapseField() ? proto.getCollapseField() : null;
+        totalHits = proto.hasTotalHits() ? totalHitsFromProto(proto.getTotalHits()) : null;
+        sortFields = proto.getSortFieldsCount() > 0 ? sortFieldsFromProto(proto.getSortFieldsList()) : null;
+        collapseValues = proto.getCollapseValuesCount() > 0 ? collapseValuesFromProto(proto.getCollapseValuesList()) : null;
     }
 
     private TotalHits totalHitsFromProto(TotalHitsProto proto) {

@@ -59,7 +59,7 @@ import static org.opensearch.transport.protobuf.SearchHitProtobuf.searchSortValu
 import static org.opensearch.transport.protobuf.SearchHitProtobuf.searchSortValuesToProto;
 
 public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<SearchHitProtobuf> {
-    public void testDocumentFieldProtoSerialization () {
+    public void testDocumentFieldProtoSerialization() {
         DocumentField orig = randomDocumentField(randomFrom(XContentType.values()), randomBoolean(), fieldName -> false).v1();
         SearchHitsProtoDef.DocumentFieldProto proto = documentFieldToProto(orig);
         DocumentField cpy = documentFieldFromProto(proto);
@@ -68,7 +68,7 @@ public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<Sear
         assertNotSame(orig, cpy);
     }
 
-    public void testHighlightFieldProtoSerialization () {
+    public void testHighlightFieldProtoSerialization() {
         HighlightField orig = HighlightFieldTests.createTestItem();
         SearchHitsProtoDef.HighlightFieldProto proto = highlightFieldToProto(orig);
         HighlightField cpy = highlightFieldFromProto(proto);
@@ -77,7 +77,7 @@ public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<Sear
         assertNotSame(orig, cpy);
     }
 
-    public void testSearchSortValuesProtoSerialization () {
+    public void testSearchSortValuesProtoSerialization() {
         SearchSortValues orig = SearchSortValuesTests.createTestItem(randomFrom(XContentType.values()), true);
         SearchHitsProtoDef.SearchSortValuesProto proto = searchSortValuesToProto(orig);
         SearchSortValues cpy = searchSortValuesFromProto(proto);
@@ -86,7 +86,7 @@ public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<Sear
         assertNotSame(orig, cpy);
     }
 
-    public void testNestedIdentityProtoSerialization () {
+    public void testNestedIdentityProtoSerialization() {
         SearchHit.NestedIdentity orig = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
         SearchHitsProtoDef.NestedIdentityProto proto = SearchHitProtobuf.nestedIdentityToProto(orig);
         SearchHit.NestedIdentity cpy = SearchHitProtobuf.nestedIdentityFromProto(proto);
@@ -95,7 +95,7 @@ public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<Sear
         assertNotSame(orig, cpy);
     }
 
-    public void testSearchShardTargetProtoSerialization () {
+    public void testSearchShardTargetProtoSerialization() {
         String index = randomAlphaOfLengthBetween(5, 10);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardTarget orig = new SearchShardTarget(
@@ -111,7 +111,7 @@ public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<Sear
         assertNotSame(orig, cpy);
     }
 
-    public void testExplanationProtoSerialization () {
+    public void testExplanationProtoSerialization() {
         Explanation orig = createExplanation(randomIntBetween(0, 5));
         SearchHitsProtoDef.ExplanationProto proto = explanationToProto(orig);
         Explanation cpy = explanationFromProto(proto);
