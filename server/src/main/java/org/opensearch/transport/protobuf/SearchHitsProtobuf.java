@@ -29,7 +29,7 @@ import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueFromP
 import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueToProto;
 
 /**
- * SearchHits child which implements serde operations as protobuf.
+ * SearchHits which leverages protobuf for transport layer serialization.
  * @opensearch.internal
  */
 public class SearchHitsProtobuf extends SearchHits {

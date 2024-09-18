@@ -16,7 +16,7 @@ import org.opensearch.proto.search.FetchSearchResultProtoDef.FetchSearchResultPr
 import java.io.IOException;
 
 /**
- * FetchSearchResult child which implements serde operations as protobuf.
+ * FetchSearchResult which leverages protobuf for transport layer serialization.
  * @opensearch.internal
  */
 public class FetchSearchResultProtobuf extends FetchSearchResult {

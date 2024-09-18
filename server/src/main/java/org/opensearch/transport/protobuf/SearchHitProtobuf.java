@@ -35,7 +35,7 @@ import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTar
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTargetToProto;
 
 /**
- * Serialization/Deserialization implementations for SearchHit.
+ * SearchHit which leverages protobuf for transport layer serialization.
  * @opensearch.internal
  */
 public class SearchHitProtobuf extends SearchHit {

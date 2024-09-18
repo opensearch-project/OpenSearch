@@ -237,6 +237,7 @@ public class ProtoSerDeHelpers {
             case INT_VAL:
                 if (proto.getIntVal() == 1) { return SortField.STRING_FIRST; }
                 if (proto.getIntVal() == 2) { return SortField.STRING_LAST; }
+                throw new TransportSerializationException("Unexpected sortField missingValue (INT_VAL): " + proto.getIntVal());
             case OBJ_VAL:
                 return genericObjectFromProto(proto.getObjVal());
             default:
