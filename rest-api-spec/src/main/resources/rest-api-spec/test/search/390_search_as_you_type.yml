@@ -1,0 +1,62 @@
+setup:
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          mappings:
+            properties:
+              text:
+                type: search_as_you_type
+                fields:
+                  subField:
+                    type: keyword
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { text: test search as you type }
+
+  - do:
+      indices.refresh:
+        index: [test_1]
+
+teardown:
+  - do:
+      indices.delete:
+        index: test_1
+
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/5035
+---
+"Test search_as_you_type data type supports multi-fields":
+  - skip:
+      version: " - 2.99.99"
+      reason: "the bug was fixed since 3.0.0"
+
+  - do:
+      indices.get_mapping: {
+        index: test_1
+      }
+
+  - match: {test_1.mappings.properties.text.type:     search_as_you_type}
+  - match: {test_1.mappings.properties.text.fields.subField.type:     keyword}
+
+  - do:
+      search:
+        index: test_1
+        body:
+          query:
+            multi_match:
+              query: "test search"
+              type: "bool_prefix"
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        index: test_1
+        body:
+          query:
+            term:
+              text.subField: "test search as you type"
+
+  - match: {hits.total: 1}
