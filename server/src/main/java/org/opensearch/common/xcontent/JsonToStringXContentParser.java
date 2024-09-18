@@ -9,6 +9,7 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.AbstractXContentParser;
@@ -117,8 +118,6 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                 isChildrenValueValid |= parseToken(path, currentFieldName);
             }
             this.parser.nextToken();
-        } else if (this.parser.currentToken() == Token.END_ARRAY) {
-            // skip
         } else if (this.parser.currentToken() == Token.START_OBJECT) {
             parser.nextToken();
             while (this.parser.currentToken() != Token.END_OBJECT) {
@@ -172,7 +171,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                 return this.parser.textOrNull();
             // Handle other token types as needed
             default:
-                throw new IOException("Unsupported value token type [" + parser.currentToken() + "]");
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected value token type [" + parser.currentToken() + "]");
         }
     }
 
