@@ -43,7 +43,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -189,11 +188,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-                mediaType = in.readMediaType();
-            } else {
-                mediaType = in.readEnum(XContentType.class);
-            }
+            mediaType = MediaType.readFrom(in);
         }
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -541,11 +536,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-                mediaType.writeTo(out);
-            } else {
-                out.writeEnum((XContentType) mediaType);
-            }
+            mediaType.writeTo(out);
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

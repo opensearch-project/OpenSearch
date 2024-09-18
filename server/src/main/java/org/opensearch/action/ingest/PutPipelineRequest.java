@@ -32,11 +32,9 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -72,11 +70,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super(in);
         id = in.readString();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType = in.readMediaType();
-        } else {
-            mediaType = in.readEnum(XContentType.class);
-        }
+        mediaType = MediaType.readFrom(in);
     }
 
     PutPipelineRequest() {}
@@ -103,11 +97,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType.writeTo(out);
-        } else {
-            out.writeEnum((XContentType) mediaType);
-        }
+        mediaType.writeTo(out);
     }
 
     @Override

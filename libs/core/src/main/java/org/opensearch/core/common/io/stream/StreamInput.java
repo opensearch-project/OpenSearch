@@ -55,7 +55,6 @@ import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.semver.SemverRange;
 
 import java.io.ByteArrayInputStream;
@@ -353,7 +352,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public MediaType readMediaType() throws IOException {
-        return MediaTypeRegistry.fromMediaType(readString());
+        return MediaType.readFrom(this);
     }
 
     @Nullable

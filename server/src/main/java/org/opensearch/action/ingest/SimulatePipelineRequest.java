@@ -32,12 +32,10 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -87,11 +85,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType = in.readMediaType();
-        } else {
-            mediaType = in.readEnum(XContentType.class);
-        }
+        mediaType = MediaType.readFrom(in);
     }
 
     @Override
@@ -129,11 +123,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType.writeTo(out);
-        } else {
-            out.writeEnum((XContentType) mediaType);
-        }
+        mediaType.writeTo(out);
     }
 
     @Override
