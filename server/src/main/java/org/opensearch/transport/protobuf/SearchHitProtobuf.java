@@ -9,15 +9,20 @@
 package org.opensearch.transport.protobuf;
 
 import com.google.protobuf.ByteString;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.proto.search.SearchHitsProtoDef;
 import org.opensearch.search.SearchHit;
 import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.NestedIdentityProto;
+import org.opensearch.search.SearchSortValues;
+import org.opensearch.transport.TransportSerializationException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.HashMap;
 
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.documentFieldFromProto;
@@ -28,8 +33,6 @@ import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.highlightField
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.highlightFieldToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTargetFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTargetToProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchSortValuesFromProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchSortValuesToProto;
 
 /**
  * Serialization/Deserialization implementations for SearchHit.
@@ -151,5 +154,101 @@ public class SearchHitProtobuf extends SearchHit {
         }
 
         return new SearchHit.NestedIdentity(field, offset, child);
+    }
+
+    public static SearchHitsProtoDef.SearchSortValuesProto searchSortValuesToProto(SearchSortValues searchSortValues) {
+        SearchHitsProtoDef.SearchSortValuesProto.Builder builder = SearchHitsProtoDef.SearchSortValuesProto.newBuilder();
+
+        for (Object value : searchSortValues.getFormattedSortValues()) {
+            builder.addFormattedSortValues(sortValueToProto(value));
+        }
+
+        for (Object value : searchSortValues.getRawSortValues()) {
+            builder.addRawSortValues(sortValueToProto(value));
+        }
+
+        return builder.build();
+    }
+
+    public static SearchSortValues searchSortValuesFromProto(SearchHitsProtoDef.SearchSortValuesProto proto) throws TransportSerializationException {
+        Object[] formattedSortValues = new Object[proto.getFormattedSortValuesCount()];
+        Object[] rawSortValues = new Object[proto.getRawSortValuesCount()];
+
+        for (int i = 0; i < formattedSortValues.length; i++) {
+            SearchHitsProtoDef.SortValueProto sortProto = proto.getFormattedSortValues(i);
+            formattedSortValues[i] = sortValueFromProto(sortProto);
+        }
+
+        for (int i = 0; i < rawSortValues.length; i++) {
+            SearchHitsProtoDef.SortValueProto sortProto = proto.getRawSortValues(i);
+            rawSortValues[i] = sortValueFromProto(sortProto);
+        }
+
+        return new SearchSortValues(formattedSortValues, rawSortValues);
+    }
+
+    public static SearchHitsProtoDef.SortValueProto sortValueToProto(Object sortValue) throws TransportSerializationException {
+        SearchHitsProtoDef.SortValueProto.Builder builder = SearchHitsProtoDef.SortValueProto.newBuilder();
+
+        if (sortValue == null) {
+            builder.setIsNull(true);
+        } else if (sortValue.getClass().equals(String.class)) {
+            builder.setStringValue((String) sortValue);
+        } else if (sortValue.getClass().equals(Integer.class)) {
+            builder.setIntValue((Integer) sortValue);
+        } else if (sortValue.getClass().equals(Long.class)) {
+            builder.setLongValue((Long) sortValue);
+        } else if (sortValue.getClass().equals(Float.class)) {
+            builder.setFloatValue((Float) sortValue);
+        } else if (sortValue.getClass().equals(Double.class)) {
+            builder.setDoubleValue((Double) sortValue);
+        } else if (sortValue.getClass().equals(Byte.class)) {
+            builder.setByteValue((Byte) sortValue);
+        } else if (sortValue.getClass().equals(Short.class)) {
+            builder.setShortValue((Short) sortValue);
+        } else if (sortValue.getClass().equals(Boolean.class)) {
+            builder.setBoolValue((Boolean) sortValue);
+        } else if (sortValue.getClass().equals(BytesRef.class)) {
+            builder.setBytesValue(ByteString.copyFrom(
+                ((BytesRef) sortValue).bytes,
+                ((BytesRef) sortValue).offset,
+                ((BytesRef) sortValue).length));
+        } else if (sortValue.getClass().equals(BigInteger.class)) {
+            builder.setBigIntegerValue(sortValue.toString());
+        } else {
+            throw new TransportSerializationException("Unexpected sortValue: " + sortValue);
+        }
+
+        return builder.build();
+    }
+
+    public static Object sortValueFromProto(SearchHitsProtoDef.SortValueProto proto) throws TransportSerializationException {
+        switch (proto.getValueCase()) {
+            case STRING_VALUE:
+                return proto.getStringValue();
+            case INT_VALUE:
+                return proto.getIntValue();
+            case LONG_VALUE:
+                return proto.getLongValue();
+            case FLOAT_VALUE:
+                return proto.getFloatValue();
+            case DOUBLE_VALUE:
+                return proto.getDoubleValue();
+            case BYTE_VALUE:
+                return (byte) proto.getByteValue();
+            case SHORT_VALUE:
+                return (short) proto.getShortValue();
+            case BOOL_VALUE:
+                return proto.getBoolValue();
+            case BYTES_VALUE:
+                ByteString byteString = proto.getBytesValue();
+                return new BytesRef(byteString.toByteArray());
+            case BIG_INTEGER_VALUE:
+                return new BigInteger(proto.getBigIntegerValue());
+            case IS_NULL:
+                return null;
+        }
+
+        throw new TransportSerializationException("Unexpected value case: " + proto.getValueCase());
     }
 }

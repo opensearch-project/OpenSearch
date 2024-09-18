@@ -41,8 +41,8 @@ import org.opensearch.transport.protobuf.SearchHitsProtobuf;
 
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldToProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueFromProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueToProto;
+import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueFromProto;
+import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueToProto;
 
 public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<SearchHitsProtobuf> {
     public void testSortFieldProtoSerialization () {

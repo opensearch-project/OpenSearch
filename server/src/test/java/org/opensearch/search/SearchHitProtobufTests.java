@@ -55,8 +55,8 @@ import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.highlightField
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.highlightFieldToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTargetFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTargetToProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchSortValuesFromProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchSortValuesToProto;
+import static org.opensearch.transport.protobuf.SearchHitProtobuf.searchSortValuesFromProto;
+import static org.opensearch.transport.protobuf.SearchHitProtobuf.searchSortValuesToProto;
 
 public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<SearchHitProtobuf> {
     public void testDocumentFieldProtoSerialization () {

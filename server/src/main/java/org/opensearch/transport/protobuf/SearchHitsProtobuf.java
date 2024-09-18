@@ -23,10 +23,10 @@ import org.opensearch.transport.TransportSerializationException;
 import java.io.IOException;
 import java.util.List;
 
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueToProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortFieldFromProto;
+import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueFromProto;
+import static org.opensearch.transport.protobuf.SearchHitProtobuf.sortValueToProto;
 
 /**
  * SearchHits child which implements serde operations as protobuf.
@@ -110,7 +110,7 @@ public class SearchHitsProtobuf extends SearchHits {
         long rel = proto.getRelation();
         long val = proto.getValue();
         if (rel < 0 || rel >= TotalHits.Relation.values().length) {
-            throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize TotalHits from proto");
+            throw new TransportSerializationException("Failed to deserialize TotalHits from proto");
         }
         return new TotalHits(val, TotalHits.Relation.values()[(int) rel]);
     }
