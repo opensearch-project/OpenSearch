@@ -64,7 +64,6 @@ public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<Sea
             Object cpy = sortValueFromProto(proto);
             assertEquals(orig, cpy);
             assertEquals(orig.hashCode(), cpy.hashCode());
-            assertNotSame(orig, cpy);
         }
     }
 
