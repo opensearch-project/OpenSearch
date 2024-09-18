@@ -18,6 +18,7 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.MockSearchPhaseContext;
+import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.QueryPhaseResultConsumer;
 import org.opensearch.action.search.SearchPhaseContext;
@@ -75,6 +76,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -972,7 +975,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     /**
      * Tests a pipeline name defined in the search request source.
      */
-    public void testInlineDefinedPipeline() throws Exception {
+    public void testInlineDefinedPipelineForMultiSearch() throws Exception {
+        int numberOfSearchRequests = randomIntBetween(0, 32);
         SearchPipelineService searchPipelineService = createWithProcessors();
 
         SearchPipelineMetadata metadata = new SearchPipelineMetadata(
@@ -988,7 +992,6 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     ),
                     MediaTypeRegistry.JSON
                 )
-
             )
 
         );
@@ -999,34 +1002,49 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             .build();
         searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
 
-        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).pipeline("p1");
-        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        for (int i = 0; i < numberOfSearchRequests; i++) {
+            SearchRequest searchRequest = randomSearchRequest(() -> {
+                // No need to return a very complex SearchSourceBuilder here, that is tested
+                // elsewhere
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+                searchSourceBuilder.from(randomInt(10));
+                searchSourceBuilder.size(randomIntBetween(20, 100));
+                searchSourceBuilder.pipeline("p1");
+                return searchSourceBuilder;
+            });
+            multiSearchRequest.add(searchRequest);
 
-        // Verify pipeline
-        PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
-        );
-        Pipeline pipeline = pipelinedRequest.getPipeline();
-        assertEquals("p1", pipeline.getId());
-        assertEquals(1, pipeline.getSearchRequestProcessors().size());
-        assertEquals(1, pipeline.getSearchResponseProcessors().size());
+            // Verify pipeline
+            PipelinedRequest pipelinedRequest = syncTransformRequest(
+                searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            );
+            Pipeline pipeline = pipelinedRequest.getPipeline();
+            assertEquals("p1", pipeline.getId());
+            assertEquals(1, pipeline.getSearchRequestProcessors().size());
+            assertEquals(1, pipeline.getSearchResponseProcessors().size());
 
-        // Verify that pipeline transforms request
-        assertEquals(200, pipelinedRequest.source().size());
+            // Verify that pipeline transforms request
+            assertEquals(200, pipelinedRequest.source().size());
 
-        int size = 10;
-        SearchHit[] hits = new SearchHit[size];
-        for (int i = 0; i < size; i++) {
-            hits[i] = new SearchHit(i, "doc" + i, Collections.emptyMap(), Collections.emptyMap());
-            hits[i].score(i);
+            int size = 10;
+            SearchHit[] hits = new SearchHit[size];
+            for (int j = 0; j < size; j++) {
+                hits[j] = new SearchHit(j, "doc" + j, Collections.emptyMap(), Collections.emptyMap());
+                hits[j].score(j);
+            }
+            SearchHits searchHits = new SearchHits(hits, new TotalHits(size * 2, TotalHits.Relation.EQUAL_TO), size);
+            SearchResponseSections searchResponseSections = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
+            SearchResponse searchResponse = new SearchResponse(searchResponseSections, null, 1, 1, 0, 10, null, null);
+
+            SearchResponse transformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
+            for (int j = 0; j < size; j++) {
+                assertEquals(2.0, transformedResponse.getHits().getHits()[j].getScore(), 0.0001);
+            }
         }
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(size * 2, TotalHits.Relation.EQUAL_TO), size);
-        SearchResponseSections searchResponseSections = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-        SearchResponse searchResponse = new SearchResponse(searchResponseSections, null, 1, 1, 0, 10, null, null);
 
-        SearchResponse transformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
-        for (int i = 0; i < size; i++) {
-            assertEquals(2.0, transformedResponse.getHits().getHits()[i].getScore(), 0.0001);
+        for (SearchRequest subReq : multiSearchRequest.requests()) {
+            assertThat(multiSearchRequest.toString(), containsString(subReq.toString()));
         }
     }
 
