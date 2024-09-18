@@ -40,7 +40,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -56,6 +57,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.anyDouble;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class AsyncShardFetchTests extends OpenSearchTestCase {
     private final DiscoveryNode node1 = new DiscoveryNode(
@@ -80,13 +87,29 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private TestFetch test;
+    private Counter asyncFetchTotalCounter;
+    private Counter asyncFetchFailureCounter;
+    private Counter dummyCounter;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         this.threadPool = new TestThreadPool(getTestName());
-        this.test = new TestFetch(threadPool);
+        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+        this.asyncFetchFailureCounter = mock(Counter.class);
+        this.asyncFetchTotalCounter = mock(Counter.class);
+        this.dummyCounter = mock(Counter.class);
+        when(metricsRegistry.createCounter(anyString(), anyString(), anyString())).thenAnswer(invocationOnMock -> {
+            String counterName = (String) invocationOnMock.getArguments()[0];
+            if (counterName.contains("allocation.reroute.async.fetch.total.count")) {
+                return asyncFetchTotalCounter;
+            } else if (counterName.contains("allocation.reroute.async.fetch.failure.count")) {
+                return asyncFetchFailureCounter;
+            }
+            return dummyCounter;
+        });
+        this.test = new TestFetch(threadPool, metricsRegistry);
     }
 
     @After
@@ -102,14 +125,24 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter remains 0 because fetch is ongoing
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire a response, wait on reroute incrementing
         test.fireSimulationAndWait(node1.getId());
+        // counter goes up because fetch completed
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
+
         // verify we get back the data node
         assertThat(test.reroute.get(), equalTo(1));
         test.close();
         try {
             test.fetchData(nodes, emptyMap());
+            // counter should not go up when calling fetchData since fetch never completed
+            verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+            verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
             fail("fetch data should fail when closed");
         } catch (IllegalStateException e) {
             // all is well
@@ -127,12 +160,19 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
 
         // fire a response, wait on reroute incrementing
         test.fireSimulationAndWait(node1.getId());
+        // total counter goes up by 1 after success
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
+
         // verify we get back the data node
         assertThat(test.reroute.get(), equalTo(1));
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        // counter remains same because fetchData does not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
     }
 
     public void testFullCircleSingleNodeFailure() throws Exception {
@@ -147,24 +187,41 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
 
         // fire a response, wait on reroute incrementing
         test.fireSimulationAndWait(node1.getId());
+        // Failure results in increased counter for failure and total count
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
+
         // failure, fetched data exists, but has no data
         assertThat(test.reroute.get(), equalTo(1));
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(0));
+        // counter remains same because fetchData does not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
 
         // on failure, we reset the failure on a successive call to fetchData, and try again afterwards
         test.addSimulation(node1.getId(), response1);
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
+        // No additional failure, empty data so no change in counter
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
 
         test.fireSimulationAndWait(node1.getId());
+        // Success will increase total counter but not failure counter
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
+
         // 2 reroutes, cause we have a failure that we clear
         assertThat(test.reroute.get(), equalTo(3));
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        // counter remains same because fetchData does not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
     }
 
     public void testIgnoreResponseFromDifferentRound() throws Exception {
@@ -175,20 +232,33 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter 0 because fetchData is not completed
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // handle a response with incorrect round id, wait on reroute incrementing
         test.processAsyncFetch(Collections.singletonList(response1), Collections.emptyList(), 0);
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(1));
+        // counter increments to 1 because we called processAsyncFetch with a valid response, even though the round was incorrect
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire a response (with correct round id), wait on reroute incrementing
         test.fireSimulationAndWait(node1.getId());
+        // total counter now goes up by 1 because fetchData completed
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
+
         // verify we get back the data node
         assertThat(test.reroute.get(), equalTo(2));
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        // total counter remains same because fetchdata does not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
     }
 
     public void testIgnoreFailureFromDifferentRound() throws Exception {
@@ -200,6 +270,9 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter 0 because fetchData still ongoing
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // handle a failure with incorrect round id, wait on reroute incrementing
         test.processAsyncFetch(
@@ -209,14 +282,23 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         );
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(1));
+        // total and failure counter go up by 1 because of the failure
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
 
         // fire a response, wait on reroute incrementing
         test.fireSimulationAndWait(node1.getId());
+        // total and failure counter go up by 1 because of the failure
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(2)).add(anyDouble());
         // failure, fetched data exists, but has no data
         assertThat(test.reroute.get(), equalTo(2));
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(0));
+        // total and failure counter remain same because fetchData does not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(2)).add(anyDouble());
     }
 
     public void testTwoNodesOnSetup() throws Exception {
@@ -228,16 +310,29 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter 0 because fetch ongoing
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire the first response, it should trigger a reroute
         test.fireSimulationAndWait(node1.getId());
+        // counter 1 because one fetch completed
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
+
         // there is still another on going request, so no data
         assertThat(test.getNumberOfInFlightFetches(), equalTo(1));
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
+        // counter still 1 because fetchData did not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire the second simulation, this should allow us to get the data
         test.fireSimulationAndWait(node2.getId());
+        // counter 2 because 2 fetches completed
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
         // no more ongoing requests, we should fetch the data
         assertThat(test.reroute.get(), equalTo(2));
         fetchData = test.fetchData(nodes, emptyMap());
@@ -245,6 +340,9 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         assertThat(fetchData.getData().size(), equalTo(2));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
         assertThat(fetchData.getData().get(node2), sameInstance(response2));
+        // counter still 2 because fetchData call did not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
     }
 
     public void testTwoNodesOnSetupAndFailure() throws Exception {
@@ -256,34 +354,53 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter 0 because both fetches ongoing
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire the first response, it should trigger a reroute
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(1));
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
+        // counter 1 because one fetch completed
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire the second simulation, this should allow us to get the data
         test.fireSimulationAndWait(node2.getId());
+        // failure counter up by 1 because one fetch failed
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
         assertThat(test.reroute.get(), equalTo(2));
+
         // since one of those failed, we should only have one entry
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        // total and failure counters same because fetchData did not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(1)).add(anyDouble());
     }
 
     public void testTwoNodesAddedInBetween() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
         test.addSimulation(node1.getId(), response1);
 
-        // no fetched data, 2 requests still on going
+        // no fetched data, request still on going
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter 0 because both fetches ongoing
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire the first response, it should trigger a reroute
         test.fireSimulationAndWait(node1.getId());
+        // counter 1 because fetch completed
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // now, add a second node to the nodes, it should add it to the ongoing requests
         nodes = DiscoveryNodes.builder(nodes).add(node2).build();
@@ -291,16 +408,25 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         // no fetch data, has a new node introduced
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
+        // counter still 1 because second fetch ongoing
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // fire the second simulation, this should allow us to get the data
         test.fireSimulationAndWait(node2.getId());
+        // counter now 2 because 2 fetches completed
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
-        // since one of those failed, we should only have one entry
+        // since both succeeded, we should have 2 entries
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(2));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
         assertThat(fetchData.getData().get(node2), sameInstance(response2));
+        // counter still 2 because fetchData did not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
     }
 
     public void testClearCache() throws Exception {
@@ -314,21 +440,33 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter 0 because fetch ongoing
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(1));
+        // counter 1 because 1 fetch completed
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // verify we get back right data from node
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        // counter still 1 because a new fetch is not called
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // second fetch gets same data
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        // counter still 1 because a new fetch is not called
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         test.clearCacheForNode(node1.getId());
 
@@ -338,15 +476,24 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         // no fetched data, new request on going
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
+        // counter still 1 because new fetch is still ongoing
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(2));
+        // counter now 2 because second fetch completed
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // verify we get new data back
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
+        // counter still 2 because fetchData did not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
     }
 
     public void testConcurrentRequestAndClearCache() throws Exception {
@@ -357,12 +504,18 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
+        // counter 0 because fetch ongoing
+        verify(asyncFetchTotalCounter, times(0)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // clear cache while request is still on going, before it is processed
         test.clearCacheForNode(node1.getId());
 
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(1));
+        // counter 1 because fetch completed, even though cache was wiped
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // prepare next request
         test.addSimulation(node1.getId(), response1_2);
@@ -370,15 +523,24 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         // verify still no fetched data, request still on going
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
+        // counter unchanged because fetch ongoing
+        verify(asyncFetchTotalCounter, times(1)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(2));
+        // counter 2 because second fetch completed
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
         // verify we get new data back
         fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
+        // counter unchanged because fetchData does not trigger new async fetch
+        verify(asyncFetchTotalCounter, times(2)).add(anyDouble());
+        verify(asyncFetchFailureCounter, times(0)).add(anyDouble());
 
     }
 
@@ -400,14 +562,14 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         private final Map<String, Entry> simulations = new ConcurrentHashMap<>();
         private AtomicInteger reroute = new AtomicInteger();
 
-        TestFetch(ThreadPool threadPool) {
+        TestFetch(ThreadPool threadPool, MetricsRegistry metricsRegistry) {
             super(
                 LogManager.getLogger(TestFetch.class),
                 "test",
                 new ShardId("test", "_na_", 1),
                 "",
                 null,
-                new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+                new ClusterManagerMetrics(metricsRegistry)
             );
             this.threadPool = threadPool;
         }

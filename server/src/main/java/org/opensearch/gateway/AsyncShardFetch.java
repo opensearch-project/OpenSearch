@@ -266,7 +266,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
             @Override
             public void onFailure(Exception e) {
-                // TODO: add failure metrics here
                 List<FailedNodeException> failures = new ArrayList<>(nodes.length);
                 for (final DiscoveryNode node : nodes) {
                     failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));

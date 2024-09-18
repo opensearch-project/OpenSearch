@@ -83,7 +83,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     private TimeValue primaryShardsBatchGatewayAllocatorTimeout;
     private TimeValue replicaShardsBatchGatewayAllocatorTimeout;
     public static final TimeValue MIN_ALLOCATOR_TIMEOUT = TimeValue.timeValueSeconds(20);
-    private ClusterManagerMetrics clusterManagerMetrics;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     /**
      * Number of shards we send in one batch to data nodes for fetching metadata
