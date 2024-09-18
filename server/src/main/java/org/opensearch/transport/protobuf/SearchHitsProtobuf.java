@@ -18,8 +18,10 @@ import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitsProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.TotalHitsProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortFieldProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SortValueProto;
+import org.opensearch.transport.TransportSerializationException;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueFromProto;
@@ -90,7 +92,7 @@ public class SearchHitsProtobuf extends SearchHits {
         return builder.build();
     }
 
-    void fromProto(SearchHitsProto proto) throws ProtoSerDeHelpers.SerializationException {
+    void fromProto(SearchHitsProto proto) throws TransportSerializationException {
         maxScore = proto.getMaxScore();
 
         hits = new SearchHit[proto.getHitsCount()];
@@ -99,36 +101,33 @@ public class SearchHitsProtobuf extends SearchHits {
         }
 
         collapseField = proto.hasCollapseField()? proto.getCollapseField() : null;
+        totalHits = proto.hasTotalHits()? totalHitsFromProto(proto.getTotalHits()) : null;
+        sortFields = proto.getSortFieldsCount() > 0? sortFieldsFromProto(proto.getSortFieldsList()) : null;
+        collapseValues = proto.getCollapseValuesCount() > 0? collapseValuesFromProto(proto.getCollapseValuesList()) : null;
+    }
 
-        if (proto.hasTotalHits()) {
-            long rel = proto.getTotalHits().getRelation();
-            long val = proto.getTotalHits().getValue();
-            if (rel < 0 || rel >= TotalHits.Relation.values().length) {
-                throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize TotalHits from proto");
-            }
-            totalHits = new TotalHits(val, TotalHits.Relation.values()[(int) rel]);
-        } else {
-            totalHits = null;
+    private TotalHits totalHitsFromProto(TotalHitsProto proto) {
+        long rel = proto.getRelation();
+        long val = proto.getValue();
+        if (rel < 0 || rel >= TotalHits.Relation.values().length) {
+            throw new ProtoSerDeHelpers.SerializationException("Failed to deserialize TotalHits from proto");
         }
+        return new TotalHits(val, TotalHits.Relation.values()[(int) rel]);
+    }
 
-        if (proto.getSortFieldsCount() > 0) {
-            sortFields = new SortField[proto.getSortFieldsCount()];
-            for (int i = 0; i < proto.getSortFieldsCount(); i++) {
-                SortFieldProto field = proto.getSortFields(i);
-                sortFields[i] = sortFieldFromProto(field);
-            }
-        } else {
-            sortFields = null;
+    private SortField[] sortFieldsFromProto(List<SortFieldProto> protoList) {
+        SortField[] fields = new SortField[protoList.size()];
+        for (int i = 0; i < protoList.size(); i++) {
+            fields[i] = sortFieldFromProto(protoList.get(i));
         }
+        return fields;
+    }
 
-        if (proto.getCollapseValuesCount() > 0) {
-            collapseValues = new Object[proto.getCollapseValuesCount()];
-            for (int i = 0; i < proto.getCollapseValuesCount(); i++) {
-                SortValueProto val = proto.getCollapseValues(i);
-                collapseValues[i] = sortValueFromProto(val);
-            }
-        } else {
-            collapseValues = null;
+    private Object[] collapseValuesFromProto(List<SortValueProto> protoList) {
+        Object[] vals = new Object[protoList.size()];
+        for (int i = 0; i < protoList.size(); i++) {
+            vals[i] = sortValueFromProto(protoList.get(i));
         }
+        return vals;
     }
 }

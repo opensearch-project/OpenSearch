@@ -14,15 +14,11 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.search.SearchHit;
-import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitsProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.SearchHitProto;
 import org.opensearch.proto.search.SearchHitsProtoDef.NestedIdentityProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.DocumentFieldProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.HighlightFieldProto;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.documentFieldFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.documentFieldToProto;
@@ -71,43 +67,21 @@ public class SearchHitProtobuf extends SearchHit {
             .setScore(score)
             .setVersion(version)
             .setSeqNo(seqNo)
-            .setPrimaryTerm(primaryTerm);
-
-        if (id != null) {
-            builder.setId(id.string());
-        }
-
-        if (nestedIdentity != null) {
-            builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity));
-        }
-
-        if (source != null) {
-            builder.setSource(ByteString.copyFrom(source.toBytesRef().bytes));
-        }
-
-        if (explanation != null) {
-            builder.setExplanation(explanationToProto(explanation));
-        }
-
-        builder.setSortValues(searchSortValuesToProto(sortValues));
+            .setPrimaryTerm(primaryTerm)
+            .setSortValues(searchSortValuesToProto(sortValues));
 
         documentFields.forEach((key, value) -> builder.putDocumentFields(key, documentFieldToProto(value)));
-
         metaFields.forEach((key, value) -> builder.putMetaFields(key, documentFieldToProto(value)));
-
-        if (highlightFields != null) {
-            highlightFields.forEach((key, value) -> builder.putHighlightFields(key, highlightFieldToProto(value)));
-        }
-
         matchedQueries.forEach(builder::putMatchedQueries);
 
-        if (shard != null) {
-            builder.setShard(searchShardTargetToProto(shard));
-        }
+        if (highlightFields != null) { highlightFields.forEach((key, value) -> builder.putHighlightFields(key, highlightFieldToProto(value))); }
+        if (innerHits != null) { innerHits.forEach((key, value) -> builder.putInnerHits(key, new SearchHitsProtobuf(value).toProto())); }
 
-        if (innerHits != null) {
-            innerHits.forEach((key, value) -> builder.putInnerHits(key, new SearchHitsProtobuf(value).toProto()));
-        }
+        if (source != null) { builder.setSource(ByteString.copyFrom(source.toBytesRef().bytes)); }
+        if (id != null) { builder.setId(id.string()); }
+        if (nestedIdentity != null) { builder.setNestedIdentity(nestedIdentityToProto(nestedIdentity)); }
+        if (shard != null) { builder.setShard(searchShardTargetToProto(shard)); }
+        if (explanation != null) { builder.setExplanation(explanationToProto(explanation)); }
 
         return builder.build();
     }
@@ -115,35 +89,29 @@ public class SearchHitProtobuf extends SearchHit {
     void fromProto(SearchHitProto proto) {
         docId = -1;
         score = proto.getScore();
-        seqNo = proto.getSeqNo();
         version = proto.getVersion();
+        seqNo = proto.getSeqNo();
         primaryTerm = proto.getPrimaryTerm();
         sortValues = searchSortValuesFromProto(proto.getSortValues());
+
+        documentFields = new HashMap<>();
+        proto.getDocumentFieldsMap().forEach((key, value) -> documentFields.put(key, documentFieldFromProto(value)));
+
+        metaFields = new HashMap<>();
+        proto.getMetaFieldsMap().forEach((key, value) -> metaFields.put(key, documentFieldFromProto(value)));
+
         matchedQueries = proto.getMatchedQueriesMap();
 
-        if (proto.hasId()) {
-            id = new Text(proto.getId());
-        } else {
-            id = null;
-        }
+        highlightFields = new HashMap<>();
+        proto.getHighlightFieldsMap().forEach((key, value) -> highlightFields.put(key, highlightFieldFromProto(value)));
 
-        if (proto.hasNestedIdentity()) {
-            nestedIdentity = nestedIdentityFromProto(proto.getNestedIdentity());
-        } else {
-            nestedIdentity = null;
-        }
+        innerHits = new HashMap<>();
+        proto.getInnerHitsMap().forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
 
-        if (proto.hasSource()) {
-            source = BytesReference.fromByteBuffer(proto.getSource().asReadOnlyByteBuffer());
-        } else {
-            source = null;
-        }
-
-        if (proto.hasExplanation()) {
-            explanation = explanationFromProto(proto.getExplanation());
-        } else {
-            explanation = null;
-        }
+        source = proto.hasSource()? BytesReference.fromByteBuffer(proto.getSource().asReadOnlyByteBuffer()) : null;
+        id = proto.hasId()? new Text(proto.getId()) : null;
+        nestedIdentity = proto.hasNestedIdentity()? nestedIdentityFromProto(proto.getNestedIdentity()) : null;
+        explanation = proto.hasExplanation()? explanationFromProto(proto.getExplanation()) : null;
 
         if (proto.hasShard()) {
             shard = searchShardTargetFromProto(proto.getShard());
@@ -153,30 +121,6 @@ public class SearchHitProtobuf extends SearchHit {
             shard = null;
             index = null;
             clusterAlias = null;
-        }
-
-        Map<String, SearchHitsProto> innerHitsProto = proto.getInnerHitsMap();
-        if (!innerHitsProto.isEmpty()) {
-            innerHits = new HashMap<>();
-            innerHitsProto.forEach((key, value) -> innerHits.put(key, new SearchHitsProtobuf(value)));
-        }
-
-        documentFields = new HashMap<>();
-        Map<String, DocumentFieldProto> documentFieldProtoMap = proto.getDocumentFieldsMap();
-        if (!documentFieldProtoMap.isEmpty()) {
-            documentFieldProtoMap.forEach((key, value) -> documentFields.put(key, documentFieldFromProto(value)));
-        }
-
-        metaFields = new HashMap<>();
-        Map<String, DocumentFieldProto> metaFieldProtoMap = proto.getMetaFieldsMap();
-        if (!metaFieldProtoMap.isEmpty()) {
-            metaFieldProtoMap.forEach((key, value) -> metaFields.put(key, documentFieldFromProto(value)));
-        }
-
-        highlightFields = new HashMap<>();
-        Map<String, HighlightFieldProto> highlightFieldProtoMap = proto.getHighlightFieldsMap();
-        if (!highlightFieldProtoMap.isEmpty()) {
-            highlightFieldProtoMap.forEach((key, value) -> highlightFields.put(key, highlightFieldFromProto(value)));
         }
     }
 
