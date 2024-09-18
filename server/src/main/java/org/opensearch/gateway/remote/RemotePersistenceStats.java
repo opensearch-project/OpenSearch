@@ -18,16 +18,16 @@ import org.opensearch.cluster.coordination.PersistedStateStats;
 public class RemotePersistenceStats {
 
     RemoteUploadStats remoteUploadStats;
-    PersistedStateStats remoteDiffDownloadStats;
-    PersistedStateStats remoteFullDownloadStats;
+    RemoteDownloadStats remoteDiffDownloadStats;
+    RemoteDownloadStats remoteFullDownloadStats;
 
     final String FULL_DOWNLOAD_STATS = "remote_full_download";
     final String DIFF_DOWNLOAD_STATS = "remote_diff_download";
 
     public RemotePersistenceStats() {
         remoteUploadStats = new RemoteUploadStats();
-        remoteDiffDownloadStats = new PersistedStateStats(DIFF_DOWNLOAD_STATS);
-        remoteFullDownloadStats = new PersistedStateStats(FULL_DOWNLOAD_STATS);
+        remoteDiffDownloadStats = new RemoteDownloadStats(DIFF_DOWNLOAD_STATS);
+        remoteFullDownloadStats = new RemoteDownloadStats(FULL_DOWNLOAD_STATS);
     }
 
     public void cleanUpAttemptFailed() {
@@ -88,6 +88,22 @@ public class RemotePersistenceStats {
 
     public void stateDiffDownloadFailed() {
         remoteDiffDownloadStats.stateFailed();
+    }
+
+    public void stateDiffDownloadValidationFailed() {
+        remoteDiffDownloadStats.checksumValidationFailedCount();
+    }
+
+    public void stateFullDownloadValidationFailed() {
+        remoteFullDownloadStats.checksumValidationFailedCount();
+    }
+
+    public long getStateDiffDownloadValidationFailed() {
+        return remoteDiffDownloadStats.getChecksumValidationFailedCount();
+    }
+
+    public long getStateFullDownloadValidationFailed() {
+        return remoteFullDownloadStats.getChecksumValidationFailedCount();
     }
 
     public PersistedStateStats getUploadStats() {
