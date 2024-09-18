@@ -52,6 +52,7 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,6 +67,10 @@ import static org.hamcrest.Matchers.is;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
+
+    private String clusterManager;
+    private String redNodeName;
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
@@ -84,8 +89,11 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         internalCluster().assertSameDocIdsOnShards();
     }
 
-    public void testClusterStabilityWhenJoinRequestHappensDuringNodeLeftTask() throws Exception {
-        final String indexName = "test";
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        String indexName = "test";
         final Settings nodeSettings = Settings.builder()
             .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10s")
@@ -95,13 +103,15 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "100ms")
             .build();
         // start a 3 node cluster with 1 cluster-manager
-        final String cm = internalCluster().startNode(nodeSettings);
+        this.clusterManager = internalCluster().startNode(nodeSettings);
         internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
-        final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
+        this.redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
+        // validate the 3 node cluster is up
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
+        // create an index
         client().admin()
             .indices()
             .prepareCreate(indexName)
@@ -112,10 +122,13 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .get();
+    }
 
-        ClusterService cmClsService = internalCluster().getInstance(ClusterService.class, cm);
+    public void testClusterStabilityWhenJoinRequestHappensDuringNodeLeftTask() throws Exception {
+
+        ClusterService clusterManagerClsService = internalCluster().getInstance(ClusterService.class, clusterManager);
         // Simulate a slow applier on the cm to delay node-left state application
-        cmClsService.addStateApplier(event -> {
+        clusterManagerClsService.addStateApplier(event -> {
             if (event.nodesRemoved()) {
                 try {
                     Thread.sleep(3000);
@@ -166,42 +179,14 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         }
 
         succeedFollowerChecker.set(true);
-        response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }
 
     public void testClusterStabilityWhenDisconnectDuringSlowNodeLeftTask() throws Exception {
-        final String indexName = "test";
-        final Settings nodeSettings = Settings.builder()
-            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
-            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10s")
-            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "200ms")
-            .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "100ms")
-            .build();
-        // start a 3 node cluster with 1 cluster-manager
-        final String cm = internalCluster().startNode(nodeSettings);
-        internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
-        final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
-
-        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
-        assertThat(response.isTimedOut(), is(false));
-
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get();
-
-        ClusterService cmClsService = internalCluster().getInstance(ClusterService.class, cm);
+        ClusterService clusterManagerClsService = internalCluster().getInstance(ClusterService.class, clusterManager);
         // Simulate a slow applier on the cm to delay node-left state application
-        cmClsService.addStateApplier(event -> {
+        clusterManagerClsService.addStateApplier(event -> {
             if (event.nodesRemoved()) {
                 try {
                     Thread.sleep(3000);
@@ -225,7 +210,10 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
             }
             throw new NodeHealthCheckFailureException("fake followerchecker failure simulated by test to repro race condition");
         });
-        MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, cm);
+        MockTransportService cmTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            clusterManager
+        );
         MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
             redNodeName
@@ -261,42 +249,16 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         }
 
         succeedFollowerChecker.set(true);
-        response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }
 
     public void testRestartDataNode() throws Exception {
-        final String indexName = "test";
-        final Settings nodeSettings = Settings.builder()
-            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
-            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10s")
-            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "200ms")
-            .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .build();
-        // start a 3 node cluster
-        internalCluster().startNode(nodeSettings);
-        internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
-        final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
-
-        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
-        assertThat(response.isTimedOut(), is(false));
-
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get();
 
         Settings redNodeDataPathSettings = internalCluster().dataPathSettings(redNodeName);
         logger.info("-> stopping data node");
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(redNodeName));
-        response = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
         assertThat(response.isTimedOut(), is(false));
 
         logger.info("-> restarting stopped node");
@@ -306,42 +268,16 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
     }
 
     public void testRestartCmNode() throws Exception {
-        final String indexName = "test";
-        final Settings nodeSettings = Settings.builder()
-            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
-            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10s")
-            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "200ms")
-            .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .build();
-        // start a 3 node cluster
-        final String cm = internalCluster().startNode(Settings.builder().put("node.attr.color", "yellow").put(nodeSettings).build());
-        internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
-        internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
-        assertThat(response.isTimedOut(), is(false));
-
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get();
-
-        Settings cmNodeSettings = internalCluster().dataPathSettings(cm);
+        Settings cmNodeSettings = internalCluster().dataPathSettings(clusterManager);
 
         logger.info("-> stopping cluster-manager node");
-        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(cm));
-        response = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
+        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(clusterManager));
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
         assertThat(response.isTimedOut(), is(false));
 
         logger.info("-> restarting stopped node");
-        internalCluster().startNode(Settings.builder().put("node.name", cm).put(cmNodeSettings).build());
+        internalCluster().startNode(Settings.builder().put("node.name", clusterManager).put(cmNodeSettings).build());
         response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }

@@ -77,6 +77,7 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptySet;
@@ -86,6 +87,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class NodeConnectionsServiceTests extends OpenSearchTestCase {
 
@@ -490,6 +492,72 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testConnectionCheckerRetriesIfPendingDisconnection() throws InterruptedException {
+        final Settings.Builder settings = Settings.builder();
+        final long reconnectIntervalMillis = 50;
+        settings.put(CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), reconnectIntervalMillis + "ms");
+
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            builder().put(NODE_NAME_SETTING.getKey(), "node").build(),
+            random()
+        );
+
+        MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
+        TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final NodeConnectionsService service = new NodeConnectionsService(
+            settings.build(),
+            deterministicTaskQueue.getThreadPool(),
+            transportService
+        );
+        service.start();
+
+        // setup the connections
+        final DiscoveryNode node = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        ;
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).build();
+
+        final AtomicBoolean connectionCompleted = new AtomicBoolean();
+        service.connectToNodes(nodes, () -> connectionCompleted.set(true));
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(connectionCompleted.get());
+
+        // now trigger a disconnect, and then set pending disconnections to true to fail any new connections
+        final long maxDisconnectionTime = 1000;
+        final long disconnectionTime = 100;
+        deterministicTaskQueue.scheduleAt(disconnectionTime, new Runnable() {
+            @Override
+            public void run() {
+                transportService.disconnectFromNode(node);
+                logger.info("--> setting pending disconnections to fail next connection attempts");
+                service.setPendingDisconnections(new HashSet<>(Collections.singleton(node)));
+                transportService.resetConnectToNodeCallCount();
+            }
+
+            @Override
+            public String toString() {
+                return "scheduled disconnection of " + node;
+            }
+        });
+
+        // ensure the disconnect task completes, give extra time also for connection checker tasks
+        runTasksUntil(deterministicTaskQueue, maxDisconnectionTime);
+
+        // verify that connectionchecker is trying to call connectToNode multiple times
+        logger.info("--> verifying connectionchecker is trying to reconnect");
+        logger.info("--> number of reconnection attempts: {}", transportService.getConnectToNodeCallCount());
+        assertThat("ConnectToNode should be called multiple times", transportService.getConnectToNodeCallCount(), greaterThan(5));
+        assertFalse("connected to " + node, transportService.nodeConnected(node));
+
+        // clear the pending disconnections and ensure the connection gets re-established automatically by connectionchecker
+        logger.info("--> clearing pending disconnections to allow connections to re-establish");
+        service.clearPendingDisconnections();
+        runTasksUntil(deterministicTaskQueue, maxDisconnectionTime + 2 * reconnectIntervalMillis);
+        assertConnectedExactlyToNodes(transportService, nodes);
+    }
+
     private void runTasksUntil(DeterministicTaskQueue deterministicTaskQueue, long endTimeMillis) {
         while (deterministicTaskQueue.getCurrentTimeMillis() < endTimeMillis) {
             if (deterministicTaskQueue.hasRunnableTasks() && randomBoolean()) {
@@ -516,9 +584,19 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         assertThat(transportService.getConnectionManager().size(), equalTo(discoveryNodes.getSize()));
     }
 
+    private void assertNotConnectedToNodes(TransportService transportService, DiscoveryNodes discoveryNodes) {
+        assertNotConnected(transportService, discoveryNodes);
+    }
+
     private void assertConnected(TransportService transportService, Iterable<DiscoveryNode> nodes) {
         for (DiscoveryNode node : nodes) {
             assertTrue("not connected to " + node, transportService.nodeConnected(node));
+        }
+    }
+
+    private void assertNotConnected(TransportService transportService, Iterable<DiscoveryNode> nodes) {
+        for (DiscoveryNode node : nodes) {
+            assertFalse("connected to " + node, transportService.nodeConnected(node));
         }
     }
 
@@ -544,6 +622,8 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
     }
 
     private final class TestTransportService extends TransportService {
+
+        private final AtomicInteger connectToNodeCallCount = new AtomicInteger(0);
 
         private TestTransportService(Transport transport, ThreadPool threadPool) {
             super(
@@ -588,6 +668,16 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
             } else {
                 super.connectToNode(node, listener);
             }
+            logger.info("calling connectToNode");
+            connectToNodeCallCount.incrementAndGet();
+        }
+
+        public int getConnectToNodeCallCount() {
+            return connectToNodeCallCount.get();
+        }
+
+        public void resetConnectToNodeCallCount() {
+            connectToNodeCallCount.set(0);
         }
     }
 
