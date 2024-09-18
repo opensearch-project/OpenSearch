@@ -244,12 +244,12 @@ public class ClusterConnectionManager implements ConnectionManager {
             nodeChannels.close();
         }
         pendingDisconnections.remove(node);
-        logger.debug("Removed node [{}] from pending disconnections list", node);
+        logger.trace("Removed node [{}] from pending disconnections list", node);
     }
 
     @Override
     public void setPendingDisconnection(DiscoveryNode node) {
-        logger.debug("marking disconnection as pending for node: [{}]", node);
+        logger.trace("marking disconnection as pending for node: [{}]", node);
         pendingDisconnections.add(node);
     }
 
