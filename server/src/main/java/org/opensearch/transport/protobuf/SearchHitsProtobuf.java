@@ -130,6 +130,5 @@ public class SearchHitsProtobuf extends SearchHits {
         } else {
             collapseValues = null;
         }
-
     }
 }

@@ -45,7 +45,6 @@ import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueFromP
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.sortValueToProto;
 
 public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<SearchHitsProtobuf> {
-
     public void testSortFieldProtoSerialization () {
         SortField[] fields = SearchHitsTests.createSortFields(randomIntBetween(1, 5));
         for (SortField orig : fields) {
@@ -64,6 +63,7 @@ public class SearchHitsProtobufTests extends AbstractWireSerializingTestCase<Sea
             Object cpy = sortValueFromProto(proto);
             assertEquals(orig, cpy);
             assertEquals(orig.hashCode(), cpy.hashCode());
+            // No assertNotSame, object could be primitive type
         }
     }
 

@@ -6,25 +6,44 @@
  * compatible open source license.
  */
 
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
 package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.proto.search.SearchHitsProtoDef;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.fetch.subphase.highlight.HighlightFieldTests;
-import org.opensearch.test.OpenSearchTestCase;
-
-import org.opensearch.proto.search.SearchHitsProtoDef.DocumentFieldProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.ExplanationProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.HighlightFieldProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.IndexProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.SearchShardTargetProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.SearchSortValuesProto;
-import org.opensearch.proto.search.SearchHitsProtoDef.ShardIdProto;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.transport.protobuf.SearchHitProtobuf;
 
 import static org.opensearch.index.get.DocumentFieldTests.randomDocumentField;
 import static org.opensearch.search.SearchHitTests.createExplanation;
@@ -34,54 +53,49 @@ import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.explanationFro
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.explanationToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.highlightFieldFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.highlightFieldToProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.indexFromProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.indexToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTargetFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchShardTargetToProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchSortValuesFromProto;
 import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.searchSortValuesToProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.shardIdFromProto;
-import static org.opensearch.transport.protobuf.ProtoSerDeHelpers.shardIdToProto;
 
-public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCase {
-
-    public void testProtoExplanationSerDe() {
-        Explanation orig = createExplanation(randomIntBetween(0, 5));
-        ExplanationProto proto = explanationToProto(orig);
-        Explanation cpy = explanationFromProto(proto);
-        assertEquals(orig, cpy);
-        assertEquals(orig.hashCode(), cpy.hashCode());
-        assertNotSame(orig, cpy);
-    }
-
-    public void testProtoDocumentFieldSerDe() {
+public class SearchHitProtobufTests extends AbstractWireSerializingTestCase<SearchHitProtobuf> {
+    public void testDocumentFieldProtoSerialization () {
         DocumentField orig = randomDocumentField(randomFrom(XContentType.values()), randomBoolean(), fieldName -> false).v1();
-        DocumentFieldProto proto = documentFieldToProto(orig);
+        SearchHitsProtoDef.DocumentFieldProto proto = documentFieldToProto(orig);
         DocumentField cpy = documentFieldFromProto(proto);
         assertEquals(orig, cpy);
         assertEquals(orig.hashCode(), cpy.hashCode());
         assertNotSame(orig, cpy);
     }
 
-    public void testProtoHighlightFieldSerDe() {
+    public void testHighlightFieldProtoSerialization () {
         HighlightField orig = HighlightFieldTests.createTestItem();
-        HighlightFieldProto proto = highlightFieldToProto(orig);
+        SearchHitsProtoDef.HighlightFieldProto proto = highlightFieldToProto(orig);
         HighlightField cpy = highlightFieldFromProto(proto);
         assertEquals(orig, cpy);
         assertEquals(orig.hashCode(), cpy.hashCode());
         assertNotSame(orig, cpy);
     }
 
-    public void testProtoSearchSortValuesSerDe() {
+    public void testSearchSortValuesProtoSerialization () {
         SearchSortValues orig = SearchSortValuesTests.createTestItem(randomFrom(XContentType.values()), true);
-        SearchSortValuesProto proto = searchSortValuesToProto(orig);
+        SearchHitsProtoDef.SearchSortValuesProto proto = searchSortValuesToProto(orig);
         SearchSortValues cpy = searchSortValuesFromProto(proto);
         assertEquals(orig, cpy);
         assertEquals(orig.hashCode(), cpy.hashCode());
         assertNotSame(orig, cpy);
     }
 
-    public void testProtoSearchShardTargetSerDe() {
+    public void testNestedIdentityProtoSerialization () {
+        SearchHit.NestedIdentity orig = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
+        SearchHitsProtoDef.NestedIdentityProto proto = SearchHitProtobuf.nestedIdentityToProto(orig);
+        SearchHit.NestedIdentity cpy = SearchHitProtobuf.nestedIdentityFromProto(proto);
+        assertEquals(orig, cpy);
+        assertEquals(orig.hashCode(), cpy.hashCode());
+        assertNotSame(orig, cpy);
+    }
+
+    public void testSearchShardTargetProtoSerialization () {
         String index = randomAlphaOfLengthBetween(5, 10);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardTarget orig = new SearchShardTarget(
@@ -90,29 +104,29 @@ public class ProtobufSearchHitsHelperSerializationTests extends OpenSearchTestCa
             clusterAlias,
             OriginalIndices.NONE
         );
-
-        SearchShardTargetProto proto = searchShardTargetToProto(orig);
+        SearchHitsProtoDef.SearchShardTargetProto proto = searchShardTargetToProto(orig);
         SearchShardTarget cpy = searchShardTargetFromProto(proto);
         assertEquals(orig, cpy);
         assertEquals(orig.hashCode(), cpy.hashCode());
         assertNotSame(orig, cpy);
     }
 
-    public void testProtoShardIdSerDe() {
-        ShardId orig = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt());
-        ShardIdProto proto = shardIdToProto(orig);
-        ShardId cpy = shardIdFromProto(proto);
+    public void testExplanationProtoSerialization () {
+        Explanation orig = createExplanation(randomIntBetween(0, 5));
+        SearchHitsProtoDef.ExplanationProto proto = explanationToProto(orig);
+        Explanation cpy = explanationFromProto(proto);
         assertEquals(orig, cpy);
         assertEquals(orig.hashCode(), cpy.hashCode());
         assertNotSame(orig, cpy);
     }
 
-    public void testProtoIndexSerDe() {
-        Index orig = new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-        IndexProto proto = indexToProto(orig);
-        Index cpy = indexFromProto(proto);
-        assertEquals(orig, cpy);
-        assertEquals(orig.hashCode(), cpy.hashCode());
-        assertNotSame(orig, cpy);
+    @Override
+    protected Writeable.Reader<SearchHitProtobuf> instanceReader() {
+        return SearchHitProtobuf::new;
+    }
+
+    @Override
+    protected SearchHitProtobuf createTestInstance() {
+        return new SearchHitProtobuf(SearchHitTests.createTestItem(randomFrom(XContentType.values()), randomBoolean(), randomBoolean()));
     }
 }

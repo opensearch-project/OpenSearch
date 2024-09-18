@@ -180,7 +180,7 @@ public class SearchHitProtobuf extends SearchHit {
         }
     }
 
-    static NestedIdentityProto nestedIdentityToProto(SearchHit.NestedIdentity nestedIdentity) {
+    public static NestedIdentityProto nestedIdentityToProto(SearchHit.NestedIdentity nestedIdentity) {
         NestedIdentityProto.Builder builder = NestedIdentityProto.newBuilder()
             .setField(nestedIdentity.getField().string())
             .setOffset(nestedIdentity.getOffset());
@@ -192,7 +192,7 @@ public class SearchHitProtobuf extends SearchHit {
         return builder.build();
     }
 
-    static SearchHit.NestedIdentity nestedIdentityFromProto(NestedIdentityProto proto) {
+    public static SearchHit.NestedIdentity nestedIdentityFromProto(NestedIdentityProto proto) {
         String field = proto.getField();
         int offset = proto.getOffset();
 
