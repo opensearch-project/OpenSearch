@@ -1030,28 +1030,39 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        int concurrentSnapshots = 5;
+        Thread thread = new Thread(() -> {
+            try {
+                String snapshotName = "snapshot-earlier-master";
+                CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+                    .setWaitForCompletion(true)
+                    .get();
+            } catch (Exception e) {}
+        });
 
-        String snapshotName = "snapshot-concurrent-";
+        thread.start();
+
+        // stop existing master
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
+        stopNode(clusterManagerNode);
+
+        // Validate that we have greater one snapshot has been created
+        String snapshotName = "new-snapshot";
         CreateSnapshotResponse createSnapshotResponse2 = client().admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName)
             .setWaitForCompletion(false)
             .get();
-
-        //restart existing master
-        final String clusterManagerNode = internalCluster().getClusterManagerName();
-        stopNode(clusterManagerNode);
-
-        // Validate that only one snapshot has been created
         Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
         PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
         repository.getRepositoryData(repositoryDataPlainActionFuture);
 
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
-        assertEquals(repositoryData.getSnapshotIds().size() , 0);
+        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
+        thread.join();
     }
-
+    
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());

@@ -554,7 +554,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error("Failed to upload files to snapshot repo {} for snapshot-v2 {} due to {} ", repositoryName, snapshotName, e);
+                            logger.error(
+                                "Failed to upload files to snapshot repo {} for snapshot-v2 {} due to {} ",
+                                repositoryName,
+                                snapshotName,
+                                e
+                            );
                             listener.onFailure(e);
                         }
                     }
@@ -594,6 +599,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             private Snapshot snapshot;
 
+            boolean enteredLoop;
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // move to in progress
@@ -625,13 +632,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
-                if (tryEnterRepoLoop(repositoryName) == false) {
-                    throw new ConcurrentSnapshotExecutionException(
-                        repositoryName,
-                        snapshotName,
-                        "cannot start snapshot-v2 while a repository is in finalization state"
-                    );
-                }
+
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
                     indices,
                     getInFlightIndexIds(runningSnapshots, repositoryName),
@@ -662,6 +663,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 );
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
+
+                enteredLoop = tryEnterRepoLoop(repositoryName);
+                if (enteredLoop == false) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repositoryName,
+                        snapshotName,
+                        "cannot start snapshot-v2 while a repository is in finalization state"
+                    );
+                }
                 return ClusterState.builder(currentState)
                     .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(new ArrayList<>(newEntries)))
                     .build();
@@ -671,7 +681,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot-v2", repositoryName, snapshotName), e);
                 listener.onFailure(e);
-                if ((e instanceof ConcurrentSnapshotExecutionException) == false) {
+                if (enteredLoop) {
                     leaveRepoLoop(repositoryName);
                 }
 
@@ -685,7 +695,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     newEntry.indices(),
                     repositoryData
                 );
-
                 final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
                     newState,
                     request.indicesOptions(),
@@ -705,11 +714,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     true,
                     pinnedTimestamp
                 );
+                // if (snapshotName.contains("snapshot-concurrent-")) {
+                // try {
+                // listener.onResponse(snapshotInfo);
+                // leaveRepoLoop(repositoryName);
+                // return;
+                // } catch (Exception e) {
+                // }
+                // }
+
                 final Version version = minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null);
                 final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                pinnedTimestampListener.whenComplete(repoData -> {
-                    listener.onResponse(snapshotInfo);
-                }, listener::onFailure);
+                pinnedTimestampListener.whenComplete(repoData -> { listener.onResponse(snapshotInfo); }, listener::onFailure);
                 repository.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),
@@ -721,7 +737,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     new ActionListener<RepositoryData>() {
                         @Override
                         public void onResponse(RepositoryData repositoryData) {
-                            if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                            if (clusterService.state().nodes().isLocalNodeElectedClusterManager() == false) {
                                 failSnapshotCompletionListeners(
                                     snapshot,
                                     new SnapshotException(snapshot, "Aborting snapshot-v2, no longer cluster manager")
@@ -732,7 +748,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                                 return;
                             }
-                            logger.info("Process it now");
+                            endingSnapshots.remove(snapshot);
                             leaveRepoLoop(repositoryName);
                             updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
                         }
@@ -1671,9 +1687,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedClusterManager() == false;
                 if (newClusterManager && snapshotsInProgress.entries().isEmpty() == false) {
-                    logger.info("Cleaning it now");
-                    // clean up snapshot v2 in progress or clone v2 present
-                    stateWithoutSnapshotv2(event.state());
+                    // clean up snapshot v2 in progress or clone v2 present.
+                    // Snapshot v2 create and clone are sync operation . In case of cluster manager failures in midst , we won't
+                    // send ack to caller and won't continue on new cluster manager . Caller will need to retry it.
+                    stateWithoutSnapshotV2(event.state());
                 }
                 processExternalChanges(
                     newClusterManager || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
@@ -1786,7 +1803,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     RoutingTable routingTable = currentState.routingTable();
-                    final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                    SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                    // Removing shallow snapshots v2 as we we take care of these in stateWithoutSnapshotV2()
+                    snapshots = SnapshotsInProgress.of(
+                        snapshots.entries()
+                            .stream()
+                            .filter(snapshot -> snapshot.remoteStoreIndexShallowCopyV2() == false)
+                            .collect(Collectors.toList())
+                    );
                     DiscoveryNodes nodes = currentState.nodes();
                     boolean changed = false;
                     final EnumSet<State> statesToUpdate;
@@ -1843,7 +1867,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             changed = true;
                             logger.debug("[{}] was found in dangling INIT or ABORTED state", snapshot);
                         } else {
-                            if (snapshot.state().completed() || completed(snapshot.shards().values())) {
+                            if ((snapshot.state().completed() || completed(snapshot.shards().values()))) {
                                 finishedSnapshots.add(snapshot);
                             }
                             updatedSnapshotEntries.add(snapshot);
@@ -2369,9 +2393,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return readyDeletions(result).v1();
     }
 
-    private ClusterState stateWithoutSnapshotv2(ClusterState state) {
+    private void stateWithoutSnapshotV2(ClusterState state) {
         SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-        ClusterState result = state;
         boolean changed = false;
         ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
         for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
@@ -2382,32 +2405,44 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         if (changed) {
-            result = ClusterState.builder(state)
-                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(entries)))
-                .build();
+            clusterService.submitStateUpdateTask(
+                "remove in progress snapshot v2 after cluster manager switch",
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                        boolean changed = false;
+                        ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+                        for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
+                            if (entry.remoteStoreIndexShallowCopyV2()) {
+                                changed = true;
+                            } else {
+                                entries.add(entry);
+                            }
+                        }
+                        if (changed) {
+                            return ClusterState.builder(currentState)
+                                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(entries)))
+                                .build();
+                        } else {
+                            return currentState;
+                        }
+                    }
 
-            ClusterState finalResult = result;
-            clusterService.submitStateUpdateTask("update snapshot v2 after cluster manager switch", new ClusterStateUpdateTask() {
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    return finalResult;
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        // execute never fails , so we should never hit this.
+                        logger.warn(
+                            () -> new ParameterizedMessage(
+                                "failed to remove in progress snapshot v2 state after cluster manager switch",
+                                source
+                            ),
+                            e
+                        );
+                    }
                 }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    // execute never fails today, so we should never hit this.
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "failed to remove in progress snapshot v2 state after cluster manager switch",
-                            source
-                        ),
-                        e
-                    );
-                }
-            });
+            );
         }
-        return result;
     }
 
     /**
@@ -3560,6 +3595,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             + " on ["
             + localNode
             + "]";
+        if (repositoryOperations.isEmpty() == false) {
+            logger.info("Not empty");
+        }
         assert repositoryOperations.isEmpty() : "Found leaked snapshots to finalize " + repositoryOperations + " on [" + localNode + "]";
         return true;
     }
