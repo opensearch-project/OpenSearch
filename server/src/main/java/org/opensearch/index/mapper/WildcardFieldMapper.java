@@ -40,6 +40,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -464,7 +465,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     return existsQuery(context);
                 }
             } else {
-                approximation = matchAllTermsQuery(name(), requiredNGrams);
+                approximation = matchAllTermsQuery(name(), requiredNGrams, caseInsensitive);
             }
             return new WildcardMatchingQuery(name(), approximation, matchPredicate, value, context, this);
         }
@@ -678,7 +679,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             StringBuilder pattern = new StringBuilder();
             for (Object value : values) {
                 String stringVal = BytesRefs.toString(value);
-                builder.add(matchAllTermsQuery(name(), getRequiredNGrams(stringVal)), BooleanClause.Occur.SHOULD);
+                builder.add(matchAllTermsQuery(name(), getRequiredNGrams(stringVal), false), BooleanClause.Occur.SHOULD);
                 expectedValues.add(stringVal);
                 if (pattern.length() > 0) {
                     pattern.append('|');
@@ -688,10 +689,16 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             return new WildcardMatchingQuery(name(), builder.build(), expectedValues::contains, pattern.toString(), context, this);
         }
 
-        private static BooleanQuery matchAllTermsQuery(String fieldName, Set<String> terms) {
+        private static BooleanQuery matchAllTermsQuery(String fieldName, Set<String> terms, boolean caseInsensitive) {
             BooleanQuery.Builder matchAllTermsBuilder = new BooleanQuery.Builder();
+            Query query;
             for (String term : terms) {
-                matchAllTermsBuilder.add(new TermQuery(new Term(fieldName, term)), BooleanClause.Occur.FILTER);
+                if (caseInsensitive) {
+                    query = AutomatonQueries.caseInsensitiveTermQuery(new Term(fieldName, term));
+                } else {
+                    query = new TermQuery(new Term(fieldName, term));
+                }
+                matchAllTermsBuilder.add(query, BooleanClause.Occur.FILTER);
             }
             return matchAllTermsBuilder.build();
         }
