@@ -119,11 +119,7 @@ public class TranslogTransferMetadata {
         if (generationToPrimaryTermMapper.get() == null || generationToPrimaryTermMapper.get().values().isEmpty()) {
             return -1;
         }
-        Optional<Long> minPrimaryTerm = generationToPrimaryTermMapper.get()
-            .values()
-            .stream()
-            .map(s -> Long.parseLong(s))
-            .min(Long::compareTo);
+        Optional<Long> minPrimaryTerm = generationToPrimaryTermMapper.get().values().stream().map(Long::parseLong).min(Long::compareTo);
         if (minPrimaryTerm.isPresent()) {
             return minPrimaryTerm.get();
         } else {

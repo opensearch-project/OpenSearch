@@ -649,11 +649,14 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             // 27 to 42
             "metadata__9223372036854775806__9223372036854775765__9223370311919910403__31__9223372036854775780__1__1"
         );
-        Set<Long> generations = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
+        Map<Long, Set<Long>> primaryTermGenerationsToBeDeletedMap = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
             metadataFilesNotToBeDeleted,
             metadataFilesToBeDeleted,
             Long.MAX_VALUE
         );
+
+        Set<Long> generations = primaryTermGenerationsToBeDeletedMap.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+
         Set<Long> md1Generations = LongStream.rangeClosed(4, 7).boxed().collect(Collectors.toSet());
         Set<Long> md2Generations = LongStream.rangeClosed(17, 37).boxed().collect(Collectors.toSet());
         Set<Long> md3Generations = LongStream.rangeClosed(27, 42).boxed().collect(Collectors.toSet());
@@ -685,11 +688,14 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             // 27 to 42
             "metadata__9223372036854775806__9223372036854775765__9223370311919910403__31__9223372036854775780__1__1"
         );
-        Set<Long> generations = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
+        Map<Long, Set<Long>> primaryTermGenerationsToBeDeletedMap = ((RemoteFsTimestampAwareTranslog) translog).getGenerationsToBeDeleted(
             metadataFilesNotToBeDeleted,
             metadataFilesToBeDeleted,
             Long.MAX_VALUE
         );
+
+        Set<Long> generations = primaryTermGenerationsToBeDeletedMap.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+
         Set<Long> md1Generations = LongStream.rangeClosed(5, 7).boxed().collect(Collectors.toSet());
         Set<Long> md2Generations = LongStream.rangeClosed(17, 25).boxed().collect(Collectors.toSet());
         Set<Long> md3Generations = LongStream.rangeClosed(31, 41).boxed().collect(Collectors.toSet());
@@ -892,75 +898,78 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         pinnedGenerations.add(new Tuple<>(142L, 180L));
         pinnedGenerations.add(new Tuple<>(4L, 9L));
 
-        RemoteFsTimestampAwareTranslog translog = (RemoteFsTimestampAwareTranslog) this.translog;
+        assertFalse(RemoteFsTimestampAwareTranslog.isGenerationPinned(3, pinnedGenerations));
+        assertFalse(RemoteFsTimestampAwareTranslog.isGenerationPinned(10, pinnedGenerations));
+        assertFalse(RemoteFsTimestampAwareTranslog.isGenerationPinned(141, pinnedGenerations));
+        assertFalse(RemoteFsTimestampAwareTranslog.isGenerationPinned(181, pinnedGenerations));
+        assertFalse(RemoteFsTimestampAwareTranslog.isGenerationPinned(5000, pinnedGenerations));
+        assertFalse(RemoteFsTimestampAwareTranslog.isGenerationPinned(0, pinnedGenerations));
 
-        assertFalse(translog.isGenerationPinned(3, pinnedGenerations));
-        assertFalse(translog.isGenerationPinned(10, pinnedGenerations));
-        assertFalse(translog.isGenerationPinned(141, pinnedGenerations));
-        assertFalse(translog.isGenerationPinned(181, pinnedGenerations));
-        assertFalse(translog.isGenerationPinned(5000, pinnedGenerations));
-        assertFalse(translog.isGenerationPinned(0, pinnedGenerations));
-
-        assertTrue(translog.isGenerationPinned(1, pinnedGenerations));
-        assertTrue(translog.isGenerationPinned(120, pinnedGenerations));
-        assertTrue(translog.isGenerationPinned(121, pinnedGenerations));
-        assertTrue(translog.isGenerationPinned(156, pinnedGenerations));
-        assertTrue(translog.isGenerationPinned(12, pinnedGenerations));
+        assertTrue(RemoteFsTimestampAwareTranslog.isGenerationPinned(1, pinnedGenerations));
+        assertTrue(RemoteFsTimestampAwareTranslog.isGenerationPinned(120, pinnedGenerations));
+        assertTrue(RemoteFsTimestampAwareTranslog.isGenerationPinned(121, pinnedGenerations));
+        assertTrue(RemoteFsTimestampAwareTranslog.isGenerationPinned(156, pinnedGenerations));
+        assertTrue(RemoteFsTimestampAwareTranslog.isGenerationPinned(12, pinnedGenerations));
     }
 
     public void testGetMinMaxTranslogGenerationFromMetadataFile() throws IOException {
         TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
 
-        RemoteFsTimestampAwareTranslog translog = (RemoteFsTimestampAwareTranslog) this.translog;
-
         // Fetch generations directly from the filename
         assertEquals(
             new Tuple<>(701L, 1008L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
         assertEquals(
             new Tuple<>(4L, 7L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__2__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
         assertEquals(
             new Tuple<>(106L, 106L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__3__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
         assertEquals(
             new Tuple<>(4573L, 99964L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854675843__9223370311919910408__31__9223372036854771234__4__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
         assertEquals(
             new Tuple<>(1L, 4L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854775803__9223370311919910413__31__9223372036854775806__5__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
         assertEquals(
             new Tuple<>(2474L, 3462L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854772345__9223370311919910429__31__9223372036854773333__6__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
         assertEquals(
             new Tuple<>(5807L, 7917L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854767890__9223370311919910434__31__9223372036854770000__7__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
 
@@ -972,9 +981,10 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             .thenReturn(md1);
         assertEquals(
             new Tuple<>(701L, 1008L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
         TranslogTransferMetadata md2 = mock(TranslogTransferMetadata.class);
@@ -984,9 +994,10 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             .thenReturn(md2);
         assertEquals(
             new Tuple<>(4L, 7L),
-            translog.getMinMaxTranslogGenerationFromMetadataFile(
+            RemoteFsTimestampAwareTranslog.getMinMaxTranslogGenerationFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1",
-                translogTransferManager
+                translogTransferManager,
+                new HashMap<>()
             )
         );
 

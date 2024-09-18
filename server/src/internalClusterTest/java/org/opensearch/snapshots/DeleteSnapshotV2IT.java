@@ -305,11 +305,11 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             List<Path> segmentsPostDeletionOfSnapshot1 = Files.list(segmentsPath).collect(Collectors.toList());
             assertTrue(segmentsPostDeletionOfSnapshot1.size() < segmentsPostSnapshot2.size());
         }, 60, TimeUnit.SECONDS);
-        // To uncomment following, we need to handle deletion of generations in translog cleanup flow
-        // List<Path> translogPostDeletionOfSnapshot1 = Files.list(translogPath).collect(Collectors.toList());
-        // Delete is async. Give time for it
-        // assertBusy(() -> assertEquals(translogPostSnapshot2.size() - translogPostSnapshot1.size(),
-        // translogPostDeletionOfSnapshot1.size()), 60, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            List<Path> translogPostDeletionOfSnapshot1 = Files.list(translogPath).collect(Collectors.toList());
+            assertTrue(translogPostDeletionOfSnapshot1.size() < translogPostSnapshot2.size());
+        }, 60, TimeUnit.SECONDS);
     }
 
     private Settings snapshotV2Settings(Path remoteStoreRepoPath) {

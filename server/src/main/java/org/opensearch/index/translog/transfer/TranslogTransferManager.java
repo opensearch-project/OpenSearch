@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -39,6 +40,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -496,6 +498,12 @@ public class TranslogTransferManager {
      * @param onCompletion runnable to run on completion of deletion regardless of success/failure.
      */
     public void deleteGenerationAsync(long primaryTerm, Set<Long> generations, Runnable onCompletion) {
+        List<String> translogFiles = getTranslogFilesFromGenerations(generations);
+        // Delete the translog and checkpoint files asynchronously
+        deleteTranslogFilesAsync(primaryTerm, translogFiles, onCompletion);
+    }
+
+    private List<String> getTranslogFilesFromGenerations(Set<Long> generations) {
         List<String> translogFiles = new ArrayList<>();
         generations.forEach(generation -> {
             // Add .ckp and .tlog file to translog file list which is located in basePath/<primaryTerm>
@@ -507,8 +515,47 @@ public class TranslogTransferManager {
                 translogFiles.add(translogFileName);
             }
         });
+        return translogFiles;
+    }
+
+    public void deleteGenerationAsync(Map<Long, Set<Long>> primaryTermToGenerationsMap, Runnable onCompletion) {
+        GroupedActionListener<Void> groupedActionListener = new GroupedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Collection<Void> unused) {
+                logger.trace(() -> "Deleted translogs for primaryTermToGenerationsMap=" + primaryTermToGenerationsMap);
+                onCompletion.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                onCompletion.run();
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Exception occurred while deleting translog for primaryTermToGenerationsMap={}",
+                        primaryTermToGenerationsMap
+                    ),
+                    e
+                );
+            }
+        }, primaryTermToGenerationsMap.size());
+
         // Delete the translog and checkpoint files asynchronously
-        deleteTranslogFilesAsync(primaryTerm, translogFiles, onCompletion);
+        deleteTranslogFilesAsync(primaryTermToGenerationsMap, groupedActionListener);
+    }
+
+    private void deleteTranslogFilesAsync(Map<Long, Set<Long>> primaryTermToGenerationsMap, ActionListener<Void> actionListener) {
+        for (Long primaryTerm : primaryTermToGenerationsMap.keySet()) {
+            try {
+                transferService.deleteBlobsAsync(
+                    ThreadPool.Names.REMOTE_PURGE,
+                    remoteDataTransferPath.add(String.valueOf(primaryTerm)),
+                    getTranslogFilesFromGenerations(primaryTermToGenerationsMap.get(primaryTerm)),
+                    actionListener
+                );
+            } catch (Exception e) {
+                actionListener.onFailure(e);
+            }
+        }
     }
 
     /**
