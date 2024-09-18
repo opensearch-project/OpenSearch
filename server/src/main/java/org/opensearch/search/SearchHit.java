@@ -105,6 +105,7 @@ public class SearchHit implements Writeable, ToXContentObject, Iterable<Document
     private static final float DEFAULT_SCORE = Float.NaN;
     protected float score = DEFAULT_SCORE;
 
+    @Nullable
     protected Text id;
 
     @Nullable
@@ -114,17 +115,20 @@ public class SearchHit implements Writeable, ToXContentObject, Iterable<Document
     protected long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
     protected long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
+    @Nullable
     protected BytesReference source;
 
     protected Map<String, DocumentField> documentFields;
     protected Map<String, DocumentField> metaFields;
 
+    @Nullable
     protected Map<String, HighlightField> highlightFields = null;
 
     protected SearchSortValues sortValues = SearchSortValues.EMPTY;
 
     protected Map<String, Float> matchedQueries = new HashMap<>();
 
+    @Nullable
     protected Explanation explanation;
 
     @Nullable
@@ -138,6 +142,7 @@ public class SearchHit implements Writeable, ToXContentObject, Iterable<Document
 
     private Map<String, Object> sourceAsMap;
 
+    @Nullable
     protected Map<String, SearchHits> innerHits;
 
     public SearchHit(SearchHit hit) {
