@@ -584,19 +584,9 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         assertThat(transportService.getConnectionManager().size(), equalTo(discoveryNodes.getSize()));
     }
 
-    private void assertNotConnectedToNodes(TransportService transportService, DiscoveryNodes discoveryNodes) {
-        assertNotConnected(transportService, discoveryNodes);
-    }
-
     private void assertConnected(TransportService transportService, Iterable<DiscoveryNode> nodes) {
         for (DiscoveryNode node : nodes) {
             assertTrue("not connected to " + node, transportService.nodeConnected(node));
-        }
-    }
-
-    private void assertNotConnected(TransportService transportService, Iterable<DiscoveryNode> nodes) {
-        for (DiscoveryNode node : nodes) {
-            assertFalse("connected to " + node, transportService.nodeConnected(node));
         }
     }
 
