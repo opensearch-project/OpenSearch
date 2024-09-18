@@ -102,9 +102,9 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         this.dummyCounter = mock(Counter.class);
         when(metricsRegistry.createCounter(anyString(), anyString(), anyString())).thenAnswer(invocationOnMock -> {
             String counterName = (String) invocationOnMock.getArguments()[0];
-            if (counterName.contains("allocation.reroute.async.fetch.total.count")) {
+            if (counterName.contains("async.fetch.total.count")) {
                 return asyncFetchTotalCounter;
-            } else if (counterName.contains("allocation.reroute.async.fetch.failure.count")) {
+            } else if (counterName.contains("async.fetch.failure.count")) {
                 return asyncFetchFailureCounter;
             }
             return dummyCounter;
