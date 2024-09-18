@@ -32,6 +32,14 @@
 
 package org.opensearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.config.Property;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -48,15 +56,20 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
+import org.opensearch.transport.ClusterConnectionManager;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
+import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
 import static org.hamcrest.Matchers.is;
@@ -68,8 +81,10 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
+    private TestAppender testAppender;
     private String clusterManager;
     private String redNodeName;
+    private LoggerContext loggerContext;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -93,6 +108,13 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        testAppender = new TestAppender();
+        loggerContext = (LoggerContext) LogManager.getContext(false);
+        Configuration config = loggerContext.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(ClusterConnectionManager.class.getName());
+        loggerConfig.addAppender(testAppender, null, null);
+        loggerContext.updateLoggers();
+
         String indexName = "test";
         final Settings nodeSettings = Settings.builder()
             .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
@@ -122,6 +144,16 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .get();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        loggerContext = (LoggerContext) LogManager.getContext(false);
+        Configuration config = loggerContext.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(ClusterConnectionManager.class.getName());
+        loggerConfig.removeAppender(testAppender.getName());
+        loggerContext.updateLoggers();
+        super.tearDown();
     }
 
     public void testClusterStabilityWhenJoinRequestHappensDuringNodeLeftTask() throws Exception {
@@ -181,6 +213,13 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         succeedFollowerChecker.set(true);
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
+
+        // assert that the right exception message showed up in logs
+        assertTrue(
+            "Expected IllegalStateException was not logged",
+            testAppender.containsExceptionMessage("IllegalStateException[cannot make a new connection as disconnect to node")
+        );
+
     }
 
     public void testClusterStabilityWhenDisconnectDuringSlowNodeLeftTask() throws Exception {
@@ -251,6 +290,12 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         succeedFollowerChecker.set(true);
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
+
+        // assert that the right exception message showed up in logs
+        assertTrue(
+            "Expected IllegalStateException was not logged",
+            testAppender.containsExceptionMessage("IllegalStateException[cannot make a new connection as disconnect to node")
+        );
     }
 
     public void testRestartDataNode() throws Exception {
@@ -299,6 +344,31 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
             connectionBreaker.run();
             handler.messageReceived(request, channel, task);
+        }
+    }
+
+    private static class TestAppender extends AbstractAppender {
+        private final List<String> logs = new ArrayList<>();
+
+        TestAppender() {
+            super("TestAppender", null, PatternLayout.createDefaultLayout(), false, Property.EMPTY_ARRAY);
+            start();
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            logs.add(event.getMessage().getFormattedMessage());
+            if (event.getThrown() != null) {
+                logs.add(event.getThrown().toString());
+                for (StackTraceElement element : event.getThrown().getStackTrace()) {
+                    logs.add(element.toString());
+                }
+            }
+        }
+
+        boolean containsExceptionMessage(String exceptionMessage) {
+            Pattern pattern = Pattern.compile(Pattern.quote(exceptionMessage), Pattern.CASE_INSENSITIVE);
+            return logs.stream().anyMatch(log -> pattern.matcher(log).find());
         }
     }
 }
