@@ -13,8 +13,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeValidator;
 import org.opensearch.index.mapper.MapperService;
 
-import java.util.Locale;
-
 /**
  * Validation for composite indices as part of mappings
  *
