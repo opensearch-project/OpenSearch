@@ -92,7 +92,13 @@ public class SearchHitsProtobuf extends SearchHits {
 
     void fromProto(SearchHitsProto proto) throws ProtoSerDeHelpers.SerializationException {
         maxScore = proto.getMaxScore();
-        collapseField = proto.getCollapseField();
+
+        hits = new SearchHit[proto.getHitsCount()];
+        for (int i = 0; i < hits.length; i++) {
+            hits[i] = new SearchHitProtobuf(proto.getHits(i));
+        }
+
+        collapseField = proto.hasCollapseField()? proto.getCollapseField() : null;
 
         if (proto.hasTotalHits()) {
             long rel = proto.getTotalHits().getRelation();
@@ -105,21 +111,25 @@ public class SearchHitsProtobuf extends SearchHits {
             totalHits = null;
         }
 
-        sortFields = new SortField[proto.getSortFieldsCount()];
-        for (int i = 0; i < proto.getSortFieldsCount(); i++) {
-            SortFieldProto field = proto.getSortFields(i);
-            sortFields[i] = sortFieldFromProto(field);
+        if (proto.getSortFieldsCount() > 0) {
+            sortFields = new SortField[proto.getSortFieldsCount()];
+            for (int i = 0; i < proto.getSortFieldsCount(); i++) {
+                SortFieldProto field = proto.getSortFields(i);
+                sortFields[i] = sortFieldFromProto(field);
+            }
+        } else {
+            sortFields = null;
         }
 
-        collapseValues = new Object[proto.getCollapseValuesCount()];
-        for (int i = 0; i < proto.getCollapseValuesCount(); i++) {
-            SortValueProto val = proto.getCollapseValues(i);
-            collapseValues[i] = sortValueFromProto(val);
+        if (proto.getCollapseValuesCount() > 0) {
+            collapseValues = new Object[proto.getCollapseValuesCount()];
+            for (int i = 0; i < proto.getCollapseValuesCount(); i++) {
+                SortValueProto val = proto.getCollapseValues(i);
+                collapseValues[i] = sortValueFromProto(val);
+            }
+        } else {
+            collapseValues = null;
         }
 
-        hits = new SearchHit[proto.getHitsCount()];
-        for (int i = 0; i < hits.length; i++) {
-            hits[i] = new SearchHitProtobuf(proto.getHits(i));
-        }
     }
 }
