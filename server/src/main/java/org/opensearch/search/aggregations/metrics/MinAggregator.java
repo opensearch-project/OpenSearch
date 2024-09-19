@@ -129,7 +129,6 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
-            System.out.println("min star tree");
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
