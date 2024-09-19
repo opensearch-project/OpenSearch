@@ -402,7 +402,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         );
         updatePinnedTimstampTask.run();
         translog.trimUnreferencedReaders();
-        assertBusy(() -> { assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()); });
+        assertBusy(() -> { assertEquals(3, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()); });
     }
 
     public void testMetadataFileDeletionWithPinnedTimestamps() throws Exception {
@@ -715,14 +715,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
         assertEquals(
             metadataFiles,
-            RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
-                metadataFiles,
-                new HashMap<>(),
-                Long.MAX_VALUE,
-                Map.of(),
-                false,
-                logger
-            )
+            RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(metadataFiles, new HashMap<>(), Long.MAX_VALUE, false, logger)
         );
     }
 
@@ -743,7 +736,6 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             metadataFiles,
             new HashMap<>(),
             Long.MAX_VALUE,
-            Map.of(),
             false,
             logger
         );
@@ -772,7 +764,6 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             metadataFiles,
             new HashMap<>(),
             Long.MAX_VALUE,
-            Map.of(),
             false,
             logger
         );
@@ -802,7 +793,6 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             metadataFiles,
             new HashMap<>(),
             Long.MAX_VALUE,
-            Map.of(),
             false,
             logger
         );
@@ -833,7 +823,6 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             metadataFiles,
             new HashMap<>(),
             10L,
-            Map.of(),
             false,
             logger
         );
@@ -865,7 +854,6 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             metadataFiles,
             new HashMap<>(),
             10L,
-            Map.of(),
             true,
             logger
         );

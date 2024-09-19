@@ -1280,8 +1280,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     snapshotIds,
                     writeShardMetaDataAndComputeDeletesStep.result(),
                     remoteSegmentStoreDirectoryFactory,
-                    afterCleanupsListener,
-                    snapshotIdPinnedTimestampMap
+                    afterCleanupsListener
                 );
             } else {
                 asyncCleanupUnlinkedShardLevelBlobs(
@@ -1300,8 +1299,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         Collection<ShardSnapshotMetaDeleteResult> result,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
-        ActionListener<Void> afterCleanupsListener,
-        Map<SnapshotId, Long> snapshotIdPinnedTimestampMap
+        ActionListener<Void> afterCleanupsListener
     ) {
         try {
             Set<String> uniqueIndexIds = new HashSet<>();
@@ -1310,14 +1308,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // iterate through all the indices and trigger remote store directory cleanup for deleted index segments
             for (String indexId : uniqueIndexIds) {
-                cleanRemoteStoreDirectoryIfNeeded(
-                    snapshotIds,
-                    indexId,
-                    repositoryData,
-                    remoteSegmentStoreDirectoryFactory,
-                    snapshotIdPinnedTimestampMap,
-                    false
-                );
+                cleanRemoteStoreDirectoryIfNeeded(snapshotIds, indexId, repositoryData, remoteSegmentStoreDirectoryFactory, false);
             }
             afterCleanupsListener.onResponse(null);
         } catch (Exception e) {
@@ -1369,7 +1360,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    logger.debug("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    logger.info("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    try {
+                        remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
+                        logger.debug("Successfully synced pinned timestamp state");
+                    } catch (Exception e) {
+                        logger.warn("Exception while updating pinning timestamp state, snapshot deletion will continue", e);
+                    }
                     listener.onResponse(null);
                 }
 
@@ -1475,8 +1472,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         String threadPoolName,
         RemoteStorePathStrategy pathStrategy,
-        boolean forceClean,
-        Map<String, Long> pinnedTimestampsToSkip
+        boolean forceClean
     ) {
         threadpool.executor(threadPoolName)
             .execute(
@@ -1487,8 +1483,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexUUID,
                         shardId,
                         pathStrategy,
-                        forceClean,
-                        pinnedTimestampsToSkip
+                        forceClean
                     ),
                     indexUUID,
                     shardId
@@ -1545,8 +1540,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy(),
-                false,
-                null
+                false
             );
         }
     }
@@ -2109,14 +2103,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 deleteResult = deleteResult.add(cleanUpStaleSnapshotShardPathsFile(matchingShardPaths, snapshotShardPaths));
 
                 if (remoteSegmentStoreDirectoryFactory != null) {
-                    cleanRemoteStoreDirectoryIfNeeded(
-                        deletedSnapshots,
-                        indexSnId,
-                        oldRepoData,
-                        remoteSegmentStoreDirectoryFactory,
-                        new HashMap<>(),
-                        true
-                    );
+                    cleanRemoteStoreDirectoryIfNeeded(deletedSnapshots, indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory, true);
                 }
 
                 // Finally, we delete the [base_path]/indexId folder
@@ -2189,7 +2176,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String indexSnId,
         RepositoryData oldRepoData,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
-        Map<SnapshotId, Long> snapshotIdPinnedTimestampMap,
         boolean forceClean
     ) {
         assert (indexSnId != null);
@@ -2233,12 +2219,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             prevIndexMetadata
                         );
 
-                        String pinningEntity = SnapshotsService.getPinningEntity(getMetadata().name(), snapshotId.getUUID());
-                        Map<String, Long> pinnedTimestampsToSkip = new HashMap<>();
-                        if (snapshotIdPinnedTimestampMap.get(snapshotId) != null) {
-                            pinnedTimestampsToSkip.put(pinningEntity, snapshotIdPinnedTimestampMap.get(snapshotId));
-                        }
-
                         for (int shardId = 0; shardId < prevIndexMetadata.getNumberOfShards(); shardId++) {
                             ShardId shard = new ShardId(Index.UNKNOWN_INDEX_NAME, prevIndexMetadata.getIndexUUID(), shardId);
                             remoteDirectoryCleanupAsync(
@@ -2249,16 +2229,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 shard,
                                 ThreadPool.Names.REMOTE_PURGE,
                                 remoteStorePathStrategy,
-                                forceClean,
-                                pinnedTimestampsToSkip
+                                forceClean
                             );
                             remoteTranslogCleanupAsync(
                                 remoteTranslogRepository,
                                 shard,
                                 remoteStorePathStrategy,
                                 prevIndexMetadata,
-                                forceClean,
-                                pinnedTimestampsToSkip
+                                forceClean
                             );
                         }
                     }
@@ -2284,8 +2262,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         RemoteStorePathStrategy remoteStorePathStrategy,
         IndexMetadata prevIndexMetadata,
-        boolean forceClean,
-        Map<String, Long> pinnedTimestampsToSkip
+        boolean forceClean
     ) {
         assert remoteTranslogRepository instanceof BlobStoreRepository;
         boolean indexMetadataEnabled = RemoteStoreUtils.determineTranslogMetadataEnabled(prevIndexMetadata);
@@ -2302,7 +2279,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             indexMetadataEnabled
         );
         try {
-            RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager, forceClean, pinnedTimestampsToSkip);
+            RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager, forceClean);
         } catch (IOException e) {
             logger.error("Exception while cleaning up remote translog for shard: " + shardId, e);
         }

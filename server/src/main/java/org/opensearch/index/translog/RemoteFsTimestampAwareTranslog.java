@@ -61,7 +61,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFileGenerationMap;
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap;
     private final AtomicLong minPrimaryTermInRemote = new AtomicLong(Long.MAX_VALUE);
-    private long lastTimestampOfMetadataDeletionOnRemote = System.currentTimeMillis();
+    private long previousMinRemoteGenReferenced = -1;
 
     public RemoteFsTimestampAwareTranslog(
         TranslogConfig config,
@@ -148,11 +148,10 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
         // This code block ensures parity with RemoteFsTranslog. Without this, we will end up making list translog metadata
         // call in each invocation of trimUnreferencedReaders
-        if (indexDeleted == false
-            && (System.currentTimeMillis() - lastTimestampOfMetadataDeletionOnRemote <= RemoteStoreSettings
-                .getPinnedTimestampsLookbackInterval()
-                .millis() * 2)) {
+        if (indexDeleted == false && previousMinRemoteGenReferenced == minRemoteGenReferenced) {
             return;
+        } else if (previousMinRemoteGenReferenced != minRemoteGenReferenced) {
+            previousMinRemoteGenReferenced = minRemoteGenReferenced;
         }
 
         // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
@@ -204,7 +203,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     Set<Long> generationsToBeDeleted = getGenerationsToBeDeleted(
                         metadataFilesNotToBeDeleted,
                         metadataFilesToBeDeleted,
-                        indexDeleted ? Long.MAX_VALUE : minRemoteGenReferenced
+                        indexDeleted ? Long.MAX_VALUE : getMinGenerationToKeep()
                     );
 
                     logger.debug(() -> "generationsToBeDeleted = " + generationsToBeDeleted);
@@ -220,7 +219,6 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     }
 
                     if (metadataFilesToBeDeleted.isEmpty() == false) {
-                        lastTimestampOfMetadataDeletionOnRemote = System.currentTimeMillis();
                         // Delete stale metadata files
                         translogTransferManager.deleteMetadataFilesAsync(
                             metadataFilesToBeDeleted,
@@ -248,11 +246,15 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         translogTransferManager.listTranslogMetadataFilesAsync(listMetadataFilesListener);
     }
 
+    private long getMinGenerationToKeep() {
+        return minRemoteGenReferenced - indexSettings().getRemoteTranslogExtraKeep();
+    }
+
     // Visible for testing
     protected Set<Long> getGenerationsToBeDeleted(
         List<String> metadataFilesNotToBeDeleted,
         List<String> metadataFilesToBeDeleted,
-        long minRemoteGenReferenced
+        long minGenerationToKeep
     ) throws IOException {
         Set<Long> generationsFromMetadataFilesToBeDeleted = new HashSet<>();
         for (String mdFile : metadataFilesToBeDeleted) {
@@ -267,9 +269,9 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         Set<Long> generationsToBeDeleted = new HashSet<>();
         for (long generation : generationsFromMetadataFilesToBeDeleted) {
             // Check if the generation is not referred by metadata file matching pinned timestamps
-            // The check with minRemoteGenReferenced is redundant but kept as to make sure we don't delete generations
+            // The check with minGenerationToKeep is redundant but kept as to make sure we don't delete generations
             // that are not persisted in remote segment store yet.
-            if (generation < minRemoteGenReferenced && isGenerationPinned(generation, pinnedGenerations) == false) {
+            if (generation < minGenerationToKeep && isGenerationPinned(generation, pinnedGenerations) == false) {
                 generationsToBeDeleted.add(generation);
             }
         }
@@ -277,26 +279,18 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     }
 
     protected List<String> getMetadataFilesToBeDeleted(List<String> metadataFiles, boolean indexDeleted) {
-        return getMetadataFilesToBeDeleted(
-            metadataFiles,
-            metadataFilePinnedTimestampMap,
-            minRemoteGenReferenced,
-            Map.of(),
-            indexDeleted,
-            logger
-        );
+        return getMetadataFilesToBeDeleted(metadataFiles, metadataFilePinnedTimestampMap, getMinGenerationToKeep(), indexDeleted, logger);
     }
 
     // Visible for testing
     protected static List<String> getMetadataFilesToBeDeleted(
         List<String> metadataFiles,
         Map<Long, String> metadataFilePinnedTimestampMap,
-        long minRemoteGenReferenced,
-        Map<String, Long> pinnedTimestampsToSkip,
+        long minGenerationToKeep,
         boolean indexDeleted,
         Logger logger
     ) {
-        Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps(pinnedTimestampsToSkip);
+        Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps();
 
         // Keep files since last successful run of scheduler
         List<String> metadataFilesToBeDeleted = RemoteStoreUtils.filterOutMetadataFilesBasedOnAge(
@@ -330,18 +324,18 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         );
 
         if (indexDeleted == false) {
-            // Filter out metadata files based on minRemoteGenReferenced
-            List<String> metadataFilesContainingMinRemoteGenReferenced = metadataFilesToBeDeleted.stream().filter(md -> {
+            // Filter out metadata files based on minGenerationToKeep
+            List<String> metadataFilesContainingMinGenerationToKeep = metadataFilesToBeDeleted.stream().filter(md -> {
                 long maxGeneration = TranslogTransferMetadata.getMaxGenerationFromFileName(md);
-                return maxGeneration == -1 || maxGeneration > minRemoteGenReferenced;
+                return maxGeneration == -1 || maxGeneration > minGenerationToKeep;
             }).collect(Collectors.toList());
-            metadataFilesToBeDeleted.removeAll(metadataFilesContainingMinRemoteGenReferenced);
+            metadataFilesToBeDeleted.removeAll(metadataFilesContainingMinGenerationToKeep);
 
             logger.trace(
-                "metadataFilesContainingMinRemoteGenReferenced.size = {}, metadataFilesToBeDeleted based on minRemoteGenReferenced filtering = {}, minRemoteGenReferenced = {}",
-                metadataFilesContainingMinRemoteGenReferenced.size(),
+                "metadataFilesContainingMinGenerationToKeep.size = {}, metadataFilesToBeDeleted based on minGenerationToKeep filtering = {}, minGenerationToKeep = {}",
+                metadataFilesContainingMinGenerationToKeep.size(),
                 metadataFilesToBeDeleted.size(),
-                minRemoteGenReferenced
+                minGenerationToKeep
             );
         }
 
@@ -505,11 +499,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
     }
 
-    public static void cleanup(
-        TranslogTransferManager translogTransferManager,
-        boolean forceClean,
-        Map<String, Long> pinnedTimestampsToSkip
-    ) throws IOException {
+    public static void cleanup(TranslogTransferManager translogTransferManager, boolean forceClean) throws IOException {
         if (forceClean) {
             translogTransferManager.delete();
         } else {
@@ -527,7 +517,6 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                             metadataFiles,
                             new HashMap<>(),
                             Long.MAX_VALUE,
-                            pinnedTimestampsToSkip,
                             true,
                             staticLogger
                         );

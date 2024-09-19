@@ -817,10 +817,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return metadataFilesToFilterActiveSegments;
     }
 
-    public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
-        deleteStaleSegments(lastNMetadataFilesToKeep, Map.of());
-    }
-
     /**
      * Delete stale segment and metadata files
      * One metadata file is kept per commit (refresh updates the same file). To read segments uploaded to remote store,
@@ -836,7 +832,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
      */
-    private void deleteStaleSegments(int lastNMetadataFilesToKeep, Map<String, Long> pinnedTimestampsToSkip) throws IOException {
+    public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
         if (lastNMetadataFilesToKeep == -1) {
             logger.info(
                 "Stale segment deletion is disabled if cluster.remote_store.index.segment_metadata.retention.max_count is set to -1"
@@ -863,7 +859,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return;
         }
 
-        Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps(pinnedTimestampsToSkip);
+        Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps();
 
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             sortedMetadataFileList,
@@ -999,8 +995,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String indexUUID,
         ShardId shardId,
         RemoteStorePathStrategy pathStrategy,
-        boolean forceClean,
-        Map<String, Long> pinnedTimestampsToSkip
+        boolean forceClean
     ) {
         try {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
@@ -1012,7 +1007,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             if (forceClean) {
                 remoteSegmentStoreDirectory.delete();
             } else {
-                remoteSegmentStoreDirectory.deleteStaleSegments(0, pinnedTimestampsToSkip);
+                remoteSegmentStoreDirectory.deleteStaleSegments(0);
                 remoteSegmentStoreDirectory.deleteIfEmpty();
             }
         } catch (Exception e) {
