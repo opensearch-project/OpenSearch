@@ -10,6 +10,7 @@ package org.opensearch.wlm;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.tasks.Task;
 import org.opensearch.wlm.tracker.CpuUsageCalculator;
 import org.opensearch.wlm.tracker.MemoryUsageCalculator;
 import org.opensearch.wlm.tracker.ResourceUsageCalculator;
@@ -67,6 +68,21 @@ public enum ResourceType {
 
     public String getName() {
         return name;
+    }
+
+    /**
+     * Gets the resource usage for a given resource type and task.
+     *
+     * @param task the task for which to calculate resource usage
+     * @return the resource usage
+     */
+    @Deprecated(forRemoval = true)
+    public long getResourceUsage(Task task) {
+        if (name.equals(CPU.name)) {
+            return task.getTotalResourceStats().getCpuTimeInNanos();
+        } else {
+            return task.getTotalResourceStats().getMemoryInBytes();
+        }
     }
 
     public boolean hasStatsEnabled() {
