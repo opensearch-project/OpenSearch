@@ -783,7 +783,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnAgeAndPinning() throws IOException {
         long currentTimeInMillis = System.currentTimeMillis();
-        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 100000);
         String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
         String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
 
