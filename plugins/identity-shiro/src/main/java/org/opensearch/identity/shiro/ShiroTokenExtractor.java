@@ -5,11 +5,13 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.identity.tokens;
+package org.opensearch.identity.shiro;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.tokens.AuthToken;
+import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.rest.RestRequest;
 
 import java.util.Collections;
@@ -18,9 +20,9 @@ import java.util.Optional;
 /**
  * Extracts tokens from RestRequests used for authentication
  */
-public class RestTokenExtractor {
+public class ShiroTokenExtractor {
 
-    private static final Logger logger = LogManager.getLogger(RestTokenExtractor.class);
+    private static final Logger logger = LogManager.getLogger(ShiroTokenExtractor.class);
 
     public final static String AUTH_HEADER_NAME = "Authorization";
 
