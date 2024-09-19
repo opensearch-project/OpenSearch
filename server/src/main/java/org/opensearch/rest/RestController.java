@@ -41,7 +41,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.common.xcontent.XContentType;
@@ -56,11 +55,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.Subject;
-import org.opensearch.identity.UserSubject;
-import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -125,25 +119,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private final IdentityService identityService;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService,
-        IdentityService identityService
+        UsageService usageService
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
+
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        this.identityService = identityService;
         registerHandlerNoWrap(
             RestRequest.Method.GET,
             "/favicon.ico",
@@ -472,11 +464,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
-                        if (!handleAuthenticateUser(request, channel)) {
-                            return;
-                        }
-                    }
                     dispatchRequest(request, channel, handler);
                     return;
                 }
@@ -585,43 +572,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             builder.endObject();
             channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
         }
-    }
-
-    /**
-     * Attempts to extract auth token and login.
-     *
-     * @return false if there was an error and the request should not continue being dispatched
-     * */
-    private boolean handleAuthenticateUser(final RestRequest request, final RestChannel channel) {
-        try {
-            final AuthToken token = RestTokenExtractor.extractToken(request);
-            // If no token was found, continue executing the request
-            if (token == null) {
-                // Authentication did not fail so return true. Authorization is handled at the action level.
-                return true;
-            }
-            final Subject currentSubject = identityService.getCurrentSubject();
-            if (currentSubject instanceof UserSubject) {
-                ((UserSubject) currentSubject).authenticate(token);
-                logger.debug("Logged in as user " + currentSubject);
-            }
-        } catch (final Exception e) {
-            try {
-                final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-                    channel,
-                    RestStatus.UNAUTHORIZED,
-                    e.getMessage()
-                );
-                channel.sendResponse(bytesRestResponse);
-            } catch (final Exception ex) {
-                final BytesRestResponse bytesRestResponse = new BytesRestResponse(RestStatus.UNAUTHORIZED, ex.getMessage());
-                channel.sendResponse(bytesRestResponse);
-            }
-            return false;
-        }
-
-        // Authentication did not fail so return true. Authorization is handled at the action level.
-        return true;
     }
 
     /**
