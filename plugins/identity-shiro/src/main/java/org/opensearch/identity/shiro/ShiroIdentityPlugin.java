@@ -26,6 +26,7 @@ import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -101,7 +102,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     }
 
     @Override
-    public PluginSubject getPluginSubject(Plugin plugin) {
+    public PluginSubject getPluginSubject(PluginInfo pluginInfo) {
         return new ShiroPluginSubject(threadPool);
     }
 }

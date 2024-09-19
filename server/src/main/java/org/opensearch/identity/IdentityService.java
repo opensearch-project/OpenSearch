@@ -8,12 +8,14 @@ package org.opensearch.identity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -61,11 +63,11 @@ public class IdentityService {
         return identityPlugin.getTokenManager();
     }
 
-    public void initializeIdentityAwarePlugins(final List<IdentityAwarePlugin> identityAwarePlugins) {
+    public void initializeIdentityAwarePlugins(final List<Tuple<PluginInfo, Plugin>> identityAwarePlugins) {
         if (identityAwarePlugins != null) {
-            for (IdentityAwarePlugin plugin : identityAwarePlugins) {
-                PluginSubject pluginSubject = identityPlugin.getPluginSubject((Plugin) plugin);
-                plugin.assignSubject(pluginSubject);
+            for (Tuple<PluginInfo, Plugin> pluginTuple : identityAwarePlugins) {
+                PluginSubject pluginSubject = identityPlugin.getPluginSubject(pluginTuple.v1());
+                ((IdentityAwarePlugin) pluginTuple.v2()).assignSubject(pluginSubject);
             }
         }
     }

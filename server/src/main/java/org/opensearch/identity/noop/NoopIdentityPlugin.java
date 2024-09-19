@@ -12,7 +12,7 @@ import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
-import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
@@ -49,7 +49,7 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     }
 
     @Override
-    public PluginSubject getPluginSubject(Plugin plugin) {
+    public PluginSubject getPluginSubject(PluginInfo pluginInfo) {
         return new NoopPluginSubject(threadPool);
     }
 }

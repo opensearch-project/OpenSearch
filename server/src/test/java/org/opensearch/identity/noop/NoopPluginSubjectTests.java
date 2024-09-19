@@ -8,16 +8,20 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.Version;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.PluginSubject;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +45,19 @@ public class NoopPluginSubjectTests extends OpenSearchTestCase {
         IdentityService identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
 
         TestPlugin testPlugin = new TestPlugin();
-        identityService.initializeIdentityAwarePlugins(List.of(testPlugin));
+        final PluginInfo info = new PluginInfo(
+            "fake",
+            "foo",
+            "x.y.z",
+            Version.CURRENT,
+            "1.8",
+            testPlugin.getClass().getCanonicalName(),
+            "folder",
+            Collections.emptyList(),
+            false,
+            Settings.EMPTY
+        );
+        identityService.initializeIdentityAwarePlugins(List.of(Tuple.tuple(info, testPlugin)));
 
         PluginSubject testPluginSubject = new NoopPluginSubject(threadPool);
         assertThat(testPlugin.getSubject().getPrincipal().getName(), equalTo(NamedPrincipal.UNAUTHENTICATED.getName()));

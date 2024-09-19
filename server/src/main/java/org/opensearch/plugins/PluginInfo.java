@@ -38,6 +38,7 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -88,6 +89,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final Settings requestedActions;
 
     /**
      * Construct plugin info.
@@ -111,7 +113,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        Settings requestedActions
     ) {
         this(
             name,
@@ -122,7 +125,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            requestedActions
         );
     }
 
@@ -135,7 +139,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        Settings requestedActions
     ) {
         this.name = name;
         this.description = description;
@@ -152,6 +157,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.requestedActions = requestedActions;
     }
 
     /**
@@ -185,7 +191,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             null /* customFolderName */,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            Settings.EMPTY /* requestedActions */
         );
     }
 
@@ -210,6 +217,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
+        this.requestedActions = Settings.readSettingsFromStream(in);
     }
 
     @Override
@@ -235,6 +243,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        Settings.writeSettingsToStream(requestedActions, out);
     }
 
     /**
@@ -364,6 +373,17 @@ public class PluginInfo implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
+        Settings requestedActions = Settings.EMPTY;
+        Path actions = path.resolve(PluginInfo.OPENSEARCH_PLUGIN_ACTIONS);
+
+        if (Files.exists(actions)) {
+            try {
+                requestedActions = PluginSecurity.parseRequestedActions(actions);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         return new PluginInfo(
             name,
             description,
@@ -373,7 +393,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            requestedActions
         );
     }
 
@@ -479,6 +500,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getTargetFolderName() {
         return (this.customFolderName == null || this.customFolderName.isEmpty()) ? this.name : this.customFolderName;
+    }
+
+    /**
+     * Returns actions requested by this plugin in the plugin-permissions.yml file
+     *
+     * @return A settings object containing the contents of plugin-permissions.yml file
+     */
+    public Settings getRequestedActions() {
+        return requestedActions;
     }
 
     @Override

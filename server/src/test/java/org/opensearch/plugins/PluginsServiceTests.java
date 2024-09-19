@@ -730,7 +730,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "FakePlugin",
             null,
             Collections.emptyList(),
-            false
+            false,
+            Settings.EMPTY
         );
         PluginsService.verifyCompatibility(info);
     }
@@ -752,7 +753,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "FakePlugin",
             null,
             Collections.emptyList(),
-            false
+            false,
+            Settings.EMPTY
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for OpenSearch version "));
@@ -1113,7 +1115,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "FakePlugin",
             null,
             Collections.emptyList(),
-            false
+            false,
+            Settings.EMPTY
         );
     }
 
