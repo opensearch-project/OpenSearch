@@ -11,6 +11,7 @@ package org.opensearch.search.startree;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
@@ -62,6 +63,7 @@ public class StarTreeFilter {
         andIterators.add(new StarTreeValuesIterator(starTreeResult._matchedDocIds.build().iterator()));
         StarTreeValuesIterator starTreeValuesIterator = andIterators.get(0);
 
+        int length = 0;
         // No matches, return
         if (starTreeResult.maxMatchedDoc == -1) {
             return starTreeValuesIterator;
@@ -93,6 +95,7 @@ public class StarTreeFilter {
             for (int entryId : entryIds) {
                 adder.add(entryId);
             }
+            length = entryIds.size();
             starTreeValuesIterator = new StarTreeValuesIterator(builder.build().iterator());
         }
         return starTreeValuesIterator;

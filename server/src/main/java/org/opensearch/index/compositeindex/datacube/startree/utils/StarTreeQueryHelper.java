@@ -173,7 +173,7 @@ public class StarTreeQueryHelper {
         return (starTreeQueryContext != null) ? starTreeQueryContext.getStarTree() : null;
     }
 
-    public static StarTreeValues computeStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
+    public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
         if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {
             return null;
@@ -192,7 +192,7 @@ public class StarTreeQueryHelper {
         Consumer<Long> valueConsumer,
         Runnable finalConsumer
     ) throws IOException {
-        StarTreeValues starTreeValues = context.getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
 
@@ -200,8 +200,7 @@ public class StarTreeQueryHelper {
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             metricName
         );
-        StarTreeFilter filter = new StarTreeFilter(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
-        StarTreeValuesIterator result = filter.getStarTreeResult();
+        StarTreeValuesIterator result = context.getStarTreeFilteredValues(ctx, starTreeValues);
 
         int entryId;
         while ((entryId = result.nextEntry()) != StarTreeValuesIterator.NO_MORE_ENTRIES) {

@@ -47,6 +47,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -129,7 +130,7 @@ public abstract class SearchContext implements Releasable {
     private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
-    protected volatile Map<LeafReaderContext, StarTreeValues> starTreeValuesMap;
+    protected volatile Map<LeafReaderContext, StarTreeValuesIterator> starTreeValuesMap;
     private volatile boolean searchTimedOut;
 
     protected SearchContext() {}
@@ -544,7 +545,7 @@ public abstract class SearchContext implements Releasable {
         return this;
     }
 
-    public StarTreeValues getStarTreeValues(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    public StarTreeValuesIterator getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
         return null;
     }
 }

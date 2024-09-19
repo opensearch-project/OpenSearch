@@ -43,6 +43,7 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BitSet;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -59,6 +60,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -101,6 +104,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
@@ -119,7 +123,6 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.computeStarTreeValues;
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -1167,17 +1170,15 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public StarTreeValues getStarTreeValues(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    public StarTreeValuesIterator getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
         if (this.starTreeValuesMap.containsKey(ctx)) {
-            logger.info("Used cached values");
+
             return starTreeValuesMap.get(ctx);
-
-        } else {
-            logger.info("not using cache");
         }
+        StarTreeFilter filter = new StarTreeFilter(starTreeValues, this.getStarTreeQueryContext().getQueryMap());
+        StarTreeValuesIterator result = filter.getStarTreeResult();
 
-        StarTreeValues starTreeValues = computeStarTreeValues(ctx, starTree);
-        starTreeValuesMap.put(ctx, starTreeValues);
-        return starTreeValues;
+        starTreeValuesMap.put(ctx, result);
+        return result;
     }
 }

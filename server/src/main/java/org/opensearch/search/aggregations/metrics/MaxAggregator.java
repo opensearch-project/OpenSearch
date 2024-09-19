@@ -130,7 +130,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
-            System.out.println("max star tree");
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
