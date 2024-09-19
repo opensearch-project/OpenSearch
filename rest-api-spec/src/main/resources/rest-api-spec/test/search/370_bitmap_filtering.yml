@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      version: " - 2.99.99"
+      version: " - 2.16.99"
       reason: The bitmap filtering feature is available in 2.17 and later.
   - do:
       indices.create:
