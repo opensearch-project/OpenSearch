@@ -9,15 +9,19 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 
 import java.io.IOException;
 
 /**
- * Coordinates the reading of documents across multiple DocIdSetIterators.
- * It encapsulates a single DocIdSetIterator and maintains the latest document ID and its associated value.
+ * Coordinates the reading of documents across multiple StarTreeValuesIterator.
+ * It encapsulates a single StarTreeValuesIterator and maintains the latest document ID and its associated value.
+ *
+ * In case of merge , this will be reading the entries of star tree values and in case of flush this will go through
+ * the actual segment documents.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
@@ -26,76 +30,56 @@ public class SequentialDocValuesIterator {
     /**
      * The doc id set iterator associated for each field.
      */
-    private final DocIdSetIterator docIdSetIterator;
+    private final StarTreeValuesIterator starTreeValuesIterator;
 
     /**
-     * The value associated with the latest document.
+     * The id of the latest record/entry.
      */
-    private Long docValue;
+    private int entryId = -1;
 
-    /**
-     * The id of the latest document.
-     */
-    private int docId = -1;
-
-    /**
-     * Constructs a new SequentialDocValuesIterator instance with the given DocIdSetIterator.
-     *
-     * @param docIdSetIterator the DocIdSetIterator to be associated with this instance
-     */
-    public SequentialDocValuesIterator(DocIdSetIterator docIdSetIterator) {
-        this.docIdSetIterator = docIdSetIterator;
+    public SequentialDocValuesIterator(StarTreeValuesIterator starTreeValuesIterator) {
+        this.starTreeValuesIterator = starTreeValuesIterator;
     }
 
     /**
-     * Returns the id of the latest document.
+     * Returns the ID of the star tree record/entry or the segment document id
      *
-     * @return the id of the latest document
+     * @return the ID of the star tree record/entry or the segment document id
      */
-    public int getDocId() {
-        return docId;
+    public int getEntryId() {
+        return entryId;
     }
 
     /**
-     * Sets the id of the latest document.
+     * Sets the id of the latest entry.
      *
-     * @param docId the ID of the latest document
+     * @param entryId the ID of the star tree record/entry or the segment document id
      */
-    private void setDocId(int docId) {
-        this.docId = docId;
+    private void setEntryId(int entryId) {
+        this.entryId = entryId;
     }
 
-    /**
-     * Returns the DocIdSetIterator associated with this instance.
-     *
-     * @return the DocIdSetIterator associated with this instance
-     */
-    public DocIdSetIterator getDocIdSetIterator() {
-        return docIdSetIterator;
-    }
-
-    public int nextDoc(int currentDocId) throws IOException {
+    public int nextEntry(int currentEntryId) throws IOException {
         // if doc id stored is less than or equal to the requested doc id , return the stored doc id
-        if (docId >= currentDocId) {
-            return docId;
+        if (entryId >= currentEntryId) {
+            return entryId;
         }
-        setDocId(this.docIdSetIterator.nextDoc());
-        return docId;
+        setEntryId(this.starTreeValuesIterator.nextEntry());
+        return entryId;
     }
 
-    public Long value(int currentDocId) throws IOException {
-        if (this.getDocIdSetIterator() instanceof SortedNumericDocValues) {
-            SortedNumericDocValues sortedNumericDocValues = (SortedNumericDocValues) this.getDocIdSetIterator();
-            if (currentDocId < 0) {
-                throw new IllegalStateException("invalid doc id to fetch the next value");
+    public Long value(int currentEntryId) throws IOException {
+        if (starTreeValuesIterator instanceof SortedNumericStarTreeValuesIterator) {
+            if (currentEntryId < 0) {
+                throw new IllegalStateException("invalid entry id to fetch the next value");
             }
-            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                throw new IllegalStateException("DocValuesIterator is already exhausted");
+            if (currentEntryId == StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                throw new IllegalStateException("StarTreeValuesIterator is already exhausted");
             }
-            if (docId == DocIdSetIterator.NO_MORE_DOCS || docId != currentDocId) {
+            if (entryId == StarTreeValuesIterator.NO_MORE_ENTRIES || entryId != currentEntryId) {
                 return null;
             }
-            return sortedNumericDocValues.nextValue();
+            return ((SortedNumericStarTreeValuesIterator) starTreeValuesIterator).nextValue();
 
         } else {
             throw new IllegalStateException("Unsupported Iterator requested for SequentialDocValuesIterator");
