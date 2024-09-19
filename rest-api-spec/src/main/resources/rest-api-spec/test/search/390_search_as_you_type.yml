@@ -12,7 +12,7 @@ setup:
                     type: keyword
   - do:
       index:
-        index:  test
+        index:  test_1
         id:     1
         body:   { text: test search as you type }
 
@@ -20,6 +20,7 @@ setup:
       indices.refresh:
         index: [test_1]
 
+---
 teardown:
   - do:
       indices.delete:
@@ -49,7 +50,7 @@ teardown:
               query: "test search"
               type: "bool_prefix"
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
   - do:
       search:
@@ -59,4 +60,4 @@ teardown:
             term:
               text.subField: "test search as you type"
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
