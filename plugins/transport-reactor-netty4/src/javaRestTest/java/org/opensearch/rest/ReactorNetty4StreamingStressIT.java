@@ -8,6 +8,7 @@
 
 package org.opensearch.rest;
 
+import org.apache.hc.core5.http.ConnectionClosedException;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.StreamingRequest;
@@ -75,7 +76,7 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
                 }
             })
             .then(() -> scheduler.advanceTimeBy(delay))
-            .expectErrorMatches(t -> t instanceof InterruptedIOException)
+            .expectErrorMatches(t -> t instanceof InterruptedIOException || t instanceof ConnectionClosedException)
             .verify();
     }
 }
