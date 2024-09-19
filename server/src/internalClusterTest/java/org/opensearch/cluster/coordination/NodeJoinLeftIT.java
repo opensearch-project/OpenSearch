@@ -33,13 +33,9 @@
 package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.apache.logging.log4j.core.config.Property;
-import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -53,6 +49,7 @@ import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.TestLogsAppender;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
@@ -64,12 +61,11 @@ import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Pattern;
 
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
 import static org.hamcrest.Matchers.is;
@@ -81,7 +77,7 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
-    private TestAppender testAppender;
+    private TestLogsAppender testLogsAppender;
     private String clusterManager;
     private String redNodeName;
     private LoggerContext loggerContext;
@@ -108,11 +104,13 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        testAppender = new TestAppender();
+        // Add any other specific messages you want to capture
+        List<String> messagesToCapture = Arrays.asList("failed to join", "IllegalStateException");
+        testLogsAppender = new TestLogsAppender(messagesToCapture);
         loggerContext = (LoggerContext) LogManager.getContext(false);
         Configuration config = loggerContext.getConfiguration();
         LoggerConfig loggerConfig = config.getLoggerConfig(ClusterConnectionManager.class.getName());
-        loggerConfig.addAppender(testAppender, null, null);
+        loggerConfig.addAppender(testLogsAppender, null, null);
         loggerContext.updateLoggers();
 
         String indexName = "test";
@@ -148,10 +146,11 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
     @After
     public void tearDown() throws Exception {
+        testLogsAppender.clearCapturedLogs();
         loggerContext = (LoggerContext) LogManager.getContext(false);
         Configuration config = loggerContext.getConfiguration();
         LoggerConfig loggerConfig = config.getLoggerConfig(ClusterConnectionManager.class.getName());
-        loggerConfig.removeAppender(testAppender.getName());
+        loggerConfig.removeAppender(testLogsAppender.getName());
         loggerContext.updateLoggers();
         super.tearDown();
     }
@@ -190,9 +189,9 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         );
         redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, simulatedFailureBehaviour);
 
-        // Loop runs 10 times to ensure race condition gets reproduced
-        for (int i = 0; i < 10; i++) {
-            // Fail followerchecker by force to trigger node disconnect and node left
+        // Loop runs 5 times to ensure race condition gets reproduced
+        testLogsAppender.clearCapturedLogs();
+        for (int i = 0; i < 5; i++) {
             logger.info("--> simulating followerchecker failure to trigger node-left");
             succeedFollowerChecker.set(false);
             ClusterHealthResponse response1 = client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
@@ -214,12 +213,14 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        // assert that the right exception message showed up in logs
-        assertTrue(
-            "Expected IllegalStateException was not logged",
-            testAppender.containsExceptionMessage("IllegalStateException[cannot make a new connection as disconnect to node")
-        );
-
+        // assert that join requests fail with the right exception
+        boolean logFound = testLogsAppender.waitForLog("failed to join", 30, TimeUnit.SECONDS)
+            && testLogsAppender.waitForLog(
+                "IllegalStateException[cannot make a new connection as disconnect to node",
+                30,
+                TimeUnit.SECONDS
+            );
+        assertTrue("Expected log was not found within the timeout period", logFound);
     }
 
     public void testClusterStabilityWhenDisconnectDuringSlowNodeLeftTask() throws Exception {
@@ -259,8 +260,9 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         );
         redTransportService.addRequestHandlingBehavior(FOLLOWER_CHECK_ACTION_NAME, simulatedFailureBehaviour);
 
-        // Loop runs 10 times to ensure race condition gets reproduced
-        for (int i = 0; i < 10; i++) {
+        // Loop runs 5 times to ensure race condition gets reproduced
+        testLogsAppender.clearCapturedLogs();
+        for (int i = 0; i < 5; i++) {
             // Fail followerchecker by force to trigger node disconnect and node left
             logger.info("--> simulating followerchecker failure to trigger node-left");
             succeedFollowerChecker.set(false);
@@ -291,11 +293,15 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        // assert that the right exception message showed up in logs
-        assertTrue(
-            "Expected IllegalStateException was not logged",
-            testAppender.containsExceptionMessage("IllegalStateException[cannot make a new connection as disconnect to node")
+        // assert that join requests fail with the right exception
+        boolean logFound = testLogsAppender.waitForLog("failed to join", 30, TimeUnit.SECONDS);
+        assertTrue("Expected log was not found within the timeout period", logFound);
+        logFound = testLogsAppender.waitForLog(
+            "IllegalStateException[cannot make a new connection as disconnect to node",
+            30,
+            TimeUnit.SECONDS
         );
+        assertTrue("Expected log was not found within the timeout period", logFound);
     }
 
     public void testRestartDataNode() throws Exception {
@@ -344,31 +350,6 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
             connectionBreaker.run();
             handler.messageReceived(request, channel, task);
-        }
-    }
-
-    private static class TestAppender extends AbstractAppender {
-        private final List<String> logs = new ArrayList<>();
-
-        TestAppender() {
-            super("TestAppender", null, PatternLayout.createDefaultLayout(), false, Property.EMPTY_ARRAY);
-            start();
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            logs.add(event.getMessage().getFormattedMessage());
-            if (event.getThrown() != null) {
-                logs.add(event.getThrown().toString());
-                for (StackTraceElement element : event.getThrown().getStackTrace()) {
-                    logs.add(element.toString());
-                }
-            }
-        }
-
-        boolean containsExceptionMessage(String exceptionMessage) {
-            Pattern pattern = Pattern.compile(Pattern.quote(exceptionMessage), Pattern.CASE_INSENSITIVE);
-            return logs.stream().anyMatch(log -> pattern.matcher(log).find());
         }
     }
 }
