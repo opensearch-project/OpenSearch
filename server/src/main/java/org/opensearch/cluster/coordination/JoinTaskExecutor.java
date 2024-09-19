@@ -420,9 +420,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * ensures that the joining node has a version that's compatible with all current nodes
      */
     public static void ensureNodesCompatibility(final DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
-        final Version minNodeVersion = currentNodes.getMinNodeVersion();
-        final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
-        ensureNodesCompatibility(joiningNode, currentNodes, metadata, minNodeVersion, maxNodeVersion);
+        try {
+            final Version minNodeVersion = currentNodes.getMinNodeVersion();
+            final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
+            ensureNodesCompatibility(joiningNode, currentNodes, metadata, minNodeVersion, maxNodeVersion);
+        } catch (Exception e) {
+            logger.error("Exception in NodesCompatibility validation", e);
+            throw e;
+        }
     }
 
     /**
@@ -539,9 +544,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
 
         List<String> reposToSkip = new ArrayList<>(1);
+        // find a remote node which has routing table configured
         Optional<DiscoveryNode> remoteRoutingTableNode = existingNodes.stream()
             .filter(
                 node -> node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
+                    && node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
             )
             .findFirst();
         // If none of the existing nodes have routing table repo, then we skip this repo check if present in joining node.
