@@ -11,7 +11,7 @@ jobs:
       contents: write
     if: startsWith(github.event.pull_request.head.ref,'backport/')
     steps:
-      - name: Delete merged branch
+    - name: Delete merged branch
       uses: actions/github-script@v5
       with:
         script: |
