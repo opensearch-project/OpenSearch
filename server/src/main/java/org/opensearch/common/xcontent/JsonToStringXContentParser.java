@@ -89,9 +89,6 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
      * @return true if the child object contains no_null value, false otherwise
      */
     private boolean parseToken(Deque<String> path, String currentFieldName) throws IOException {
-        if (path.size() == 1 && processNoNestedValue()) {
-            return true;
-        }
         boolean isChildrenValueValid = false;
         boolean visitFieldName = false;
         if (this.parser.currentToken() == Token.FIELD_NAME) {
@@ -145,21 +142,6 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         // we should delete the key from keyList.
         assert keyList.size() > 0;
         this.keyList.remove(keyList.size() - 1);
-    }
-
-    private boolean processNoNestedValue() throws IOException {
-        if (parser.currentToken() == Token.VALUE_NULL) {
-            return true;
-        } else if (this.parser.currentToken() == Token.VALUE_STRING
-            || this.parser.currentToken() == Token.VALUE_NUMBER
-            || this.parser.currentToken() == Token.VALUE_BOOLEAN) {
-                String value = this.parser.textOrNull();
-                if (value != null) {
-                    this.valueList.add(value);
-                }
-                return true;
-            }
-        return false;
     }
 
     private String parseValue() throws IOException {

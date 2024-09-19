@@ -62,7 +62,7 @@ setup:
           },
           "required_matches": 1
         }
-  # The following document is invalid.
+  # The following documents are invalid.
   - do:
       catch: /parsing_exception/
       index:
@@ -73,7 +73,36 @@ setup:
           "catalog": ["Arrays in Action"],
           "required_matches": 1
         }
-
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": "Strings in Action",
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": 12345,
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": [ 12345 ],
+          "required_matches": 1
+        }
   # Do index refresh
   - do:
       indices.refresh:
