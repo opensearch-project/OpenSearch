@@ -61,7 +61,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFileGenerationMap;
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap;
     private final AtomicLong minPrimaryTermInRemote = new AtomicLong(Long.MAX_VALUE);
-    private long maxDeletedGenerationOnRemote = 0;
+    private long lastTimestampOfMetadataDeletionOnRemote = System.currentTimeMillis();
 
     public RemoteFsTimestampAwareTranslog(
         TranslogConfig config,
@@ -148,8 +148,10 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
         // This code block ensures parity with RemoteFsTranslog. Without this, we will end up making list translog metadata
         // call in each invocation of trimUnreferencedReaders
-        long minGenerationToKeep = minRemoteGenReferenced - indexSettings().getRemoteTranslogExtraKeep();
-        if (indexDeleted == false && (minGenerationToKeep <= maxDeletedGenerationOnRemote)) {
+        if (indexDeleted == false
+            && (System.currentTimeMillis() - lastTimestampOfMetadataDeletionOnRemote <= RemoteStoreSettings
+                .getPinnedTimestampsLookbackInterval()
+                .millis() * 2)) {
             return;
         }
 
@@ -207,8 +209,6 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
                     logger.debug(() -> "generationsToBeDeleted = " + generationsToBeDeleted);
                     if (generationsToBeDeleted.isEmpty() == false) {
-                        maxDeletedGenerationOnRemote = generationsToBeDeleted.stream().max(Long::compareTo).get();
-
                         // Delete stale generations
                         translogTransferManager.deleteGenerationAsync(
                             primaryTermSupplier.getAsLong(),
@@ -220,6 +220,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     }
 
                     if (metadataFilesToBeDeleted.isEmpty() == false) {
+                        lastTimestampOfMetadataDeletionOnRemote = System.currentTimeMillis();
                         // Delete stale metadata files
                         translogTransferManager.deleteMetadataFilesAsync(
                             metadataFilesToBeDeleted,
