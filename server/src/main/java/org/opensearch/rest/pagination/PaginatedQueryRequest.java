@@ -14,18 +14,20 @@ import org.opensearch.common.annotation.PublicApi;
  *
  * Class specific to paginated queries, which will contain common query params required by a paginated API.
  */
-@PublicApi(since = "2.17.0")
+@PublicApi(since = "3.0.0")
 public class PaginatedQueryRequest {
 
     public static final String PAGINATED_QUERY_PARAM_SORT_KEY = "sort";
     public static final String PAGINATED_QUERY_PARAM_NEXT_TOKEN_KEY = "next_token";
     public static final String PAGINATED_QUERY_PARAM_SIZE_KEY = "size";
+    public static final String PAGINATED_QUERY_ASCENDING_SORT = "ascending";
+
     private final String requestedTokenStr;
     private final String sort;
     private final int size;
 
-    public PaginatedQueryRequest(String requested_token, String sort, int size) {
-        this.requestedTokenStr = requested_token;
+    public PaginatedQueryRequest(String requestedToken, String sort, int size) {
+        this.requestedTokenStr = requestedToken;
         this.sort = sort;
         this.size = size;
     }

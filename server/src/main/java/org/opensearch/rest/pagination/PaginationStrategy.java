@@ -13,8 +13,10 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -26,7 +28,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public interface PaginationStrategy<T> {
 
-    String DESCENDING_SORT_PARAM_VALUE = "descending";
     String INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE =
         "Parameter [next_token] has been tainted and is incorrect. Please provide a valid [next_token].";
 
@@ -44,19 +45,14 @@ public interface PaginationStrategy<T> {
 
     /**
      *
-     * Utility method to get list of indices sorted by their creation time.
+     * Utility method to get list of indices filtered as per {@param filterPredicate} and the sorted according to {@param comparator}.
      */
-    static List<IndexMetadata> getListOfIndicesSortedByCreateTime(final ClusterState clusterState, String sortOrder) {
-        return clusterState.metadata().indices().values().stream().sorted((metadata1, metadata2) -> {
-            if (metadata1.getCreationDate() == metadata2.getCreationDate()) {
-                return DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
-                    ? metadata2.getIndex().getName().compareTo(metadata1.getIndex().getName())
-                    : metadata1.getIndex().getName().compareTo(metadata2.getIndex().getName());
-            }
-            return DESCENDING_SORT_PARAM_VALUE.equals(sortOrder)
-                ? Long.compare(metadata2.getCreationDate(), metadata1.getCreationDate())
-                : Long.compare(metadata1.getCreationDate(), metadata2.getCreationDate());
-        }).collect(Collectors.toList());
+    static List<IndexMetadata> getSortedIndexMetadata(
+        final ClusterState clusterState,
+        Predicate<IndexMetadata> filterPredicate,
+        Comparator<IndexMetadata> comparator
+    ) {
+        return clusterState.metadata().indices().values().stream().filter(filterPredicate).sorted(comparator).collect(Collectors.toList());
     }
 
     static String encryptStringToken(String tokenString) {

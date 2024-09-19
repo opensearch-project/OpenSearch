@@ -37,7 +37,6 @@ public class RestIndicesListAction extends RestIndicesAction {
 
     protected static final int MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE_STRING = 1000;
     protected static final int DEFAULT_LIST_INDICES_PAGE_SIZE_STRING = 1000;
-    protected static final String PAGINATED_LIST_INDICES_ELEMENT_KEY = "indices";
 
     @Override
     public List<Route> routes() {
@@ -108,7 +107,7 @@ public class RestIndicesListAction extends RestIndicesAction {
 
     @Override
     protected IndexBasedPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
-        return new IndexBasedPaginationStrategy(paginatedQueryRequest, PAGINATED_LIST_INDICES_ELEMENT_KEY, clusterStateResponse.getState());
+        return new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterStateResponse.getState());
     }
 
     @Override
