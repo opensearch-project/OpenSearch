@@ -31,6 +31,7 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
@@ -44,6 +45,8 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -76,8 +79,10 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -124,7 +129,7 @@ public abstract class SearchContext implements Releasable {
     private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
-
+    protected volatile Map<LeafReaderContext, StarTreeValues> starTreeValuesMap;
     private volatile boolean searchTimedOut;
 
     protected SearchContext() {}
@@ -531,4 +536,15 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        return null;
+    }
+
+    public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        return this;
+    }
+
+    public StarTreeValues getStarTreeValues(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        return null;
+    }
 }

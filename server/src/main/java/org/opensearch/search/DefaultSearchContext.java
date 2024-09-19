@@ -34,6 +34,7 @@ package org.opensearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -56,6 +57,8 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -98,6 +101,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -115,6 +119,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.computeStarTreeValues;
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -176,6 +181,7 @@ final class DefaultSearchContext extends SearchContext {
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
     private final Version minNodeVersion;
+    private StarTreeQueryContext starTreeQueryContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -270,6 +276,7 @@ final class DefaultSearchContext extends SearchContext {
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
+        this.starTreeValuesMap = new HashMap<>();
     }
 
     @Override
@@ -1146,5 +1153,31 @@ final class DefaultSearchContext extends SearchContext {
             return clusterService.getClusterSettings().get(KEYWORD_INDEX_OR_DOC_VALUES_ENABLED);
         }
         return false;
+    }
+
+    @Override
+    public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        this.starTreeQueryContext = starTreeQueryContext;
+        return this;
+    }
+
+    @Override
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        return this.starTreeQueryContext;
+    }
+
+    @Override
+    public StarTreeValues getStarTreeValues(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        if (this.starTreeValuesMap.containsKey(ctx)) {
+            logger.info("Used cached values");
+            return starTreeValuesMap.get(ctx);
+
+        } else {
+            logger.info("not using cache");
+        }
+
+        StarTreeValues starTreeValues = computeStarTreeValues(ctx, starTree);
+        starTreeValuesMap.put(ctx, starTreeValues);
+        return starTreeValues;
     }
 }

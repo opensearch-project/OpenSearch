@@ -84,7 +84,6 @@ import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
-import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -139,7 +138,7 @@ import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.search.startree.OriginalOrStarTreeQuery;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -1548,9 +1547,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
             && StarTreeQueryHelper.isStarTreeSupported(context, source.trackTotalHitsUpTo() != null)) {
             try {
-                OriginalOrStarTreeQuery parsedQuery = StarTreeQueryHelper.getOriginalOrStarTreeQuery(context, source);
-                if (parsedQuery != null) {
-                    context.parsedQuery(new ParsedQuery(parsedQuery));
+                StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(context, source);
+                if (starTreeQueryContext != null) {
+                    context.starTreeQueryContext(starTreeQueryContext);
                     logger.debug("can use star tree");
                 } else {
                     logger.debug("cannot use star tree");

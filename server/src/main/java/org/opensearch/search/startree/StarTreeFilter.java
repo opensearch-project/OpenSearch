@@ -10,13 +10,13 @@ package org.opensearch.search.startree;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -38,7 +38,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  *  @opensearch.experimental
  *  @opensearch.internal
  */
-class StarTreeFilter {
+public class StarTreeFilter {
     private static final Logger logger = LogManager.getLogger(StarTreeFilter.class);
 
     private final Map<String, Long> queryMap;
@@ -53,49 +53,49 @@ class StarTreeFilter {
     /**
      * <ul>
      *   <li>First go over the star tree and try to match as many dimensions as possible
-     *   <li>For the remaining columns, use doc values indexes to match them
+     *   <li>For the remaining columns, use star-tree doc values to match them
      * </ul>
      */
-    public DocIdSetIterator getStarTreeResult() throws IOException {
+    public StarTreeValuesIterator getStarTreeResult() throws IOException {
         StarTreeResult starTreeResult = traverseStarTree();
-        List<DocIdSetIterator> andIterators = new ArrayList<>();
-        andIterators.add(starTreeResult._matchedDocIds.build().iterator());
-        DocIdSetIterator docIdSetIterator = andIterators.get(0);
+        List<StarTreeValuesIterator> andIterators = new ArrayList<>();
+        andIterators.add(new StarTreeValuesIterator(starTreeResult._matchedDocIds.build().iterator()));
+        StarTreeValuesIterator starTreeValuesIterator = andIterators.get(0);
 
         // No matches, return
         if (starTreeResult.maxMatchedDoc == -1) {
-            return docIdSetIterator;
+            return starTreeValuesIterator;
         }
         for (String remainingPredicateColumn : starTreeResult._remainingPredicateColumns) {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
             DocIdSetBuilder builder = new DocIdSetBuilder(starTreeResult.maxMatchedDoc + 1);
-            SortedNumericDocValues ndv = (SortedNumericDocValues) this.starTreeValues.getDimensionDocIdSetIterator(
+            SortedNumericStarTreeValuesIterator ndv = (SortedNumericStarTreeValuesIterator) this.starTreeValues.getDimensionValuesIterator(
                 remainingPredicateColumn
             );
-            List<Integer> docIds = new ArrayList<>();
+            List<Integer> entryIds = new ArrayList<>();
             long queryValue = queryMap.get(remainingPredicateColumn); // Get the query value directly
 
-            while (docIdSetIterator.nextDoc() != NO_MORE_DOCS) {
-                int docID = docIdSetIterator.docID();
-                if (ndv.advanceExact(docID)) {
-                    final int valuesCount = ndv.docValueCount();
+            while (starTreeValuesIterator.nextEntry() != NO_MORE_DOCS) {
+                int entryId = starTreeValuesIterator.entryId();
+                if (ndv.advance(entryId) > 0) {
+                    final int valuesCount = ndv.valuesCount();
                     for (int i = 0; i < valuesCount; i++) {
                         long value = ndv.nextValue();
                         // Directly compare value with queryValue
                         if (value == queryValue) {
-                            docIds.add(docID);
+                            entryIds.add(entryId);
                             break;
                         }
                     }
                 }
             }
-            DocIdSetBuilder.BulkAdder adder = builder.grow(docIds.size());
-            for (int docID : docIds) {
-                adder.add(docID);
+            DocIdSetBuilder.BulkAdder adder = builder.grow(entryIds.size());
+            for (int entryId : entryIds) {
+                adder.add(entryId);
             }
-            docIdSetIterator = builder.build().iterator();
+            starTreeValuesIterator = new StarTreeValuesIterator(builder.build().iterator());
         }
-        return docIdSetIterator;
+        return starTreeValuesIterator;
     }
 
     /**

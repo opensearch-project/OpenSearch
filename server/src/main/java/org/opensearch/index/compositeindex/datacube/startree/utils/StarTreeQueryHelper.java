@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.utils;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -17,22 +18,28 @@ import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
+import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.OriginalOrStarTreeQuery;
-import org.opensearch.search.startree.StarTreeQuery;
+import org.opensearch.search.startree.StarTreeFilter;
+import org.opensearch.search.startree.StarTreeQueryContext;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -42,6 +49,8 @@ import java.util.stream.Collectors;
  * @opensearch.experimental
  */
 public class StarTreeQueryHelper {
+
+    private static Map<LeafReaderContext, StarTreeValues> starTreeValuesMap = new HashMap<>();
 
     /**
      * Checks if the search context can be supported by star-tree
@@ -64,7 +73,12 @@ public class StarTreeQueryHelper {
      * Gets a parsed OriginalOrStarTreeQuery from the search context and source builder.
      * Returns null if the query cannot be supported.
      */
-    public static OriginalOrStarTreeQuery getOriginalOrStarTreeQuery(SearchContext context, SearchSourceBuilder source) throws IOException {
+
+    /**
+     * Gets a parsed OriginalOrStarTreeQuery from the search context and source builder.
+     * Returns null if the query cannot be supported.
+     */
+    public static StarTreeQueryContext getStarTreeQueryContext(SearchContext context, SearchSourceBuilder source) throws IOException {
         // Current implementation assumes only single star-tree is supported
         CompositeDataCubeFieldType compositeMappedFieldType = (StarTreeMapper.StarTreeFieldType) context.mapperService()
             .getCompositeFieldTypes()
@@ -75,8 +89,12 @@ public class StarTreeQueryHelper {
             compositeMappedFieldType.getCompositeIndexType()
         );
 
-        StarTreeQuery starTreeQuery = StarTreeQueryHelper.toStarTreeQuery(starTree, compositeMappedFieldType, source.query());
-        if (starTreeQuery == null) {
+        StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.toStarTreeQueryContext(
+            starTree,
+            compositeMappedFieldType,
+            source.query()
+        );
+        if (starTreeQueryContext == null) {
             return null;
         }
 
@@ -86,10 +104,10 @@ public class StarTreeQueryHelper {
             }
         }
 
-        return new OriginalOrStarTreeQuery(starTreeQuery, context.query());
+        return starTreeQueryContext;
     }
 
-    private static StarTreeQuery toStarTreeQuery(
+    private static StarTreeQueryContext toStarTreeQueryContext(
         CompositeIndexFieldInfo starTree,
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         QueryBuilder queryBuilder
@@ -110,7 +128,7 @@ public class StarTreeQueryHelper {
             return null;
         }
 
-        return new StarTreeQuery(starTree, queryMap);
+        return new StarTreeQueryContext(starTree, queryMap);
     }
 
     /**
@@ -151,18 +169,56 @@ public class StarTreeQueryHelper {
     }
 
     public static CompositeIndexFieldInfo getSupportedStarTree(SearchContext context) {
-        if (context.query() instanceof StarTreeQuery) {
-            return ((StarTreeQuery) context.query()).getStarTree();
-        }
-        return null;
+        StarTreeQueryContext starTreeQueryContext = context.getStarTreeQueryContext();
+        return (starTreeQueryContext != null) ? starTreeQueryContext.getStarTree() : null;
     }
 
-    public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
+    public static StarTreeValues computeStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
         if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {
             return null;
         }
         CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
         return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
+    }
+
+    public static LeafBucketCollector getStarTreeLeafCollector(
+        SearchContext context,
+        ValuesSource.Numeric valuesSource,
+        LeafReaderContext ctx,
+        LeafBucketCollector sub,
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        Consumer<Long> valueConsumer,
+        Runnable finalConsumer
+    ) throws IOException {
+        StarTreeValues starTreeValues = context.getStarTreeValues(ctx, starTree);
+        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
+        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
+
+        assert starTreeValues != null;
+        SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
+            metricName
+        );
+        StarTreeFilter filter = new StarTreeFilter(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
+        StarTreeValuesIterator result = filter.getStarTreeResult();
+
+        int entryId;
+        while ((entryId = result.nextEntry()) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
+            if (valuesIterator.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                int count = valuesIterator.valuesCount();
+                for (int i = 0; i < count; i++) {
+                    long value = valuesIterator.nextValue();
+                    valueConsumer.accept(value); // Apply the operation (max, sum, etc.)
+                }
+            }
+        }
+        finalConsumer.run();
+        return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
+            @Override
+            public void collect(int doc, long bucket) {
+                throw new CollectionTerminatedException();
+            }
+        };
     }
 }

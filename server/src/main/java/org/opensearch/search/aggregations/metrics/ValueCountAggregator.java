@@ -39,8 +39,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -54,7 +53,6 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
@@ -98,7 +96,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
             CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
             if (supportedStarTree != null) {
-                return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
+                return getStarTreeCollector(ctx, sub, supportedStarTree);
             }
 
             final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
@@ -140,28 +138,18 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         };
     }
 
-    private LeafBucketCollector getStarTreeLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
+    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
-        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
-        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-            starTree.getField(),
-            fieldName,
-            MetricStat.VALUE_COUNT.getTypeName()
+        return StarTreeQueryHelper.getStarTreeLeafCollector(
+            context,
+            (ValuesSource.Numeric) valuesSource,
+            ctx,
+            sub,
+            starTree,
+            MetricStat.VALUE_COUNT.getTypeName(),
+            value -> counts.increment(0, value),
+            () -> {}
         );
-        assert starTreeValues != null;
-        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
-        final BigArrays bigArrays = context.bigArrays();
-
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
-                if (values.advanceExact(doc)) {
-                    counts.increment(bucket, values.nextValue());
-                }
-            }
-        };
     }
 
     @Override
