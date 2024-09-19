@@ -34,6 +34,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.FieldValueConverter;
@@ -193,7 +194,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                         metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
                     }
                     metricReader = new SequentialDocValuesIterator(
-                        fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
+                        new SortedNumericStarTreeValuesIterator(
+                            fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
+                        )
                     );
                 }
                 metricReaders.add(metricReader);
@@ -228,7 +231,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC);
             }
             dimensionReaders[i] = new SequentialDocValuesIterator(
-                fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
+                new SortedNumericStarTreeValuesIterator(fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo))
             );
         }
         Iterator<StarTreeDocument> starTreeDocumentIterator = sortAndAggregateSegmentDocuments(dimensionReaders, metricReaders);
@@ -287,7 +290,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
     }
 
-    private void serializeStarTree(int numSegmentStarTreeDocument, int numStarTreeDocs) throws IOException {
+    private void serializeStarTree(int numSegmentStarTreeDocuments, int numStarTreeDocs) throws IOException {
         // serialize the star tree data
         long dataFilePointer = dataOut.getFilePointer();
         StarTreeWriter starTreeWriter = new StarTreeWriter();
@@ -299,7 +302,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             starTreeField,
             metricAggregatorInfos,
             numStarTreeNodes,
-            numSegmentStarTreeDocument,
+            numSegmentStarTreeDocuments,
             numStarTreeDocs,
             dataFilePointer,
             totalStarTreeDataLength
@@ -400,22 +403,20 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     ) throws IOException {
         Long[] dims = new Long[numDimensions];
         int i = 0;
-        for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
-            dimensionDocValueIterator.nextDoc(currentDocId);
-            Long val = dimensionDocValueIterator.value(currentDocId);
+        for (SequentialDocValuesIterator dimensionValueIterator : dimensionReaders) {
+            dimensionValueIterator.nextEntry(currentDocId);
+            Long val = dimensionValueIterator.value(currentDocId);
             dims[i] = val;
             i++;
         }
         i = 0;
         Object[] metrics = new Object[metricReaders.size()];
-        for (SequentialDocValuesIterator metricDocValuesIterator : metricReaders) {
-            metricDocValuesIterator.nextDoc(currentDocId);
+        for (SequentialDocValuesIterator metricValuesIterator : metricReaders) {
+            metricValuesIterator.nextEntry(currentDocId);
             // As part of merge, we traverse the star tree doc values
             // The type of data stored in metric fields is different from the
             // actual indexing field they're based on
-            metrics[i] = metricAggregatorInfos.get(i)
-                .getValueAggregators()
-                .toAggregatedValueType(metricDocValuesIterator.value(currentDocId));
+            metrics[i] = metricAggregatorInfos.get(i).getValueAggregators().toAggregatedValueType(metricValuesIterator.value(currentDocId));
             i++;
         }
         return new StarTreeDocument(dims, metrics);
@@ -502,7 +503,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         for (int i = 0; i < numDimensions; i++) {
             if (dimensionReaders[i] != null) {
                 try {
-                    dimensionReaders[i].nextDoc(currentDocId);
+                    dimensionReaders[i].nextEntry(currentDocId);
                 } catch (IOException e) {
                     logger.error("unable to iterate to next doc", e);
                     throw new RuntimeException("unable to iterate to next doc", e);
@@ -530,7 +531,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             SequentialDocValuesIterator metricStatReader = metricsReaders.get(i);
             if (metricStatReader != null) {
                 try {
-                    metricStatReader.nextDoc(currentDocId);
+                    metricStatReader.nextEntry(currentDocId);
                 } catch (IOException e) {
                     logger.error("unable to iterate to next doc", e);
                     throw new RuntimeException("unable to iterate to next doc", e);
@@ -672,7 +673,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         SequentialDocValuesIterator sequentialDocValuesIterator;
         assert fieldProducerMap.containsKey(fieldInfo.name);
         sequentialDocValuesIterator = new SequentialDocValuesIterator(
-            DocValues.singleton(fieldProducerMap.get(fieldInfo.name).getNumeric(fieldInfo))
+            new SortedNumericStarTreeValuesIterator(DocValues.singleton(fieldProducerMap.get(fieldInfo.name).getNumeric(fieldInfo)))
         );
         return sequentialDocValuesIterator;
     }
