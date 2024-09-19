@@ -42,6 +42,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
@@ -344,6 +345,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             .stream()
             .filter(type::isInstance)
             .map(type::cast)
+            .filter(t -> ((QueryGroupTask) t).getQueryGroupId().equals(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get()))
             .collect(Collectors.toUnmodifiableList());
     }
 

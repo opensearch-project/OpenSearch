@@ -251,7 +251,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         };
         mockQueryGroupStateMap = new HashMap<>();
         QueryGroupState queryGroupState = new QueryGroupState();
-        queryGroupState.getResourceState().get(ResourceType.CPU).setLastRecordedUsage(0.08);
+        queryGroupState.getResourceState().get(ResourceType.CPU).setLastRecordedUsage(0.05);
 
         mockQueryGroupStateMap.put("queryGroupId1", queryGroupState);
 
@@ -265,6 +265,8 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             activeQueryGroups,
             new HashSet<>()
         );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        when(mockWorkloadManagementSettings.getNodeLevelCpuRejectionThreshold()).thenReturn(0.8);
         queryGroupService.rejectIfNeeded("queryGroupId1");
 
         // verify the check to compare the current usage and limit
@@ -308,6 +310,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             activeQueryGroups,
             new HashSet<>()
         );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         assertThrows(OpenSearchRejectedExecutionException.class, () -> queryGroupService.rejectIfNeeded("queryGroupId1"));
 
         // verify the check to compare the current usage and limit
@@ -320,6 +323,39 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
                 .get(ResourceType.MEMORY).rejections.count()
         );
         assertEquals(1, queryGroupState.totalRejections.count());
+    }
+
+    public void testRejectIfNeeded_whenFeatureIsNotEnabled() {
+        QueryGroup testQueryGroup = new QueryGroup(
+            "testQueryGroup",
+            "queryGroupId1",
+            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.10)),
+            1L
+        );
+        Set<QueryGroup> activeQueryGroups = new HashSet<>() {
+            {
+                add(testQueryGroup);
+            }
+        };
+        mockQueryGroupStateMap = new HashMap<>();
+        mockQueryGroupStateMap.put("queryGroupId1", new QueryGroupState());
+
+        Map<String, QueryGroupState> spyMap = spy(mockQueryGroupStateMap);
+
+        queryGroupService = new QueryGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            spyMap,
+            activeQueryGroups,
+            new HashSet<>()
+        );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
+
+        queryGroupService.rejectIfNeeded(testQueryGroup.get_id());
+        verify(spyMap, never()).get(any());
     }
 
     public void testOnTaskCompleted() {

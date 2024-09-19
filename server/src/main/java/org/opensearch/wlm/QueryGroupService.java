@@ -227,6 +227,10 @@ public class QueryGroupService extends AbstractLifecycleComponent
      * @param queryGroupId query group identifier
      */
     public void rejectIfNeeded(String queryGroupId) {
+        if (workloadManagementSettings.getWlmMode() != WlmMode.ENABLED) {
+            return;
+        }
+
         if (queryGroupId == null || queryGroupId.equals(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get())) return;
         QueryGroupState queryGroupState = queryGroupStateMap.get(queryGroupId);
 
@@ -247,7 +251,10 @@ public class QueryGroupService extends AbstractLifecycleComponent
             final StringBuilder reason = new StringBuilder();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 if (queryGroup.getResourceLimits().containsKey(resourceType)) {
-                    final double threshold = queryGroup.getResourceLimits().get(resourceType);
+                    final double threshold = getNormalisedRejectionThreshold(
+                        queryGroup.getResourceLimits().get(resourceType),
+                        resourceType
+                    );
                     final double lastRecordedUsage = queryGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
                     if (threshold < lastRecordedUsage) {
                         reject = true;
@@ -270,6 +277,15 @@ public class QueryGroupService extends AbstractLifecycleComponent
                 );
             }
         });
+    }
+
+    private double getNormalisedRejectionThreshold(double limit, ResourceType resourceType) {
+        if (resourceType == ResourceType.CPU) {
+            return limit * workloadManagementSettings.getNodeLevelCpuRejectionThreshold();
+        } else if (resourceType == ResourceType.MEMORY) {
+            return limit * workloadManagementSettings.getNodeLevelMemoryRejectionThreshold();
+        }
+        throw new IllegalArgumentException(resourceType + " is not supported in WLM yet");
     }
 
     public Set<QueryGroup> getActiveQueryGroups() {

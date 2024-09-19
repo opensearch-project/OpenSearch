@@ -1030,10 +1030,10 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
-            QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
+            final QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
                 taskResourceTrackingService
             );
-            WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(
+            final WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(
                 settings,
                 settingsModule.getClusterSettings()
             );
