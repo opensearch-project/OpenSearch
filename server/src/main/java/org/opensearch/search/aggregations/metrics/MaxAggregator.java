@@ -34,7 +34,6 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
@@ -44,8 +43,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
@@ -61,9 +59,9 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
@@ -132,7 +130,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
-            return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
+            System.out.println("max star tree");
+            return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
     }
@@ -162,37 +161,21 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         };
     }
 
-    private LeafBucketCollector getStarTreeLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
+    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
-        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
-        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-            starTree.getField(),
-            fieldName,
-            MetricStat.MAX.getTypeName()
+        AtomicReference<Double> max = new AtomicReference<>(Double.NEGATIVE_INFINITY);
+        return StarTreeQueryHelper.getStarTreeLeafCollector(
+            context,
+            valuesSource,
+            ctx,
+            sub,
+            starTree,
+            MetricStat.SUM.getTypeName(),
+            value -> {
+                max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
+            },
+            () -> maxes.set(0, max.get())
         );
-        assert starTreeValues != null;
-        SortedNumericDocValues values = (SortedNumericDocValues) starTreeValues.getMetricDocIdSetIterator(metricName);
-
-        final BigArrays bigArrays = context.bigArrays();
-        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
-        return new LeafBucketCollectorBase(sub, allValues) {
-
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= maxes.size()) {
-                    long from = maxes.size();
-                    maxes = bigArrays.grow(maxes, bucket + 1);
-                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
-                }
-                if (values.advanceExact(doc)) {
-                    final double value = NumericUtils.sortableLongToDouble(values.nextValue());
-                    double max = maxes.get(bucket);
-                    max = Math.max(max, value);
-                    maxes.set(bucket, max);
-                }
-            }
-        };
     }
 
     @Override
