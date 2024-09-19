@@ -214,6 +214,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         // Old format metadata file
         String oldFormatMdFilename = "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__1";
         assertNull(TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(oldFormatMdFilename));
+        assertEquals(Long.MAX_VALUE - 9223372036854774799L, TranslogTransferMetadata.getMaxGenerationFromFileName(oldFormatMdFilename));
 
         // Node id containing separator
         String nodeIdWithSeparator =
@@ -221,10 +222,14 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         Tuple<Long, Long> minMaxGen = TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(nodeIdWithSeparator);
         Long minGen = Long.MAX_VALUE - 9223372036438563958L;
         assertEquals(minGen, minMaxGen.v1());
+        Long maxGen = Long.MAX_VALUE - 9223372036854774799L;
+        assertEquals(maxGen, minMaxGen.v2());
+        assertEquals(Long.MAX_VALUE - 9223372036854774799L, TranslogTransferMetadata.getMaxGenerationFromFileName(nodeIdWithSeparator));
 
         // Malformed md filename
         String malformedMdFileName = "metadata__9223372036438563903__9223372036854774799__9223370311919910393__node1__xyz__3__1";
         assertNull(TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(malformedMdFileName));
+        assertEquals(Long.MAX_VALUE - 9223372036854774799L, TranslogTransferMetadata.getMaxGenerationFromFileName(malformedMdFileName));
     }
 
     public void testGetMinMaxPrimaryTermFromFilename() throws Exception {
@@ -778,7 +783,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnAgeAndPinning() throws IOException {
         long currentTimeInMillis = System.currentTimeMillis();
-        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 100000);
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
         String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
         String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
 
@@ -803,6 +808,68 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         );
         assertEquals(1, metadataFilesToBeDeleted.size());
         assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(0));
+    }
+
+    public void testGetMetadataFilesToBeDeletedExclusionBasedOnGenerationOnly() throws IOException {
+        long currentTimeInMillis = System.currentTimeMillis();
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
+        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
+        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
+
+        when(blobContainer.listBlobs()).thenReturn(Map.of());
+
+        updatePinnedTimstampTask.run();
+
+        List<String> metadataFiles = List.of(
+            // MaxGen 7
+            "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
+            // MaxGen 12
+            "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
+            // MaxGen 10
+            "metadata__9223372036438563903__9223372036854775797__" + md3Timestamp + "__31__9223372036854775701__1"
+        );
+
+        List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
+            metadataFiles,
+            new HashMap<>(),
+            10L,
+            Map.of(),
+            false,
+            logger
+        );
+        assertEquals(2, metadataFilesToBeDeleted.size());
+        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
+        assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(1));
+    }
+
+    public void testGetMetadataFilesToBeDeletedExclusionBasedOnGenerationDeleteIndex() throws IOException {
+        long currentTimeInMillis = System.currentTimeMillis();
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
+        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
+        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
+
+        when(blobContainer.listBlobs()).thenReturn(Map.of());
+
+        updatePinnedTimstampTask.run();
+
+        List<String> metadataFiles = List.of(
+            // MaxGen 7
+            "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
+            // MaxGen 12
+            "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
+            // MaxGen 17
+            "metadata__9223372036438563903__9223372036854775790__" + md3Timestamp + "__31__9223372036854775701__1"
+        );
+
+        List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
+            metadataFiles,
+            new HashMap<>(),
+            10L,
+            Map.of(),
+            true,
+            logger
+        );
+        assertEquals(metadataFiles, metadataFilesToBeDeleted);
     }
 
     public void testIsGenerationPinned() {
