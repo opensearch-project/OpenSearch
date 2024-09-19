@@ -54,7 +54,7 @@ public class StarTreeTestUtils {
 
             for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
                 String dimension = dimensionsSplitOrder.get(i).getField();
-                dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(dimension));
+                dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionValuesIterator(dimension));
             }
 
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
@@ -69,7 +69,7 @@ public class StarTreeTestUtils {
                         metric.getField(),
                         metricStat.getTypeName()
                     );
-                    metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricDocIdSetIterator(metricFullName)));
+                    metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricValuesIterator(metricFullName)));
 
                 }
             }
@@ -92,7 +92,7 @@ public class StarTreeTestUtils {
         Long[] dims = new Long[dimensionReaders.length];
         int i = 0;
         for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
-            dimensionDocValueIterator.nextDoc(currentDocId);
+            dimensionDocValueIterator.nextEntry(currentDocId);
             Long val = dimensionDocValueIterator.value(currentDocId);
             dims[i] = val;
             i++;
@@ -100,7 +100,7 @@ public class StarTreeTestUtils {
         i = 0;
         Object[] metrics = new Object[metricReaders.size()];
         for (SequentialDocValuesIterator metricDocValuesIterator : metricReaders) {
-            metricDocValuesIterator.nextDoc(currentDocId);
+            metricDocValuesIterator.nextEntry(currentDocId);
             metrics[i] = toAggregatorValueType(metricDocValuesIterator.value(currentDocId), fieldValueConverters.get(i));
             i++;
         }
