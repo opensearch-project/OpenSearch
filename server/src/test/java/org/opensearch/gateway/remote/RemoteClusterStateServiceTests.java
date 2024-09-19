@@ -3232,6 +3232,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             anyString(),
             anyBoolean()
         );
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationEnabled() throws IOException {
@@ -3264,6 +3265,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
         verify(mockService, times(1)).validateClusterStateFromChecksum(manifest, clusterState, ClusterName.DEFAULT.value(), NODE_ID, true);
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationModeNone() throws IOException {
@@ -3296,6 +3298,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
         verify(mockService, times(0)).validateClusterStateFromChecksum(any(), any(), anyString(), anyString(), anyBoolean());
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationEnabledWithMismatch() throws IOException {
@@ -3338,6 +3341,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             NODE_ID,
             true
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationDebugWithMismatch() throws IOException {
@@ -3384,6 +3388,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             NODE_ID,
             true
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksum() throws IOException {
@@ -3425,6 +3430,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumModeNone() throws IOException {
@@ -3466,6 +3472,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumModeDebugMismatch() throws IOException {
@@ -3506,6 +3513,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumModeTraceMismatch() throws IOException {
@@ -3567,6 +3575,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumMismatch() throws IOException {
@@ -3628,6 +3637,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
