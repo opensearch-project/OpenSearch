@@ -12,7 +12,6 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
@@ -25,6 +24,8 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfig
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,14 +60,14 @@ public class StarTreeValues implements CompositeIndexValues {
     private final StarTreeNode root;
 
     /**
-     * A map containing suppliers for DocIdSetIterators for dimensions.
+     * A map containing suppliers for StarTreeValues iterators for dimensions.
      */
-    private final Map<String, Supplier<DocIdSetIterator>> dimensionDocValuesIteratorMap;
+    private final Map<String, Supplier<StarTreeValuesIterator>> dimensionValuesIteratorMap;
 
     /**
-     * A map containing suppliers for DocIdSetIterators for metrics.
+     * A map containing suppliers for StarTreeValues iterators for metrics.
      */
-    private final Map<String, Supplier<DocIdSetIterator>> metricDocValuesIteratorMap;
+    private final Map<String, Supplier<StarTreeValuesIterator>> metricValuesIteratorMap;
 
     /**
      * A map containing attributes associated with the star tree values.
@@ -84,22 +85,22 @@ public class StarTreeValues implements CompositeIndexValues {
      *
      * @param starTreeField                 The StarTreeField object representing the star tree field configuration.
      * @param root                          The root node of the star tree.
-     * @param dimensionDocValuesIteratorMap A map containing suppliers for DocIdSetIterators for dimensions.
-     * @param metricDocValuesIteratorMap    A map containing suppliers for DocIdSetIterators for metrics.
+     * @param dimensionValuesIteratorMap A map containing suppliers for StarTreeValues iterators for dimensions.
+     * @param metricValuesIteratorMap    A map containing suppliers for StarTreeValues iterators for metrics.
      * @param attributes                    A map containing attributes associated with the star tree values.
      */
     public StarTreeValues(
         StarTreeField starTreeField,
         StarTreeNode root,
-        Map<String, Supplier<DocIdSetIterator>> dimensionDocValuesIteratorMap,
-        Map<String, Supplier<DocIdSetIterator>> metricDocValuesIteratorMap,
+        Map<String, Supplier<StarTreeValuesIterator>> dimensionValuesIteratorMap,
+        Map<String, Supplier<StarTreeValuesIterator>> metricValuesIteratorMap,
         Map<String, String> attributes,
         StarTreeMetadata compositeIndexMetadata
     ) {
         this.starTreeField = starTreeField;
         this.root = root;
-        this.dimensionDocValuesIteratorMap = dimensionDocValuesIteratorMap;
-        this.metricDocValuesIteratorMap = metricDocValuesIteratorMap;
+        this.dimensionValuesIteratorMap = dimensionValuesIteratorMap;
+        this.metricValuesIteratorMap = metricValuesIteratorMap;
         this.attributes = attributes;
         this.starTreeMetadata = compositeIndexMetadata;
     }
@@ -146,12 +147,12 @@ public class StarTreeValues implements CompositeIndexValues {
         this.root = StarTreeFactory.createStarTree(compositeIndexDataIn, starTreeMetadata);
 
         // get doc id set iterators for metrics and dimensions
-        dimensionDocValuesIteratorMap = new LinkedHashMap<>();
-        metricDocValuesIteratorMap = new LinkedHashMap<>();
+        dimensionValuesIteratorMap = new LinkedHashMap<>();
+        metricValuesIteratorMap = new LinkedHashMap<>();
 
         // get doc id set iterators for dimensions
         for (String dimension : starTreeMetadata.getDimensionFields()) {
-            dimensionDocValuesIteratorMap.put(dimension, () -> {
+            dimensionValuesIteratorMap.put(dimension, () -> {
                 try {
                     SortedNumericDocValues dimensionSortedNumericDocValues = null;
                     if (readState != null) {
@@ -162,9 +163,9 @@ public class StarTreeValues implements CompositeIndexValues {
                             dimensionSortedNumericDocValues = compositeDocValuesProducer.getSortedNumeric(dimensionfieldInfo);
                         }
                     }
-                    return getSortedNumericDocValues(dimensionSortedNumericDocValues);
+                    return new SortedNumericStarTreeValuesIterator(getSortedNumericDocValues(dimensionSortedNumericDocValues));
                 } catch (IOException e) {
-                    throw new RuntimeException("Error loading dimension DocIdSetIterator", e);
+                    throw new RuntimeException("Error loading dimension StarTreeValuesIterator", e);
                 }
             });
         }
@@ -177,7 +178,7 @@ public class StarTreeValues implements CompositeIndexValues {
                     metric.getField(),
                     metricStat.getTypeName()
                 );
-                metricDocValuesIteratorMap.put(metricFullName, () -> {
+                metricValuesIteratorMap.put(metricFullName, () -> {
                     try {
                         SortedNumericDocValues metricSortedNumericDocValues = null;
                         if (readState != null) {
@@ -186,7 +187,7 @@ public class StarTreeValues implements CompositeIndexValues {
                                 metricSortedNumericDocValues = compositeDocValuesProducer.getSortedNumeric(metricFieldInfo);
                             }
                         }
-                        return getSortedNumericDocValues(metricSortedNumericDocValues);
+                        return new SortedNumericStarTreeValuesIterator(getSortedNumericDocValues(metricSortedNumericDocValues));
                     } catch (IOException e) {
                         throw new RuntimeException("Error loading metric DocIdSetIterator", e);
                     }
@@ -239,30 +240,30 @@ public class StarTreeValues implements CompositeIndexValues {
     }
 
     /**
-     * Returns the DocIdSetIterator for the specified dimension.
+     * Returns the StarTreeValues iterator for the specified dimension.
      *
      * @param dimension The name of the dimension.
-     * @return The DocIdSetIterator for the specified dimension.
+     * @return The StarTreeValuesIterator for the specified dimension.
      */
-    public DocIdSetIterator getDimensionDocIdSetIterator(String dimension) {
+    public StarTreeValuesIterator getDimensionValuesIterator(String dimension) {
 
-        if (dimensionDocValuesIteratorMap.containsKey(dimension)) {
-            return dimensionDocValuesIteratorMap.get(dimension).get();
+        if (dimensionValuesIteratorMap.containsKey(dimension)) {
+            return dimensionValuesIteratorMap.get(dimension).get();
         }
 
         throw new IllegalArgumentException("dimension [" + dimension + "] does not exist in the segment.");
     }
 
     /**
-     * Returns the DocIdSetIterator for the specified fully qualified metric name.
+     * Returns the StarTreeValues iterator for the specified fully qualified metric name.
      *
      * @param fullyQualifiedMetricName The fully qualified name of the metric.
-     * @return The DocIdSetIterator for the specified fully qualified metric name.
+     * @return The StarTreeValuesIterator for the specified fully qualified metric name.
      */
-    public DocIdSetIterator getMetricDocIdSetIterator(String fullyQualifiedMetricName) {
+    public StarTreeValuesIterator getMetricValuesIterator(String fullyQualifiedMetricName) {
 
-        if (metricDocValuesIteratorMap.containsKey(fullyQualifiedMetricName)) {
-            return metricDocValuesIteratorMap.get(fullyQualifiedMetricName).get();
+        if (metricValuesIteratorMap.containsKey(fullyQualifiedMetricName)) {
+            return metricValuesIteratorMap.get(fullyQualifiedMetricName).get();
         }
 
         throw new IllegalArgumentException("metric [" + fullyQualifiedMetricName + "] does not exist in the segment.");
