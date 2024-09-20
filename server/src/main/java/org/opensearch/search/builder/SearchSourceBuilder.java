@@ -275,7 +275,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
         profile = in.readBoolean();
-        searchPipeline = in.readOptionalString();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
@@ -299,6 +298,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (in.readBoolean()) {
                 derivedFields = in.readList(DerivedField::new);
             }
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            searchPipeline = in.readOptionalString();
         }
     }
 
@@ -350,7 +352,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
         out.writeBoolean(profile);
-        out.writeOptionalString(searchPipeline);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
@@ -380,6 +381,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (hasDerivedFields) {
                 out.writeList(derivedFields);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalString(searchPipeline);
         }
     }
 
