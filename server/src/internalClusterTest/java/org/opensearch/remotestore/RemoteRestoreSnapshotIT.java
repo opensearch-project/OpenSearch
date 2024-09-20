@@ -1062,7 +1062,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
         thread.join();
     }
-    
+
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());

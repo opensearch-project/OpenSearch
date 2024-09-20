@@ -823,7 +823,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "] to generation ["
                         + metadata.generation()
                         + "]";
-                logger.debug("Updated repository generation from [{}] to [{}]", previousBest, metadata.generation());
+                logger.info("Updated repository generation from [{}] to [{}]", previousBest, metadata.generation());
             }
         }
     }
@@ -2932,6 +2932,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
+        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
+        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
         if (bestEffortConsistency == false && cached != null && cached.v1() == latestKnownRepoGen.get()) {

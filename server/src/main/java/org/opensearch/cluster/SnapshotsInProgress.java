@@ -231,9 +231,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             source,
             Map.of(),
             remoteStoreIndexShallowCopyV2,
-            remoteStoreIndexShallowCopyV2// initialising to false, will be updated in startCloning method of SnapshotsService while updating
-                                         // entry with
-            // clone jobs
+            remoteStoreIndexShallowCopyV2// initialising to false, will be updated in startCloning method of SnapshotsService
+            // while updating entry with clone jobs
         );
     }
 
