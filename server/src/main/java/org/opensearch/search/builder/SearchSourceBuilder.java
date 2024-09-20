@@ -299,7 +299,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 derivedFields = in.readList(DerivedField::new);
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             searchPipeline = in.readOptionalString();
         }
     }
@@ -382,7 +382,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeList(derivedFields);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalString(searchPipeline);
         }
     }
@@ -1239,6 +1239,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.derivedFieldsObject = derivedFieldsObject;
         rewrittenBuilder.derivedFields = derivedFields;
+        rewrittenBuilder.searchPipeline = searchPipeline;
         return rewrittenBuilder;
     }
 
@@ -1637,6 +1638,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         }
 
+        if (searchPipeline != null) {
+            builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipeline);
+        }
+
         return builder;
     }
 
@@ -1914,7 +1919,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             trackTotalHitsUpTo,
             pointInTimeBuilder,
             derivedFieldsObject,
-            derivedFields
+            derivedFields,
+            searchPipeline
         );
     }
 
@@ -1959,7 +1965,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(derivedFieldsObject, other.derivedFieldsObject)
-            && Objects.equals(derivedFields, other.derivedFields);
+            && Objects.equals(derivedFields, other.derivedFields)
+            && Objects.equals(searchPipeline, other.searchPipeline);
     }
 
     @Override

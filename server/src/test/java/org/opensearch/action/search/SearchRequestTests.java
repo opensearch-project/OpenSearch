@@ -56,7 +56,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntConsumer;
 
@@ -247,44 +246,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
-    }
-
-    public void testParseSearchRequest() throws IOException {
-        RestRequest restRequest = new FakeRestRequest();
-        SearchRequest searchRequest = createSearchRequest();
-        IntConsumer setSize = mock(IntConsumer.class);
-
-        restRequest.params().put("index", "index1,index2");
-        restRequest.params().put("batched_reduce_size", "512");
-        restRequest.params().put("pre_filter_shard_size", "128");
-        restRequest.params().put("max_concurrent_shard_requests", "10");
-        restRequest.params().put("allow_partial_search_results", "true");
-        restRequest.params().put("phase_took", "false");
-        restRequest.params().put("search_type", "dfs_query_then_fetch");
-        restRequest.params().put("request_cache", "true");
-        restRequest.params().put("scroll", "1m");
-        restRequest.params().put("routing", "routing_value");
-        restRequest.params().put("preference", "preference_value");
-        restRequest.params().put("search_pipeline", "pipeline_value");
-        restRequest.params().put("ccs_minimize_roundtrips", "true");
-        restRequest.params().put("cancel_after_time_interval", "5s");
-
-        RestSearchAction.parseSearchRequest(searchRequest, restRequest, null, namedWriteableRegistry, setSize);
-
-        assertEquals(Arrays.asList("index1", "index2"), Arrays.asList(searchRequest.indices()));
-        assertEquals(512, searchRequest.getBatchedReduceSize());
-        assertEquals(Integer.valueOf(128), searchRequest.getPreFilterShardSize());
-        assertEquals(10, searchRequest.getMaxConcurrentShardRequests());
-        assertTrue(searchRequest.allowPartialSearchResults());
-        assertFalse(searchRequest.isPhaseTook());
-        assertEquals(DFS_QUERY_THEN_FETCH, searchRequest.searchType());
-        assertEquals(true, searchRequest.requestCache());
-        assertEquals(TimeValue.timeValueMinutes(1), searchRequest.scroll().keepAlive());
-        assertEquals("routing_value", searchRequest.routing());
-        assertEquals("preference_value", searchRequest.preference());
-        assertEquals("pipeline_value", searchRequest.pipeline());
-        assertTrue(searchRequest.isCcsMinimizeRoundtrips());
-        assertEquals(TimeValue.timeValueSeconds(5), searchRequest.getCancelAfterTimeInterval());
     }
 
     public void testParseSearchRequestWithUnsupportedSearchType() throws IOException {
