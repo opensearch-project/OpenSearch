@@ -103,8 +103,8 @@
 ---
 "Test setting search backpressure cancellation settings":
   - skip:
-      version: "- 2.99.99"
-      reason: "Fixed in 3.0.0"
+      version: "- 2.17.99"
+      reason: "Fixed in 2.18.0"
 
   - do:
       cluster.put_settings:
@@ -181,8 +181,8 @@
 ---
 "Test setting invalid search backpressure cancellation_rate and cancellation_ratio":
   - skip:
-      version: "- 2.99.99"
-      reason: "Fixed in 3.0.0"
+      version: "- 2.17.99"
+      reason: "Fixed in 2.18.0"
 
   - do:
       catch: /search_backpressure.search_task.cancellation_rate must be > 0/
