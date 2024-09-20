@@ -27,7 +27,7 @@ import java.util.List;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 
-public class IndexBasedPaginationStrategyTests extends OpenSearchTestCase {
+public class IndexPaginationStrategyTests extends OpenSearchTestCase {
 
     public void testRetrieveAllIndicesInAscendingOrder() {
         List<Integer> indexNumberList = new ArrayList<>();
@@ -46,21 +46,21 @@ public class IndexBasedPaginationStrategyTests extends OpenSearchTestCase {
             String requestedToken = null;
             int totalPagesToFetch = (int) Math.ceil(totalIndices / (pageSize * 1.0));
             for (int pageNumber = 1; pageNumber <= totalPagesToFetch; pageNumber++) {
-                PaginatedQueryRequest paginatedQueryRequest = new PaginatedQueryRequest(requestedToken, "ascending", pageSize);
-                IndexBasedPaginationStrategy paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
+                PageParams pageParams = new PageParams(requestedToken, "asc", pageSize);
+                IndexPaginationStrategy paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
                 if (pageNumber < totalPagesToFetch) {
-                    assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+                    assertNotNull(paginationStrategy.getResponseToken().getNextToken());
                 } else {
-                    assertNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+                    assertNull(paginationStrategy.getResponseToken().getNextToken());
                 }
-                requestedToken = paginationStrategy.getPaginatedQueryResponse().getNextToken();
+                requestedToken = paginationStrategy.getResponseToken().getNextToken();
                 // Asserting all the indices received
                 int responseItr = 0;
                 for (int indexNumber = (pageNumber - 1) * pageSize; indexNumber < Math.min(100, pageNumber * pageSize); indexNumber++) {
-                    assertEquals("test-index-" + (indexNumber + 1), paginationStrategy.getElementsFromRequestedToken().get(responseItr));
+                    assertEquals("test-index-" + (indexNumber + 1), paginationStrategy.getRequestedEntities().get(responseItr));
                     responseItr++;
                 }
-                assertEquals(responseItr, paginationStrategy.getElementsFromRequestedToken().size());
+                assertEquals(responseItr, paginationStrategy.getRequestedEntities().size());
             }
         }
     }
@@ -83,22 +83,22 @@ public class IndexBasedPaginationStrategyTests extends OpenSearchTestCase {
             int totalPagesToFetch = (int) Math.ceil(totalIndices / (pageSize * 1.0));
             int startIndexNumber = totalIndices;
             for (int pageNumber = 1; pageNumber <= totalPagesToFetch; pageNumber++) {
-                PaginatedQueryRequest paginatedQueryRequest = new PaginatedQueryRequest(requestedToken, "descending", pageSize);
-                IndexBasedPaginationStrategy paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
+                PageParams pageParams = new PageParams(requestedToken, "desc", pageSize);
+                IndexPaginationStrategy paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
                 if (pageNumber < totalPagesToFetch) {
-                    assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+                    assertNotNull(paginationStrategy.getResponseToken().getNextToken());
                 } else {
-                    assertNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+                    assertNull(paginationStrategy.getResponseToken().getNextToken());
                 }
-                requestedToken = paginationStrategy.getPaginatedQueryResponse().getNextToken();
+                requestedToken = paginationStrategy.getResponseToken().getNextToken();
                 // Asserting all the indices received
                 int responseItr = 0;
                 int endIndexNumberForPage = Math.max(startIndexNumber - pageSize, 0);
                 for (; startIndexNumber > endIndexNumberForPage; startIndexNumber--) {
-                    assertEquals("test-index-" + startIndexNumber, paginationStrategy.getElementsFromRequestedToken().get(responseItr));
+                    assertEquals("test-index-" + startIndexNumber, paginationStrategy.getRequestedEntities().get(responseItr));
                     responseItr++;
                 }
-                assertEquals(responseItr, paginationStrategy.getElementsFromRequestedToken().size());
+                assertEquals(responseItr, paginationStrategy.getRequestedEntities().size());
             }
         }
     }
@@ -106,108 +106,108 @@ public class IndexBasedPaginationStrategyTests extends OpenSearchTestCase {
     public void testRetrieveAllIndicesWhenIndicesGetDeletedAndCreatedInBetween() {
         // Query1 with 4 indices in clusterState (test-index1,2,3,4)
         ClusterState clusterState = getRandomClusterState(List.of(1, 2, 3, 4));
-        PaginatedQueryRequest paginatedQueryRequest = new PaginatedQueryRequest(null, "ascending", 1);
-        IndexBasedPaginationStrategy paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-1", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        PageParams pageParams = new PageParams(null, "asc", 1);
+        IndexPaginationStrategy paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-1", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // Adding index5 to clusterState, before executing next query.
         clusterState = addIndexToClusterState(clusterState, 5);
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "ascending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-2", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "asc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-2", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // Deleting test-index-2 which has already been displayed, still test-index-2 should get displayed
         clusterState = deleteIndexFromClusterState(clusterState, 2);
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "ascending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-3", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "asc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-3", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // Deleting test-index-4 which is not yet displayed which otherwise should have been displayed in the following query
         // instead test-index-5 should now get displayed.
         clusterState = deleteIndexFromClusterState(clusterState, 4);
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "ascending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-5", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "asc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-5", paginationStrategy.getRequestedEntities().get(0));
+        assertNull(paginationStrategy.getResponseToken().getNextToken());
     }
 
     public void testRetrieveAllIndicesWhenIndicesGetDeletedAndCreatedInBetweenWithDescOrder() {
         // Query1 with 4 indices in clusterState (test-index1,2,3,4).
         ClusterState clusterState = getRandomClusterState(List.of(1, 2, 3, 4));
-        PaginatedQueryRequest paginatedQueryRequest = new PaginatedQueryRequest(null, "descending", 1);
-        IndexBasedPaginationStrategy paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-4", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        PageParams pageParams = new PageParams(null, "desc", 1);
+        IndexPaginationStrategy paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-4", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // adding test-index-5 to clusterState, before executing next query.
         clusterState = addIndexToClusterState(clusterState, 5);
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "descending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-3", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "desc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-3", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // Deleting test-index-3 which has already been displayed, still index2 should get displayed.
         clusterState = deleteIndexFromClusterState(clusterState, 3);
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "descending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-2", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "desc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-2", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // Deleting test-index-1 which is not yet displayed which otherwise should have been displayed in the following query.
         clusterState = deleteIndexFromClusterState(clusterState, 1);
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "descending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(0, paginationStrategy.getElementsFromRequestedToken().size());
-        assertNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "desc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(0, paginationStrategy.getRequestedEntities().size());
+        assertNull(paginationStrategy.getResponseToken().getNextToken());
     }
 
     public void testRetrieveAllIndicesWhenMultipleIndicesGetDeletedInBetweenAtOnce() {
         // Query1 with 5 indices in clusterState (test-index1,2,3,4,5).
         ClusterState clusterState = getRandomClusterState(List.of(1, 2, 3, 4, 5));
-        PaginatedQueryRequest paginatedQueryRequest = new PaginatedQueryRequest(null, "ascending", 1);
-        IndexBasedPaginationStrategy paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-1", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        PageParams pageParams = new PageParams(null, "asc", 1);
+        IndexPaginationStrategy paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-1", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // executing next query without any changes to clusterState
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "ascending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-2", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "asc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-2", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // Deleting test-index-1, test-index-2 & test-index-3 and executing next query. test-index-4 should get displayed.
         clusterState = deleteIndexFromClusterState(clusterState, 1);
         clusterState = deleteIndexFromClusterState(clusterState, 2);
         clusterState = deleteIndexFromClusterState(clusterState, 3);
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "ascending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-4", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNotNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "asc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-4", paginationStrategy.getRequestedEntities().get(0));
+        assertNotNull(paginationStrategy.getResponseToken().getNextToken());
 
         // Executing the last query without any further change. Should result in test-index-5 and nextToken as null.
-        paginatedQueryRequest = new PaginatedQueryRequest(paginationStrategy.getPaginatedQueryResponse().getNextToken(), "ascending", 1);
-        paginationStrategy = new IndexBasedPaginationStrategy(paginatedQueryRequest, clusterState);
-        assertEquals(1, paginationStrategy.getElementsFromRequestedToken().size());
-        assertEquals("test-index-5", paginationStrategy.getElementsFromRequestedToken().get(0));
-        assertNull(paginationStrategy.getPaginatedQueryResponse().getNextToken());
+        pageParams = new PageParams(paginationStrategy.getResponseToken().getNextToken(), "asc", 1);
+        paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
+        assertEquals(1, paginationStrategy.getRequestedEntities().size());
+        assertEquals("test-index-5", paginationStrategy.getRequestedEntities().get(0));
+        assertNull(paginationStrategy.getResponseToken().getNextToken());
     }
 
     public void testCreatingIndexStrategyPageTokenWithRequestedTokenNull() {
         try {
-            new IndexBasedPaginationStrategy.IndexStrategyToken(null);
+            new IndexPaginationStrategy.IndexStrategyToken(null);
             fail("expected exception");
         } catch (Exception e) {
             assert e.getMessage().contains("requestedTokenString can not be null");
@@ -215,30 +215,30 @@ public class IndexBasedPaginationStrategyTests extends OpenSearchTestCase {
     }
 
     public void testIndexStrategyPageTokenWithWronglyEncryptedRequestToken() {
-        assertThrows(OpenSearchParseException.class, () -> new IndexBasedPaginationStrategy.IndexStrategyToken("3%4%5"));
+        assertThrows(OpenSearchParseException.class, () -> new IndexPaginationStrategy.IndexStrategyToken("3%4%5"));
     }
 
     public void testIndexStrategyPageTokenWithIncorrectNumberOfElementsInRequestedToken() {
         assertThrows(
             OpenSearchParseException.class,
-            () -> new IndexBasedPaginationStrategy.IndexStrategyToken(PaginationStrategy.encryptStringToken("1725361543"))
+            () -> new IndexPaginationStrategy.IndexStrategyToken(PaginationStrategy.encryptStringToken("1725361543"))
         );
         assertThrows(
             OpenSearchParseException.class,
-            () -> new IndexBasedPaginationStrategy.IndexStrategyToken(PaginationStrategy.encryptStringToken("1|1725361543|index|12345"))
+            () -> new IndexPaginationStrategy.IndexStrategyToken(PaginationStrategy.encryptStringToken("1|1725361543|index|12345"))
         );
     }
 
     public void testIndexStrategyPageTokenWithInvalidValuesInRequestedToken() {
         assertThrows(
             OpenSearchParseException.class,
-            () -> new IndexBasedPaginationStrategy.IndexStrategyToken(PaginationStrategy.encryptStringToken("-1725361543|index"))
+            () -> new IndexPaginationStrategy.IndexStrategyToken(PaginationStrategy.encryptStringToken("-1725361543|index"))
         );
     }
 
     public void testCreatingIndexStrategyPageTokenWithNameOfLastRespondedIndexNull() {
         try {
-            new IndexBasedPaginationStrategy.IndexStrategyToken(1234l, null);
+            new IndexPaginationStrategy.IndexStrategyToken(1234l, null);
             fail("expected exception");
         } catch (Exception e) {
             assert e.getMessage().contains("index name should be provided");

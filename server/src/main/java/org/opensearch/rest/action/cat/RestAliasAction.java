@@ -89,7 +89,7 @@ public class RestAliasAction extends AbstractCatAction {
     }
 
     @Override
-    public void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/aliases\n");
         sb.append("/_cat/aliases/{alias}\n");
     }

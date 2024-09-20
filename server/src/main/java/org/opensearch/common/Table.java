@@ -34,7 +34,7 @@ package org.opensearch.common;
 
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.common.Strings;
-import org.opensearch.rest.pagination.PaginatedQueryResponse;
+import org.opensearch.rest.pagination.PageToken;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -63,14 +63,14 @@ public class Table {
     /**
      * paginatedQueryResponse if null will imply the Table response is not paginated.
      */
-    private PaginatedQueryResponse paginatedQueryResponse;
+    private PageToken pageToken;
     public static final String EPOCH = "epoch";
     public static final String TIMESTAMP = "timestamp";
 
     public Table() {}
 
-    public Table(@Nullable PaginatedQueryResponse paginatedQueryResponse) {
-        this.paginatedQueryResponse = paginatedQueryResponse;
+    public Table(@Nullable PageToken pageToken) {
+        this.pageToken = pageToken;
     }
 
     public Table startHeaders() {
@@ -241,8 +241,8 @@ public class Table {
         return headerAliasMap;
     }
 
-    public PaginatedQueryResponse getPaginatedQueryResponse() {
-        return paginatedQueryResponse;
+    public PageToken getPageToken() {
+        return pageToken;
     }
 
     /**

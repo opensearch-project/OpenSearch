@@ -61,8 +61,9 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.opensearch.rest.pagination.IndexBasedPaginationStrategy;
-import org.opensearch.rest.pagination.PaginatedQueryResponse;
+import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.rest.pagination.IndexPaginationStrategy;
+import org.opensearch.rest.pagination.PageToken;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -89,7 +90,7 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  *
  * @opensearch.api
  */
-public class RestIndicesAction extends AbstractCatAction {
+public class RestIndicesAction extends AbstractListAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
@@ -114,7 +115,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    public void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/indices\n");
         sb.append("/_cat/indices/{index}\n");
     }
@@ -177,14 +178,14 @@ public class RestIndicesAction extends AbstractCatAction {
                             new ActionListener<ClusterStateResponse>() {
                                 @Override
                                 public void onResponse(ClusterStateResponse clusterStateResponse) {
-                                    IndexBasedPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
+                                    IndexPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
                                     final String[] indicesToBeQueried = getIndicesToBeQueried(indices, paginationStrategy);
                                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
                                         request,
                                         4,
                                         listener,
                                         indicesToBeQueried,
-                                        getPaginatedQueryResponse(paginationStrategy)
+                                        getPageToken(paginationStrategy)
                                     );
                                     groupedListener.onResponse(getSettingsResponse);
                                     groupedListener.onResponse(clusterStateResponse);
@@ -309,7 +310,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final int size,
         final ActionListener<Table> listener,
         final String[] indicesToBeQueried,
-        final PaginatedQueryResponse paginatedQueryResponse
+        final PageToken pageToken
     ) {
         return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
             @Override
@@ -340,7 +341,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indicesStats,
                         indicesStates,
                         indicesToBeQueried,
-                        paginatedQueryResponse
+                        pageToken
                     );
                     listener.onResponse(responseTable);
                 } catch (Exception e) {
@@ -373,8 +374,8 @@ public class RestIndicesAction extends AbstractCatAction {
         return getTableWithHeader(request, null);
     }
 
-    protected Table getTableWithHeader(final RestRequest request, final PaginatedQueryResponse paginatedQueryResponse) {
-        Table table = new Table(paginatedQueryResponse);
+    protected Table getTableWithHeader(final RestRequest request, final PageToken pageToken) {
+        Table table = new Table(pageToken);
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");
@@ -745,10 +746,10 @@ public class RestIndicesAction extends AbstractCatAction {
         final Map<String, IndexStats> indicesStats,
         final Map<String, IndexMetadata> indicesMetadatas,
         final String[] indicesToBeQueried,
-        final PaginatedQueryResponse paginatedQueryResponse
+        final PageToken pageToken
     ) {
         final String healthParam = request.param("health");
-        final Table table = getTableWithHeader(request, paginatedQueryResponse);
+        final Table table = getTableWithHeader(request, pageToken);
 
         indicesSettings.forEach((indexName, settings) -> {
             if (indicesMetadatas.containsKey(indexName) == false) {
@@ -1039,15 +1040,15 @@ public class RestIndicesAction extends AbstractCatAction {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
 
-    protected IndexBasedPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
+    protected IndexPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
         return null;
     }
 
-    protected PaginatedQueryResponse getPaginatedQueryResponse(IndexBasedPaginationStrategy paginationStrategy) {
+    protected PageToken getPageToken(IndexPaginationStrategy paginationStrategy) {
         return null;
     }
 
-    protected String[] getIndicesToBeQueried(String[] indices, IndexBasedPaginationStrategy paginationStrategy) {
+    protected String[] getIndicesToBeQueried(String[] indices, IndexPaginationStrategy paginationStrategy) {
         return indices;
     }
 

@@ -67,7 +67,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/pending_tasks\n");
     }
 

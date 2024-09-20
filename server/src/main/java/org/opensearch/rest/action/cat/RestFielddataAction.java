@@ -82,7 +82,7 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
-    public void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/fielddata\n");
         sb.append("/_cat/fielddata/{fields}\n");
     }

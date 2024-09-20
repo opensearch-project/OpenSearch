@@ -35,13 +35,13 @@ public interface PaginationStrategy<T> {
      *
      * @return Base64 encoded string, which can be used to fetch next page of response.
      */
-    PaginatedQueryResponse getPaginatedQueryResponse();
+    PageToken getResponseToken();
 
     /**
      *
      * @return List of elements fetched corresponding to the store and token received by the strategy.
      */
-    List<T> getElementsFromRequestedToken();
+    List<T> getRequestedEntities();
 
     /**
      *

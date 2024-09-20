@@ -12,7 +12,7 @@ package org.opensearch.rest.pagination;
  * Pagination response metadata for a paginated query.
  * @opensearch.internal
  */
-public class PaginatedQueryResponse {
+public class PageToken {
 
     public static final String PAGINATED_RESPONSE_NEXT_TOKEN_KEY = "next_token";
 
@@ -24,19 +24,19 @@ public class PaginatedQueryResponse {
     /**
      * String denoting the element which is being paginated (for e.g. shards, indices..).
      */
-    private final String paginatedElement;
+    private final String paginatedEntity;
 
-    public PaginatedQueryResponse(String nextToken, String paginatedElement) {
+    public PageToken(String nextToken, String paginatedElement) {
         assert paginatedElement != null : "paginatedElement must be specified for a paginated response";
         this.nextToken = nextToken;
-        this.paginatedElement = paginatedElement;
+        this.paginatedEntity = paginatedElement;
     }
 
     public String getNextToken() {
         return nextToken;
     }
 
-    public String getPaginatedElement() {
-        return paginatedElement;
+    public String getPaginatedEntity() {
+        return paginatedEntity;
     }
 }

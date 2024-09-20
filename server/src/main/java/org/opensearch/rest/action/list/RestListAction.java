@@ -13,7 +13,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.action.cat.AbstractCatAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,10 +31,10 @@ public class RestListAction extends BaseRestHandler {
     private static final String LIST_NL = LIST + "\n";
     private final String HELP;
 
-    public RestListAction(List<AbstractCatAction> listActions) {
+    public RestListAction(List<AbstractListAction> listActions) {
         StringBuilder sb = new StringBuilder();
         sb.append(LIST_NL);
-        for (AbstractCatAction listAction : listActions) {
+        for (AbstractListAction listAction : listActions) {
             listAction.documentation(sb);
         }
         HELP = sb.toString();

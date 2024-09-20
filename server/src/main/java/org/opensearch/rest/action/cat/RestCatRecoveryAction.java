@@ -77,7 +77,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    public void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/recovery\n");
         sb.append("/_cat/recovery/{index}\n");
     }
