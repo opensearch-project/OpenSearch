@@ -203,7 +203,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     Set<Long> generationsToBeDeleted = getGenerationsToBeDeleted(
                         metadataFilesNotToBeDeleted,
                         metadataFilesToBeDeleted,
-                        indexDeleted ? Long.MAX_VALUE : getMinGenerationToKeep()
+                        indexDeleted ? Long.MAX_VALUE : getMinGenerationToKeepInRemote()
                     );
 
                     logger.debug(() -> "generationsToBeDeleted = " + generationsToBeDeleted);
@@ -246,7 +246,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         translogTransferManager.listTranslogMetadataFilesAsync(listMetadataFilesListener);
     }
 
-    private long getMinGenerationToKeep() {
+    private long getMinGenerationToKeepInRemote() {
         return minRemoteGenReferenced - indexSettings().getRemoteTranslogExtraKeep();
     }
 
@@ -254,7 +254,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     protected Set<Long> getGenerationsToBeDeleted(
         List<String> metadataFilesNotToBeDeleted,
         List<String> metadataFilesToBeDeleted,
-        long minGenerationToKeep
+        long minGenerationToKeepInRemote
     ) throws IOException {
         Set<Long> generationsFromMetadataFilesToBeDeleted = new HashSet<>();
         for (String mdFile : metadataFilesToBeDeleted) {
@@ -271,7 +271,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             // Check if the generation is not referred by metadata file matching pinned timestamps
             // The check with minGenerationToKeep is redundant but kept as to make sure we don't delete generations
             // that are not persisted in remote segment store yet.
-            if (generation < minGenerationToKeep && isGenerationPinned(generation, pinnedGenerations) == false) {
+            if (generation < minGenerationToKeepInRemote && isGenerationPinned(generation, pinnedGenerations) == false) {
                 generationsToBeDeleted.add(generation);
             }
         }
@@ -279,14 +279,20 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     }
 
     protected List<String> getMetadataFilesToBeDeleted(List<String> metadataFiles, boolean indexDeleted) {
-        return getMetadataFilesToBeDeleted(metadataFiles, metadataFilePinnedTimestampMap, getMinGenerationToKeep(), indexDeleted, logger);
+        return getMetadataFilesToBeDeleted(
+            metadataFiles,
+            metadataFilePinnedTimestampMap,
+            getMinGenerationToKeepInRemote(),
+            indexDeleted,
+            logger
+        );
     }
 
     // Visible for testing
     protected static List<String> getMetadataFilesToBeDeleted(
         List<String> metadataFiles,
         Map<Long, String> metadataFilePinnedTimestampMap,
-        long minGenerationToKeep,
+        long minGenerationToKeepInRemote,
         boolean indexDeleted,
         Logger logger
     ) {
@@ -327,7 +333,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             // Filter out metadata files based on minGenerationToKeep
             List<String> metadataFilesContainingMinGenerationToKeep = metadataFilesToBeDeleted.stream().filter(md -> {
                 long maxGeneration = TranslogTransferMetadata.getMaxGenerationFromFileName(md);
-                return maxGeneration == -1 || maxGeneration > minGenerationToKeep;
+                return maxGeneration == -1 || maxGeneration >= minGenerationToKeepInRemote;
             }).collect(Collectors.toList());
             metadataFilesToBeDeleted.removeAll(metadataFilesContainingMinGenerationToKeep);
 
@@ -335,7 +341,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                 "metadataFilesContainingMinGenerationToKeep.size = {}, metadataFilesToBeDeleted based on minGenerationToKeep filtering = {}, minGenerationToKeep = {}",
                 metadataFilesContainingMinGenerationToKeep.size(),
                 metadataFilesToBeDeleted.size(),
-                minGenerationToKeep
+                minGenerationToKeepInRemote
             );
         }
 

@@ -335,29 +335,46 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
-        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
-        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("5", 5, primaryTerm.get(), new byte[] { 1 }));
-        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("6", 6, primaryTerm.get(), new byte[] { 1 }));
 
         assertBusy(() -> {
             assertEquals(
-                16,
+                10,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
 
-        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
-
         RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         // Fetch pinned timestamps so that it won't be stale
         updatePinnedTimstampTask.run();
+        translog.setMinSeqNoToKeep(3);
+        translog.trimUnreferencedReaders();
 
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("5", 5, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("6", 6, primaryTerm.get(), new byte[] { 1 }));
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        // Fetch pinned timestamps so that it won't be stale
+        updatePinnedTimstampTask.run();
         translog.setMinSeqNoToKeep(6);
         translog.trimUnreferencedReaders();
-        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("7", 7, primaryTerm.get(), new byte[] { 1 }));
-        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("8", 8, primaryTerm.get(), new byte[] { 1 }));
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
+        assertEquals(1, translog.readers.size());
+        assertBusy(() -> {
+            assertEquals(2, translog.allUploaded().size());
+            assertEquals(4, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                16,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("7", 7, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("8", 8, primaryTerm.get(), new byte[] { 1 }));
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         // Fetch pinned timestamps so that it won't be stale
         updatePinnedTimstampTask.run();
         translog.trimUnreferencedReaders();
@@ -365,13 +382,13 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
         assertEquals(3, translog.readers.size());
         assertBusy(() -> {
-            assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
             assertEquals(6, translog.allUploaded().size());
+            assertEquals(3, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
             assertEquals(
-                6,
+                12,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
-        }, 60, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
     @Override
@@ -573,7 +590,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
         assertBusy(() -> assertEquals(2, translog.allUploaded().size()));
-        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+        assertBusy(() -> assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
     }
 
     @Override
@@ -816,7 +833,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             // MaxGen 12
             "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
             // MaxGen 10
-            "metadata__9223372036438563903__9223372036854775797__" + md3Timestamp + "__31__9223372036854775701__1"
+            "metadata__9223372036438563903__9223372036854775798__" + md3Timestamp + "__31__9223372036854775701__1"
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(

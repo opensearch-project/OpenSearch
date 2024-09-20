@@ -112,7 +112,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
         assertBusy(() -> {
             List<Path> metadataFiles = Files.list(translogMetadataPath).collect(Collectors.toList());
-            assertEquals(1, metadataFiles.size());
+            assertEquals(2, metadataFiles.size());
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         });
@@ -222,7 +222,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
         assertBusy(() -> {
             List<Path> metadataFiles = Files.list(translogMetadataPath).collect(Collectors.toList());
-            assertEquals(4, metadataFiles.size());
+            assertEquals(5, metadataFiles.size());
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         });
@@ -282,7 +282,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
         assertBusy(() -> {
             List<Path> metadataFiles = Files.list(translogMetadataPath).collect(Collectors.toList());
-            assertEquals(2, metadataFiles.size());
+            assertEquals(3, metadataFiles.size());
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         });
@@ -337,7 +337,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
         assertBusy(() -> {
             List<Path> metadataFiles = Files.list(translogMetadataPath).collect(Collectors.toList());
-            assertEquals(1, metadataFiles.size());
+            assertEquals(2, metadataFiles.size());
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         });
@@ -405,7 +405,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
         assertBusy(() -> {
             List<Path> metadataFiles = Files.list(translogMetadataPath).collect(Collectors.toList());
-            assertEquals(2, metadataFiles.size());
+            assertEquals(3, metadataFiles.size());
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         }, 30, TimeUnit.SECONDS);
