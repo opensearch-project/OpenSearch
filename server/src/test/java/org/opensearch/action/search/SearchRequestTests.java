@@ -42,6 +42,8 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
@@ -50,14 +52,19 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntConsumer;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -242,6 +249,57 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
+    public void testParseSearchRequest() throws IOException {
+        RestRequest restRequest = new FakeRestRequest();
+        SearchRequest searchRequest = createSearchRequest();
+        IntConsumer setSize = mock(IntConsumer.class);
+
+        restRequest.params().put("index", "index1,index2");
+        restRequest.params().put("batched_reduce_size", "512");
+        restRequest.params().put("pre_filter_shard_size", "128");
+        restRequest.params().put("max_concurrent_shard_requests", "10");
+        restRequest.params().put("allow_partial_search_results", "true");
+        restRequest.params().put("phase_took", "false");
+        restRequest.params().put("search_type", "dfs_query_then_fetch");
+        restRequest.params().put("request_cache", "true");
+        restRequest.params().put("scroll", "1m");
+        restRequest.params().put("routing", "routing_value");
+        restRequest.params().put("preference", "preference_value");
+        restRequest.params().put("search_pipeline", "pipeline_value");
+        restRequest.params().put("ccs_minimize_roundtrips", "true");
+        restRequest.params().put("cancel_after_time_interval", "5s");
+
+        RestSearchAction.parseSearchRequest(searchRequest, restRequest, null, namedWriteableRegistry, setSize);
+
+        assertEquals(Arrays.asList("index1", "index2"), Arrays.asList(searchRequest.indices()));
+        assertEquals(512, searchRequest.getBatchedReduceSize());
+        assertEquals(Integer.valueOf(128), searchRequest.getPreFilterShardSize());
+        assertEquals(10, searchRequest.getMaxConcurrentShardRequests());
+        assertTrue(searchRequest.allowPartialSearchResults());
+        assertFalse(searchRequest.isPhaseTook());
+        assertEquals(DFS_QUERY_THEN_FETCH, searchRequest.searchType());
+        assertEquals(true, searchRequest.requestCache());
+        assertEquals(TimeValue.timeValueMinutes(1), searchRequest.scroll().keepAlive());
+        assertEquals("routing_value", searchRequest.routing());
+        assertEquals("preference_value", searchRequest.preference());
+        assertEquals("pipeline_value", searchRequest.pipeline());
+        assertTrue(searchRequest.isCcsMinimizeRoundtrips());
+        assertEquals(TimeValue.timeValueSeconds(5), searchRequest.getCancelAfterTimeInterval());
+    }
+
+    public void testParseSearchRequestWithUnsupportedSearchType() throws IOException {
+        RestRequest restRequest = new FakeRestRequest();
+        SearchRequest searchRequest = createSearchRequest();
+        IntConsumer setSize = mock(IntConsumer.class);
+        restRequest.params().put("search_type", "query_and_fetch");
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestSearchAction.parseSearchRequest(searchRequest, restRequest, null, namedWriteableRegistry, setSize)
+        );
+        assertEquals("Unsupported search type [query_and_fetch]", exception.getMessage());
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
     }
@@ -268,10 +326,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
         mutators.add(
             () -> mutation.searchType(
-                randomValueOtherThan(
-                    searchRequest.searchType(),
-                    () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH)
-                )
+                randomValueOtherThan(searchRequest.searchType(), () -> randomFrom(DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))
             )
         );
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
