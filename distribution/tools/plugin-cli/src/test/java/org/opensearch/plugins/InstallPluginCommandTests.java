@@ -270,20 +270,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         return createPluginWithRequestedActions(name, structure, additionalProps).toUri().toURL().toString();
     }
 
-    static class JavaSourceFromString extends SimpleJavaFileObject {
-        private final String code;
-
-        public JavaSourceFromString(String className, String code) {
-            super(URI.create("string:///" + className.replace('.', '/') + Kind.SOURCE.extension), Kind.SOURCE);
-            this.code = code;
-        }
-
-        @Override
-        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
-            return code;
-        }
-    }
-
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
         String[] properties = Stream.concat(
             Stream.of(
@@ -302,7 +288,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             ),
             Arrays.stream(additionalProps)
         ).toArray(String[]::new);
-
         PluginTestUtil.writePluginProperties(structure, properties);
         String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
         writeJar(structure.resolve("plugin.jar"), className);

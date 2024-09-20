@@ -481,7 +481,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
-
+    
     jreFiles = { Project project, String platform, String architecture ->
       return copySpec {
         /*
