@@ -249,11 +249,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            if (requestedActions != null) {
-                Settings.writeSettingsToStream(requestedActions, out);
-            } else {
-                Settings.writeSettingsToStream(Settings.EMPTY, out);
-            }
+            Settings.writeSettingsToStream(requestedActions, out);
         }
     }
 

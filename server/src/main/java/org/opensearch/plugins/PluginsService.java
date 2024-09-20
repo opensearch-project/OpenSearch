@@ -152,7 +152,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 null,
                 Collections.emptyList(),
                 false,
-                null
+                Settings.EMPTY
             );
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
