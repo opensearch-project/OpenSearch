@@ -327,7 +327,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    libs project(':libs:opensearch-plugin-classloader')
     libs project(':distribution:tools:java-version-checker')
     libs project(':distribution:tools:launchers')
 
@@ -481,7 +480,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
-    
+
     jreFiles = { Project project, String platform, String architecture ->
       return copySpec {
         /*

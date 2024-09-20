@@ -325,12 +325,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     // a "bundle" is a group of jars in a single classloader
     static class Bundle {
         final PluginInfo plugin;
-        final Path pluginDir;
         final Set<URL> urls;
 
         Bundle(PluginInfo plugin, Path dir) throws IOException {
             this.plugin = Objects.requireNonNull(plugin);
-            this.pluginDir = dir;
             Set<URL> urls = new LinkedHashSet<>();
             // gather urls for jar files
             try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(dir, "*.jar")) {
@@ -818,14 +816,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             "(org.opensearch.common.settings.Settings)",
             "()"
         );
-    }
-
-    public Settings getRequestedActionsForPlugin(Plugin plugin) {
-        Optional<Tuple<PluginInfo, Plugin>> tuple = plugins.stream().filter(x -> x.v2().equals(plugin)).findFirst();
-        if (tuple.isEmpty()) {
-            throw new IllegalStateException("Unable to find plugin in loaded plugins");
-        }
-        return tuple.get().v1().getRequestedActions();
     }
 
     public List<Tuple<PluginInfo, Plugin>> filterPluginTuples(Class<?> type) {

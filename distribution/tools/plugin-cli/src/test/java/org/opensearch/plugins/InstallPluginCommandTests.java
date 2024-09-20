@@ -77,14 +77,7 @@ import org.opensearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.tools.FileObject;
-import javax.tools.ForwardingJavaFileManager;
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileManager;
-import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import javax.tools.ToolProvider;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -92,7 +85,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -247,13 +239,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     static void writeJar(Path jar, String... classes) throws IOException {
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(jar))) {
             for (String clazz : classes) {
-                clazz = clazz.replace('.', '/');
-                ZipEntry entry = new ZipEntry(clazz + ".class");
-                stream.putNextEntry(entry); // no package names, just support simple classes
-                Path compiledClassPath = jar.getParent().resolve(clazz + ".class");
-                if (Files.exists(compiledClassPath)) {
-                    Files.copy(compiledClassPath, stream);
-                }
+                stream.putNextEntry(new ZipEntry(clazz + ".class")); // no package names, just support simple classes
             }
         }
     }
@@ -298,46 +284,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         }
     }
 
-    private static String compileFakePlugin(Path structure) throws IOException {
-        String pluginClassName = "org.opensearch.plugins.FakePlugin";
-        String javaSourceCode = "package org.opensearch.plugins;\n" + "\n" + "class FakePlugin extends Plugin {}\n";
-        if (Files.notExists(structure)) {
-            Files.createDirectories(structure);
-        }
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-
-        StandardJavaFileManager standardFileManager = compiler.getStandardFileManager(null, null, null);
-        JavaFileManager fileManager = new ForwardingJavaFileManager<StandardJavaFileManager>(standardFileManager) {
-            @Override
-            public JavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind, FileObject sibling) {
-                Path classFile = structure.resolve(className.replace('.', '/') + ".class");
-                if (Files.notExists(classFile.getParent())) {
-                    try {
-                        Files.createDirectories(classFile.getParent());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                return new SimpleJavaFileObject(classFile.toUri(), kind) {
-                    @Override
-                    public OutputStream openOutputStream() throws IOException {
-                        return Files.newOutputStream(classFile);
-                    }
-                };
-            }
-        };
-
-        JavaFileObject javaFileObject = new JavaSourceFromString(pluginClassName, javaSourceCode);
-        Iterable<String> options = Arrays.asList("-d", structure.toUri().toString());
-        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, null, options, null, Arrays.asList(javaFileObject));
-        boolean success = task.call();
-        // Close the file manager
-        fileManager.close();
-        return pluginClassName;
-    }
-
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
-        String pluginClassName = compileFakePlugin(structure);
         String[] properties = Stream.concat(
             Stream.of(
                 "description",
@@ -351,18 +298,17 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",
-                pluginClassName
+                "FakePlugin"
             ),
             Arrays.stream(additionalProps)
         ).toArray(String[]::new);
 
         PluginTestUtil.writePluginProperties(structure, properties);
         String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
-        writeJar(structure.resolve("plugin.jar"), className, pluginClassName);
+        writeJar(structure.resolve("plugin.jar"), className);
     }
 
     static void writePluginWithRequestedActions(String name, Path structure, String... additionalProps) throws IOException {
-        String pluginClassName = compileFakePlugin(structure);
         String[] properties = Stream.concat(
             Stream.of(
                 "description",
@@ -376,7 +322,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",
-                pluginClassName
+                "FakePlugin"
             ),
             Arrays.stream(additionalProps)
         ).toArray(String[]::new);
@@ -384,11 +330,10 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         PluginTestUtil.writePluginProperties(structure, properties);
         writePluginPermissionsYaml(structure);
         String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
-        writeJar(structure.resolve("plugin.jar"), className, pluginClassName);
+        writeJar(structure.resolve("plugin.jar"), className);
     }
 
     static void writePlugin(String name, Path structure, SemverRange opensearchVersionRange, String... additionalProps) throws IOException {
-        String pluginClassName = compileFakePlugin(structure);
         String[] properties = Stream.concat(
             Stream.of(
                 "description",
@@ -402,13 +347,13 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",
-                pluginClassName
+                "FakePlugin"
             ),
             Arrays.stream(additionalProps)
         ).toArray(String[]::new);
         PluginTestUtil.writePluginProperties(structure, properties);
         String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
-        writeJar(structure.resolve("plugin.jar"), className, pluginClassName);
+        writeJar(structure.resolve("plugin.jar"), className);
     }
 
     static Path createPlugin(String name, Path structure, SemverRange opensearchVersionRange, String... additionalProps)
