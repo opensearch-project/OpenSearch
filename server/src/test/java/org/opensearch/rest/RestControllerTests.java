@@ -55,12 +55,10 @@ import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -96,7 +94,6 @@ public class RestControllerTests extends OpenSearchTestCase {
     private RestController restController;
     private HierarchyCircuitBreakerService circuitBreakerService;
     private UsageService usageService;
-    private IdentityService identityService;
     private NodeClient client;
 
     @Before
@@ -114,11 +111,9 @@ public class RestControllerTests extends OpenSearchTestCase {
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of());
-
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
-        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, identityService);
+        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
         restController.registerHandler(
             RestRequest.Method.GET,
             "/",
@@ -139,7 +134,7 @@ public class RestControllerTests extends OpenSearchTestCase {
     }
 
     public void testDefaultRestControllerGetAllHandlersContainsFavicon() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, identityService);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
         Iterator<MethodHandlers> handlers = restController.getAllHandlers();
         assertTrue(handlers.hasNext());
         MethodHandlers faviconHandler = handlers.next();
@@ -149,7 +144,7 @@ public class RestControllerTests extends OpenSearchTestCase {
     }
 
     public void testRestControllerGetAllHandlers() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, identityService);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
 
         restController.registerHandler(RestRequest.Method.PATCH, "/foo", mock(RestHandler.class));
         restController.registerHandler(RestRequest.Method.GET, "/foo", mock(RestHandler.class));
@@ -174,7 +169,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, identityService);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -210,7 +205,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, identityService);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", Arrays.asList("foo", "bar"));
@@ -225,14 +220,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(
-            headers,
-            null,
-            client,
-            circuitBreakerService,
-            usageService,
-            identityService
-        );
+        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", Arrays.asList("foo", "foo"));
@@ -293,7 +281,7 @@ public class RestControllerTests extends OpenSearchTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, identityService);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
         RestRequest.Method secondMethod = randomFrom(
@@ -321,7 +309,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         final RestController restController = new RestController(Collections.emptySet(), h -> {
             assertSame(handler, h);
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        }, client, circuitBreakerService, usageService, identityService);
+        }, client, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
         RestRequest request = testRestRequest("/wrapped", "{}", MediaTypeRegistry.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -384,7 +372,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, identityService);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
         restController.registerHandler(
             RestRequest.Method.GET,
             "/",
