@@ -9,6 +9,7 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.AbstractXContentParser;
@@ -73,7 +74,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         builder.startObject();
         LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldTypeName));
         while (currentToken() != Token.END_OBJECT) {
-            parseToken(path, null);
+            parseToken(path);
         }
         // deduplication the fieldName,valueList,valueAndPathList
         builder.field(this.fieldTypeName, new HashSet<>(keyList));
@@ -87,14 +88,11 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     /**
      * @return true if the child object contains no_null value, false otherwise
      */
-    private boolean parseToken(Deque<String> path, String currentFieldName) throws IOException {
-        if (path.size() == 1 && processNoNestedValue()) {
-            return true;
-        }
+    private boolean parseToken(Deque<String> path) throws IOException {
         boolean isChildrenValueValid = false;
         boolean visitFieldName = false;
         if (this.parser.currentToken() == Token.FIELD_NAME) {
-            currentFieldName = this.parser.currentName();
+            final String currentFieldName = this.parser.currentName();
             path.addLast(currentFieldName); // Pushing onto the stack *must* be matched by pop
             visitFieldName = true;
             String parts = currentFieldName;
@@ -106,23 +104,21 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
             }
             this.keyList.add(parts); // parts has no dot, so either it's the original fieldName or it's the last part
             this.parser.nextToken(); // advance to the value of fieldName
-            isChildrenValueValid = parseToken(path, currentFieldName); // parse the value for fieldName (which will be an array, an object,
-                                                                       // or a primitive value)
+            isChildrenValueValid = parseToken(path); // parse the value for fieldName (which will be an array, an object,
+                                                     // or a primitive value)
             path.removeLast(); // Here is where we pop fieldName from the stack (since we're done with the value of fieldName)
             // Note that whichever other branch we just passed through has already ended with nextToken(), so we
             // don't need to call it.
         } else if (this.parser.currentToken() == Token.START_ARRAY) {
             parser.nextToken();
             while (this.parser.currentToken() != Token.END_ARRAY) {
-                isChildrenValueValid |= parseToken(path, currentFieldName);
+                isChildrenValueValid |= parseToken(path);
             }
             this.parser.nextToken();
-        } else if (this.parser.currentToken() == Token.END_ARRAY) {
-            // skip
         } else if (this.parser.currentToken() == Token.START_OBJECT) {
             parser.nextToken();
             while (this.parser.currentToken() != Token.END_OBJECT) {
-                isChildrenValueValid |= parseToken(path, currentFieldName);
+                isChildrenValueValid |= parseToken(path);
             }
             this.parser.nextToken();
         } else {
@@ -148,21 +144,6 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         this.keyList.remove(keyList.size() - 1);
     }
 
-    private boolean processNoNestedValue() throws IOException {
-        if (parser.currentToken() == Token.VALUE_NULL) {
-            return true;
-        } else if (this.parser.currentToken() == Token.VALUE_STRING
-            || this.parser.currentToken() == Token.VALUE_NUMBER
-            || this.parser.currentToken() == Token.VALUE_BOOLEAN) {
-                String value = this.parser.textOrNull();
-                if (value != null) {
-                    this.valueList.add(value);
-                }
-                return true;
-            }
-        return false;
-    }
-
     private String parseValue() throws IOException {
         switch (this.parser.currentToken()) {
             case VALUE_BOOLEAN:
@@ -172,7 +153,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                 return this.parser.textOrNull();
             // Handle other token types as needed
             default:
-                throw new IOException("Unsupported value token type [" + parser.currentToken() + "]");
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected value token type [" + parser.currentToken() + "]");
         }
     }
 
