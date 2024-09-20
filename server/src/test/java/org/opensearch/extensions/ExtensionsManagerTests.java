@@ -153,8 +153,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null,
             new NodeClient(Settings.EMPTY, threadPool),
             new NoneCircuitBreakerService(),
-            new UsageService(),
-            new IdentityService(Settings.EMPTY, threadPool, List.of())
+            new UsageService()
         );
         when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);
