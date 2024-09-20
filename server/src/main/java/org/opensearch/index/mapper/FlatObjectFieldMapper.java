@@ -30,6 +30,7 @@ import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.xcontent.JsonToStringXContentParser;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
@@ -568,31 +569,41 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         if (context.externalValueSet()) {
             String value = context.externalValue().toString();
             parseValueAddFields(context, value, fieldType().name());
-        } else if (context.parser().currentToken() != XContentParser.Token.VALUE_NULL) {
-            JsonToStringXContentParser jsonToStringParser = new JsonToStringXContentParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
-                context.parser(),
-                fieldType().name()
-            );
-            /*
-              JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
-              It reads the JSON object and parsed to a list of string
-             */
-            XContentParser parser = jsonToStringParser.parseObject();
-
-            XContentParser.Token currentToken;
-            while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                switch (currentToken) {
-                    case FIELD_NAME:
-                        fieldName = parser.currentName();
-                        break;
-                    case VALUE_STRING:
-                        String value = parser.textOrNull();
-                        parseValueAddFields(context, value, fieldName);
-                        break;
+        } else {
+            XContentParser ctxParser = context.parser();
+            if (ctxParser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                if (ctxParser.currentToken() != XContentParser.Token.START_OBJECT) {
+                    throw new ParsingException(
+                        ctxParser.getTokenLocation(),
+                        "[" + this.name() + "] unexpected token [" + ctxParser.currentToken() + "] in flat_object field value"
+                    );
                 }
 
+                JsonToStringXContentParser jsonToStringParser = new JsonToStringXContentParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    ctxParser,
+                    fieldType().name()
+                );
+                /*
+                  JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
+                  It reads the JSON object and parsed to a list of string
+                 */
+                XContentParser parser = jsonToStringParser.parseObject();
+
+                XContentParser.Token currentToken;
+                while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    switch (currentToken) {
+                        case FIELD_NAME:
+                            fieldName = parser.currentName();
+                            break;
+                        case VALUE_STRING:
+                            String value = parser.textOrNull();
+                            parseValueAddFields(context, value, fieldName);
+                            break;
+                    }
+
+                }
             }
         }
 
