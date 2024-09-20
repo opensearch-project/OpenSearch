@@ -14,12 +14,12 @@ public class StarTreeNodeTypeTests extends OpenSearchTestCase {
 
     public void testStarNodeType() {
         assertEquals("star", StarTreeNodeType.STAR.getName());
-        assertEquals((byte) -2, StarTreeNodeType.STAR.getValue());
+        assertEquals((byte) -1, StarTreeNodeType.STAR.getValue());
     }
 
     public void testNullNodeType() {
         assertEquals("null", StarTreeNodeType.NULL.getName());
-        assertEquals((byte) -1, StarTreeNodeType.NULL.getValue());
+        assertEquals((byte) 1, StarTreeNodeType.NULL.getValue());
     }
 
     public void testDefaultNodeType() {
@@ -28,20 +28,20 @@ public class StarTreeNodeTypeTests extends OpenSearchTestCase {
     }
 
     public void testFromValue() {
-        assertEquals(StarTreeNodeType.STAR, StarTreeNodeType.fromValue((byte) -2));
-        assertEquals(StarTreeNodeType.NULL, StarTreeNodeType.fromValue((byte) -1));
+        assertEquals(StarTreeNodeType.STAR, StarTreeNodeType.fromValue((byte) -1));
+        assertEquals(StarTreeNodeType.NULL, StarTreeNodeType.fromValue((byte) 1));
         assertEquals(StarTreeNodeType.DEFAULT, StarTreeNodeType.fromValue((byte) 0));
     }
 
     public void testFromValueInvalid() {
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> StarTreeNodeType.fromValue((byte) 1));
-        assertEquals("Unrecognized value byte to determine star-tree node type: [1]", exception.getMessage());
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> StarTreeNodeType.fromValue((byte) 2));
+        assertEquals("Unrecognized value byte to determine star-tree node type: [2]", exception.getMessage());
     }
 
     public void testEnumValues() {
         StarTreeNodeType[] values = StarTreeNodeType.values();
         assertEquals(3, values.length);
-        assertArrayEquals(new StarTreeNodeType[] { StarTreeNodeType.STAR, StarTreeNodeType.NULL, StarTreeNodeType.DEFAULT }, values);
+        assertArrayEquals(new StarTreeNodeType[] { StarTreeNodeType.STAR, StarTreeNodeType.DEFAULT, StarTreeNodeType.NULL }, values);
     }
 
     public void testEnumValueOf() {

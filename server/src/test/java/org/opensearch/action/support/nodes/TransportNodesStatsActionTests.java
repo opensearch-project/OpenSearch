@@ -31,31 +31,11 @@ import java.util.Map;
 public class TransportNodesStatsActionTests extends TransportNodesActionTests {
 
     /**
-     * By default, we send discovery nodes list to each request that is sent across from the coordinator node. This
-     * behavior is asserted in this test.
-     */
-    public void testNodesStatsActionWithRetentionOfDiscoveryNodesList() {
-        NodesStatsRequest request = new NodesStatsRequest();
-        request.setIncludeDiscoveryNodes(true);
-        Map<String, List<MockNodeStatsRequest>> combinedSentRequest = performNodesStatsAction(request);
-
-        assertNotNull(combinedSentRequest);
-        combinedSentRequest.forEach((node, capturedRequestList) -> {
-            assertNotNull(capturedRequestList);
-            capturedRequestList.forEach(sentRequest -> {
-                assertNotNull(sentRequest.getDiscoveryNodes());
-                assertEquals(sentRequest.getDiscoveryNodes().length, clusterService.state().nodes().getSize());
-            });
-        });
-    }
-
-    /**
-     * By default, we send discovery nodes list to each request that is sent across from the coordinator node. This
-     * behavior is asserted in this test.
+     * We don't want to send discovery nodes list to each request that is sent across from the coordinator node.
+     * This behavior is asserted in this test.
      */
     public void testNodesStatsActionWithoutRetentionOfDiscoveryNodesList() {
         NodesStatsRequest request = new NodesStatsRequest();
-        request.setIncludeDiscoveryNodes(false);
         Map<String, List<MockNodeStatsRequest>> combinedSentRequest = performNodesStatsAction(request);
 
         assertNotNull(combinedSentRequest);
