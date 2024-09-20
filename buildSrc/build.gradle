@@ -62,7 +62,7 @@ version = props.getProperty("opensearch")
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   destinationFile = file("${buildDir}/version.properties")
-  comment = 'Generated version properties'
+  comment = 'Generated version properties testsss'
   properties(props)
 }
 
