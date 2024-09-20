@@ -77,8 +77,6 @@ import org.opensearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.tools.SimpleJavaFileObject;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
