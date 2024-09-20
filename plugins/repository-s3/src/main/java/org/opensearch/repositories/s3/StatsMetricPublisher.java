@@ -95,6 +95,10 @@ public class StatsMetricPublisher {
         public void close() {}
     };
 
+    public MetricPublisher getDeleteObjectsMetricPublisher() {
+        return deleteObjectsMetricPublisher;
+    }
+
     public MetricPublisher getObjectMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
