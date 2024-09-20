@@ -42,6 +42,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteDownloadStats.CHECKSUM_VALIDATION_FAILED_COUNT;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_METADATA;
@@ -228,10 +229,28 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 0);
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getFailedCount());
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis() > 0);
+        assertEquals(
+            0,
+            dataNodeDiscoveryStats.getClusterStateStats()
+                .getPersistenceStats()
+                .get(0)
+                .getExtendedFields()
+                .get(CHECKSUM_VALIDATION_FAILED_COUNT)
+                .get()
+        );
 
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getSuccessCount() > 0);
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getFailedCount());
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getTotalTimeInMillis() > 0);
+        assertEquals(
+            0,
+            dataNodeDiscoveryStats.getClusterStateStats()
+                .getPersistenceStats()
+                .get(1)
+                .getExtendedFields()
+                .get(CHECKSUM_VALIDATION_FAILED_COUNT)
+                .get()
+        );
     }
 
     private Map<String, Integer> getMetadataFiles(BlobStoreRepository repository, String subDirectory) throws IOException {
