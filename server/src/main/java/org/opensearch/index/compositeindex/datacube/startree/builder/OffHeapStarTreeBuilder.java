@@ -117,7 +117,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         }
         try {
             for (int i = 0; i < totalSegmentDocs; i++) {
-                StarTreeDocument document = getSegmentStarTreeDocument(i, dimensionReaders, metricReaders);
+                StarTreeDocument document = getSegmentStarTreeDocumentWithMetricFieldValues(i, dimensionReaders, metricReaders);
                 segmentDocumentFileManager.writeStarTreeDocument(document, false);
             }
         } catch (IOException ex) {
@@ -126,6 +126,46 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         }
         // Create an iterator for aggregated documents
         return sortAndReduceDocuments(sortedDocIds, totalSegmentDocs, false);
+    }
+
+    /**
+     * Returns the star-tree document from the segment based on the current doc id
+     */
+    StarTreeDocument getSegmentStarTreeDocumentWithMetricFieldValues(
+        int currentDocId,
+        SequentialDocValuesIterator[] dimensionReaders,
+        List<SequentialDocValuesIterator> metricReaders
+    ) throws IOException {
+        Long[] dimensions = getStarTreeDimensionsFromSegment(currentDocId, dimensionReaders);
+        Object[] metricValues = getStarTreeMetricFieldValuesFromSegment(currentDocId, metricReaders);
+        return new StarTreeDocument(dimensions, metricValues);
+    }
+
+    /**
+     * Returns the metric field values for the star-tree document from the segment based on the current doc id
+     */
+    private Object[] getStarTreeMetricFieldValuesFromSegment(int currentDocId, List<SequentialDocValuesIterator> metricReaders)
+        throws IOException {
+        Object[] metricValues = new Object[starTreeField.getMetrics().size()];
+        for (int i = 0; i < starTreeField.getMetrics().size(); i++) {
+            if (starTreeField.getMetrics().get(i).getBaseMetrics().isEmpty()) continue;
+            SequentialDocValuesIterator metricReader = metricReaders.get(i);
+            if (metricReader != null) {
+                try {
+                    metricReader.nextEntry(currentDocId);
+                    metricValues[i] = metricReader.value(currentDocId);
+                } catch (IOException e) {
+                    logger.error("unable to iterate to next doc", e);
+                    throw new RuntimeException("unable to iterate to next doc", e);
+                } catch (Exception e) {
+                    logger.error("unable to read the metric values from the segment", e);
+                    throw new IllegalStateException("unable to read the metric values from the segment", e);
+                }
+            } else {
+                throw new IllegalStateException("metric reader is empty");
+            }
+        }
+        return metricValues;
     }
 
     /**
