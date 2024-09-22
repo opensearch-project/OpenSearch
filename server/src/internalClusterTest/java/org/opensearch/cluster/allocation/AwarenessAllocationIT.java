@@ -504,4 +504,68 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2 * numOfShards * (numOfReplica + 1)));
         assertThat(health.isTimedOut(), equalTo(false));
     }
+
+    public void testAwarenessZonesWithAutoExpand() {
+        Settings commonSettings = Settings.builder()
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .build();
+
+        logger.info("--> starting 2 nodes on same zone");
+        List<String> nodes = internalCluster().startNodes(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        String A = nodes.get(0);
+        String B = nodes.get(1);
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .build()
+        );
+
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
+
+        logger.info("--> waiting for shards to be allocated");
+        health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNoRelocatingShards(true)
+            .execute()
+            .actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
+
+        final Map<String, Integer> counts = new HashMap<>();
+        int replicaCount = 0;
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.primary()) {
+                        replicaCount++;
+                    }
+                    counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
+                }
+            }
+        }
+        assertThat(counts.get(A), anyOf(equalTo(1), equalTo(2)));
+        assertThat(counts.get(B), anyOf(equalTo(1), equalTo(2)));
+        assertThat(replicaCount, equalTo(2));
+    }
 }
