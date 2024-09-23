@@ -247,8 +247,7 @@ public abstract class SslConfigurationLoader {
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
             final Optional<String> maybeStoreType = Optional.ofNullable(resolveSetting(TRUSTSTORE_TYPE, Function.identity(), null));
-            final KeyStoreType storeType = maybeStoreType
-                .map(KeyStoreType::getByJcaName)
+            final KeyStoreType storeType = maybeStoreType.map(KeyStoreType::getByJcaName)
                 .orElse(inferStoreType(trustStorePath.toString().toLowerCase(Locale.ROOT)));
 
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
@@ -291,8 +290,7 @@ public abstract class SslConfigurationLoader {
             }
 
             final Optional<String> maybeStoreType = Optional.ofNullable(resolveSetting(KEYSTORE_TYPE, Function.identity(), null));
-            final KeyStoreType storeType = maybeStoreType
-                .map(KeyStoreType::getByJcaName)
+            final KeyStoreType storeType = maybeStoreType.map(KeyStoreType::getByJcaName)
                 .orElse(inferStoreType(keyStorePath.toString().toLowerCase(Locale.ROOT)));
 
             final String algorithm = resolveSetting(KEYSTORE_ALGORITHM, Function.identity(), KeyManagerFactory.getDefaultAlgorithm());
