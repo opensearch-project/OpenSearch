@@ -51,6 +51,14 @@ public class TieredSpilloverCacheSettings {
     );
 
     /**
+     * Setting defining the number of segments within Tiered cache
+     */
+    public static final Setting.AffixSetting<Integer> TIERED_SPILLOVER_SEGMENTS = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".segments",
+        (key) -> Setting.intSetting(key, 16, 1, 256, NodeScope)
+    );
+
+    /**
      * Setting defining the minimum took time for a query to be allowed into the disk cache.
      */
     private static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD = Setting.suffixKeySetting(

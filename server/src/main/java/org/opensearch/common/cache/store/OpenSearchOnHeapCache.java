@@ -63,6 +63,10 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         if (builder.getExpireAfterAcess() != null) {
             cacheBuilder.setExpireAfterAccess(builder.getExpireAfterAcess());
         }
+        if (builder.getNumberOfSegments() > 0) {
+            // In case this is a segmented cache, creating underlying cache with multiple segments does not make sense.
+            cacheBuilder.setNumberOfSegments(1);
+        }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
         this.statsTrackingEnabled = builder.getStatsTrackingEnabled();
@@ -174,18 +178,37 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             boolean statsTrackingEnabled = statsTrackingEnabled(config.getSettings(), config.getStatsTrackingEnabled());
             ICacheBuilder<K, V> builder = new Builder<K, V>().setDimensionNames(config.getDimensionNames())
                 .setStatsTrackingEnabled(statsTrackingEnabled)
-                .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
                 .setExpireAfterAccess(((TimeValue) settingList.get(EXPIRE_AFTER_ACCESS_KEY).get(settings)))
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener());
             Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
                 cacheType.getSettingPrefix()
             );
+            long maxSizeInBytes = ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes();
+            // Check if this is a segmented cache.
+            if (config.getSegmentNumber() > 0 && config.getNumberOfSegments() > 0) {
+                long perSegmentSizeInBytes = maxSizeInBytes / config.getNumberOfSegments();
+                if (perSegmentSizeInBytes <= 0) {
+                    throw new IllegalArgumentException("Per segment size for opensearch onHeap cache should be greater than 0");
+                }
+                builder.setMaximumWeightInBytes(perSegmentSizeInBytes);
+                // In case this is the last segment, assign the remainder of bytes accordingly
+                if (config.getSegmentNumber() == config.getNumberOfSegments()) {
+                    if (maxSizeInBytes % config.getNumberOfSegments() != 0) {
+                        builder.setMaximumWeightInBytes(perSegmentSizeInBytes + maxSizeInBytes % config.getNumberOfSegments());
+                    }
+                }
+            } else {
+                builder.setMaximumWeightInBytes(maxSizeInBytes);
+            }
+
             String storeName = cacheSettingForCacheType.get(settings);
             if (!FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || (storeName == null || storeName.isBlank())) {
                 // For backward compatibility as the user intent is to use older settings.
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
                 builder.setExpireAfterAccess(config.getExpireAfterAccess());
+                builder.setNumberOfSegments(-1); // By default it will use 256 as we don't want to use this setting
+                // when user wants to use older default onHeap cache settings.
             }
             return builder.build();
         }

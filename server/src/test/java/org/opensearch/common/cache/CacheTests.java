@@ -75,10 +75,12 @@ public class CacheTests extends OpenSearchTestCase {
 
     // cache some entries, then randomly lookup keys that do not exist, then check the stats
     public void testCacheStats() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         AtomicLong evictions = new AtomicLong();
         Set<Integer> keys = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
             .setMaximumWeight(numberOfEntries / 2)
+            .setNumberOfSegments(numberOfSegments)
             .removalListener(notification -> {
                 keys.remove(notification.getKey());
                 evictions.incrementAndGet();
@@ -114,11 +116,13 @@ public class CacheTests extends OpenSearchTestCase {
     // check that the evicted entries were evicted in LRU order (first the odds in a batch, then the evens in a batch)
     // for each batch
     public void testCacheEvictions() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         int maximumWeight = randomIntBetween(1, numberOfEntries);
         AtomicLong evictions = new AtomicLong();
         List<Integer> evictedKeys = new ArrayList<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
             .setMaximumWeight(maximumWeight)
+            .setNumberOfSegments(numberOfSegments)
             .removalListener(notification -> {
                 evictions.incrementAndGet();
                 evictedKeys.add(notification.getKey());
@@ -173,11 +177,13 @@ public class CacheTests extends OpenSearchTestCase {
     // cache some entries and exceed the maximum weight, then check that the cache has the expected weight and the
     // expected evictions occurred
     public void testWeigher() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         int maximumWeight = 2 * numberOfEntries;
         int weight = randomIntBetween(2, 10);
         AtomicLong evictions = new AtomicLong();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
             .setMaximumWeight(maximumWeight)
+            .setNumberOfSegments(numberOfSegments)
             .weigher((k, v) -> weight)
             .removalListener(notification -> evictions.incrementAndGet())
             .build();
@@ -212,7 +218,8 @@ public class CacheTests extends OpenSearchTestCase {
 
     // cache some entries, randomly invalidate some of them, then check that the number of cached entries is correct
     public void testCount() {
-        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().setNumberOfSegments(numberOfSegments).build();
         int count = 0;
         for (int i = 0; i < numberOfEntries; i++) {
             count++;
@@ -230,8 +237,9 @@ public class CacheTests extends OpenSearchTestCase {
     // cache some entries, step the clock forward, cache some more entries, step the clock forward and then check that
     // the first batch of cached entries expired and were removed
     public void testExpirationAfterAccess() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        Cache<Integer, String> cache = new Cache<Integer, String>(numberOfSegments) {
             @Override
             protected long now() {
                 return now.get();
@@ -267,8 +275,9 @@ public class CacheTests extends OpenSearchTestCase {
     }
 
     public void testSimpleExpireAfterAccess() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        Cache<Integer, String> cache = new Cache<Integer, String>(numberOfSegments) {
             @Override
             protected long now() {
                 return now.get();
@@ -289,8 +298,9 @@ public class CacheTests extends OpenSearchTestCase {
     }
 
     public void testExpirationAfterWrite() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        Cache<Integer, String> cache = new Cache<Integer, String>(numberOfSegments) {
             @Override
             protected long now() {
                 return now.get();
@@ -329,8 +339,9 @@ public class CacheTests extends OpenSearchTestCase {
     }
 
     public void testComputeIfAbsentAfterExpiration() throws ExecutionException {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        Cache<Integer, String> cache = new Cache<Integer, String>(numberOfSegments) {
             @Override
             protected long now() {
                 return now.get();
@@ -352,8 +363,10 @@ public class CacheTests extends OpenSearchTestCase {
     }
 
     public void testComputeIfAbsentDeadlock() throws BrokenBarrierException, InterruptedException {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         final int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setNumberOfSegments(numberOfSegments)
             .setExpireAfterAccess(TimeValue.timeValueNanos(1))
             .build();
 
@@ -386,8 +399,9 @@ public class CacheTests extends OpenSearchTestCase {
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the
     // non-promoted entries were removed
     public void testPromotion() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        Cache<Integer, String> cache = new Cache<Integer, String>(numberOfSegments) {
             @Override
             protected long now() {
                 return now.get();
@@ -420,7 +434,8 @@ public class CacheTests extends OpenSearchTestCase {
 
     // randomly invalidate some cached entries, then check that a lookup for each of those and only those keys is null
     public void testInvalidate() {
-        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().setNumberOfSegments(numberOfSegments).build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -443,11 +458,15 @@ public class CacheTests extends OpenSearchTestCase {
     // randomly invalidate some cached entries, then check that we receive invalidate notifications for those and only
     // those entries
     public void testNotificationOnInvalidate() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         Set<Integer> notifications = new HashSet<>();
-        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalReason.INVALIDATED, notification.getRemovalReason());
-            notifications.add(notification.getKey());
-        }).build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setNumberOfSegments(numberOfSegments)
+            .removalListener(notification -> {
+                assertEquals(RemovalReason.INVALIDATED, notification.getRemovalReason());
+                notifications.add(notification.getKey());
+            })
+            .build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -491,11 +510,15 @@ public class CacheTests extends OpenSearchTestCase {
     // randomly invalidate some cached entries, then check that we receive invalidate notifications for those and only
     // those entries
     public void testNotificationOnInvalidateWithValue() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         Set<Integer> notifications = new HashSet<>();
-        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalReason.INVALIDATED, notification.getRemovalReason());
-            notifications.add(notification.getKey());
-        }).build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setNumberOfSegments(numberOfSegments)
+            .removalListener(notification -> {
+                assertEquals(RemovalReason.INVALIDATED, notification.getRemovalReason());
+                notifications.add(notification.getKey());
+            })
+            .build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -607,8 +630,9 @@ public class CacheTests extends OpenSearchTestCase {
     }
 
     public void testComputeIfAbsentLoadsSuccessfully() {
+        int numberOfSegments = randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
         Map<Integer, Integer> map = new HashMap<>();
-        Cache<Integer, Integer> cache = CacheBuilder.<Integer, Integer>builder().build();
+        Cache<Integer, Integer> cache = CacheBuilder.<Integer, Integer>builder().setNumberOfSegments(numberOfSegments).build();
         for (int i = 0; i < numberOfEntries; i++) {
             try {
                 cache.computeIfAbsent(i, k -> {

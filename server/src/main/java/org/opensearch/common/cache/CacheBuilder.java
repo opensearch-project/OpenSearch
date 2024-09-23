@@ -48,12 +48,21 @@ public class CacheBuilder<K, V> {
     private long expireAfterWriteNanos = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
+    private int numberOfSegments = -1;
 
     public static <K, V> CacheBuilder<K, V> builder() {
         return new CacheBuilder<>();
     }
 
     private CacheBuilder() {}
+
+    public CacheBuilder<K, V> setNumberOfSegments(int numberOfSegments) {
+        if (numberOfSegments <= 0) {
+            throw new IllegalArgumentException("Number of segments for cache can't be <=0: " + numberOfSegments);
+        }
+        this.numberOfSegments = numberOfSegments;
+        return this;
+    }
 
     public CacheBuilder<K, V> setMaximumWeight(long maximumWeight) {
         if (maximumWeight < 0) {
@@ -108,7 +117,7 @@ public class CacheBuilder<K, V> {
     }
 
     public Cache<K, V> build() {
-        Cache<K, V> cache = new Cache<>();
+        Cache<K, V> cache = new Cache<>(numberOfSegments);
         if (maximumWeight != -1) {
             cache.setMaximumWeight(maximumWeight);
         }

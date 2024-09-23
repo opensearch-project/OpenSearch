@@ -65,7 +65,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
         return Arrays.asList(TieredSpilloverCachePlugin.class, MockDiskCachePlugin.class);
     }
 
-    static Settings defaultSettings(String onHeapCacheSizeInBytesOrPercentage) {
+    static Settings defaultSettings(String onHeapCacheSizeInBytesOrPercentage, int numberOfSegments) {
         return Settings.builder()
             .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(
@@ -85,6 +85,12 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
                 MockDiskCache.MockDiskCacheFactory.NAME
             )
             .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                numberOfSegments
+            )
+            .put(
                 OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                     .get(MAXIMUM_SIZE_IN_BYTES_KEY)
                     .getKey(),
@@ -94,7 +100,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
     }
 
     public void testPluginsAreInstalled() {
-        internalCluster().startNode(Settings.builder().put(defaultSettings("1%")).build());
+        internalCluster().startNode(Settings.builder().put(defaultSettings("1%", getNumberOfSegments())).build());
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
         NodesInfoResponse nodesInfoResponse = OpenSearchIntegTestCase.client().admin().cluster().nodesInfo(nodesInfoRequest).actionGet();
@@ -111,7 +117,8 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
     }
 
     public void testSanityChecksWithIndicesRequestCache() throws InterruptedException {
-        internalCluster().startNodes(3, Settings.builder().put(defaultSettings("1%")).build());
+        int numberOfSegments = getNumberOfSegments();
+        internalCluster().startNodes(3, Settings.builder().put(defaultSettings("1%", numberOfSegments)).build());
         Client client = client();
         assertAcked(
             client.admin()
@@ -149,7 +156,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
 
     public void testWithDynamicTookTimePolicy() throws Exception {
         int onHeapCacheSizeInBytes = 2000;
-        internalCluster().startNode(Settings.builder().put(defaultSettings(onHeapCacheSizeInBytes + "b")).build());
+        internalCluster().startNode(Settings.builder().put(defaultSettings(onHeapCacheSizeInBytes + "b", 1)).build());
         Client client = client();
         assertAcked(
             client.admin()
@@ -271,9 +278,10 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
 
     public void testInvalidationWithIndicesRequestCache() throws Exception {
         int onHeapCacheSizeInBytes = 2000;
+        int numberOfSegments = getNumberOfSegments();
         internalCluster().startNode(
             Settings.builder()
-                .put(defaultSettings(onHeapCacheSizeInBytes + "b"))
+                .put(defaultSettings(onHeapCacheSizeInBytes + "b", numberOfSegments))
                 .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
                 .build()
         );
@@ -354,10 +362,11 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithExplicitCacheClear() throws Exception {
+        int numberOfSegments = getNumberOfSegments();
         int onHeapCacheSizeInBytes = 2000;
         internalCluster().startNode(
             Settings.builder()
-                .put(defaultSettings(onHeapCacheSizeInBytes + "b"))
+                .put(defaultSettings(onHeapCacheSizeInBytes + "b", numberOfSegments))
                 .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
                 .build()
         );
@@ -426,10 +435,13 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithDynamicDiskCacheSetting() throws Exception {
-        int onHeapCacheSizeInBytes = 10; // Keep it low so that all items are cached onto disk.
+        int numberOfSegments = getNumberOfSegments();
+        int onHeapCacheSizeInBytes = randomIntBetween(numberOfSegments + 1, numberOfSegments * 2); // Keep it low so
+        // that all items are
+        // cached onto disk.
         internalCluster().startNode(
             Settings.builder()
-                .put(defaultSettings(onHeapCacheSizeInBytes + "b"))
+                .put(defaultSettings(onHeapCacheSizeInBytes + "b", numberOfSegments))
                 .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
                 .build()
         );
@@ -544,13 +556,17 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
         return client.admin().indices().prepareStats(indexName).setRequestCache(true).get().getTotal().getRequestCache();
     }
 
+    public static int getNumberOfSegments() {
+        return randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
+    }
+
     public static class MockDiskCachePlugin extends Plugin implements CachePlugin {
 
         public MockDiskCachePlugin() {}
 
         @Override
         public Map<String, ICache.Factory> getCacheFactoryMap() {
-            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 1000, false));
+            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 10000, false));
         }
 
         @Override
