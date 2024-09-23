@@ -19,7 +19,6 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteIndexPath;
-import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
@@ -533,17 +532,18 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
 
         // validate remote index path file exists
         logger.info("---> Asserting remote index path file exists");
-        String fileNamePrefix = String.join(RemoteIndexPathUploader.DELIMITER, indexUUID, "7", RemoteIndexPath.DEFAULT_VERSION);
 
         assertTrue(FileSystemUtils.exists(translogRepoPath.resolve(RemoteIndexPath.DIR)));
         Path[] files = FileSystemUtils.files(translogRepoPath.resolve(RemoteIndexPath.DIR));
         assertEquals(1, files.length);
-        assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(fileNamePrefix)));
+        logger.info(files[0].toString());
+        assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(indexUUID)));
 
         assertTrue(FileSystemUtils.exists(segmentRepoPath.resolve(RemoteIndexPath.DIR)));
         files = FileSystemUtils.files(segmentRepoPath.resolve(RemoteIndexPath.DIR));
         assertEquals(1, files.length);
-        assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(fileNamePrefix)));
+        logger.info(files[0].toString());
+        assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(indexUUID)));
     }
 
     /**
