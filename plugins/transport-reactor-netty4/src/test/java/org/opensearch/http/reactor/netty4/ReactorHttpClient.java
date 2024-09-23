@@ -13,6 +13,7 @@
 
 package org.opensearch.http.reactor.netty4;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContent;
@@ -65,6 +66,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class ReactorHttpClient implements Closeable {
     private final boolean compression;
     private final boolean secure;
+    private final boolean fipsEnabled;
 
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
@@ -85,6 +87,7 @@ public class ReactorHttpClient implements Closeable {
     public ReactorHttpClient(boolean compression, boolean secure) {
         this.compression = compression;
         this.secure = secure;
+        this.fipsEnabled = CryptoServicesRegistrar.isInApprovedOnlyMode();
     }
 
     public static ReactorHttpClient create() {
@@ -183,7 +186,15 @@ public class ReactorHttpClient implements Closeable {
         final Collection<FullHttpRequest> requests,
         boolean ordered
     ) {
-        final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
+        final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1, (Runnable r) -> {
+            Runnable runnable = () -> {
+                if (fipsEnabled) {
+                    CryptoServicesRegistrar.setApprovedOnlyMode(true);
+                }
+                r.run();
+            };
+            return new Thread(runnable);
+        });
         try {
             final HttpClient client = createClient(remoteAddress, eventLoopGroup);
 

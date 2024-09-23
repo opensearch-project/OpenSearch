@@ -24,6 +24,9 @@ setup:
 
 ---
 "node_reload_secure_settings test correct(empty) password":
+  - skip:
+      version: "3.0.0 - "
+      reason: "Running this test in active FIPS mode is not supported"
 
   - do:
       nodes.reload_secure_settings: {}
