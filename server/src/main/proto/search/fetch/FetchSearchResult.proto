@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package org.opensearch.proto.fetch;
+package org.opensearch.proto.search.fetch;
 
 import "search/SearchHits.proto";
 
