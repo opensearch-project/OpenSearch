@@ -37,6 +37,8 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetrics;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -503,6 +505,117 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             Set.of(DiscoveryNodeRole.DATA_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName())
         );
         assertEquals(expectedNodesRoles, Set.of(getNodeRoles(client, 0), getNodeRoles(client, 1)));
+    }
+
+    public void testClusterStatsMetricFiltering() {
+        internalCluster().startNode();
+        ensureGreen();
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.FS.metricName(), Metric.JVM.metricName(), Metric.PLUGINS.metricName(), Metric.OS.metricName()))
+            .get();
+        assertNotNull(response.getNodesStats());
+        assertNotNull(response.getNodesStats().getJvm());
+        assertNotNull(response.getNodesStats().getOs());
+        assertNotNull(response.getNodesStats().getPlugins());
+        assertNotNull(response.getNodesStats().getFs());
+        assertNull(response.getIndicesStats());
+
+        response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.INDICES.metricName()))
+            .get();
+        assertNotNull(response.getIndicesStats());
+        assertNotNull(response.getIndicesStats().getMappings());
+        assertNotNull(response.getIndicesStats().getAnalysis());
+        assertNotNull(response.getIndicesStats().getCompletion());
+        assertNotNull(response.getIndicesStats().getQueryCache());
+        assertNotNull(response.getIndicesStats().getShards());
+        assertNotNull(response.getIndicesStats().getSegments());
+        assertNotNull(response.getIndicesStats().getStore());
+        assertNotNull(response.getIndicesStats().getFieldData());
+        assertNotNull(response.getIndicesStats().getIndexCount());
+        assertNull(response.getNodesStats());
+
+        response = client().admin().cluster().prepareClusterStats().useAggregatedNodeLevelResponses(randomBoolean()).get();
+        assertNotNull(response.getIndicesStats());
+        assertNotNull(response.getNodesStats());
+        assertNotNull(response.getIndicesStats().getMappings());
+        assertNotNull(response.getIndicesStats().getAnalysis());
+        assertNotNull(response.getNodesStats().getJvm());
+        assertNotNull(response.getNodesStats().getOs());
+
+        response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.INDICES.metricName()))
+            .indexMetrics(
+                Set.of(
+                    IndexMetrics.SHARDS.metricName(),
+                    IndexMetrics.DOCS.metricName(),
+                    IndexMetrics.MAPPINGS.metricName(),
+                    IndexMetrics.ANALYSIS.metricName()
+                )
+            )
+            .get();
+        assertNotNull(response.getIndicesStats());
+        assertNotNull(response.getIndicesStats().getShards());
+        assertNotNull(response.getIndicesStats().getDocs());
+        assertNotNull(response.getIndicesStats().getMappings());
+        assertNotNull(response.getIndicesStats().getAnalysis());
+        assertNull(response.getIndicesStats().getStore());
+        assertNull(response.getIndicesStats().getSegments());
+        assertNull(response.getIndicesStats().getCompletion());
+        assertNull(response.getIndicesStats().getQueryCache());
+        assertNull(response.getNodesStats());
+
+        response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.OS.metricName(), Metric.PROCESS.metricName(), Metric.INDICES.metricName()))
+            .indexMetrics(Set.of(IndexMetrics.SHARDS.metricName(), IndexMetrics.MAPPINGS.metricName()))
+            .get();
+        assertNotNull(response.getNodesStats());
+        assertNotNull(response.getNodesStats().getOs());
+        assertNotNull(response.getNodesStats().getProcess());
+        assertNull(response.getNodesStats().getPlugins());
+        assertNull(response.getNodesStats().getFs());
+        assertNotNull(response.getIndicesStats());
+        assertNotNull(response.getIndicesStats().getShards());
+        assertNotNull(response.getIndicesStats().getMappings());
+        assertNull(response.getIndicesStats().getAnalysis());
+        assertNull(response.getIndicesStats().getFieldData());
+
+        assertThrows(
+            IllegalStateException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareClusterStats()
+                .useAggregatedNodeLevelResponses(randomBoolean())
+                .requestMetrics(Set.of("random_metric"))
+                .get()
+        );
+
+        assertThrows(
+            IllegalStateException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareClusterStats()
+                .useAggregatedNodeLevelResponses(randomBoolean())
+                .requestMetrics(Metric.allMetrics())
+                .indexMetrics(Set.of("random_metric"))
+                .get()
+        );
+
     }
 
     private Map<String, Integer> getExpectedCounts(

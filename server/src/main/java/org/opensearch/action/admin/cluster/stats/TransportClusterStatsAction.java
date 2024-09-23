@@ -37,6 +37,7 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -64,6 +65,7 @@ import org.opensearch.transport.Transports;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Transport action for obtaining cluster state
@@ -130,7 +132,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterService.getClusterName(),
             responses,
             failures,
-            state
+            state,
+            request.requestedMetrics(),
+            request.indicesMetrics()
         );
     }
 
@@ -147,19 +151,20 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false, false);
+        Set<String> requestedMetrics = nodeRequest.request.requestedMetrics();
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
-            true,
-            true,
-            true,
+            Metric.OS.containedIn(requestedMetrics),
+            Metric.PROCESS.containedIn(requestedMetrics),
+            Metric.JVM.containedIn(requestedMetrics),
             false,
-            true,
-            false,
-            false,
+            Metric.FS.containedIn(requestedMetrics),
             false,
             false,
             false,
-            true,
+            false,
+            false,
+            Metric.INGEST.containedIn(requestedMetrics),
             false,
             false,
             false,
@@ -178,33 +183,35 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
-        for (IndexService indexService : indicesService) {
-            for (IndexShard indexShard : indexService) {
-                if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
-                    // only report on fully started shards
-                    CommitStats commitStats;
-                    SeqNoStats seqNoStats;
-                    RetentionLeaseStats retentionLeaseStats;
-                    try {
-                        commitStats = indexShard.commitStats();
-                        seqNoStats = indexShard.seqNoStats();
-                        retentionLeaseStats = indexShard.getRetentionLeaseStats();
-                    } catch (final AlreadyClosedException e) {
-                        // shard is closed - no stats is fine
-                        commitStats = null;
-                        seqNoStats = null;
-                        retentionLeaseStats = null;
+        if (Metric.INDICES.containedIn(requestedMetrics)) {
+            for (IndexService indexService : indicesService) {
+                for (IndexShard indexShard : indexService) {
+                    if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
+                        // only report on fully started shards
+                        CommitStats commitStats;
+                        SeqNoStats seqNoStats;
+                        RetentionLeaseStats retentionLeaseStats;
+                        try {
+                            commitStats = indexShard.commitStats();
+                            seqNoStats = indexShard.seqNoStats();
+                            retentionLeaseStats = indexShard.getRetentionLeaseStats();
+                        } catch (final AlreadyClosedException e) {
+                            // shard is closed - no stats is fine
+                            commitStats = null;
+                            seqNoStats = null;
+                            retentionLeaseStats = null;
+                        }
+                        shardsStats.add(
+                            new ShardStats(
+                                indexShard.routingEntry(),
+                                indexShard.shardPath(),
+                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+                                commitStats,
+                                seqNoStats,
+                                retentionLeaseStats
+                            )
+                        );
                     }
-                    shardsStats.add(
-                        new ShardStats(
-                            indexShard.routingEntry(),
-                            indexShard.shardPath(),
-                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
-                            commitStats,
-                            seqNoStats,
-                            retentionLeaseStats
-                        )
-                    );
                 }
             }
         }

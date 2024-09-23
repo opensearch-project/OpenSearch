@@ -39,6 +39,10 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A request to get cluster level stats.
@@ -48,10 +52,19 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
+    private final Set<String> requestedMetrics = new HashSet<>(Metric.allMetrics());
+    private final Set<String> indicesMetrics = new HashSet<>(IndexMetrics.allIndicesMetrics());
+
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
             useAggregatedNodeLevelResponses = in.readOptionalBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            requestedMetrics.clear();
+            indicesMetrics.clear();
+            requestedMetrics.addAll(in.readStringList());
+            indicesMetrics.addAll(in.readStringList());
         }
     }
 
@@ -73,12 +86,127 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         this.useAggregatedNodeLevelResponses = useAggregatedNodeLevelResponses;
     }
 
+    /**
+     * Add Metric
+     */
+    public ClusterStatsRequest addMetric(String metric) {
+        if (Metric.allMetrics().contains(metric) == false) {
+            throw new IllegalStateException("Used an illegal Metric: " + metric);
+        }
+        requestedMetrics.add(metric);
+        return this;
+    }
+
+    /**
+     * Get the names of requested metrics
+     */
+    public Set<String> requestedMetrics() {
+        return new HashSet<>(requestedMetrics);
+    }
+
+    /**
+     * Add IndexMetric
+     */
+    public ClusterStatsRequest addIndexMetric(String indexMetric) {
+        if (IndexMetrics.allIndicesMetrics().contains(indexMetric) == false) {
+            throw new IllegalStateException("Used an illegal index metric: " + indexMetric);
+        }
+        indicesMetrics.add(indexMetric);
+        return this;
+    }
+
+    public Set<String> indicesMetrics() {
+        return new HashSet<>(indicesMetrics);
+    }
+
+    public void clearRequestedMetrics() {
+        requestedMetrics.clear();
+    }
+
+    public void clearIndicesMetrics() {
+        indicesMetrics.clear();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
             out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeStringArray(requestedMetrics.toArray(new String[0]));
+            out.writeStringArray(indicesMetrics.toArray(new String[0]));
+        }
     }
 
+    /**
+     * An enumeration of the "core" sections of metrics that may be requested
+     * from the cluster stats endpoint.
+     */
+    @PublicApi(since = "3.0.0")
+    public enum Metric {
+        OS("os"),
+        PROCESS("process"),
+        JVM("jvm"),
+        FS("fs"),
+        PLUGINS("plugins"),
+        INGEST("ingest"),
+        NETWORK_TYPES("network_types"),
+        DISCOVERY_TYPES("discovery_types"),
+        PACKAGING_TYPES("packaging_types"),
+        INDICES("indices");
+
+        private String metricName;
+
+        Metric(String name) {
+            this.metricName = name;
+        }
+
+        public String metricName() {
+            return this.metricName;
+        }
+
+        public static Set<String> allMetrics() {
+            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
+        }
+
+        public boolean containedIn(Set<String> metricNames) {
+            return metricNames.contains(this.metricName());
+        }
+
+    }
+
+    /**
+     * An enumeration of the "core" sections of indices metrics that may be requested
+     * from the cluster stats endpoint.
+     */
+    public enum IndexMetrics {
+        SHARDS("shards"),
+        DOCS("docs"),
+        STORE("store"),
+        FIELDDATA("fielddata"),
+        QUERY_CACHE("query_cache"),
+        COMPLETION("completion"),
+        SEGMENTS("segments"),
+        ANALYSIS("analysis"),
+        MAPPINGS("mappings");
+
+        private String metricName;
+
+        IndexMetrics(String name) {
+            this.metricName = name;
+        }
+
+        public String metricName() {
+            return this.metricName;
+        }
+
+        public boolean containedIn(Set<String> metricNames) {
+            return metricNames.contains(this.metricName());
+        }
+
+        public static Set<String> allIndicesMetrics() {
+            return Arrays.stream(values()).map(IndexMetrics::metricName).collect(Collectors.toSet());
+        }
+    }
 }
