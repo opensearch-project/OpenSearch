@@ -156,7 +156,7 @@ public class RemoteClusterStateService implements Closeable {
 
     public static final Setting<RemoteClusterStateValidationMode> REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_MODE_SETTING = new Setting<>(
         "cluster.remote_store.state.checksum_validation.mode",
-        RemoteClusterStateValidationMode.NONE.name(),
+        RemoteClusterStateValidationMode.FAILURE.name(),
         RemoteClusterStateValidationMode::parseString,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
