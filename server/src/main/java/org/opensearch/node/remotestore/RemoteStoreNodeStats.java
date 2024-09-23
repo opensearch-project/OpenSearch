@@ -41,6 +41,7 @@ public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
     }
 
     public RemoteStoreNodeStats(StreamInput in) throws IOException {
+        // TODO: change version to V_2_18_0
         if (in.getVersion().onOrAfter(Version.CURRENT) && RemoteStoreSettings.isPinnedTimestampsEnabled()) {
             this.lastSuccessfulFetchOfPinnedTimestamps = in.readOptionalLong();
         }
@@ -48,6 +49,7 @@ public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // TODO: change version to V_2_18_0
         if (out.getVersion().onOrAfter(Version.CURRENT) && RemoteStoreSettings.isPinnedTimestampsEnabled()) {
             out.writeOptionalLong(this.lastSuccessfulFetchOfPinnedTimestamps);
         }
