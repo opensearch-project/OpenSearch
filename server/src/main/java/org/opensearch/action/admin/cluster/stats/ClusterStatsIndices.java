@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetrics;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -47,6 +48,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Cluster Stats per index
@@ -68,14 +71,56 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private MappingStats mappings;
 
     public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses, MappingStats mappingStats, AnalysisStats analysisStats) {
-        Map<String, ShardStats> countsPerIndex = new HashMap<>();
+        this(IndexMetrics.allIndicesMetrics(), nodeResponses, mappingStats, analysisStats);
 
-        this.docs = new DocsStats();
-        this.store = new StoreStats();
-        this.fieldData = new FieldDataStats();
-        this.queryCache = new QueryCacheStats();
-        this.completion = new CompletionStats();
-        this.segments = new SegmentsStats();
+    }
+
+    public ClusterStatsIndices(
+        Set<String> indicesMetrics,
+        List<ClusterStatsNodeResponse> nodeResponses,
+        MappingStats mappingStats,
+        AnalysisStats analysisStats
+    ) {
+        Map<String, ShardStats> countsPerIndex = new HashMap<>();
+        Consumer<DocsStats> docsStatsConsumer = (docs) -> {
+            if (IndexMetrics.DOCS.containedIn(indicesMetrics)) {
+                if (this.docs == null) this.docs = new DocsStats();
+                this.docs.add(docs);
+            }
+        };
+        Consumer<StoreStats> storeStatsConsumer = (store) -> {
+            if (IndexMetrics.STORE.containedIn(indicesMetrics)) {
+                if (this.store == null) this.store = new StoreStats();
+                this.store.add(store);
+            }
+        };
+        Consumer<FieldDataStats> fieldDataConsumer = (fieldDataStats) -> {
+            if (IndexMetrics.FIELDDATA.containedIn(indicesMetrics)) {
+                if (this.fieldData == null) this.fieldData = new FieldDataStats();
+                this.fieldData.add(fieldDataStats);
+            }
+        };
+
+        Consumer<QueryCacheStats> queryCacheStatsConsumer = (queryCacheStats) -> {
+            if (IndexMetrics.QUERY_CACHE.containedIn(indicesMetrics)) {
+                if (this.queryCache == null) this.queryCache = new QueryCacheStats();
+                this.queryCache.add(queryCacheStats);
+            }
+        };
+
+        Consumer<CompletionStats> completionStatsConsumer = (completionStats) -> {
+            if (IndexMetrics.COMPLETION.containedIn(indicesMetrics)) {
+                if (this.completion == null) this.completion = new CompletionStats();
+                this.completion.add(completionStats);
+            }
+        };
+
+        Consumer<SegmentsStats> segmentsStatsConsumer = (segmentsStats) -> {
+            if (IndexMetrics.SEGMENTS.containedIn(indicesMetrics)) {
+                if (this.segments == null) this.segments = new SegmentsStats();
+                this.segments.add(segmentsStats);
+            }
+        };
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             // Aggregated response from the node
@@ -92,12 +137,12 @@ public class ClusterStatsIndices implements ToXContentFragment {
                     }
                 }
 
-                docs.add(r.getAggregatedNodeLevelStats().commonStats.docs);
-                store.add(r.getAggregatedNodeLevelStats().commonStats.store);
-                fieldData.add(r.getAggregatedNodeLevelStats().commonStats.fieldData);
-                queryCache.add(r.getAggregatedNodeLevelStats().commonStats.queryCache);
-                completion.add(r.getAggregatedNodeLevelStats().commonStats.completion);
-                segments.add(r.getAggregatedNodeLevelStats().commonStats.segments);
+                docsStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.docs);
+                storeStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.store);
+                fieldDataConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.fieldData);
+                queryCacheStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.queryCache);
+                completionStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.completion);
+                segmentsStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.segments);
             } else {
                 // Default response from the node
                 for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -113,21 +158,23 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
                     if (shardStats.getShardRouting().primary()) {
                         indexShardStats.primaries++;
-                        docs.add(shardCommonStats.docs);
+                        docsStatsConsumer.accept(shardCommonStats.docs);
                     }
-                    store.add(shardCommonStats.store);
-                    fieldData.add(shardCommonStats.fieldData);
-                    queryCache.add(shardCommonStats.queryCache);
-                    completion.add(shardCommonStats.completion);
-                    segments.add(shardCommonStats.segments);
+                    storeStatsConsumer.accept(shardCommonStats.store);
+                    fieldDataConsumer.accept(shardCommonStats.fieldData);
+                    queryCacheStatsConsumer.accept(shardCommonStats.queryCache);
+                    completionStatsConsumer.accept(shardCommonStats.completion);
+                    segmentsStatsConsumer.accept(shardCommonStats.segments);
                 }
             }
         }
 
-        shards = new ShardStats();
         indexCount = countsPerIndex.size();
-        for (final ShardStats indexCountsCursor : countsPerIndex.values()) {
-            shards.addIndexShardCount(indexCountsCursor);
+        if (IndexMetrics.SHARDS.containedIn(indicesMetrics)) {
+            shards = new ShardStats();
+            for (final ShardStats indexCountsCursor : countsPerIndex.values()) {
+                shards.addIndexShardCount(indexCountsCursor);
+            }
         }
 
         this.mappings = mappingStats;
@@ -186,13 +233,27 @@ public class ClusterStatsIndices implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.COUNT, indexCount);
-        shards.toXContent(builder, params);
-        docs.toXContent(builder, params);
-        store.toXContent(builder, params);
-        fieldData.toXContent(builder, params);
-        queryCache.toXContent(builder, params);
-        completion.toXContent(builder, params);
-        segments.toXContent(builder, params);
+        if (shards != null) {
+            shards.toXContent(builder, params);
+        }
+        if (docs != null) {
+            docs.toXContent(builder, params);
+        }
+        if (store != null) {
+            store.toXContent(builder, params);
+        }
+        if (fieldData != null) {
+            fieldData.toXContent(builder, params);
+        }
+        if (queryCache != null) {
+            queryCache.toXContent(builder, params);
+        }
+        if (completion != null) {
+            completion.toXContent(builder, params);
+        }
+        if (segments != null) {
+            segments.toXContent(builder, params);
+        }
         if (mappings != null) {
             mappings.toXContent(builder, params);
         }
