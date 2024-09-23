@@ -171,10 +171,10 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 .findFirst();
 
             composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
-            if (dockerSupport.get().getDockerAvailability().isComposeAvailable) {
-                composeExtension.getUseDockerComposeV2().set(false);
-            } else if (dockerSupport.get().getDockerAvailability().isComposeV2Available) {
+            if (dockerSupport.get().getDockerAvailability().isComposeV2Available) {
                 composeExtension.getUseDockerComposeV2().set(true);
+            } else if (dockerSupport.get().getDockerAvailability().isComposeAvailable) {
+                composeExtension.getUseDockerComposeV2().set(false);
             }
 
             tasks.named("composeUp").configure(t -> {
@@ -232,7 +232,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
         task.onlyIf(spec -> {
-            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable;
+            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeV2Available
+                || dockerSupport.get().getDockerAvailability().isComposeAvailable;
             if (isComposeAvailable == false) {
                 LOGGER.info("Task {} requires docker-compose but it is unavailable. Task will be skipped.", task.getPath());
             }
