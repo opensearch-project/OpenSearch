@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Enum representing the types of KeyStores supported by {@link KeyStoreFactory}.
+ */
 public enum KeyStoreType {
 
     JKS("JKS"),
