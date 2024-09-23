@@ -6,15 +6,16 @@
 # compatible open source license.
 
 [Unit]
-Description=wazuh-indexer Performance Analyzer
+Description=OpenSearch Performance Analyzer
 
 [Service]
 Type=simple
-ExecStart=/usr/share/wazuh-indexer/bin/wazuh-indexer-performance-analyzer/performance-analyzer-agent-cli
+ExecStart=/usr/share/wazuh-indexer/bin/opensearch-performance-analyzer/performance-analyzer-agent-cli
 Restart=on-failure
 User=wazuh-indexer
 Group=wazuh-indexer
-EnvironmentFile=-/etc/sysconfig/wazuh-indexer
+Environment=OPENSEARCH_HOME=/usr/share/wazuh-indexer
+Environment=OPENSEARCH_PATH_CONF=/etc/wazuh-indexer/
 WorkingDirectory=/usr/share/wazuh-indexer
 
 [Install]

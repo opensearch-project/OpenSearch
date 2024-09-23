@@ -244,6 +244,7 @@ exit 0
 %config(noreplace) %attr(660, %{name}, %{name}) %{config_dir}/log4j2.properties
 %config(noreplace) %attr(660, %{name}, %{name}) %{config_dir}/jvm.options
 %config(noreplace) %attr(660, %{name}, %{name}) %{config_dir}/opensearch.yml
+%config(noreplace) %attr(640, %{name}, %{name}) %{config_dir}/opensearch-security/*
 
 
 %if %observability_plugin
@@ -265,11 +266,9 @@ exit 0
 %attr(750, %{name}, %{name}) %{product_dir}/performance-analyzer-rca/bin/*
 
 %changelog
-* Tue Aug 20 2024 support <info@wazuh.com> - 4.10.0
+* Mon Sep 23 2024 support <info@wazuh.com> - 4.10.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-10-0.html
-* Fri Sep 06 2024 support <info@wazuh.com> - 4.9.2
-- More info: https://documentation.wazuh.com/current/release-notes/release-4-9-1.html
-* Thu Aug 15 2024 support <info@wazuh.com> - 4.9.1
+* Fri Sep 20 2024 support <info@wazuh.com> - 4.9.1
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-9-1.html
 * Thu Aug 15 2024 support <info@wazuh.com> - 4.9.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-9-0.html

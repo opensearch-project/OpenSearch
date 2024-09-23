@@ -90,5 +90,4 @@ for i in "${binary_files[@]}"; do
 	chmod -c 750 "$i"
 done
 
-
 exit 0
