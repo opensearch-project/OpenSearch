@@ -57,6 +57,18 @@ teardown:
         index: test_1
         body:
           query:
+            multi_match:
+              query: "test search"
+              type: "bool_prefix"
+              fields: ["text.subField"]
+
+  - match: {hits.total.value: 1}
+
+  - do:
+      search:
+        index: test_1
+        body:
+          query:
             term:
               text.subField: "test search as you type"
 
