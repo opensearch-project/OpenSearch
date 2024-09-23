@@ -167,7 +167,7 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     void processResponses(List<K> responses, long fetchingRound) {
         for (K response : responses) {
             BaseNodeEntry nodeEntry = getCache().get(response.getNode().getId());
-            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchTotalCounter, 1.0);
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchSuccessCounter, 1.0);
             if (nodeEntry != null) {
                 if (validateNodeResponse(nodeEntry, fetchingRound)) {
                     // if the entry is there, for the right fetching round and not marked as failed already, process it
@@ -197,8 +197,6 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     }
 
     private void handleNodeFailure(BaseNodeEntry nodeEntry, FailedNodeException failure, long fetchingRound) {
-        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchTotalCounter, 1.0);
-        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchFailureCounter, 1.0);
         if (nodeEntry.getFetchingRound() != fetchingRound) {
             assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
             logger.trace(
@@ -230,6 +228,7 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     void processFailures(List<FailedNodeException> failures, long fetchingRound) {
         for (FailedNodeException failure : failures) {
             logger.trace("processing failure {} for [{}]", failure, type);
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchFailureCounter, 1.0);
             BaseNodeEntry nodeEntry = getCache().get(failure.nodeId());
             if (nodeEntry != null) {
                 handleNodeFailure(nodeEntry, failure, fetchingRound);

@@ -35,7 +35,7 @@ public final class ClusterManagerMetrics {
     public final Counter leaderCheckFailureCounter;
     public final Counter followerChecksFailureCounter;
     public final Counter asyncFetchFailureCounter;
-    public final Counter asyncFetchTotalCounter;
+    public final Counter asyncFetchSuccessCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
         clusterStateAppliersHistogram = metricsRegistry.createHistogram(
@@ -78,8 +78,8 @@ public final class ClusterManagerMetrics {
             "Counter for number of failed async fetches",
             COUNTER_METRICS_UNIT
         );
-        asyncFetchTotalCounter = metricsRegistry.createCounter(
-            "async.fetch.total.count",
+        asyncFetchSuccessCounter = metricsRegistry.createCounter(
+            "async.fetch.success.count",
             "Counter for total number of async fetches",
             COUNTER_METRICS_UNIT
         );
