@@ -332,10 +332,20 @@ public final class RestClientBuilder {
                 .setTlsStrategy(tlsStrategy)
                 .build();
 
+            var inFipsJvm = CryptoServicesRegistrar.isInApprovedOnlyMode();
+
             HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
                 .setDefaultRequestConfig(requestConfigBuilder.build())
                 .setConnectionManager(connectionManager)
-                .setThreadFactory(new FipsEnabledThreadFactory("os-client-dispatcher", CryptoServicesRegistrar.isInApprovedOnlyMode()))
+                .setThreadFactory((Runnable r) -> {
+                    Runnable runnable = () -> {
+                        if (inFipsJvm) {
+                            CryptoServicesRegistrar.setApprovedOnlyMode(true);
+                        }
+                        r.run();
+                    };
+                    return new Thread(runnable, "os-client-dispatcher");
+                })
                 .setTargetAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
                 .disableAutomaticRetries();
             if (httpClientConfigCallback != null) {
