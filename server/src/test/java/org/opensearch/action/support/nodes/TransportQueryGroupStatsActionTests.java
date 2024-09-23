@@ -10,7 +10,6 @@ package org.opensearch.action.support.nodes;
 
 import org.opensearch.action.admin.cluster.wlm.QueryGroupStatsRequest;
 import org.opensearch.action.admin.cluster.wlm.TransportQueryGroupStatsAction;
-import org.opensearch.action.admin.cluster.wlm.TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 <<<<<<< HEAD
@@ -45,6 +44,7 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
         QueryGroupStatsRequest request = new QueryGroupStatsRequest();
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
 =======
         Map<String, List<MockNodeQueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
@@ -52,10 +52,14 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
 =======
         Map<String, List<NodeQueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
 >>>>>>> ffe0d7fa2cd (address comments)
+=======
+        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
+>>>>>>> 3a7ac33beb6 (modify based on comments)
 
         assertNotNull(combinedSentRequest);
         combinedSentRequest.forEach((node, capturedRequestList) -> {
             assertNotNull(capturedRequestList);
+<<<<<<< HEAD
 <<<<<<< HEAD
             capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.concreteNodes()); });
         });
@@ -78,10 +82,13 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
             List<QueryGroupStatsRequest> sentRequestList = new ArrayList<>();
 =======
             capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.getDiscoveryNodes()); });
+=======
+            capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.concreteNodes()); });
+>>>>>>> 3a7ac33beb6 (modify based on comments)
         });
     }
 
-    private Map<String, List<NodeQueryGroupStatsRequest>> performQueryGroupStatsAction(QueryGroupStatsRequest request) {
+    private Map<String, List<QueryGroupStatsRequest>> performQueryGroupStatsAction(QueryGroupStatsRequest request) {
         TransportNodesAction action = new TransportQueryGroupStatsAction(
             THREAD_POOL,
             clusterService,
@@ -92,19 +99,24 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
         PlainActionFuture<QueryGroupStatsRequest> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        Map<String, List<NodeQueryGroupStatsRequest>> combinedSentRequest = new HashMap<>();
+        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = new HashMap<>();
 
         capturedRequests.forEach((node, capturedRequestList) -> {
+<<<<<<< HEAD
 <<<<<<< HEAD
             List<MockNodeQueryGroupStatsRequest> sentRequestList = new ArrayList<>();
 >>>>>>> b5cbfa4de9e (changelog)
 =======
             List<NodeQueryGroupStatsRequest> sentRequestList = new ArrayList<>();
 >>>>>>> ffe0d7fa2cd (address comments)
+=======
+            List<QueryGroupStatsRequest> sentRequestList = new ArrayList<>();
+>>>>>>> 3a7ac33beb6 (modify based on comments)
 
             capturedRequestList.forEach(preSentRequest -> {
                 BytesStreamOutput out = new BytesStreamOutput();
                 try {
+<<<<<<< HEAD
 <<<<<<< HEAD
                     QueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator = (QueryGroupStatsRequest) preSentRequest.request;
                     QueryGroupStatsRequestFromCoordinator.writeTo(out);
@@ -121,6 +133,12 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
 =======
                     NodeQueryGroupStatsRequest QueryGroupStatsRequest = new NodeQueryGroupStatsRequest(in);
 >>>>>>> ffe0d7fa2cd (address comments)
+=======
+                    QueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator = (QueryGroupStatsRequest) preSentRequest.request;
+                    QueryGroupStatsRequestFromCoordinator.writeTo(out);
+                    StreamInput in = out.bytes().streamInput();
+                    QueryGroupStatsRequest QueryGroupStatsRequest = new QueryGroupStatsRequest(in);
+>>>>>>> 3a7ac33beb6 (modify based on comments)
                     sentRequestList.add(QueryGroupStatsRequest);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
