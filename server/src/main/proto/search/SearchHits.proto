@@ -34,9 +34,9 @@ message SortValueProto {
     int32 byte_value = 6;
     int32 short_value = 7;
     bool bool_value = 8;
-    bytes bytes_value = 9; // BytesRef
+    bytes bytes_value = 9;
     string big_integer_value = 10;
-    bool is_null = 11; // Can be explicitly null
+    bool is_null = 11;
   }
 }
 
@@ -78,7 +78,7 @@ message SearchHitProto {
   map<string, HighlightFieldProto> highlight_fields = 8;
   map<string, float> matched_queries = 9;
   map<string, SearchHitsProto> inner_hits = 10;
-  optional bytes source = 11; // JSON payload - Move to map?
+  optional bytes source = 11; // compressible map
   optional string id = 12;
   optional NestedIdentityProto nested_identity = 13;
   optional SearchShardTargetProto shard = 14;
