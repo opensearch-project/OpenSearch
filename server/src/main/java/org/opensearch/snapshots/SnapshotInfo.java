@@ -528,6 +528,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             pinnedTimestamp = in.readVLong();
+        }
+        // TODO: change version to 2_18_0
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             snapshotSizeInBytes = in.readVLong();
         }
     }
@@ -1012,6 +1015,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeVLong(pinnedTimestamp);
+        }
+        // TODO: change version to 2_18_0
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             out.writeVLong(snapshotSizeInBytes);
         }
     }

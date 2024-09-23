@@ -99,12 +99,24 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         includeGlobalState = in.readOptionalBoolean();
         final long startTime = in.readLong();
         final long time = in.readLong();
+        // TODO: change version to 2_18_0
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
             initialTotalSizeInBytes = in.readOptionalLong();
         } else {
             initialTotalSizeInBytes = 0L;
         }
         updateShardStats(startTime, time, initialTotalSizeInBytes);
+    }
+
+    SnapshotStatus(
+        Snapshot snapshot,
+        State state,
+        List<SnapshotIndexShardStatus> shards,
+        Boolean includeGlobalState,
+        long startTime,
+        long time
+    ) {
+        this(snapshot, state, shards, includeGlobalState, startTime, time, 0L);
     }
 
     SnapshotStatus(
@@ -217,6 +229,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         out.writeOptionalBoolean(includeGlobalState);
         out.writeLong(stats.getStartTime());
         out.writeLong(stats.getTime());
+        // TODO: change version to 2_18_0
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
             out.writeOptionalLong(initialTotalSizeInBytes);
         }

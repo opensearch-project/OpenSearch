@@ -116,7 +116,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertEquals(snapshotStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
-    public void testStatusAPICallForShallowCopySnapshot() throws Exception {
+    public void testStatusAPICallForShallowCopySnapshot() {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -136,24 +136,15 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String snapshot = "snapshot";
         createFullSnapshot(snapshotRepoName, snapshot);
 
-        assertBusy(() -> {
-            final SnapshotStatus snapshotStatus = client().admin()
-                .cluster()
-                .prepareSnapshotStatus(snapshotRepoName)
-                .setSnapshots(snapshot)
-                .execute()
-                .actionGet()
-                .getSnapshots()
-                .get(0);
-            assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
+        final SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
+        assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
 
-            final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
-            assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
-            assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
-            assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
-            assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
-            assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
-        }, 1, TimeUnit.MINUTES);
+        final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
+        assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+        assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
+        assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+        assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
+        assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
     }
 
     public void testStatusAPICallInProgressSnapshot() throws Exception {
