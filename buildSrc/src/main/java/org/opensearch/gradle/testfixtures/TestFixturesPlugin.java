@@ -171,7 +171,11 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 .findFirst();
 
             composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
-            composeExtension.getUseDockerComposeV2().set(true);
+            if (dockerSupport.get().getDockerAvailability().isComposeAvailable) {
+                composeExtension.getUseDockerComposeV2().set(false);
+            } else if (dockerSupport.get().getDockerAvailability().isComposeV2Available) {
+                composeExtension.getUseDockerComposeV2().set(true);
+            }
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions

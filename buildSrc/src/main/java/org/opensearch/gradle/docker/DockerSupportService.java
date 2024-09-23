@@ -75,6 +75,15 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
 
+    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
+        ? DOCKER_COMPOSE_BINARIES_WINDOWS
+        : DOCKER_COMPOSE_BINARIES_UNIX;
+
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;
@@ -97,6 +106,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             Version version = null;
             boolean isVersionHighEnough = false;
             boolean isComposeAvailable = false;
+            boolean isComposeV2Available = false;
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();
@@ -116,7 +126,12 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         lastResult = runCommand(dockerPath, "images");
 
                         // If docker all checks out, see if docker-compose is available and working
-                        isComposeAvailable = runCommand(dockerPath, "compose", "version").isSuccess();
+                        Optional<String> composePath = getDockerComposePath();
+                        if (lastResult.isSuccess() && composePath.isPresent()) {
+                            isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
+                        }
+
+                        isComposeV2Available = runCommand(dockerPath, "compose", "version").isSuccess();
                     }
                 }
             }
@@ -126,6 +141,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             this.dockerAvailability = new DockerAvailability(
                 isAvailable,
                 isComposeAvailable,
+                isComposeV2Available,
                 isVersionHighEnough,
                 dockerPath,
                 version,
@@ -275,6 +291,17 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return Arrays.asList(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
     }
 
+    /**
+     * Searches the entries in {@link #DOCKER_COMPOSE_BINARIES} for the Docker Compose CLI. This method does
+     * not check whether the installation appears usable, see {@link #getDockerAvailability()} instead.
+     *
+     * @return the path to a CLI, if available.
+     */
+    private Optional<String> getDockerComposePath() {
+        // Check if the Docker binary exists
+        return Arrays.asList(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+    }
+
     private void throwDockerRequiredException(final String message) {
         throwDockerRequiredException(message, null);
     }
@@ -334,6 +361,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         public final boolean isComposeAvailable;
 
         /**
+         * True if docker compose is available.
+         */
+        public final boolean isComposeV2Available;
+
+        /**
          * True if the installed Docker version is &gt;= 17.05
          */
         public final boolean isVersionHighEnough;
@@ -356,6 +388,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         DockerAvailability(
             boolean isAvailable,
             boolean isComposeAvailable,
+            boolean isComposeV2Available,
             boolean isVersionHighEnough,
             String path,
             Version version,
@@ -363,6 +396,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         ) {
             this.isAvailable = isAvailable;
             this.isComposeAvailable = isComposeAvailable;
+            this.isComposeV2Available = isComposeV2Available;
             this.isVersionHighEnough = isVersionHighEnough;
             this.path = path;
             this.version = version;
