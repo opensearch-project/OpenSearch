@@ -75,15 +75,6 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
 
-    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
-
-    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
-        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
-
-    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
-        ? DOCKER_COMPOSE_BINARIES_WINDOWS
-        : DOCKER_COMPOSE_BINARIES_UNIX;
-
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;
@@ -125,10 +116,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         lastResult = runCommand(dockerPath, "images");
 
                         // If docker all checks out, see if docker-compose is available and working
-                        Optional<String> composePath = getDockerComposePath();
-                        if (lastResult.isSuccess() && composePath.isPresent()) {
-                            isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
-                        }
+                        isComposeAvailable = runCommand(dockerPath, "compose", "version").isSuccess();
                     }
                 }
             }
@@ -285,17 +273,6 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     private Optional<String> getDockerPath() {
         // Check if the Docker binary exists
         return Arrays.asList(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
-    }
-
-    /**
-     * Searches the entries in {@link #DOCKER_COMPOSE_BINARIES} for the Docker Compose CLI. This method does
-     * not check whether the installation appears usable, see {@link #getDockerAvailability()} instead.
-     *
-     * @return the path to a CLI, if available.
-     */
-    private Optional<String> getDockerComposePath() {
-        // Check if the Docker binary exists
-        return Arrays.asList(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
     }
 
     private void throwDockerRequiredException(final String message) {
