@@ -10,7 +10,6 @@ package org.opensearch.action.support.nodes;
 
 import org.opensearch.action.admin.cluster.wlm.QueryGroupStatsRequest;
 import org.opensearch.action.admin.cluster.wlm.TransportQueryGroupStatsAction;
-import org.opensearch.action.admin.cluster.wlm.TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -35,16 +34,16 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
      */
     public void testQueryGroupStatsActionWithRetentionOfDiscoveryNodesList() {
         QueryGroupStatsRequest request = new QueryGroupStatsRequest();
-        Map<String, List<NodeQueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
+        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
 
         assertNotNull(combinedSentRequest);
         combinedSentRequest.forEach((node, capturedRequestList) -> {
             assertNotNull(capturedRequestList);
-            capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.getDiscoveryNodes()); });
+            capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.concreteNodes()); });
         });
     }
 
-    private Map<String, List<NodeQueryGroupStatsRequest>> performQueryGroupStatsAction(QueryGroupStatsRequest request) {
+    private Map<String, List<QueryGroupStatsRequest>> performQueryGroupStatsAction(QueryGroupStatsRequest request) {
         TransportNodesAction action = new TransportQueryGroupStatsAction(
             THREAD_POOL,
             clusterService,
@@ -55,19 +54,18 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
         PlainActionFuture<QueryGroupStatsRequest> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        Map<String, List<NodeQueryGroupStatsRequest>> combinedSentRequest = new HashMap<>();
+        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = new HashMap<>();
 
         capturedRequests.forEach((node, capturedRequestList) -> {
-            List<NodeQueryGroupStatsRequest> sentRequestList = new ArrayList<>();
+            List<QueryGroupStatsRequest> sentRequestList = new ArrayList<>();
 
             capturedRequestList.forEach(preSentRequest -> {
                 BytesStreamOutput out = new BytesStreamOutput();
                 try {
-                    TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator =
-                        (TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest) preSentRequest.request;
+                    QueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator = (QueryGroupStatsRequest) preSentRequest.request;
                     QueryGroupStatsRequestFromCoordinator.writeTo(out);
                     StreamInput in = out.bytes().streamInput();
-                    NodeQueryGroupStatsRequest QueryGroupStatsRequest = new NodeQueryGroupStatsRequest(in);
+                    QueryGroupStatsRequest QueryGroupStatsRequest = new QueryGroupStatsRequest(in);
                     sentRequestList.add(QueryGroupStatsRequest);
                 } catch (IOException e) {
                     throw new RuntimeException(e);

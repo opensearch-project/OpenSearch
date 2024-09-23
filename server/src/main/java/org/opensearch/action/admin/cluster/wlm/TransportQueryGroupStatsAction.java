@@ -11,13 +11,10 @@ package org.opensearch.action.admin.cluster.wlm;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.TransportNodesAction;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.stats.QueryGroupStats;
@@ -33,7 +30,7 @@ import java.util.List;
 public class TransportQueryGroupStatsAction extends TransportNodesAction<
     QueryGroupStatsRequest,
     QueryGroupStatsResponse,
-    TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest,
+    QueryGroupStatsRequest,
     QueryGroupStats> {
 
     final QueryGroupService queryGroupService;
@@ -53,7 +50,7 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
             transportService,
             actionFilters,
             QueryGroupStatsRequest::new,
-            NodeQueryGroupStatsRequest::new,
+            QueryGroupStatsRequest::new,
             ThreadPool.Names.MANAGEMENT,
             QueryGroupStats.class
         );
@@ -70,8 +67,8 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeQueryGroupStatsRequest newNodeRequest(QueryGroupStatsRequest request) {
-        return new NodeQueryGroupStatsRequest(request);
+    protected QueryGroupStatsRequest newNodeRequest(QueryGroupStatsRequest request) {
+        return request;
     }
 
     @Override
@@ -80,37 +77,7 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected QueryGroupStats nodeOperation(NodeQueryGroupStatsRequest nodeQueryGroupStatsRequest) {
-        QueryGroupStatsRequest request = nodeQueryGroupStatsRequest.request;
-        return queryGroupService.nodeStats(request.getQueryGroupIds(), request.isBreach());
-    }
-
-    /**
-     * Inner QueryGroupStatsRequest
-     *
-     * @opensearch.experimental
-     */
-    public static class NodeQueryGroupStatsRequest extends TransportRequest {
-
-        protected QueryGroupStatsRequest request;
-
-        public NodeQueryGroupStatsRequest(StreamInput in) throws IOException {
-            super(in);
-            request = new QueryGroupStatsRequest(in);
-        }
-
-        NodeQueryGroupStatsRequest(QueryGroupStatsRequest request) {
-            this.request = request;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
-        }
-
-        public DiscoveryNode[] getDiscoveryNodes() {
-            return this.request.concreteNodes();
-        }
+    protected QueryGroupStats nodeOperation(QueryGroupStatsRequest queryGroupStatsRequest) {
+        return queryGroupService.nodeStats(queryGroupStatsRequest.getQueryGroupIds(), queryGroupStatsRequest.isBreach());
     }
 }

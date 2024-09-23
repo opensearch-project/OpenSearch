@@ -26,7 +26,7 @@ public class QueryGroupStatsRequest extends BaseNodesRequest<QueryGroupStatsRequ
     private final Set<String> queryGroupIds;
     private final Boolean breach;
 
-    protected QueryGroupStatsRequest(StreamInput in) throws IOException {
+    public QueryGroupStatsRequest(StreamInput in) throws IOException {
         super(in);
         this.queryGroupIds = new HashSet<>(Set.of(in.readStringArray()));
         this.breach = in.readOptionalBoolean();
