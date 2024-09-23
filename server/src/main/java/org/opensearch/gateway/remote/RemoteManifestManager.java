@@ -103,7 +103,6 @@ public class RemoteManifestManager {
         boolean committed,
         int codecVersion
     ) {
-        logger.info("checksum created {}", clusterStateChecksum);
         synchronized (this) {
             ClusterMetadataManifest.Builder manifestBuilder = ClusterMetadataManifest.builder();
             manifestBuilder.clusterTerm(clusterState.term())

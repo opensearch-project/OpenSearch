@@ -186,10 +186,8 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         } catch (InterruptedException e) {
             throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
         }
-        logger.info("checksum execution time {}", System.currentTimeMillis() - start);
-
         createClusterStateChecksum();
-
+        logger.debug("Checksum execution time {}", System.currentTimeMillis() - start);
     }
 
     private void executeChecksumTask(Function<BufferedChecksumStreamOutput, Void> checksumTask, Consumer<Long> checksumConsumer, ExecutorService executorService, CountDownLatch latch) {
@@ -199,10 +197,9 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
                 checksumConsumer.accept(checksum);
                 latch.countDown();
             } catch (IOException  e) {
-                throw new RuntimeException(e);
-            }git 
+                throw new RemoteStateTransferException("Failed to execute checksum task", e);
+            }
         });
-
     }
 
     private long createChecksum(Function<BufferedChecksumStreamOutput, Void> o) throws IOException {
