@@ -14,6 +14,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -30,7 +31,6 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -73,7 +73,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
     long clusterStateChecksum;
 
     public ClusterStateChecksum(ClusterState clusterState) {
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         // keeping thread pool size to number of components.
         ExecutorService executorService = Executors.newFixedThreadPool(COMPONENT_SIZE);
         CountDownLatch latch = new CountDownLatch(COMPONENT_SIZE);
@@ -187,16 +187,21 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
         }
         createClusterStateChecksum();
-        logger.debug("Checksum execution time {}", System.currentTimeMillis() - start);
+        logger.debug("Checksum execution time {}", TimeValue.nsecToMSec(System.nanoTime() - start));
     }
 
-    private void executeChecksumTask(Function<BufferedChecksumStreamOutput, Void> checksumTask, Consumer<Long> checksumConsumer, ExecutorService executorService, CountDownLatch latch) {
+    private void executeChecksumTask(
+        Function<BufferedChecksumStreamOutput, Void> checksumTask,
+        Consumer<Long> checksumConsumer,
+        ExecutorService executorService,
+        CountDownLatch latch
+    ) {
         executorService.execute(() -> {
             try {
                 long checksum = createChecksum(checksumTask);
                 checksumConsumer.accept(checksum);
                 latch.countDown();
-            } catch (IOException  e) {
+            } catch (IOException e) {
                 throw new RemoteStateTransferException("Failed to execute checksum task", e);
             }
         });
