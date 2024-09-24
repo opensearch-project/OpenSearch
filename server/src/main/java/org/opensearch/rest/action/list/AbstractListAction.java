@@ -16,6 +16,9 @@ import org.opensearch.rest.pagination.PageParams;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
+import static org.opensearch.rest.pagination.PageParams.PARAM_DESC_SORT_VALUE;
+
 /**
  * Base Transport action class for _list API.
  *
@@ -23,6 +26,7 @@ import java.util.Objects;
  */
 public abstract class AbstractListAction extends AbstractCatAction {
 
+    private static final int DEFAULT_PAGE_SIZE = 100;
     protected PageParams pageParams;
 
     protected abstract void documentation(StringBuilder sb);
@@ -38,23 +42,35 @@ public abstract class AbstractListAction extends AbstractCatAction {
         return doCatRequest(request, client);
     }
 
-    /**
-     *
-     * @return boolean denoting whether the RestAction will output paginated responses or not.
-     * Is kept false by default, every paginated action to override and return true.
-     */
+    @Override
     public boolean isActionPaginated() {
-        return false;
+        return true;
     }
 
     /**
      *
-     * @return Metadata that can be extracted out from the rest request. Each paginated action to override and provide
-     * its own implementation. Query params supported by the action specific to pagination along with the respective validations,
-     * should be added here.
+     * @return Metadata that can be extracted out from the rest request. Query params supported by the action specific
+     * to pagination along with any respective validations to be added here.
      */
     protected PageParams validateAndGetPageParams(RestRequest restRequest) {
-        return null;
+        PageParams pageParams = restRequest.parsePaginatedQueryParams(defaultSort(), defaultPageSize());
+        // validating pageSize
+        if (pageParams.getSize() <= 0) {
+            throw new IllegalArgumentException("size must be greater than zero");
+        }
+        // Validating sort order
+        if (!(PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) || PARAM_DESC_SORT_VALUE.equals(pageParams.getSort()))) {
+            throw new IllegalArgumentException("value of sort can either be asc or desc");
+        }
+        return pageParams;
+    }
+
+    protected int defaultPageSize() {
+        return DEFAULT_PAGE_SIZE;
+    }
+
+    protected String defaultSort() {
+        return PARAM_ASC_SORT_VALUE;
     }
 
 }

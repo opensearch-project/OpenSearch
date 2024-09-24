@@ -90,16 +90,37 @@ public class RestTable {
         RestRequest request = channel.request();
         XContentBuilder builder = channel.newBuilder();
         List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
-
         if (Objects.nonNull(table.getPageToken())) {
-            assert Objects.nonNull(table.getPageToken().getPaginatedEntity())
-                : "Paginated element is required in-case of paginated responses";
-            builder.startObject();
-            builder.field(PAGINATED_RESPONSE_NEXT_TOKEN_KEY, table.getPageToken().getNextToken());
-            builder.startArray(table.getPageToken().getPaginatedEntity());
+            buildPaginatedXContentBuilder(table, request, builder, displayHeaders);
         } else {
             builder.startArray();
+            addRowsToXContentBuilder(table, request, builder, displayHeaders);
+            builder.endArray();
         }
+        return new BytesRestResponse(RestStatus.OK, builder);
+    }
+
+    private static void buildPaginatedXContentBuilder(
+        Table table,
+        RestRequest request,
+        XContentBuilder builder,
+        List<DisplayHeader> displayHeaders
+    ) throws Exception {
+        assert Objects.nonNull(table.getPageToken().getPaginatedEntity()) : "Paginated element is required in-case of paginated responses";
+        builder.startObject();
+        builder.field(PAGINATED_RESPONSE_NEXT_TOKEN_KEY, table.getPageToken().getNextToken());
+        builder.startArray(table.getPageToken().getPaginatedEntity());
+        addRowsToXContentBuilder(table, request, builder, displayHeaders);
+        builder.endArray();
+        builder.endObject();
+    }
+
+    private static void addRowsToXContentBuilder(
+        Table table,
+        RestRequest request,
+        XContentBuilder builder,
+        List<DisplayHeader> displayHeaders
+    ) throws Exception {
         List<Integer> rowOrder = getRowOrder(table, request);
         for (Integer row : rowOrder) {
             builder.startObject();
@@ -108,11 +129,6 @@ public class RestTable {
             }
             builder.endObject();
         }
-        builder.endArray();
-        if (Objects.nonNull(table.getPageToken())) {
-            builder.endObject();
-        }
-        return new BytesRestResponse(RestStatus.OK, builder);
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
