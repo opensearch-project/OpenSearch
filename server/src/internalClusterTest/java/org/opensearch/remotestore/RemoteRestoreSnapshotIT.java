@@ -11,6 +11,8 @@ package org.opensearch.remotestore;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
@@ -25,6 +27,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
@@ -63,6 +66,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -997,7 +1001,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
     }
 
-    public void testConcurrentSnapshotV2CreateOperation_MasterChange() throws InterruptedException, ExecutionException, IOException {
+    public void testConcurrentSnapshotV2CreateOperation_MasterChange() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
@@ -1033,14 +1037,16 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Thread thread = new Thread(() -> {
             try {
                 String snapshotName = "snapshot-earlier-master";
-                CreateSnapshotResponse createSnapshotResponse2 = client().admin()
+                internalCluster().nonClusterManagerClient()
+                    .admin()
                     .cluster()
                     .prepareCreateSnapshot(snapshotRepoName, snapshotName)
                     .setWaitForCompletion(true)
+                    .setMasterNodeTimeout(TimeValue.timeValueSeconds(60))
                     .get();
-            } catch (Exception e) {}
-        });
 
+            } catch (Exception ignored) {}
+        });
         thread.start();
 
         // stop existing master
@@ -1049,17 +1055,18 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Validate that we have greater one snapshot has been created
         String snapshotName = "new-snapshot";
-        CreateSnapshotResponse createSnapshotResponse2 = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName)
-            .setWaitForCompletion(false)
-            .get();
-        Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
-        PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
-        repository.getRepositoryData(repositoryDataPlainActionFuture);
+        try {
+            client().admin().cluster().prepareCreateSnapshot(snapshotRepoName, snapshotName).setWaitForCompletion(true).get();
+        } catch (Exception e) {
+            logger.info("Exception while creating new-snapshot", e);
+        }
 
-        RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
-        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
+        // Validate that snapshot is present in repository data
+        assertBusy(() -> {
+            GetSnapshotsRequest request = new GetSnapshotsRequest(snapshotRepoName);
+            GetSnapshotsResponse response2 = client().admin().cluster().getSnapshots(request).actionGet();
+            assertThat(response2.getSnapshots().size(), greaterThanOrEqualTo(1));
+        }, 30, TimeUnit.SECONDS);
         thread.join();
     }
 

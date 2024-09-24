@@ -349,7 +349,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             );
         }
 
-        public Entry(
+        private Entry(
             Snapshot snapshot,
             boolean includeGlobalState,
             boolean partial,

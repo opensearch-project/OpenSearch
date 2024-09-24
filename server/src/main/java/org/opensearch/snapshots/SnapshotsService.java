@@ -470,6 +470,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
 
         Repository repository = repositoriesService.repository(repositoryName);
+        validate(repositoryName, snapshotName);
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
 
@@ -482,8 +483,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // move to in progress
-                validate(repositoryName, snapshotName);
-
                 snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
                 Repository repository = repositoriesService.repository(repositoryName);
 

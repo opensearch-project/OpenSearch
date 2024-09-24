@@ -2933,8 +2933,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
-        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
-        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
         if (bestEffortConsistency == false && cached != null && cached.v1() == latestKnownRepoGen.get()) {
             try {
@@ -3413,7 +3411,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     + "]"
                             );
                         }
-                        logger.info("Done Setting it to {} {}", newGen, newGen);
                         return updateRepositoryGenerationsIfNecessary(
                             stateFilter.apply(
                                 ClusterState.builder(currentState)
