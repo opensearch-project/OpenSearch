@@ -12,6 +12,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -68,7 +69,6 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         assertRemoteStoreBackedIndex(indexName2);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15793")
     public void testNewRestoredIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() throws Exception {
         logger.info("Initialize cluster: gives non remote cluster manager");
         initializeCluster(false);
@@ -76,7 +76,10 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         logger.info("Add remote and non-remote nodes");
         setClusterMode(MIXED.mode);
         addRemote = false;
-        String nonRemoteNodeName = internalCluster().startNode();
+        Settings settings = Settings.builder()
+            .put(BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING.getKey(), snapshotShardPathFixedPrefix ? "c" : "")
+            .build();
+        String nonRemoteNodeName = internalCluster().startNode(settings);
         addRemote = true;
         String remoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
