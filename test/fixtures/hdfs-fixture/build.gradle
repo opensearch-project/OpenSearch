@@ -55,7 +55,7 @@ dependencies {
     exclude group: 'com.nimbusds'
     exclude module: "commons-configuration2"
   }
-  api "dnsjava:dnsjava:3.6.1"
+  api "dnsjava:dnsjava:3.6.2"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
