@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `dnsjava:dnsjava` from 3.6.1 to 3.6.2 ([#16041](https://github.com/opensearch-project/OpenSearch/pull/16041))
 
 ### Changed
-
+- Cancellation support for cat/nodes and optimize it ([#14853](https://github.com/opensearch-project/OpenSearch/pull/14853))
 
 ### Deprecated
 

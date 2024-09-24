@@ -37,10 +37,14 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.rest.action.admin.cluster.ClusterAdminTask;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -188,6 +192,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         super.writeTo(out);
         indices.writeTo(out);
         out.writeStringArray(requestedMetrics.toArray(new String[0]));
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        if (this.getShouldCancelOnTimeout()) {
+            return new ClusterAdminTask(id, type, action, parentTaskId, headers);
+        } else {
+            return super.createTask(id, type, action, parentTaskId, headers);
+        }
     }
 
     /**
