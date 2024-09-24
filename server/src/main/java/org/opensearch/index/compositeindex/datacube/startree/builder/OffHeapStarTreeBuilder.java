@@ -144,8 +144,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     /**
      * Returns the metric field values for the star-tree document from the segment based on the current doc id
      */
-    private Object[] getStarTreeMetricFieldValuesFromSegment(int currentDocId, List<SequentialDocValuesIterator> metricReaders)
-        throws IOException {
+    private Object[] getStarTreeMetricFieldValuesFromSegment(int currentDocId, List<SequentialDocValuesIterator> metricReaders) {
         Object[] metricValues = new Object[starTreeField.getMetrics().size()];
         for (int i = 0; i < starTreeField.getMetrics().size(); i++) {
             if (starTreeField.getMetrics().get(i).getBaseMetrics().isEmpty()) continue;

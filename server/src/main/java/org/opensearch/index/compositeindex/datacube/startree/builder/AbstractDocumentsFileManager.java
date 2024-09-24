@@ -26,6 +26,8 @@ import org.opensearch.index.mapper.FieldValueConverter;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
@@ -69,72 +71,84 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     }
 
     /**
-     * Write the star tree document to file associated with dimensions and metrics
+     * Write the star tree document to a byte buffer
      */
     protected int writeStarTreeDocument(StarTreeDocument starTreeDocument, IndexOutput output, boolean isAggregatedDoc) throws IOException {
-        int numBytes = writeDimensions(starTreeDocument, output);
+        int numBytes = calculateDocumentSize(starTreeDocument, isAggregatedDoc);
+        byte[] bytes = new byte[numBytes];
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());
+        writeDimensions(starTreeDocument, buffer);
         if (isAggregatedDoc == false) {
-            numBytes += writeMetrics(starTreeDocument, output);
+            writeFlushMetrics(starTreeDocument, buffer);
         } else {
-            numBytes += writeMetrics(starTreeDocument, output, isAggregatedDoc);
+            writeMetrics(starTreeDocument, buffer, isAggregatedDoc);
         }
+        output.writeBytes(bytes, bytes.length);
         setDocSizeInBytes(numBytes);
-        return numBytes;
+        return bytes.length;
     }
 
     /**
-     * Write dimensions to file
+     * Write dimensions to the byte buffer
      */
-    protected int writeDimensions(StarTreeDocument starTreeDocument, IndexOutput output) throws IOException {
-        int numBytes = 0;
-        for (int i = 0; i < starTreeDocument.dimensions.length; i++) {
-            output.writeLong(starTreeDocument.dimensions[i] == null ? 0L : starTreeDocument.dimensions[i]);
-            numBytes += Long.BYTES;
+    protected void writeDimensions(StarTreeDocument starTreeDocument, ByteBuffer buffer) throws IOException {
+        for (Long dimension : starTreeDocument.dimensions) {
+            buffer.putLong(dimension == null ? 0L : dimension);
         }
-        numBytes += StarTreeDocumentBitSetUtil.writeBitSet(starTreeDocument.dimensions, output);
-        return numBytes;
-    }
-
-    /**
-     * Write star tree document metrics to file. Here we only write the metric field values. [ we avoid writing duplicate
-     * values for each of the stats ]
-     */
-    protected int writeMetrics(StarTreeDocument starTreeDocument, IndexOutput output) throws IOException {
-        int numBytes = 0;
-        for (int i = 0; i < starTreeDocument.metrics.length; i++) {
-            output.writeLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
-            numBytes += Long.BYTES;
-        }
-        numBytes += StarTreeDocumentBitSetUtil.writeBitSet(starTreeDocument.metrics, output);
-        return numBytes;
+        StarTreeDocumentBitSetUtil.writeBitSet(starTreeDocument.dimensions, buffer);
     }
 
     /**
      * Write star tree document metrics to file
      */
-    protected int writeMetrics(StarTreeDocument starTreeDocument, IndexOutput output, boolean isAggregatedDoc) throws IOException {
-        int numBytes = 0;
+    protected void writeFlushMetrics(StarTreeDocument starTreeDocument, ByteBuffer buffer) throws IOException {
+        for (int i = 0; i < starTreeDocument.metrics.length; i++) {
+            buffer.putLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
+        }
+        StarTreeDocumentBitSetUtil.writeBitSet(starTreeDocument.metrics, buffer);
+    }
+
+    /**
+     * Write star tree document metrics to the byte buffer
+     */
+    protected void writeMetrics(StarTreeDocument starTreeDocument, ByteBuffer buffer, boolean isAggregatedDoc) throws IOException {
         for (int i = 0; i < starTreeDocument.metrics.length; i++) {
             FieldValueConverter aggregatedValueType = metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType();
             if (aggregatedValueType.equals(LONG)) {
-                output.writeLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
-                numBytes += Long.BYTES;
+                buffer.putLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
             } else if (aggregatedValueType.equals(DOUBLE)) {
                 if (isAggregatedDoc) {
                     long val = NumericUtils.doubleToSortableLong(
                         starTreeDocument.metrics[i] == null ? 0.0 : (Double) starTreeDocument.metrics[i]
                     );
-                    output.writeLong(val);
+                    buffer.putLong(val);
                 } else {
-                    output.writeLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
+                    buffer.putLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
                 }
-                numBytes += Long.BYTES;
             } else {
                 throw new IllegalStateException("Unsupported metric type");
             }
         }
-        numBytes += StarTreeDocumentBitSetUtil.writeBitSet(starTreeDocument.metrics, output);
-        return numBytes;
+        StarTreeDocumentBitSetUtil.writeBitSet(starTreeDocument.metrics, buffer);
+    }
+
+    /**
+     * Calculate the size of the serialized StarTreeDocument
+     */
+    private int calculateDocumentSize(StarTreeDocument starTreeDocument, boolean isAggregatedDoc) {
+        int size = starTreeDocument.dimensions.length * Long.BYTES;
+        size += getLength(starTreeDocument.dimensions);
+
+        for (int i = 0; i < starTreeDocument.metrics.length; i++) {
+            size += Long.BYTES;
+        }
+        size += getLength(starTreeDocument.metrics);
+
+        return size;
+    }
+
+    private static int getLength(Object[] array) {
+        return (array.length / 8) + (array.length % 8 == 0 ? 0 : 1);
     }
 
     /**
