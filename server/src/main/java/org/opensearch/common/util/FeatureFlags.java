@@ -128,6 +128,12 @@ public class FeatureFlags {
         false,
         Property.NodeScope
     );
+    public static final String TERM_VERSION_PRECOMMIT_ENABLE = "opensearch.experimental.optimization.termversion.precommit.enabled";
+    public static final Setting<Boolean> TERM_VERSION_PRECOMMIT_ENABLE_SETTING = Setting.boolSetting(
+        TERM_VERSION_PRECOMMIT_ENABLE,
+        false,
+        Property.NodeScope
+    );
 
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
@@ -139,7 +145,8 @@ public class FeatureFlags {
         PLUGGABLE_CACHE_SETTING,
         APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         STAR_TREE_INDEX_SETTING,
-        READER_WRITER_SPLIT_EXPERIMENTAL_SETTING
+        READER_WRITER_SPLIT_EXPERIMENTAL_SETTING,
+        TERM_VERSION_PRECOMMIT_ENABLE_SETTING
     );
 
     /**
