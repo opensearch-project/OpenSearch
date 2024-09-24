@@ -8,34 +8,17 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.common.util.ByteArrayBackedBitset;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.function.Function;
 
 /**
  * Helper class to read/write bitset for null values and identity values.
  */
 public class StarTreeDocumentBitSetUtil {
-    /**
-     * Write bitset for null values.
-     *
-     * @param array array of objects
-     * @param output output stream
-     * @return number of bytes written
-     * @throws IOException if an I/O error occurs while writing to the output stream
-     */
-    public static int writeBitSet(Object[] array, IndexOutput output) throws IOException {
-        ByteArrayBackedBitset bitset = new ByteArrayBackedBitset(getLength(array));
-        for (int i = 0; i < array.length; i++) {
-            if (array[i] == null) {
-                bitset.set(i);
-            }
-        }
-        return bitset.write(output);
-    }
 
     /**
      * Set identity values based on bitset.
@@ -49,6 +32,19 @@ public class StarTreeDocumentBitSetUtil {
             }
         }
         return bitset.getCurrBytesRead();
+    }
+
+    /**
+     * Write the bitset for the given array to the ByteBuffer
+     */
+    public static void writeBitSet(Object[] array, ByteBuffer buffer) throws IOException {
+        ByteArrayBackedBitset bitset = new ByteArrayBackedBitset(getLength(array));
+        for (int i = 0; i < array.length; i++) {
+            if (array[i] == null) {
+                bitset.set(i);
+            }
+        }
+        bitset.write(buffer);
     }
 
     private static int getLength(Object[] array) {
