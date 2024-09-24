@@ -77,7 +77,7 @@ For DEB packages, the `assemble.sh` script will perform the following operations
     ```
     artifacts/
     |-- dist
-    |   |-- wazuh-indexer-min_4.10.0_amd64.deb
+    |   |-- wazuh-indexer-min_4.10.1_amd64.deb
     `-- tmp
         `-- deb
             |-- Makefile
@@ -86,7 +86,7 @@ For DEB packages, the `assemble.sh` script will perform the following operations
             |-- etc
             |-- usr
             |-- var
-            `-- wazuh-indexer-min_4.10.0_amd64.deb
+            `-- wazuh-indexer-min_4.10.1_amd64.deb
     ```
 
     `usr`, `etc` and `var` folders contain `wazuh-indexer` files, extracted from `wazuh-indexer-min-*.deb`.
@@ -109,8 +109,8 @@ For DEB packages, the `assemble.sh` script will perform the following operations
     artifacts/
     |-- artifact_name.txt
     |-- dist
-    |   |-- wazuh-indexer-min_4.10.0_amd64.deb
-    |   `-- wazuh-indexer_4.10.0_amd64.deb
+    |   |-- wazuh-indexer-min_4.10.1_amd64.deb
+    |   `-- wazuh-indexer_4.10.1_amd64.deb
     `-- tmp
         `-- deb
             |-- Makefile
@@ -119,7 +119,7 @@ For DEB packages, the `assemble.sh` script will perform the following operations
             |-- etc
             |-- usr
             |-- var
-            |-- wazuh-indexer-min_4.10.0_amd64.deb
+            |-- wazuh-indexer-min_4.10.1_amd64.deb
             `-- debian/
                 | -- control
                 | -- copyright
