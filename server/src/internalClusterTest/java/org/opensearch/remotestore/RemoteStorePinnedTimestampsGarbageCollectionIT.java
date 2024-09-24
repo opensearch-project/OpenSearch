@@ -170,7 +170,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
             assertEquals(numDocs + 1, metadataFiles.size());
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testLiveIndexNoPinnedTimestampsWithExtraGenSetting() throws Exception {
