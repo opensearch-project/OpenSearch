@@ -106,6 +106,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             Version version = null;
             boolean isVersionHighEnough = false;
             boolean isComposeAvailable = false;
+            boolean isComposeV2Available = false;
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();
@@ -129,6 +130,8 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         if (lastResult.isSuccess() && composePath.isPresent()) {
                             isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
                         }
+
+                        isComposeV2Available = runCommand(dockerPath, "compose", "version").isSuccess();
                     }
                 }
             }
@@ -138,6 +141,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             this.dockerAvailability = new DockerAvailability(
                 isAvailable,
                 isComposeAvailable,
+                isComposeV2Available,
                 isVersionHighEnough,
                 dockerPath,
                 version,
@@ -357,6 +361,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         public final boolean isComposeAvailable;
 
         /**
+         * True if docker compose is available.
+         */
+        public final boolean isComposeV2Available;
+
+        /**
          * True if the installed Docker version is &gt;= 17.05
          */
         public final boolean isVersionHighEnough;
@@ -379,6 +388,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         DockerAvailability(
             boolean isAvailable,
             boolean isComposeAvailable,
+            boolean isComposeV2Available,
             boolean isVersionHighEnough,
             String path,
             Version version,
@@ -386,6 +396,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         ) {
             this.isAvailable = isAvailable;
             this.isComposeAvailable = isComposeAvailable;
+            this.isComposeV2Available = isComposeV2Available;
             this.isVersionHighEnough = isVersionHighEnough;
             this.path = path;
             this.version = version;
