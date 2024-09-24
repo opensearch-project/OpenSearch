@@ -726,6 +726,8 @@ updates:
       # For all packages, ignore all major versions to minimize breaking issues
       - dependency-name: "com.google.cloud:google-cloud-storage"
         update-types: [ "version-update:semver-major" ]
+      - dependency-name: "com.google.api-client:google-api-client"
+        update-types: [ "version-update:semver-major" ]
     schedule:
       interval: weekly
     labels:
