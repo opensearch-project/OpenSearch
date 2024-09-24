@@ -2279,7 +2279,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             indexMetadataEnabled
         );
         try {
-            RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager, forceClean);
+            RemoteFsTimestampAwareTranslog.cleanupOfDeletedIndex(translogTransferManager, forceClean);
         } catch (IOException e) {
             logger.error("Exception while cleaning up remote translog for shard: " + shardId, e);
         }

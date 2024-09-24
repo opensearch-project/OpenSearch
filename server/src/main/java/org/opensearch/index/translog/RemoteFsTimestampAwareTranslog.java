@@ -136,7 +136,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
-        if ((indexDeleted == false && startedPrimarySupplier.getAsBoolean() == false) || pauseSync.get()) {
+        if (indexDeleted == false && (startedPrimarySupplier.getAsBoolean() == false || pauseSync.get())) {
             return;
         }
 
@@ -505,7 +505,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
     }
 
-    public static void cleanup(TranslogTransferManager translogTransferManager, boolean forceClean) throws IOException {
+    public static void cleanupOfDeletedIndex(TranslogTransferManager translogTransferManager, boolean forceClean) throws IOException {
         if (forceClean) {
             translogTransferManager.delete();
         } else {
@@ -523,7 +523,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                             metadataFiles,
                             new HashMap<>(),
                             Long.MAX_VALUE,
-                            true,
+                            true,  // This method gets called when the index is no longer present
                             staticLogger
                         );
                         if (metadataFilesToBeDeleted.isEmpty()) {
