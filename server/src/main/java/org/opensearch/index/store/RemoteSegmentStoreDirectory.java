@@ -1009,6 +1009,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteStoreRepoForIndex,
         String indexUUID,
         ShardId shardId,
+        RemoteStorePathStrategy pathStrategy
+    ) {
+        remoteDirectoryCleanup(remoteDirectoryFactory, remoteStoreRepoForIndex, indexUUID, shardId, pathStrategy, false);
+    }
+
+    public static void remoteDirectoryCleanup(
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        String remoteStoreRepoForIndex,
+        String indexUUID,
+        ShardId shardId,
         RemoteStorePathStrategy pathStrategy,
         boolean forceClean
     ) {
