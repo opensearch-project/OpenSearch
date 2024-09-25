@@ -21,6 +21,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -34,6 +35,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.CompositeInde
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
 
@@ -82,14 +84,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
-        // TODO : add integ test for this
-        for (FieldInfo fi : this.state.fieldInfos) {
-            if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())) {
-                segmentFieldSet.add(fi.name);
-            } else if (fi.name.equals(DocCountFieldMapper.NAME)) {
-                segmentFieldSet.add(fi.name);
-            }
-        }
+        addStarTreeSupportedFieldsFromSegment();
         for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
             compositeFieldSet.addAll(type.fields());
         }
@@ -148,6 +143,19 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         segmentHasCompositeFields = Collections.disjoint(segmentFieldSet, compositeFieldSet) == false;
     }
 
+    private void addStarTreeSupportedFieldsFromSegment() {
+        // TODO : add integ test for this
+        for (FieldInfo fi : this.state.fieldInfos) {
+            if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())) {
+                segmentFieldSet.add(fi.name);
+            } else if (DocValuesType.SORTED_SET.equals(fi.getDocValuesType())) {
+                segmentFieldSet.add(fi.name);
+            } else if (fi.name.equals(DocCountFieldMapper.NAME)) {
+                segmentFieldSet.add(fi.name);
+            }
+        }
+    }
+
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         delegate.addNumericField(field, valuesProducer);
@@ -179,6 +187,10 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     @Override
     public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         delegate.addSortedSetField(field, valuesProducer);
+        // Perform this only during flush flow
+        if (mergeState.get() == null && segmentHasCompositeFields) {
+            createCompositeIndicesIfPossible(valuesProducer, field);
+        }
     }
 
     @Override
@@ -235,6 +247,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
      * Add empty doc values for fields not present in segment
      */
     private void addDocValuesForEmptyField(String compositeField) {
+        // special case for doc count
         if (compositeField.equals(DocCountFieldMapper.NAME)) {
             fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
                 @Override
@@ -243,14 +256,27 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                 }
             });
         } else {
-            fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
-                @Override
-                public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
-                    return DocValues.emptySortedNumeric();
-                }
-            });
+            if (isSortedSetField(compositeField)) {
+                fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                    @Override
+                    public SortedSetDocValues getSortedSet(FieldInfo field) {
+                        return DocValues.emptySortedSet();
+                    }
+                });
+            } else {
+                fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                    @Override
+                    public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                        return DocValues.emptySortedNumeric();
+                    }
+                });
+            }
         }
         compositeFieldSet.remove(compositeField);
+    }
+
+    private boolean isSortedSetField(String field) {
+        return mapperService.fieldType(field) instanceof KeywordFieldMapper.KeywordFieldType;
     }
 
     @Override
