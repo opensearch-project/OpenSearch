@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
@@ -61,7 +62,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFileGenerationMap;
     private final Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap;
     private final AtomicLong minPrimaryTermInRemote = new AtomicLong(Long.MAX_VALUE);
-    private long previousMinRemoteGenReferenced = -1;
+    private final AtomicBoolean triggerTrimOnMinRemoteGenReferencedChange = new AtomicBoolean(false);
 
     public RemoteFsTimestampAwareTranslog(
         TranslogConfig config,
@@ -107,6 +108,11 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     }
 
     @Override
+    protected void onMinRemoteGenReferencedChange() {
+        triggerTrimOnMinRemoteGenReferencedChange.set(true);
+    }
+
+    @Override
     public void trimUnreferencedReaders() throws IOException {
         trimUnreferencedReaders(false, true);
     }
@@ -148,10 +154,10 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
         // This code block ensures parity with RemoteFsTranslog. Without this, we will end up making list translog metadata
         // call in each invocation of trimUnreferencedReaders
-        if (indexDeleted == false && previousMinRemoteGenReferenced == minRemoteGenReferenced) {
+        if (indexDeleted == false && triggerTrimOnMinRemoteGenReferencedChange.get() == false) {
             return;
-        } else if (previousMinRemoteGenReferenced != minRemoteGenReferenced) {
-            previousMinRemoteGenReferenced = minRemoteGenReferenced;
+        } else if (triggerTrimOnMinRemoteGenReferencedChange.get()) {
+            triggerTrimOnMinRemoteGenReferencedChange.set(false);
         }
 
         // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.

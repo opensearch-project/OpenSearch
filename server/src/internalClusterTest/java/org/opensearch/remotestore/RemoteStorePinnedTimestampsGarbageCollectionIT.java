@@ -167,7 +167,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
         assertBusy(() -> {
             List<Path> metadataFiles = Files.list(translogMetadataPath).collect(Collectors.toList());
-            assertEquals(numDocs + 1, metadataFiles.size());
+            assertTrue(metadataFiles.size() >= numDocs + 1);
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         }, 30, TimeUnit.SECONDS);
