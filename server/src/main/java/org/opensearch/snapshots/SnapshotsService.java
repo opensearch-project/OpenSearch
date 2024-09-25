@@ -639,6 +639,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 });
                 updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
             }
+
+            @Override
+            public TimeValue timeout() {
+                return request.clusterManagerNodeTimeout();
+            }
+
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
