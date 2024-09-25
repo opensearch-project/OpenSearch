@@ -65,6 +65,7 @@ import org.opensearch.transport.Transports;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -78,13 +79,20 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     TransportClusterStatsAction.ClusterStatsNodeRequest,
     ClusterStatsNodeResponse> {
 
-    private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
+    private static final Map<String, CommonStatsFlags.Flag> INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP = Map.of(
+        ClusterStatsRequest.IndexMetrics.DOCS.metricName(),
         CommonStatsFlags.Flag.Docs,
+        ClusterStatsRequest.IndexMetrics.STORE.metricName(),
         CommonStatsFlags.Flag.Store,
+        ClusterStatsRequest.IndexMetrics.FIELDDATA.metricName(),
         CommonStatsFlags.Flag.FieldData,
+        ClusterStatsRequest.IndexMetrics.QUERY_CACHE.metricName(),
         CommonStatsFlags.Flag.QueryCache,
+        ClusterStatsRequest.IndexMetrics.COMPLETION.metricName(),
         CommonStatsFlags.Flag.Completion,
+        ClusterStatsRequest.IndexMetrics.SEGMENTS.metricName(),
         CommonStatsFlags.Flag.Segments
+
     );
 
     private final NodeService nodeService;
@@ -126,16 +134,27 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                 + " the cluster state that are too slow for a transport thread"
         );
         ClusterState state = clusterService.state();
-        return new ClusterStatsResponse(
-            System.currentTimeMillis(),
-            state.metadata().clusterUUID(),
-            clusterService.getClusterName(),
-            responses,
-            failures,
-            state,
-            request.requestedMetrics(),
-            request.indicesMetrics()
-        );
+        if (request.applyMetricFiltering()) {
+            return new ClusterStatsResponse(
+                System.currentTimeMillis(),
+                state.metadata().clusterUUID(),
+                clusterService.getClusterName(),
+                responses,
+                failures,
+                state,
+                request.requestedMetrics(),
+                request.indicesMetrics()
+            );
+        } else {
+            return new ClusterStatsResponse(
+                System.currentTimeMillis(),
+                state.metadata().clusterUUID(),
+                clusterService.getClusterName(),
+                responses,
+                failures,
+                state
+            );
+        }
     }
 
     @Override
@@ -151,20 +170,21 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false, false);
+        boolean applyMetricFiltering = nodeRequest.request.applyMetricFiltering();
         Set<String> requestedMetrics = nodeRequest.request.requestedMetrics();
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
-            Metric.OS.containedIn(requestedMetrics),
-            Metric.PROCESS.containedIn(requestedMetrics),
-            Metric.JVM.containedIn(requestedMetrics),
+            !applyMetricFiltering || Metric.OS.containedIn(requestedMetrics),
+            !applyMetricFiltering || Metric.PROCESS.containedIn(requestedMetrics),
+            !applyMetricFiltering || Metric.JVM.containedIn(requestedMetrics),
             false,
-            Metric.FS.containedIn(requestedMetrics),
-            false,
-            false,
+            !applyMetricFiltering || Metric.FS.containedIn(requestedMetrics),
             false,
             false,
             false,
-            Metric.INGEST.containedIn(requestedMetrics),
+            false,
+            false,
+            !applyMetricFiltering || Metric.INGEST.containedIn(requestedMetrics),
             false,
             false,
             false,
@@ -183,7 +203,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
-        if (Metric.INDICES.containedIn(requestedMetrics)) {
+        if (!applyMetricFiltering || Metric.INDICES.containedIn(requestedMetrics)) {
+            CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+            for (String metric : nodeRequest.request.indicesMetrics()) {
+                if (INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP.containsKey(metric)) {
+                    commonStatsFlags.set(INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP.get(metric), true);
+                }
+            }
             for (IndexService indexService : indicesService) {
                 for (IndexShard indexShard : indexService) {
                     if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
@@ -205,7 +231,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                             new ShardStats(
                                 indexShard.routingEntry(),
                                 indexShard.shardPath(),
-                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, commonStatsFlags),
                                 commitStats,
                                 seqNoStats,
                                 retentionLeaseStats

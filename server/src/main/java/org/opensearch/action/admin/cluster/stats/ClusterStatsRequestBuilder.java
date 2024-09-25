@@ -58,14 +58,17 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
+    public final ClusterStatsRequestBuilder applyMetricFiltering(boolean applyMetricFiltering) {
+        request.applyMetricFiltering(applyMetricFiltering);
+        return this;
+    }
+
     public final ClusterStatsRequestBuilder requestMetrics(Set<String> requestMetrics) {
-        request.clearRequestedMetrics();
         requestMetrics.forEach(request::addMetric);
         return this;
     }
 
     public final ClusterStatsRequestBuilder indexMetrics(Set<String> indexMetrics) {
-        request.clearIndicesMetrics();
         indexMetrics.forEach(request::addIndexMetric);
         return this;
     }
