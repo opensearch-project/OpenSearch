@@ -80,7 +80,7 @@ public final class ClusterManagerMetrics {
         );
         asyncFetchSuccessCounter = metricsRegistry.createCounter(
             "async.fetch.success.count",
-            "Counter for total number of async fetches",
+            "Counter for number of successful async fetches",
             COUNTER_METRICS_UNIT
         );
 

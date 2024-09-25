@@ -165,9 +165,9 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     }
 
     void processResponses(List<K> responses, long fetchingRound) {
+        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchSuccessCounter, Double.valueOf(responses.size()));
         for (K response : responses) {
             BaseNodeEntry nodeEntry = getCache().get(response.getNode().getId());
-            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchSuccessCounter, 1.0);
             if (nodeEntry != null) {
                 if (validateNodeResponse(nodeEntry, fetchingRound)) {
                     // if the entry is there, for the right fetching round and not marked as failed already, process it
@@ -226,9 +226,9 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     }
 
     void processFailures(List<FailedNodeException> failures, long fetchingRound) {
+        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchFailureCounter, Double.valueOf(failures.size()));
         for (FailedNodeException failure : failures) {
             logger.trace("processing failure {} for [{}]", failure, type);
-            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchFailureCounter, 1.0);
             BaseNodeEntry nodeEntry = getCache().get(failure.nodeId());
             if (nodeEntry != null) {
                 handleNodeFailure(nodeEntry, failure, fetchingRound);
