@@ -1071,9 +1071,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }).start();
         // Wait for atleast one doc to be ingested.
         latch.await();
-        // Sleep for some time for the next doc to be present in lucene buffer. If flush happens first before the doc #2
-        // gets indexed, then it goes into the happy case where the close index happens succefully.
-        Thread.sleep(1000);
         // Flush so that the subsequent sync or flushes are no-op.
         flush(INDEX_NAME);
         // Closing the index involves translog.sync and shard.flush which are now no-op.
