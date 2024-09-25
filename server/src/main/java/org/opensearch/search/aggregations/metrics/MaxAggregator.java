@@ -169,7 +169,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             ctx,
             sub,
             starTree,
-            MetricStat.SUM.getTypeName(),
+            MetricStat.MAX.getTypeName(),
             value -> {
                 max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
             },
