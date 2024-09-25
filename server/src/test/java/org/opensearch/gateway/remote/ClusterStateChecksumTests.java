@@ -8,6 +8,8 @@
 
 package org.opensearch.gateway.remote;
 
+import org.junit.After;
+import org.junit.AfterClass;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -34,6 +36,8 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -41,14 +45,20 @@ import java.util.List;
 import java.util.Map;
 
 public class ClusterStateChecksumTests extends OpenSearchTestCase {
+    private static final ThreadPool threadPool = new TestThreadPool(ClusterStateChecksumTests.class.getName());
+
+    @AfterClass
+    public static void shutdown() throws Exception {
+        threadPool.shutdown();
+    }
 
     public void testClusterStateChecksumEmptyClusterState() {
-        ClusterStateChecksum checksum = new ClusterStateChecksum(ClusterState.EMPTY_STATE);
+        ClusterStateChecksum checksum = new ClusterStateChecksum(ClusterState.EMPTY_STATE, threadPool);
         assertNotNull(checksum);
     }
 
     public void testClusterStateChecksum() {
-        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState());
+        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState(), threadPool);
         assertNotNull(checksum);
         assertTrue(checksum.routingTableChecksum != 0);
         assertTrue(checksum.nodesChecksum != 0);
@@ -65,8 +75,8 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
     }
 
     public void testClusterStateMatchChecksum() {
-        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState());
-        ClusterStateChecksum newChecksum = new ClusterStateChecksum(generateClusterState());
+        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState(), threadPool);
+        ClusterStateChecksum newChecksum = new ClusterStateChecksum(generateClusterState(), threadPool);
         assertNotNull(checksum);
         assertNotNull(newChecksum);
         assertEquals(checksum.routingTableChecksum, newChecksum.routingTableChecksum);
@@ -84,7 +94,7 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
     }
 
     public void testXContentConversion() throws IOException {
-        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState());
+        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState(), threadPool);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         checksum.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -97,7 +107,7 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
     }
 
     public void testSerialization() throws IOException {
-        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState());
+        ClusterStateChecksum checksum = new ClusterStateChecksum(generateClusterState(), threadPool);
         BytesStreamOutput output = new BytesStreamOutput();
         checksum.writeTo(output);
 
@@ -109,10 +119,10 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
 
     public void testGetMismatchEntities() {
         ClusterState clsState1 = generateClusterState();
-        ClusterStateChecksum checksum = new ClusterStateChecksum(clsState1);
+        ClusterStateChecksum checksum = new ClusterStateChecksum(clsState1, threadPool);
         assertTrue(checksum.getMismatchEntities(checksum).isEmpty());
 
-        ClusterStateChecksum checksum2 = new ClusterStateChecksum(clsState1);
+        ClusterStateChecksum checksum2 = new ClusterStateChecksum(clsState1, threadPool);
         assertTrue(checksum.getMismatchEntities(checksum2).isEmpty());
 
         ClusterState clsState2 = ClusterState.builder(ClusterName.DEFAULT)
@@ -122,7 +132,7 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
             .customs(Map.of())
             .metadata(Metadata.EMPTY_METADATA)
             .build();
-        ClusterStateChecksum checksum3 = new ClusterStateChecksum(clsState2);
+        ClusterStateChecksum checksum3 = new ClusterStateChecksum(clsState2, threadPool);
         List<String> mismatches = checksum.getMismatchEntities(checksum3);
         assertFalse(mismatches.isEmpty());
         assertEquals(11, mismatches.size());
@@ -151,8 +161,8 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
         ClusterState state2 = ClusterState.builder(state1).nodes(nodes1).build();
         ClusterState state3 = ClusterState.builder(state1).nodes(nodes2).build();
 
-        ClusterStateChecksum checksum1 = new ClusterStateChecksum(state2);
-        ClusterStateChecksum checksum2 = new ClusterStateChecksum(state3);
+        ClusterStateChecksum checksum1 = new ClusterStateChecksum(state2, threadPool);
+        ClusterStateChecksum checksum2 = new ClusterStateChecksum(state3, threadPool);
         assertEquals(checksum2, checksum1);
     }
 

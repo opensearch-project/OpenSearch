@@ -118,6 +118,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_RECOVERY = "remote_recovery";
         public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
+        public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
     }
 
     /**
@@ -191,6 +192,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.SCALING);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
+        map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -305,6 +307,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 twiceAllocatedProcessors(allocatedProcessors),
                 1000,
                 runnableTaskListener
+            )
+        );
+        builders.put(
+            Names.REMOTE_STATE_CHECKSUM,
+            new ScalingExecutorBuilder(
+                Names.REMOTE_STATE_CHECKSUM,
+                1,
+                twiceAllocatedProcessors(allocatedProcessors),
+                TimeValue.timeValueMinutes(5)
             )
         );
 

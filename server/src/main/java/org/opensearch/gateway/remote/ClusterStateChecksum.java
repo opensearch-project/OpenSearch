@@ -30,11 +30,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.jcraft.jzlib.JZlib;
+import org.opensearch.threadpool.ThreadPool;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -72,10 +72,9 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
     long indicesChecksum;
     long clusterStateChecksum;
 
-    public ClusterStateChecksum(ClusterState clusterState) {
-        long start = System.nanoTime();
-        // keeping thread pool size to number of components.
-        ExecutorService executorService = Executors.newFixedThreadPool(COMPONENT_SIZE);
+    public ClusterStateChecksum(ClusterState clusterState, ThreadPool threadpool) {
+        long start = threadpool.relativeTimeInNanos();
+        ExecutorService executorService = threadpool.executor(ThreadPool.Names.REMOTE_STATE_CHECKSUM);
         CountDownLatch latch = new CountDownLatch(COMPONENT_SIZE);
 
         executeChecksumTask((stream) -> {
@@ -180,14 +179,13 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             return null;
         }, checksum -> clusterStateCustomsChecksum = checksum, executorService, latch);
 
-        executorService.shutdown();
         try {
             latch.await();
         } catch (InterruptedException e) {
             throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
         }
         createClusterStateChecksum();
-        logger.debug("Checksum execution time {}", TimeValue.nsecToMSec(System.nanoTime() - start));
+        logger.debug("Checksum execution time {}", TimeValue.nsecToMSec(threadpool.relativeTimeInNanos() - start));
     }
 
     private void executeChecksumTask(

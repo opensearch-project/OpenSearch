@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote;
 
+import org.junit.AfterClass;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -45,6 +46,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V0;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
@@ -63,6 +66,13 @@ import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadat
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
+
+    private static final ThreadPool threadPool = new TestThreadPool(ClusterMetadataManifestTests.class.getName());
+
+    @AfterClass
+    public static void shutdown() throws Exception {
+        threadPool.shutdown();
+    }
 
     public void testClusterMetadataManifestXContentV0() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path", CODEC_V0);
@@ -214,7 +224,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                     "indicesRoutingDiffPath"
                 )
             )
-            .checksum(new ClusterStateChecksum(createClusterState()))
+            .checksum(new ClusterStateChecksum(createClusterState(),threadPool))
             .build();
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -647,7 +657,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
         final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(StringKeyDiffProvider.class);
-        ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState());
+        ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState(),threadPool);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)
