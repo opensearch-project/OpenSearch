@@ -110,6 +110,19 @@ setup:
       reason: "Bugfix not backported to 2.16"
 
   - do:
+      indices.create:
+        index: dhisto-agg-w-query
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            refresh_interval: -1
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
       bulk:
         refresh: true
         index: dhisto-agg-w-query
@@ -126,6 +139,11 @@ setup:
           - '{"date": "2025-01-01"}'
           - '{"index": {}}'
           - '{"date": "2025-02-14"}'
+
+  - do:
+      indices.forcemerge:
+        index: dhisto-agg-w-query
+        max_num_segments: 1
 
   - do:
       search:
