@@ -41,7 +41,7 @@ public class GetTermVersionResponse extends ActionResponse {
     public GetTermVersionResponse(StreamInput in) throws IOException {
         super(in);
         this.clusterStateTermVersion = new ClusterStateTermVersion(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             this.isStatePresentInRemote = in.readOptionalBoolean();
         } else {
             this.isStatePresentInRemote = false;
@@ -51,7 +51,7 @@ public class GetTermVersionResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterStateTermVersion.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalBoolean(isStatePresentInRemote);
         }
     }
