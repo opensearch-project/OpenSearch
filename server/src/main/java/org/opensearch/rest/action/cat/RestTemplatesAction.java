@@ -72,7 +72,7 @@ public class RestTemplatesAction extends AbstractCatAction {
     }
 
     @Override
-    public void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/templates\n");
     }
 

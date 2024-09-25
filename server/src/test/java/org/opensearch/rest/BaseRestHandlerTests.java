@@ -247,7 +247,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void documentation(StringBuilder sb) {
+            protected void documentation(StringBuilder sb) {
 
             }
 

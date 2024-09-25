@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
@@ -52,13 +51,13 @@ import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.rest.pagination.PageToken;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -170,7 +169,7 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         final RestIndicesListAction indicesListAction = new RestIndicesListAction();
         List<String> indicesList = new ArrayList<>(indicesMetadatas.keySet());
         // Using half of the indices from metadata list for a page
-        String[] indicesToBeQueried = indicesList.subList(0, indicesMetadatas.size()/2).toArray(new String[0]);
+        String[] indicesToBeQueried = indicesList.subList(0, indicesMetadatas.size() / 2).toArray(new String[0]);
         PageToken pageToken = new PageToken("foo", "indices");
         final Table table = action.buildTable(
             new FakeRestRequest(),
@@ -190,7 +189,7 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         assertEquals(pageToken.getPaginatedEntity(), table.getPageToken().getPaginatedEntity());
 
         // Table should only contain the indices present in indicesToBeQueried
-        assertThat(table.getRows().size(), equalTo(indicesMetadatas.size()/2));
+        assertThat(table.getRows().size(), equalTo(indicesMetadatas.size() / 2));
         assertTableRows(table);
     }
 

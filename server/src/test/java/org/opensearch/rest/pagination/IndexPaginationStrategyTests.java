@@ -28,9 +28,9 @@ import java.util.Objects;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
 import static org.opensearch.rest.pagination.PageParams.PARAM_DESC_SORT_VALUE;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 
 public class IndexPaginationStrategyTests extends OpenSearchTestCase {
 
@@ -65,7 +65,10 @@ public class IndexPaginationStrategyTests extends OpenSearchTestCase {
                     // Asserting all the indices received
                     int responseItr = 0;
                     if (PARAM_ASC_SORT_VALUE.equals(sortOrder)) {
-                        for (int indexNumber = (pageNumber - 1) * pageSize; indexNumber < Math.min(100, pageNumber * pageSize); indexNumber++) {
+                        for (int indexNumber = (pageNumber - 1) * pageSize; indexNumber < Math.min(
+                            100,
+                            pageNumber * pageSize
+                        ); indexNumber++) {
                             assertEquals("test-index-" + (indexNumber + 1), paginationStrategy.getRequestedEntities().get(responseItr));
                             responseItr++;
                         }
@@ -221,7 +224,6 @@ public class IndexPaginationStrategyTests extends OpenSearchTestCase {
         paginationStrategy = new IndexPaginationStrategy(pageParams, clusterState);
         assertPaginationResult(paginationStrategy, 1, true);
         assertEquals("test-index-3", paginationStrategy.getRequestedEntities().get(0));
-
 
         // Deleting test-index-4 which is not yet displayed which otherwise should have been displayed in the following query
         // instead test-index-5 should now get displayed.

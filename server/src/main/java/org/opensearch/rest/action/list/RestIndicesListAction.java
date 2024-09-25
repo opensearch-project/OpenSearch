@@ -46,7 +46,7 @@ public class RestIndicesListAction extends RestIndicesAction {
     }
 
     @Override
-    public void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_list/indices\n");
         sb.append("/_list/indices/{index}\n");
     }
