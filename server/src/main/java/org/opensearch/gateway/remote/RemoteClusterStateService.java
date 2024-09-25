@@ -65,6 +65,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -1055,12 +1056,24 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public void start() {
+
         assert isRemoteStoreClusterStateEnabled(settings) == true : "Remote cluster state is not enabled";
         final String remoteStoreRepo = settings.get(
             Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
+
+        if (remoteStoreRepo == null) {
+            return;
+        }
         assert remoteStoreRepo != null : "Remote Cluster State repository is not configured";
-        final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
+        Repository repository = null;
+        try {
+            repository = repositoriesService.get().repository(remoteStoreRepo);
+            logger.info("found repo");
+        } catch (RepositoryMissingException missingexp) {
+            logger.error("exception while publish", missingexp);
+            return;
+        }
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
         String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();

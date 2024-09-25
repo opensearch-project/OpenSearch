@@ -97,7 +97,7 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                 .build();
         } else {
             logger.info("Adding docrep node");
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true).build();
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build(); //.put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true).build();
         }
     }
 
