@@ -565,7 +565,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             repositoryName,
             indexUUID,
             shardId,
-            pathStrategy
+            pathStrategy,
+            false
         );
         verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathStrategy);
         verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
