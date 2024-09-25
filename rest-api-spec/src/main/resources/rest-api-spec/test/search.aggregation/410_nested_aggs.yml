@@ -1,0 +1,111 @@
+---
+# The test setup includes:
+# - Create nested mapping for test_nested_agg_index index
+# - Index two example documents
+# - nested agg
+
+setup:
+  - do:
+      indices.create:
+        index: test_nested_agg_index
+        body:
+          mappings:
+            properties:
+              a:
+                type: nested
+                properties:
+                  b1:
+                    type: keyword
+                  b2:
+                    type: nested
+                    properties:
+                      c:
+                        type: nested
+                        properties:
+                          d:
+                            type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test_nested_agg_index", "_id": "0"}}
+          {"a": { "b1": "b11", "b2": { "c": { "d": "d1" } }}}
+          {"index": {"_index": "test_nested_agg_index", "_id": "1"}}
+          {"a": { "b1": "b12", "b2": { "c": { "d": "d2" } }}}
+
+---
+# Delete Index when connection is teardown
+teardown:
+  - do:
+      indices.delete:
+        index: test_nested_agg_index
+
+---
+"Supported queries":
+  - skip:
+      version: " - 2.17.99"
+      reason: "fixed in 2.18.0"
+
+  # Verify Document Count
+  - do:
+      search:
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+
+  # Verify nested aggregation
+  - do:
+      search:
+        body: {
+          aggs: {
+            nested_agg: {
+              nested: {
+                path: "a"
+              },
+              aggs: {
+                a_b1: {
+                  terms: {
+                    field: "a.b1"
+                  },
+                  aggs: {
+                    "c": {
+                      nested: {
+                        path: "a.b2.c"
+                      },
+                      aggs: {
+                        "d": {
+                          terms: {
+                            field: "a.b2.c.d"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { aggregations.nested_agg.doc_count: 2 }
+  - length: { aggregations.nested_agg.a_b1.buckets: 2 }
+
+  - match: { aggregations.nested_agg.a_b1.buckets.0.key: "b11" }
+  - match: { aggregations.nested_agg.a_b1.buckets.0.doc_count: 1 }
+  - match: { aggregations.nested_agg.a_b1.buckets.0.c.doc_count: 1 }
+  - length: { aggregations.nested_agg.a_b1.buckets.0.c.d.buckets: "1" }
+  - match: { aggregations.nested_agg.a_b1.buckets.0.c.d.buckets.0.key: "d1" }
+  - match: { aggregations.nested_agg.a_b1.buckets.0.c.d.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.nested_agg.a_b1.buckets.1.key: "b12" }
+  - match: { aggregations.nested_agg.a_b1.buckets.1.doc_count: 1 }
+  - match: { aggregations.nested_agg.a_b1.buckets.1.c.doc_count: 1 }
+  - length: { aggregations.nested_agg.a_b1.buckets.1.c.d.buckets: "1" }
+  - match: { aggregations.nested_agg.a_b1.buckets.1.c.d.buckets.0.key: "d2" }
+  - match: { aggregations.nested_agg.a_b1.buckets.1.c.d.buckets.0.doc_count: 1 }
