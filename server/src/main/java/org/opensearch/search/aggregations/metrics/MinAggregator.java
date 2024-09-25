@@ -166,7 +166,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             ctx,
             sub,
             starTree,
-            MetricStat.SUM.getTypeName(),
+            MetricStat.MIN.getTypeName(),
             value -> {
                 min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
             },

@@ -36,6 +36,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
@@ -130,7 +131,7 @@ public abstract class SearchContext implements Releasable {
     private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
-    protected volatile Map<LeafReaderContext, StarTreeValuesIterator> starTreeValuesMap;
+    protected volatile Map<LeafReaderContext, FixedBitSet> starTreeValuesMap;
     private volatile boolean searchTimedOut;
 
     protected SearchContext() {}
@@ -545,7 +546,7 @@ public abstract class SearchContext implements Releasable {
         return this;
     }
 
-    public StarTreeValuesIterator getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
+    public FixedBitSet getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
         return null;
     }
 }

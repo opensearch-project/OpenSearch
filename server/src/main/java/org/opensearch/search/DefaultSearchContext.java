@@ -44,6 +44,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -1170,13 +1171,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public StarTreeValuesIterator getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
+    public FixedBitSet getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
         if (this.starTreeValuesMap.containsKey(ctx)) {
-
             return starTreeValuesMap.get(ctx);
         }
         StarTreeFilter filter = new StarTreeFilter(starTreeValues, this.getStarTreeQueryContext().getQueryMap());
-        StarTreeValuesIterator result = filter.getStarTreeResult();
+        FixedBitSet result = filter.getStarTreeResult();
 
         starTreeValuesMap.put(ctx, result);
         return result;

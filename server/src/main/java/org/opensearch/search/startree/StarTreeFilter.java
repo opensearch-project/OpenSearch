@@ -10,6 +10,7 @@ package org.opensearch.search.startree;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -57,48 +58,59 @@ public class StarTreeFilter {
      *   <li>For the remaining columns, use star-tree doc values to match them
      * </ul>
      */
-    public StarTreeValuesIterator getStarTreeResult() throws IOException {
+    public FixedBitSet getStarTreeResult() throws IOException {
         StarTreeResult starTreeResult = traverseStarTree();
-        List<StarTreeValuesIterator> andIterators = new ArrayList<>();
-        andIterators.add(new StarTreeValuesIterator(starTreeResult._matchedDocIds.build().iterator()));
-        StarTreeValuesIterator starTreeValuesIterator = andIterators.get(0);
 
-        int length = 0;
-        // No matches, return
+        // Initialize FixedBitSet with size maxMatchedDoc + 1
+        FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
+        StarTreeValuesIterator starTreeValuesIterator = new StarTreeValuesIterator(starTreeResult._matchedDocIds.build().iterator());
+
+        // No matches, return an empty FixedBitSet
         if (starTreeResult.maxMatchedDoc == -1) {
-            return starTreeValuesIterator;
+            return bitSet;
         }
+
+        // Set bits in FixedBitSet for initially matched documents
+        while (starTreeValuesIterator.nextEntry() != NO_MORE_DOCS) {
+            bitSet.set(starTreeValuesIterator.entryId());
+        }
+
+        // Temporary FixedBitSet reused for filtering
+        FixedBitSet tempBitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
+
+        // Process remaining predicate columns to further filter the results
         for (String remainingPredicateColumn : starTreeResult._remainingPredicateColumns) {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
-            DocIdSetBuilder builder = new DocIdSetBuilder(starTreeResult.maxMatchedDoc + 1);
+
             SortedNumericStarTreeValuesIterator ndv = (SortedNumericStarTreeValuesIterator) this.starTreeValues.getDimensionValuesIterator(
                 remainingPredicateColumn
             );
-            List<Integer> entryIds = new ArrayList<>();
+
             long queryValue = queryMap.get(remainingPredicateColumn); // Get the query value directly
 
-            while (starTreeValuesIterator.nextEntry() != NO_MORE_DOCS) {
-                int entryId = starTreeValuesIterator.entryId();
-                if (ndv.advance(entryId) > 0) {
+            // Clear the temporary bit set before reuse
+            tempBitSet.clear(0, starTreeResult.maxMatchedDoc + 1);
+
+            // Iterate over the current set of matched document IDs
+            for (int entryId = bitSet.nextSetBit(0); entryId >= 0; entryId = bitSet.nextSetBit(entryId + 1)) {
+                if (ndv.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
                     final int valuesCount = ndv.valuesCount();
                     for (int i = 0; i < valuesCount; i++) {
                         long value = ndv.nextValue();
-                        // Directly compare value with queryValue
+                        // Compare the value with the query value
                         if (value == queryValue) {
-                            entryIds.add(entryId);
-                            break;
+                            tempBitSet.set(entryId);  // Set bit for the matching entryId
+                            break;  // No need to check other values for this entryId
                         }
                     }
                 }
             }
-            DocIdSetBuilder.BulkAdder adder = builder.grow(entryIds.size());
-            for (int entryId : entryIds) {
-                adder.add(entryId);
-            }
-            length = entryIds.size();
-            starTreeValuesIterator = new StarTreeValuesIterator(builder.build().iterator());
+
+            // Perform intersection of the current matches with the temp results for this predicate
+            bitSet.and(tempBitSet);
         }
-        return starTreeValuesIterator;
+
+        return bitSet;  // Return the final FixedBitSet with all matches
     }
 
     /**
