@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote;
 
+import org.junit.Assert;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -116,6 +117,26 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
                 )
             )
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true);
+    }
+
+    public void testRemoteClusterStateServiceNotInitialized_WhenNodeAttributesNotPresent() {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+
+        ensureStableCluster(3);
+        ensureGreen();
+
+        internalCluster().getDataOrClusterManagerNodeInstances(RemoteClusterStateService.class).forEach(Assert::assertNull);
+    }
+
+    public void testServiceInitialized_WhenNodeAttributesPresent() {
+        internalCluster().startClusterManagerOnlyNode(buildRemoteStateNodeAttributes(REPOSITORY_NAME, segmentRepoPath, ReloadableFsRepository.TYPE));
+        internalCluster().startDataOnlyNodes(2, buildRemoteStateNodeAttributes(REPOSITORY_NAME, segmentRepoPath, ReloadableFsRepository.TYPE));
+
+        ensureStableCluster(3);
+        ensureGreen();
+
+        internalCluster().getDataOrClusterManagerNodeInstances(RemoteClusterStateService.class).forEach(Assert::assertNotNull);
     }
 
     public void testRemotePublishConfigNodeJoinNonRemoteCluster() throws Exception {
