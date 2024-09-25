@@ -518,6 +518,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(Set.of(Metric.FS.metricName(), Metric.JVM.metricName(), Metric.PLUGINS.metricName(), Metric.OS.metricName()))
+            .applyMetricFiltering(true)
             .get();
         assertNotNull(response.getNodesStats());
         assertNotNull(response.getNodesStats().getJvm());
@@ -531,6 +532,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(Set.of(Metric.INDICES.metricName()))
+            .indexMetrics(IndexMetrics.allIndicesMetrics())
+            .applyMetricFiltering(true)
             .get();
         assertNotNull(response.getIndicesStats());
         assertNotNull(response.getIndicesStats().getMappings());
@@ -565,6 +568,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                     IndexMetrics.ANALYSIS.metricName()
                 )
             )
+            .applyMetricFiltering(true)
             .get();
         assertNotNull(response.getIndicesStats());
         assertNotNull(response.getIndicesStats().getShards());
@@ -583,6 +587,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(Set.of(Metric.OS.metricName(), Metric.PROCESS.metricName(), Metric.INDICES.metricName()))
             .indexMetrics(Set.of(IndexMetrics.SHARDS.metricName(), IndexMetrics.MAPPINGS.metricName()))
+            .applyMetricFiltering(true)
             .get();
         assertNotNull(response.getNodesStats());
         assertNotNull(response.getNodesStats().getOs());
@@ -602,6 +607,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                 .prepareClusterStats()
                 .useAggregatedNodeLevelResponses(randomBoolean())
                 .requestMetrics(Set.of("random_metric"))
+                .applyMetricFiltering(true)
                 .get()
         );
 
@@ -613,6 +619,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                 .useAggregatedNodeLevelResponses(randomBoolean())
                 .requestMetrics(Metric.allMetrics())
                 .indexMetrics(Set.of("random_metric"))
+                .applyMetricFiltering(true)
                 .get()
         );
 

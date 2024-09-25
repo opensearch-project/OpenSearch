@@ -116,7 +116,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
-        nodesStats = !requestedMetrics.isEmpty() && !requestedMetrics.equals(Set.of(Metric.INDICES.metricName()))
+        nodesStats = requestedMetrics.stream().anyMatch(ClusterStatsNodes.NODE_STATS_METRICS::contains)
             ? new ClusterStatsNodes(requestedMetrics, nodes)
             : null;
         MappingStats mappingStats = ClusterStatsRequest.IndexMetrics.MAPPINGS.containedIn(indicesMetrics) ? MappingStats.of(state) : null;
