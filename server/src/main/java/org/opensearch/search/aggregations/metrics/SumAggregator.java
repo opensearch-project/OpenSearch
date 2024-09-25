@@ -100,6 +100,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         if (supportedStarTree != null) {
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
+        System.out.println("nopes nopes");
         return getDefaultLeafCollector(ctx, sub);
     }
 
@@ -135,7 +136,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
-        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
         return StarTreeQueryHelper.getStarTreeLeafCollector(
             context,
             valuesSource,

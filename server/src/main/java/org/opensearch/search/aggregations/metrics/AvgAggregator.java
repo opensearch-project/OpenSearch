@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -268,18 +269,29 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         SortedNumericStarTreeValuesIterator countValueIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             countMetricName
         );
-        StarTreeValuesIterator result = context.getStarTreeFilteredValues(ctx, starTreeValues);
+        FixedBitSet matchedDocIds = context.getStarTreeFilteredValues(ctx, starTreeValues);
 
-        int entryId;
-        while ((entryId = result.nextEntry()) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-            if (sumValuesIterator.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
+
+        // Safety check: make sure the FixedBitSet is non-null and valid
+        if (matchedDocIds == null) {
+            throw new IllegalStateException("FixedBitSet is null");
+        }
+
+        int numBits = matchedDocIds.length();  // Get the length of the FixedBitSet
+
+        // Iterate over the FixedBitSet
+        for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = bit + 1 < numBits ? matchedDocIds.nextSetBit(bit + 1) : -1) {
+            // Advance to the bit (entryId) in the valuesIterator
+            if (sumValuesIterator.advance(bit) != StarTreeValuesIterator.NO_MORE_ENTRIES &&
+                countValueIterator.advance(bit) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
                 int count = sumValuesIterator.valuesCount();
                 for (int i = 0; i < count; i++) {
                     kahanSummation.add(NumericUtils.sortableLongToDouble(sumValuesIterator.nextValue()));
-                    counts.increment(0, countValueIterator.nextValue());
+                    counts.increment(0, countValueIterator.nextValue()); // Apply the consumer operation (e.g., max, sum)
                 }
             }
         }
+
         sums.set(0, kahanSummation.value());
         return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
             @Override
