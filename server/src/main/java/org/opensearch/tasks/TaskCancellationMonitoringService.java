@@ -125,7 +125,7 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         if (!TASKS_TO_TRACK.contains(task.getClass())) {
             return;
         }
-        this.cancelledTaskTracker.entrySet().removeIf(entry -> entry.getKey() == task.getId());
+        this.cancelledTaskTracker.remove(task.getId());
     }
 
     /**

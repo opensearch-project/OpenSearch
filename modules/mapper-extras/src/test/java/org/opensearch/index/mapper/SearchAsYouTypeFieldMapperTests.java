@@ -298,6 +298,20 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testSubField() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "search_as_you_type")
+                    .startObject("fields")
+                    .startObject("subField")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+            )
+        );
+        assertThat(mapperService.fieldType("field.subField"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+    }
+
     public void testIndexOptions() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "search_as_you_type").field("index_options", "offsets"))

@@ -58,6 +58,8 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -402,7 +404,9 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                     docsWithField.add(i);
                 }
             }
-            sequentialDocValuesIterators[j] = new SequentialDocValuesIterator(getSortedNumericMock(dimList, docsWithField));
+            sequentialDocValuesIterators[j] = new SequentialDocValuesIterator(
+                new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList, docsWithField))
+            );
         }
         return sequentialDocValuesIterators;
     }
@@ -419,7 +423,9 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                     docsWithField.add(i);
                 }
             }
-            sequentialDocValuesIterators.add(new SequentialDocValuesIterator(getSortedNumericMock(metricslist, docsWithField)));
+            sequentialDocValuesIterators.add(
+                new SequentialDocValuesIterator(new SortedNumericStarTreeValuesIterator(getSortedNumericMock(metricslist, docsWithField)))
+            );
         }
         return sequentialDocValuesIterators;
     }
@@ -1992,10 +1998,16 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
 
         compositeField = getStarTreeFieldWithMultipleMetrics();
-        SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
-        SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
-        SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
-        SortedNumericDocValues m2sndv = getSortedNumericMock(metricsList, metricsWithField);
+        SortedNumericStarTreeValuesIterator d1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList, docsWithField));
+        SortedNumericStarTreeValuesIterator d2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(dimList2, docsWithField2)
+        );
+        SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
+        SortedNumericStarTreeValuesIterator m2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
 
         writeState = getWriteState(6, writeState.segmentInfo.getId());
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
@@ -2088,10 +2100,16 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
 
         compositeField = getStarTreeFieldWithMultipleMetrics();
-        SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
-        SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
-        SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
-        SortedNumericDocValues m2sndv = getSortedNumericMock(metricsList, metricsWithField);
+        SortedNumericStarTreeValuesIterator d1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList, docsWithField));
+        SortedNumericStarTreeValuesIterator d2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(dimList2, docsWithField2)
+        );
+        SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
+        SortedNumericStarTreeValuesIterator m2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
 
         writeState = getWriteState(6, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
@@ -2515,9 +2533,14 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues d1sndv = dimList;
         SortedNumericDocValues d2sndv = dimList2;
         SortedNumericDocValues m1sndv = metricsList;
-        Map<String, Supplier<DocIdSetIterator>> dimDocIdSetIterators = Map.of("field1", () -> d1sndv, "field3", () -> d2sndv);
+        Map<String, Supplier<StarTreeValuesIterator>> dimDocIdSetIterators = Map.of(
+            "field1",
+            () -> new SortedNumericStarTreeValuesIterator(d1sndv),
+            "field3",
+            () -> new SortedNumericStarTreeValuesIterator(d2sndv)
+        );
 
-        Map<String, Supplier<DocIdSetIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
+        Map<String, Supplier<StarTreeValuesIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
         for (Metric metric : sf.getMetrics()) {
             for (MetricStat metricStat : metric.getMetrics()) {
                 String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
@@ -2525,7 +2548,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                     metric.getField(),
                     metricStat.getTypeName()
                 );
-                metricDocIdSetIterators.put(metricFullName, () -> m1sndv);
+                metricDocIdSetIterators.put(metricFullName, () -> new SortedNumericStarTreeValuesIterator(m1sndv));
             }
         }
 
@@ -3655,18 +3678,18 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues d4sndv = getSortedNumericMock(dimList4, docsWithField4);
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         SortedNumericDocValues m2sndv = getSortedNumericMock(metricsList1, metricsWithField1);
-        Map<String, Supplier<DocIdSetIterator>> dimDocIdSetIterators = Map.of(
+        Map<String, Supplier<StarTreeValuesIterator>> dimDocIdSetIterators = Map.of(
             "field1",
-            () -> d1sndv,
+            () -> new SortedNumericStarTreeValuesIterator(d1sndv),
             "field3",
-            () -> d2sndv,
+            () -> new SortedNumericStarTreeValuesIterator(d2sndv),
             "field5",
-            () -> d3sndv,
+            () -> new SortedNumericStarTreeValuesIterator(d3sndv),
             "field8",
-            () -> d4sndv
+            () -> new SortedNumericStarTreeValuesIterator(d4sndv)
         );
 
-        Map<String, Supplier<DocIdSetIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
+        Map<String, Supplier<StarTreeValuesIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
 
         metricDocIdSetIterators.put(
             fullyQualifiedFieldNameForStarTreeMetricsDocValues(
@@ -3674,7 +3697,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                 "field2",
                 sf.getMetrics().get(0).getMetrics().get(0).getTypeName()
             ),
-            () -> m1sndv
+            () -> new SortedNumericStarTreeValuesIterator(m1sndv)
         );
         metricDocIdSetIterators.put(
             fullyQualifiedFieldNameForStarTreeMetricsDocValues(
@@ -3682,7 +3705,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                 "_doc_count",
                 sf.getMetrics().get(1).getMetrics().get(0).getTypeName()
             ),
-            () -> m2sndv
+            () -> new SortedNumericStarTreeValuesIterator(m2sndv)
         );
         // metricDocIdSetIterators.put("field2", () -> m1sndv);
         // metricDocIdSetIterators.put("_doc_count", () -> m2sndv);
@@ -4100,24 +4123,24 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         SortedNumericDocValues valucountsndv = getSortedNumericMock(metricsListValueCount, metricsWithFieldValueCount);
         SortedNumericDocValues m2sndv = DocValues.emptySortedNumeric();
-        Map<String, Supplier<DocIdSetIterator>> dimDocIdSetIterators = Map.of(
+        Map<String, Supplier<StarTreeValuesIterator>> dimDocIdSetIterators = Map.of(
             "field1",
-            () -> d1sndv,
+            () -> new SortedNumericStarTreeValuesIterator(d1sndv),
             "field3",
-            () -> d2sndv,
+            () -> new SortedNumericStarTreeValuesIterator(d2sndv),
             "field5",
-            () -> d3sndv,
+            () -> new SortedNumericStarTreeValuesIterator(d3sndv),
             "field8",
-            () -> d4sndv
+            () -> new SortedNumericStarTreeValuesIterator(d4sndv)
         );
 
-        Map<String, Supplier<DocIdSetIterator>> metricDocIdSetIterators = Map.of(
+        Map<String, Supplier<StarTreeValuesIterator>> metricDocIdSetIterators = Map.of(
             "sf_field2_sum_metric",
-            () -> m1sndv,
+            () -> new SortedNumericStarTreeValuesIterator(m1sndv),
             "sf_field2_value_count_metric",
-            () -> valucountsndv,
+            () -> new SortedNumericStarTreeValuesIterator(valucountsndv),
             "sf__doc_count_doc_count_metric",
-            () -> m2sndv
+            () -> new SortedNumericStarTreeValuesIterator(m2sndv)
         );
 
         StarTreeValues starTreeValues = new StarTreeValues(
@@ -4136,24 +4159,24 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         SortedNumericDocValues f2m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         SortedNumericDocValues f2valucountsndv = getSortedNumericMock(metricsListValueCount, metricsWithFieldValueCount);
         SortedNumericDocValues f2m2sndv = DocValues.emptySortedNumeric();
-        Map<String, Supplier<DocIdSetIterator>> f2dimDocIdSetIterators = Map.of(
+        Map<String, Supplier<StarTreeValuesIterator>> f2dimDocIdSetIterators = Map.of(
             "field1",
-            () -> f2d1sndv,
+            () -> new SortedNumericStarTreeValuesIterator(f2d1sndv),
             "field3",
-            () -> f2d2sndv,
+            () -> new SortedNumericStarTreeValuesIterator(f2d2sndv),
             "field5",
-            () -> f2d3sndv,
+            () -> new SortedNumericStarTreeValuesIterator(f2d3sndv),
             "field8",
-            () -> f2d4sndv
+            () -> new SortedNumericStarTreeValuesIterator(f2d4sndv)
         );
 
-        Map<String, Supplier<DocIdSetIterator>> f2metricDocIdSetIterators = Map.of(
+        Map<String, Supplier<StarTreeValuesIterator>> f2metricDocIdSetIterators = Map.of(
             "sf_field2_sum_metric",
-            () -> f2m1sndv,
+            () -> new SortedNumericStarTreeValuesIterator(f2m1sndv),
             "sf_field2_value_count_metric",
-            () -> f2valucountsndv,
+            () -> new SortedNumericStarTreeValuesIterator(f2valucountsndv),
             "sf__doc_count_doc_count_metric",
-            () -> f2m2sndv
+            () -> new SortedNumericStarTreeValuesIterator(f2m2sndv)
         );
         StarTreeValues starTreeValues2 = new StarTreeValues(
             compositeField,
@@ -4240,10 +4263,10 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
 
         compositeField = getStarTreeFieldWithDateDimension();
-        SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
-        SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
-        SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
-        SortedNumericDocValues m2sndv = getSortedNumericMock(metricsList, metricsWithField);
+        SortedNumericStarTreeValuesIterator d1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList, docsWithField));
+        SortedNumericStarTreeValuesIterator d2sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList2, docsWithField2));
+        SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(metricsList, metricsWithField));
+        SortedNumericStarTreeValuesIterator m2sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(metricsList, metricsWithField));
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
             Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
@@ -4416,17 +4439,17 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         StarTreeField sf,
         String number
     ) {
-        Map<String, Supplier<DocIdSetIterator>> dimDocIdSetIterators = Map.of(
+        Map<String, Supplier<StarTreeValuesIterator>> dimDocIdSetIterators = Map.of(
             "field1_minute",
-            () -> dimList,
+            () -> new SortedNumericStarTreeValuesIterator(dimList),
             "field1_half-hour",
-            () -> dimList4,
+            () -> new SortedNumericStarTreeValuesIterator(dimList4),
             "field1_hour",
-            () -> dimList2,
+            () -> new SortedNumericStarTreeValuesIterator(dimList2),
             "field3",
-            () -> dimList3
+            () -> new SortedNumericStarTreeValuesIterator(dimList3)
         );
-        Map<String, Supplier<DocIdSetIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
+        Map<String, Supplier<StarTreeValuesIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
 
         metricDocIdSetIterators.put(
             fullyQualifiedFieldNameForStarTreeMetricsDocValues(
@@ -4434,7 +4457,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                 "field2",
                 sf.getMetrics().get(0).getMetrics().get(0).getTypeName()
             ),
-            () -> metricsList
+            () -> new SortedNumericStarTreeValuesIterator(metricsList)
         );
         metricDocIdSetIterators.put(
             fullyQualifiedFieldNameForStarTreeMetricsDocValues(
@@ -4442,7 +4465,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                 "field2",
                 sf.getMetrics().get(0).getMetrics().get(1).getTypeName()
             ),
-            () -> metricsList1
+            () -> new SortedNumericStarTreeValuesIterator(metricsList1)
         );
         return new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators, Map.of(SEGMENT_DOCS_COUNT, number), null);
     }

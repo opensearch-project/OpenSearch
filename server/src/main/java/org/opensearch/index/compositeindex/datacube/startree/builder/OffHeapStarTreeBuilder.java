@@ -144,7 +144,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
                 AtomicInteger numSegmentDocs = new AtomicInteger();
                 setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
-
                 int currentDocId = 0;
                 while (currentDocId < numSegmentDocs.get()) {
                     StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders);

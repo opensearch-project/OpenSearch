@@ -126,6 +126,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
+
             SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
             AtomicInteger numSegmentDocs = new AtomicInteger();

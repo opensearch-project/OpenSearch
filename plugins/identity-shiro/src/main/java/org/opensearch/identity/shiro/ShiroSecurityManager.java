@@ -15,8 +15,6 @@ import org.opensearch.identity.shiro.realm.OpenSearchRealm;
 
 /**
  * OpenSearch specific security manager implementation
- *
- * @opensearch.experimental
  */
 public class ShiroSecurityManager extends DefaultSecurityManager {
 
