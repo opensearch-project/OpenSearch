@@ -36,7 +36,7 @@ import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,10 +67,11 @@ import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
-    private static final ThreadPool threadPool = new TestThreadPool(ClusterMetadataManifestTests.class.getName());
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @AfterClass
-    public static void shutdown() throws Exception {
+    @After
+    public void teardown() throws Exception {
+        super.tearDown();
         threadPool.shutdown();
     }
 

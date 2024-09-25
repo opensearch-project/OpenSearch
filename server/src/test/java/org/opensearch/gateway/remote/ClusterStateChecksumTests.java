@@ -36,7 +36,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -44,10 +44,11 @@ import java.util.List;
 import java.util.Map;
 
 public class ClusterStateChecksumTests extends OpenSearchTestCase {
-    private static final ThreadPool threadPool = new TestThreadPool(ClusterStateChecksumTests.class.getName());
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @AfterClass
-    public static void shutdown() throws Exception {
+    @After
+    public void teardown() throws Exception {
+        super.tearDown();
         threadPool.shutdown();
     }
 
