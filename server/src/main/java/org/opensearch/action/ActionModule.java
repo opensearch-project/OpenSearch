@@ -325,7 +325,7 @@ import org.opensearch.persistent.UpdatePersistentTaskStatusAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.NamedRoute;
-import org.opensearch.rest.RequestLimitSettings;
+import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -529,7 +529,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ExtensionsManager extensionsManager;
-    private final RequestLimitSettings requestLimitSettings;
+    private final ResponseLimitSettings responseLimitSettings;
 
     public ActionModule(
         Settings settings,
@@ -582,7 +582,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
-        requestLimitSettings = new RequestLimitSettings(clusterSettings, settings);
+        responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -963,8 +963,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterManagerAction());
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction(requestLimitSettings));
-        registerHandler.accept(new RestSegmentsAction(requestLimitSettings));
+        registerHandler.accept(new RestIndicesAction(responseLimitSettings));
+        registerHandler.accept(new RestSegmentsAction(responseLimitSettings));
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.opensearch.rest.action.cat.RestCountAction());
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
@@ -1052,7 +1052,7 @@ public class ActionModule extends AbstractModule {
         // register dynamic ActionType -> transportAction Map used by NodeClient
         bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
 
-        bind(RequestLimitSettings.class).toInstance(requestLimitSettings);
+        bind(ResponseLimitSettings.class).toInstance(responseLimitSettings);
     }
 
     public ActionFilters getActionFilters() {

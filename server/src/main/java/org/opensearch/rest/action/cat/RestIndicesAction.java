@@ -57,10 +57,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.rest.RequestLimitSettings;
+import org.opensearch.rest.ResponseLimitBreachedException;
+import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -74,6 +73,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterators;
 import java.util.function.Function;
@@ -83,7 +83,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
-import static org.opensearch.rest.RequestLimitSettings.BlockAction.CAT_INDICES;
+import static org.opensearch.rest.ResponseLimitSettings.LimitEntity.INDICES;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -100,10 +100,10 @@ public class RestIndicesAction extends AbstractCatAction {
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
-    private final RequestLimitSettings requestLimitSettings;
+    private final ResponseLimitSettings responseLimitSettings;
 
-    public RestIndicesAction(RequestLimitSettings requestLimitSettings) {
-        this.requestLimitSettings = requestLimitSettings;
+    public RestIndicesAction(ResponseLimitSettings responseLimitSettings) {
+        this.responseLimitSettings = responseLimitSettings;
     }
 
     @Override
@@ -171,7 +171,6 @@ public class RestIndicesAction extends AbstractCatAction {
                         // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
                         // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
                         final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
-
                         // Indices that were successfully resolved during the get settings request might be deleted when the
                         // subsequent cluster state, cluster health and indices stats requests execute. We have to distinguish two cases:
                         // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we
@@ -190,12 +189,7 @@ public class RestIndicesAction extends AbstractCatAction {
                             new ActionListener<ClusterStateResponse>() {
                                 @Override
                                 public void onResponse(ClusterStateResponse clusterStateResponse) {
-                                    if (isRequestLimitCheckSupported()
-                                        && requestLimitSettings.isCircuitLimitBreached(clusterStateResponse.getState(), CAT_INDICES)) {
-                                        listener.onFailure(
-                                            new CircuitBreakingException("Too many indices requested.", CircuitBreaker.Durability.TRANSIENT)
-                                        );
-                                    }
+                                    validateRequestLimit(clusterStateResponse, listener);
                                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
                                         request,
                                         4,
@@ -237,6 +231,17 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             );
         };
+    }
+
+    private void validateRequestLimit(final ClusterStateResponse clusterStateResponse, final ActionListener<Table> listener) {
+        if (isRequestLimitCheckSupported() && Objects.nonNull(clusterStateResponse) && Objects.nonNull(clusterStateResponse.getState())) {
+            int limit = responseLimitSettings.getCatIndicesResponseLimit();
+            if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getMetadata(), INDICES, limit)) {
+                listener.onFailure(
+                    new ResponseLimitBreachedException("Too many indices requested. Can not request indices beyond {" + limit + "}")
+                );
+            }
+        }
     }
 
     /**

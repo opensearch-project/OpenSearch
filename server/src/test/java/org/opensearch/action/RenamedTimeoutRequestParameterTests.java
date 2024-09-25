@@ -19,7 +19,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.rest.RequestLimitSettings;
+import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
@@ -159,8 +159,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     public void testCatIndices() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Settings settings = Settings.builder().build();
-        RequestLimitSettings requestLimitSettings = new RequestLimitSettings(clusterSettings, settings);
-        RestIndicesAction action = new RestIndicesAction(requestLimitSettings);
+        ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -246,8 +246,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     public void testCatSegments() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder().build();
-        final RequestLimitSettings requestLimitSettings = new RequestLimitSettings(clusterSettings, settings);
-        RestSegmentsAction action = new RestSegmentsAction(requestLimitSettings);
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        RestSegmentsAction action = new RestSegmentsAction(responseLimitSettings);
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);

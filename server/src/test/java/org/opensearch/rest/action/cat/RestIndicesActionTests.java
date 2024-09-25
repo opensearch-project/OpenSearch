@@ -48,7 +48,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.rest.RequestLimitSettings;
+import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
@@ -141,8 +141,8 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder().build();
-        final RequestLimitSettings requestLimitSettings = new RequestLimitSettings(clusterSettings, settings);
-        final RestIndicesAction action = new RestIndicesAction(requestLimitSettings);
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
         final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas);
 
         // now, verify the table is correct
