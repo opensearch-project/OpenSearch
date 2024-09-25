@@ -106,7 +106,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     protected final Map<DiscoveryNode, ConnectionTarget> targetsByNode = new HashMap<>();
 
     private final TimeValue reconnectInterval;
-    private volatile ConnectionChecker connectionChecker;
+    protected volatile ConnectionChecker connectionChecker;
 
     @Inject
     public NodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
@@ -224,7 +224,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * nodes which are in the process of disconnecting. The onCompletion handler is called after all ongoing connection/disconnection
      * attempts have completed.
      */
-    private void connectDisconnectedTargets(Runnable onCompletion) {
+    protected void connectDisconnectedTargets(Runnable onCompletion) {
         final List<Runnable> runnables = new ArrayList<>();
         synchronized (mutex) {
             final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();

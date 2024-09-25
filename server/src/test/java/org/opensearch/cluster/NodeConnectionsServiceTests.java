@@ -515,7 +515,7 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final NodeConnectionsService service = new NodeConnectionsService(
+        final TestNodeConnectionsService service = new TestNodeConnectionsService(
             settings.build(),
             deterministicTaskQueue.getThreadPool(),
             transportService
@@ -532,18 +532,25 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(connectionCompleted.get());
 
-        // now trigger a disconnect, and then set pending disconnections to true to fail any new connections
+        // reset any logs as we want to assert for exceptions that show up after this
+        // reset connect to node count to assert for later
+        logger.info("--> resetting captured logs and counters");
+        testLogsAppender.clearCapturedLogs();
+        // this ensures we only track connection attempts that happen after the disconnection
+        transportService.resetConnectToNodeCallCount();
+
+        // block connection checker reconnection attempts until after we set pending disconnections
+        logger.info("--> disabling connection checker, and triggering disconnect");
+        service.setShouldReconnect(false);
+        transportService.disconnectFromNode(node);
+
+        // set pending disconnections to true to fail future reconnection attempts
         final long maxDisconnectionTime = 1000;
         deterministicTaskQueue.scheduleNow(new Runnable() {
             @Override
             public void run() {
-                transportService.disconnectFromNode(node);
                 logger.info("--> setting pending disconnections to fail next connection attempts");
                 service.setPendingDisconnections(new HashSet<>(Collections.singleton(node)));
-                // we reset the connection count during the first disconnection
-                // we also clear the captured logs as we want to assert for exceptions that show up after this
-                testLogsAppender.clearCapturedLogs();
-                transportService.resetConnectToNodeCallCount();
             }
 
             @Override
@@ -551,18 +558,27 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
                 return "scheduled disconnection of " + node;
             }
         });
-        final long maxReconnectionTime = 2000;
-        final int expectedReconnectionAttempts = 5;
+        // our task queue will have the first task as the runnable to set pending disconnections
+        // here we re-enable the connection checker to enqueue next tasks for attempting reconnection
+        logger.info("--> re-enabling reconnection checker");
+        service.setShouldReconnect(true);
 
-        // ensure the disconnect task completes, and run for additional time to check for reconnections
-        // exit early if we see enough reconnection attempts
-        logger.info("--> verifying connectionchecker is trying to reconnect");
-        runTasksUntilExpectedReconnectionAttempts(
+        final long maxReconnectionTime = 2000;
+        final int expectedReconnectionAttempts = 10;
+
+        // this will first run the task to set the pending disconnections, then will execute the reconnection tasks
+        // exit early when we have enough reconnection attempts
+        logger.info("--> running tasks in order until expected reconnection attempts");
+        runTasksInOrderUntilExpectedReconnectionAttempts(
             deterministicTaskQueue,
             maxDisconnectionTime + maxReconnectionTime,
             transportService,
             expectedReconnectionAttempts
         );
+        logger.info("--> verifying that connectionchecker tried to reconnect");
+
+        // assert that the connections failed
+        assertFalse("connected to " + node, transportService.nodeConnected(node));
 
         // assert that we saw at least the required number of reconnection attempts, and the exceptions that showed up are as expected
         logger.info("--> number of reconnection attempts: {}", transportService.getConnectToNodeCallCount());
@@ -578,7 +594,6 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
                 TimeUnit.SECONDS
             );
         assertTrue("Expected log for reconnection failure was not found in the required time period", logFound);
-        assertFalse("connected to " + node, transportService.nodeConnected(node));
 
         // clear the pending disconnections and ensure the connection gets re-established automatically by connectionchecker
         logger.info("--> clearing pending disconnections to allow connections to re-establish");
@@ -598,7 +613,7 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
     }
 
-    private void runTasksUntilExpectedReconnectionAttempts(
+    private void runTasksInOrderUntilExpectedReconnectionAttempts(
         DeterministicTaskQueue deterministicTaskQueue,
         long endTimeMillis,
         TestTransportService transportService,
@@ -608,12 +623,12 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         while ((deterministicTaskQueue.getCurrentTimeMillis() < endTimeMillis)
             && (transportService.getConnectToNodeCallCount() <= expectedReconnectionAttempts)) {
             if (deterministicTaskQueue.hasRunnableTasks() && randomBoolean()) {
-                deterministicTaskQueue.runRandomTask();
+                deterministicTaskQueue.runNextTask();
             } else if (deterministicTaskQueue.hasDeferredTasks()) {
                 deterministicTaskQueue.advanceTime();
             }
         }
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runAllRunnableTasksInEnqueuedOrder();
     }
 
     private void ensureConnections(NodeConnectionsService service) {
@@ -733,6 +748,37 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
 
         public void resetConnectToNodeCallCount() {
             connectToNodeCallCount.set(0);
+        }
+    }
+
+    private class TestNodeConnectionsService extends NodeConnectionsService {
+        private boolean shouldReconnect = true;
+
+        public TestNodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
+            super(settings, threadPool, transportService);
+        }
+
+        public void setShouldReconnect(boolean shouldReconnect) {
+            this.shouldReconnect = shouldReconnect;
+        }
+
+        @Override
+        protected void doStart() {
+            final StoppableConnectionChecker connectionChecker = new StoppableConnectionChecker();
+            this.connectionChecker = connectionChecker;
+            connectionChecker.scheduleNextCheck();
+        }
+
+        class StoppableConnectionChecker extends NodeConnectionsService.ConnectionChecker {
+            @Override
+            protected void doRun() {
+                if (connectionChecker == this && shouldReconnect) {
+                    connectDisconnectedTargets(this::scheduleNextCheck);
+                } else {
+                    // Skip reconnection attempt but still schedule the next check
+                    scheduleNextCheck();
+                }
+            }
         }
     }
 
