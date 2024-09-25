@@ -52,8 +52,9 @@ import java.util.stream.Collectors;
 @PublicApi(since = "1.0.0")
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
-    private final Set<String> requestedMetrics = new HashSet<>(Metric.allMetrics());
-    private final Set<String> indicesMetrics = new HashSet<>(IndexMetrics.allIndicesMetrics());
+    private final Set<String> requestedMetrics = new HashSet<>();
+    private final Set<String> indexMetricsRequested = new HashSet<>();
+    private Boolean applyMetricFiltering = false;
 
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
@@ -61,10 +62,9 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
             useAggregatedNodeLevelResponses = in.readOptionalBoolean();
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            requestedMetrics.clear();
-            indicesMetrics.clear();
+            applyMetricFiltering = in.readOptionalBoolean();
             requestedMetrics.addAll(in.readStringList());
-            indicesMetrics.addAll(in.readStringList());
+            indexMetricsRequested.addAll(in.readStringList());
         }
     }
 
@@ -84,6 +84,14 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     public void useAggregatedNodeLevelResponses(boolean useAggregatedNodeLevelResponses) {
         this.useAggregatedNodeLevelResponses = useAggregatedNodeLevelResponses;
+    }
+
+    public boolean applyMetricFiltering() {
+        return applyMetricFiltering;
+    }
+
+    public void applyMetricFiltering(boolean honourMetricFiltering) {
+        this.applyMetricFiltering = honourMetricFiltering;
     }
 
     /**
@@ -111,12 +119,12 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         if (IndexMetrics.allIndicesMetrics().contains(indexMetric) == false) {
             throw new IllegalStateException("Used an illegal index metric: " + indexMetric);
         }
-        indicesMetrics.add(indexMetric);
+        indexMetricsRequested.add(indexMetric);
         return this;
     }
 
     public Set<String> indicesMetrics() {
-        return new HashSet<>(indicesMetrics);
+        return new HashSet<>(indexMetricsRequested);
     }
 
     public void clearRequestedMetrics() {
@@ -124,7 +132,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     }
 
     public void clearIndicesMetrics() {
-        indicesMetrics.clear();
+        indexMetricsRequested.clear();
     }
 
     @Override
@@ -134,8 +142,9 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
             out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalBoolean(applyMetricFiltering);
             out.writeStringArray(requestedMetrics.toArray(new String[0]));
-            out.writeStringArray(indicesMetrics.toArray(new String[0]));
+            out.writeStringArray(indexMetricsRequested.toArray(new String[0]));
         }
     }
 
@@ -180,6 +189,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      * An enumeration of the "core" sections of indices metrics that may be requested
      * from the cluster stats endpoint.
      */
+    @PublicApi(since = "3.0.0")
     public enum IndexMetrics {
         SHARDS("shards"),
         DOCS("docs"),

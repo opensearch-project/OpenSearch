@@ -44,6 +44,16 @@ public class ClusterStatsRequestBuilderTests extends OpenSearchTestCase {
         assertFalse(clusterStatsRequestBuilder.request().useAggregatedNodeLevelResponses());
     }
 
+    public void testApplyMetricFiltering() {
+        ClusterStatsRequestBuilder clusterStatsRequestBuilder = new ClusterStatsRequestBuilder(
+            this.testClient,
+            ClusterStatsAction.INSTANCE
+        );
+        assertFalse(clusterStatsRequestBuilder.request().applyMetricFiltering());
+        clusterStatsRequestBuilder.applyMetricFiltering(true);
+        assertTrue(clusterStatsRequestBuilder.request().applyMetricFiltering());
+    }
+
     public void testRequestedMetrics() {
         ClusterStatsRequestBuilder clusterStatsRequestBuilder = new ClusterStatsRequestBuilder(
             this.testClient,

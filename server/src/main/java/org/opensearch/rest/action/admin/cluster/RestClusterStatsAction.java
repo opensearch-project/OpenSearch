@@ -100,36 +100,38 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String[] nodeIds = request.paramAsStringArray("nodeId", null);
-        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
+        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", null));
         Set<String> indexMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", null));
-        logger.info("Request URI path params, metrics : {}, index_metrics : {}, nodes : {}", metrics, indexMetrics, nodeIds);
+        String[] nodeIds = request.paramAsStringArray("nodeId", null);
 
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(nodeIds);
         clusterStatsRequest.timeout(request.param("timeout"));
         clusterStatsRequest.useAggregatedNodeLevelResponses(true);
 
-        if (metrics.size() > 1 && metrics.contains("_all")) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "request [%s] contains _all and individual metrics [%s]",
-                    request.path(),
-                    request.param("metric")
-                )
-            );
-        } else if (indexMetrics.size() > 1 && indexMetrics.contains("_all")) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "request [%s] contains _all and individual index metrics [%s]",
-                    request.path(),
-                    request.param("sub_metric")
-                )
-            );
-        } else {
-            clusterStatsRequest.clearRequestedMetrics();
-            clusterStatsRequest.clearIndicesMetrics();
+        if (!metrics.isEmpty()) {
+            if (metrics.size() > 1 && metrics.contains("_all")) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains _all and individual metrics [%s]",
+                        request.path(),
+                        request.param("metric")
+                    )
+                );
+            }
+
+            if (indexMetrics.size() > 1 && indexMetrics.contains("_all")) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains _all and individual index metrics [%s]",
+                        request.path(),
+                        request.param("sub_metric")
+                    )
+                );
+            }
+
+            clusterStatsRequest.applyMetricFiltering(true);
 
             final Set<String> metricsRequested = new HashSet<>();
             if (metrics.contains("_all")) {
@@ -160,16 +162,13 @@ public class RestClusterStatsAction extends BaseRestHandler {
                 );
             }
 
-            logger.info("Computed metrics: {}", metricsRequested);
             if (ClusterStatsRequest.Metric.INDICES.containedIn(metricsRequested)) {
-                logger.info("Stats request contains indices metric");
                 final Set<String> indexMetricsRequested = new HashSet<>();
                 if (indexMetrics.isEmpty() || indexMetrics.contains("_all")) {
                     indexMetricsRequested.addAll(ClusterStatsRequest.IndexMetrics.allIndicesMetrics());
                 } else {
                     indexMetricsRequested.addAll(indexMetrics);
                 }
-                logger.info("Computed index metrics: {}", indexMetricsRequested);
                 final Set<String> invalidIndexMetrics = new TreeSet<>();
                 for (String indexMetric : indexMetricsRequested) {
                     Consumer<ClusterStatsRequest> clusterStatsRequestConsumer = INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.get(indexMetric);
@@ -186,7 +185,6 @@ public class RestClusterStatsAction extends BaseRestHandler {
                     );
                 }
             }
-
         }
 
         return channel -> client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));

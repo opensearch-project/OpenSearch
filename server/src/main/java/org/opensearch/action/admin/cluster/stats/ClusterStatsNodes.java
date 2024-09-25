@@ -90,44 +90,52 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final PackagingTypes packagingTypes;
     private final IngestStats ingestStats;
 
+    public static final Set<String> NODE_STATS_METRICS = Set.of(
+        Metric.OS.metricName(),
+        Metric.PROCESS.metricName(),
+        Metric.JVM.metricName(),
+        Metric.FS.metricName(),
+        Metric.PLUGINS.metricName(),
+        Metric.INGEST.metricName(),
+        Metric.NETWORK_TYPES.metricName(),
+        Metric.DISCOVERY_TYPES.metricName(),
+        Metric.PACKAGING_TYPES.metricName()
+    );
+
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this(Metric.allMetrics(), nodeResponses);
     }
 
     ClusterStatsNodes(Set<String> requestedMetrics, List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
-        boolean isFSInfoRequested = ClusterStatsRequest.Metric.FS.containedIn(requestedMetrics);
-        boolean isPluginsInfoRequested = ClusterStatsRequest.Metric.PLUGINS.containedIn(requestedMetrics);
-        this.fs = isFSInfoRequested ? new FsInfo.Path() : null;
-        this.plugins = isPluginsInfoRequested ? new HashSet<>() : null;
+        this.fs = ClusterStatsRequest.Metric.FS.containedIn(requestedMetrics) ? new FsInfo.Path() : null;
+        this.plugins = ClusterStatsRequest.Metric.PLUGINS.containedIn(requestedMetrics) ? new HashSet<>() : null;
 
         Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
-        List<NodeStats> nodesStats = new ArrayList<>(nodeResponses.size());
+        List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
-            NodeInfo nodeInfo = nodeResponse.nodeInfo();
-            NodeStats nodeStats = nodeResponse.nodeStats();
-            nodeInfos.add(nodeInfo);
-            nodesStats.add(nodeStats);
-            this.versions.add(nodeInfo.getVersion());
-            if (isPluginsInfoRequested) {
-                this.plugins.addAll(nodeInfo.getInfo(PluginsAndModules.class).getPluginInfos());
+            nodeInfos.add(nodeResponse.nodeInfo());
+            nodeStats.add(nodeResponse.nodeStats());
+            this.versions.add(nodeResponse.nodeInfo().getVersion());
+            if (this.plugins != null) {
+                this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
             }
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
-            TransportAddress publishAddress = nodeInfo.getInfo(TransportInfo.class).address().publishAddress();
+            TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
             if (!seenAddresses.add(inetAddress)) {
                 continue;
             }
-            if (isFSInfoRequested && nodeStats.getFs() != null) {
-                this.fs.add(nodeStats.getFs().getTotal());
+            if (this.fs != null && nodeResponse.nodeStats().getFs() != null) {
+                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
             }
         }
         this.counts = new Counts(nodeInfos);
-        this.os = ClusterStatsRequest.Metric.OS.containedIn(requestedMetrics) ? new OsStats(nodeInfos, nodesStats) : null;
-        this.process = ClusterStatsRequest.Metric.PROCESS.containedIn(requestedMetrics) ? new ProcessStats(nodesStats) : null;
-        this.jvm = ClusterStatsRequest.Metric.JVM.containedIn(requestedMetrics) ? new JvmStats(nodeInfos, nodesStats) : null;
+        this.os = ClusterStatsRequest.Metric.OS.containedIn(requestedMetrics) ? new OsStats(nodeInfos, nodeStats) : null;
+        this.process = ClusterStatsRequest.Metric.PROCESS.containedIn(requestedMetrics) ? new ProcessStats(nodeStats) : null;
+        this.jvm = ClusterStatsRequest.Metric.JVM.containedIn(requestedMetrics) ? new JvmStats(nodeInfos, nodeStats) : null;
         this.networkTypes = ClusterStatsRequest.Metric.NETWORK_TYPES.containedIn(requestedMetrics) ? new NetworkTypes(nodeInfos) : null;
         this.discoveryTypes = ClusterStatsRequest.Metric.DISCOVERY_TYPES.containedIn(requestedMetrics)
             ? new DiscoveryTypes(nodeInfos)
@@ -135,7 +143,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.packagingTypes = ClusterStatsRequest.Metric.PACKAGING_TYPES.containedIn(requestedMetrics)
             ? new PackagingTypes(nodeInfos)
             : null;
-        this.ingestStats = ClusterStatsRequest.Metric.INGEST.containedIn(requestedMetrics) ? new IngestStats(nodesStats) : null;
+        this.ingestStats = ClusterStatsRequest.Metric.INGEST.containedIn(requestedMetrics) ? new IngestStats(nodeStats) : null;
     }
 
     public Counts getCounts() {
