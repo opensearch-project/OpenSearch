@@ -869,7 +869,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         // Check last fetch status of pinned timestamps. If stale, return.
-        if (RemoteStoreUtils.isPinnedTimestampStateStale()) {
+        if (lastNMetadataFilesToKeep != 0 && RemoteStoreUtils.isPinnedTimestampStateStale()) {
             logger.warn("Skipping remote segment store garbage collection as last fetch of pinned timestamp is stale");
             return;
         }
@@ -1009,7 +1009,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteStoreRepoForIndex,
         String indexUUID,
         ShardId shardId,
-        RemoteStorePathStrategy pathStrategy
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean
     ) {
         try {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
@@ -1018,8 +1019,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 shardId,
                 pathStrategy
             );
-            remoteSegmentStoreDirectory.deleteStaleSegments(0);
-            remoteSegmentStoreDirectory.deleteIfEmpty();
+            if (forceClean) {
+                remoteSegmentStoreDirectory.delete();
+            } else {
+                remoteSegmentStoreDirectory.deleteStaleSegments(0);
+                remoteSegmentStoreDirectory.deleteIfEmpty();
+            }
         } catch (Exception e) {
             staticLogger.error("Exception occurred while deleting directory", e);
         }
@@ -1038,7 +1043,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             logger.info("Remote directory still has files, not deleting the path");
             return false;
         }
+        return delete();
+    }
 
+    private boolean delete() {
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();
