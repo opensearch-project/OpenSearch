@@ -42,6 +42,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -339,10 +340,11 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
             for (UploadedIndexMetadata md : manifest.getIndices()) {
                 Files.move(segmentRepoPath.resolve(md.getUploadedFilename()), segmentRepoPath.resolve("cluster-state/"));
             }
+            internalCluster().stopAllNodes();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        assertThrows(IllegalStateException.class, () -> addNewNodes(dataNodeCount, clusterManagerNodeCount));
+        assertThrows(IOError.class, () -> internalCluster().client());
         // Test is complete
 
         // Starting a node without remote state to ensure test cleanup

@@ -1244,14 +1244,72 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         }
     }
 
-    private MockGatewayMetaState newGatewayForRemoteState(
+    public void testGatewayMetaStateRemoteStateDownloadRetries() throws IOException {
+        MockGatewayMetaState gateway = null;
+        MockGatewayMetaState gatewayMetaStateSpy = null;
+        try {
+            RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
+            when(remoteClusterStateService.getLastKnownUUIDFromRemote("test-cluster")).thenReturn("test-cluster-uuid");
+            RemoteStoreRestoreService remoteStoreRestoreService = mock(RemoteStoreRestoreService.class);
+            when(remoteStoreRestoreService.restore(any(), any(), anyBoolean(), any())).thenThrow(
+                new IllegalStateException("unable to download cluster state")
+            ).thenReturn(RemoteRestoreResult.build("test-cluster-uuid", null, ClusterState.EMPTY_STATE));
+            final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+            gateway = initializeGatewayForRemoteState(true);
+            gatewayMetaStateSpy = Mockito.spy(gateway);
+            startGatewayForRemoteState(
+                gatewayMetaStateSpy,
+                remoteClusterStateService,
+                remoteStoreRestoreService,
+                persistedStateRegistry,
+                ClusterState.EMPTY_STATE
+            );
+            verify(gatewayMetaStateSpy, times(2)).restoreClusterState(Mockito.any(), Mockito.any(), Mockito.any());
+        } finally {
+            IOUtils.close(gatewayMetaStateSpy);
+        }
+    }
+
+    public void testGatewayMetaStateRemoteStateDownloadFailure() throws IOException {
+        MockGatewayMetaState gateway = null;
+        final MockGatewayMetaState gatewayMetaStateSpy;
+        try {
+            RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
+            when(remoteClusterStateService.getLastKnownUUIDFromRemote("test-cluster")).thenReturn("test-cluster-uuid");
+            RemoteStoreRestoreService remoteStoreRestoreService = mock(RemoteStoreRestoreService.class);
+            when(remoteStoreRestoreService.restore(any(), any(), anyBoolean(), any())).thenThrow(
+                new IllegalStateException("unable to download cluster state")
+            );
+            final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+            gateway = initializeGatewayForRemoteState(true);
+            gatewayMetaStateSpy = Mockito.spy(gateway);
+            assertThrows(
+                Error.class,
+                () -> startGatewayForRemoteState(
+                    gatewayMetaStateSpy,
+                    remoteClusterStateService,
+                    remoteStoreRestoreService,
+                    persistedStateRegistry,
+                    ClusterState.EMPTY_STATE
+                )
+            );
+            verify(gatewayMetaStateSpy, times(5)).restoreClusterState(Mockito.any(), Mockito.any(), Mockito.any());
+        } finally {
+            IOUtils.close(gateway);
+        }
+    }
+
+    private MockGatewayMetaState initializeGatewayForRemoteState(boolean prepareFullState) {
+        return new MockGatewayMetaState(localNode, bigArrays, prepareFullState);
+    }
+
+    private MockGatewayMetaState startGatewayForRemoteState(
+        MockGatewayMetaState gateway,
         RemoteClusterStateService remoteClusterStateService,
         RemoteStoreRestoreService remoteStoreRestoreService,
         PersistedStateRegistry persistedStateRegistry,
-        ClusterState currentState,
-        boolean prepareFullState
+        ClusterState currentState
     ) throws IOException {
-        MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays, prepareFullState);
         String randomRepoName = "randomRepoName";
         String stateRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
@@ -1303,6 +1361,24 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             remoteStoreRestoreService
         );
         return gateway;
+    }
+
+    private MockGatewayMetaState newGatewayForRemoteState(
+        RemoteClusterStateService remoteClusterStateService,
+        RemoteStoreRestoreService remoteStoreRestoreService,
+        PersistedStateRegistry persistedStateRegistry,
+        ClusterState currentState,
+        boolean prepareFullState
+    ) throws IOException {
+        MockGatewayMetaState gatewayMetaState = initializeGatewayForRemoteState(prepareFullState);
+        startGatewayForRemoteState(
+            gatewayMetaState,
+            remoteClusterStateService,
+            remoteStoreRestoreService,
+            persistedStateRegistry,
+            currentState
+        );
+        return gatewayMetaState;
     }
 
     private static BigArrays getBigArrays() {
