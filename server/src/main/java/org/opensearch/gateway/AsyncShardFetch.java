@@ -225,7 +225,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             logger.trace("{} ignoring fetched [{}] results, already closed", reroutingKey, type);
             return;
         }
-        logger.info("{} processing fetched [{}] results", reroutingKey, type);
+        logger.trace("{} processing fetched [{}] results", reroutingKey, type);
 
         if (responses != null) {
             cache.processResponses(responses, fetchingRound);
