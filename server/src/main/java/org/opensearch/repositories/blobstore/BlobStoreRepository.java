@@ -200,7 +200,6 @@ import java.util.stream.Stream;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
-import static org.opensearch.snapshots.SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -1383,7 +1382,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // iterate through all the indices and trigger remote store directory cleanup for deleted index segments
             for (String indexId : uniqueIndexIds) {
-                cleanRemoteStoreDirectoryIfNeeded(snapshotIds, indexId, repositoryData, remoteSegmentStoreDirectoryFactory);
+                cleanRemoteStoreDirectoryIfNeeded(snapshotIds, indexId, repositoryData, remoteSegmentStoreDirectoryFactory, false);
             }
             afterCleanupsListener.onResponse(null);
         } catch (Exception e) {
@@ -1431,11 +1430,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) {
         remoteStorePinnedTimestampService.unpinTimestamp(
             timestampToUnpin,
-            repository + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotId.getUUID(),
+            SnapshotsService.getPinningEntity(repository, snapshotId.getUUID()),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    logger.debug("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    logger.info("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    try {
+                        remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
+                        logger.debug("Successfully synced pinned timestamp state");
+                    } catch (Exception e) {
+                        logger.warn("Exception while updating pinning timestamp state, snapshot deletion will continue", e);
+                    }
                     listener.onResponse(null);
                 }
 
@@ -1540,7 +1545,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String indexUUID,
         ShardId shardId,
         String threadPoolName,
-        RemoteStorePathStrategy pathStrategy
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean
     ) {
         threadpool.executor(threadPoolName)
             .execute(
@@ -1550,7 +1556,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         remoteStoreRepoForIndex,
                         indexUUID,
                         shardId,
-                        pathStrategy
+                        pathStrategy,
+                        forceClean
                     ),
                     indexUUID,
                     shardId
@@ -1606,7 +1613,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexUUID,
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
-                remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy()
+                remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy(),
+                false
             );
         }
     }
@@ -2169,7 +2177,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 deleteResult = deleteResult.add(cleanUpStaleSnapshotShardPathsFile(matchingShardPaths, snapshotShardPaths));
 
                 if (remoteSegmentStoreDirectoryFactory != null) {
-                    cleanRemoteStoreDirectoryIfNeeded(deletedSnapshots, indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
+                    cleanRemoteStoreDirectoryIfNeeded(deletedSnapshots, indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory, true);
                 }
 
                 // Finally, we delete the [base_path]/indexId folder
@@ -2241,7 +2249,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> deletedSnapshots,
         String indexSnId,
         RepositoryData oldRepoData,
-        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        boolean forceClean
     ) {
         assert (indexSnId != null);
 
@@ -2293,9 +2302,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 prevIndexMetadata.getIndexUUID(),
                                 shard,
                                 ThreadPool.Names.REMOTE_PURGE,
-                                remoteStorePathStrategy
+                                remoteStorePathStrategy,
+                                forceClean
                             );
-                            remoteTranslogCleanupAsync(remoteTranslogRepository, shard, remoteStorePathStrategy, prevIndexMetadata);
+                            remoteTranslogCleanupAsync(
+                                remoteTranslogRepository,
+                                shard,
+                                remoteStorePathStrategy,
+                                prevIndexMetadata,
+                                forceClean
+                            );
                         }
                     }
                 } catch (Exception e) {
@@ -2319,7 +2335,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Repository remoteTranslogRepository,
         ShardId shardId,
         RemoteStorePathStrategy remoteStorePathStrategy,
-        IndexMetadata prevIndexMetadata
+        IndexMetadata prevIndexMetadata,
+        boolean forceClean
     ) {
         assert remoteTranslogRepository instanceof BlobStoreRepository;
         boolean indexMetadataEnabled = RemoteStoreUtils.determineTranslogMetadataEnabled(prevIndexMetadata);
@@ -2336,7 +2353,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             indexMetadataEnabled
         );
         try {
-            RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager);
+            RemoteFsTimestampAwareTranslog.cleanupOfDeletedIndex(translogTransferManager, forceClean);
         } catch (IOException e) {
             logger.error("Exception while cleaning up remote translog for shard: " + shardId, e);
         }
