@@ -8,8 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import org.junit.After;
-import org.junit.AfterClass;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -38,6 +36,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.util.EnumSet;

@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import org.junit.AfterClass;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -35,6 +34,9 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetada
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,8 +48,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
 
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V0;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
@@ -224,7 +224,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                     "indicesRoutingDiffPath"
                 )
             )
-            .checksum(new ClusterStateChecksum(createClusterState(),threadPool))
+            .checksum(new ClusterStateChecksum(createClusterState(), threadPool))
             .build();
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -657,7 +657,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
         final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(StringKeyDiffProvider.class);
-        ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState(),threadPool);
+        ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState(), threadPool);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)
