@@ -8,10 +8,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -24,7 +21,6 @@ import org.opensearch.index.query.QueryShardContext;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class FlatObjectFieldMapperTests extends MapperTestCase {
     private static final String FIELD_TYPE = "flat_object";
@@ -108,15 +104,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             .toString();
 
         ParsedDocument doc = mapper.parse(source(json));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals(new BytesRef("field.foo"), fields[0].binaryValue());
-
-        IndexableFieldType fieldType = fields[0].fieldType();
-        assertFalse(fieldType.tokenized());
-        assertFalse(fieldType.stored());
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
         // Test internal substring fields as well
         IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
@@ -151,9 +138,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test2: {"field":{"age":3, "name": null}}
             json = "{\"field\":{\"age\":3, \"name\": null}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("3"), fieldValues[0].binaryValue());
@@ -164,9 +148,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test3: {"field":{"name":null, "age":"5", "name1":null}}
             json = "{\"field\":{\"name\":null, \"age\":\"5\", \"name1\":null}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("5"), fieldValues[0].binaryValue());
@@ -214,30 +195,22 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test9: {"field":{"name": [null,3],"age":4}}
             json = "{\"field\":{\"name\": [null,3],\"age\":4}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(4, fields.length);
-            assertEquals(new BytesRef("field.name"), fields[0].binaryValue());
-            assertEquals(new BytesRef("field.age"), fields[2].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(4, fieldValues.length);
             assertEquals(new BytesRef("3"), fieldValues[0].binaryValue());
             assertEquals(new BytesRef("4"), fieldValues[2].binaryValue());
             fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
             assertEquals(4, fieldValueAndPaths.length);
-            assertEquals(new BytesRef("field.age=4"), fieldValueAndPaths[0].binaryValue());
-            assertEquals(new BytesRef("field.name=3"), fieldValueAndPaths[2].binaryValue());
+            assertEquals(new BytesRef("field.name=3"), fieldValueAndPaths[0].binaryValue());
+            assertEquals(new BytesRef("field.age=4"), fieldValueAndPaths[2].binaryValue());
 
             // test10: {"field":{"age": 4,"name": [null,"3"]}}
             json = "{\"field\":{\"age\": 4,\"name\": [null,\"3\"]}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(4, fields.length);
-            assertEquals(new BytesRef("field.name"), fields[0].binaryValue());
-            assertEquals(new BytesRef("field.age"), fields[2].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(4, fieldValues.length);
-            assertEquals(new BytesRef("3"), fieldValues[0].binaryValue());
-            assertEquals(new BytesRef("4"), fieldValues[2].binaryValue());
+            assertEquals(new BytesRef("4"), fieldValues[0].binaryValue());
+            assertEquals(new BytesRef("3"), fieldValues[2].binaryValue());
             fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
             assertEquals(4, fieldValueAndPaths.length);
             assertEquals(new BytesRef("field.age=4"), fieldValueAndPaths[0].binaryValue());
@@ -246,9 +219,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test11: {"field":{"age":"4","labels": [null]}}
             json = "{\"field\":{\"age\":\"4\",\"labels\": [null]}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("4"), fieldValues[0].binaryValue());
@@ -259,9 +229,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test12: {"field":{"labels": [null], "age":"4"}}
             json = "{\"field\":{\"labels\": [null], \"age\":\"4\"}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("4"), fieldValues[0].binaryValue());
@@ -272,10 +239,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test13: {"field":{"name": [null, {"d":{"name":"dsds"}}]}}
             json = "{\"field\":{\"name\": [null, {\"d\":{\"name\":\"dsds\"}}]}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(4, fields.length);
-            assertEquals(new BytesRef("field.d"), fields[0].binaryValue());
-            assertEquals(new BytesRef("field.name"), fields[2].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("dsds"), fieldValues[0].binaryValue());
@@ -291,9 +254,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             for (int i = 0; i < fields1.length; i++) {
                 assertEquals(fields[i].toString(), fields1[i].toString());
             }
-            assertEquals(4, fields.length);
-            assertEquals(new BytesRef("field.d"), fields[0].binaryValue());
-            assertEquals(new BytesRef("field.name"), fields[2].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("dsds"), fieldValues[0].binaryValue());
@@ -304,14 +264,10 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test15: {"field":{"name": [{"name":"age1"}, null, {"d":{"name":"dsds"}}]}}
             json = "{\"field\":{\"name\": [{\"name\":\"age1\"}, null, {\"d\":{\"name\":\"dsds\"}}]}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(4, fields.length);
-            assertEquals(new BytesRef("field.d"), fields[0].binaryValue());
-            assertEquals(new BytesRef("field.name"), fields[2].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(4, fieldValues.length);
-            assertEquals(new BytesRef("dsds"), fieldValues[0].binaryValue());
-            assertEquals(new BytesRef("age1"), fieldValues[2].binaryValue());
+            assertEquals(new BytesRef("age1"), fieldValues[0].binaryValue());
+            assertEquals(new BytesRef("dsds"), fieldValues[2].binaryValue());
             fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
             assertEquals(4, fieldValueAndPaths.length);
             assertEquals(new BytesRef("field.name.name=age1"), fieldValueAndPaths[0].binaryValue());
@@ -320,10 +276,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test16: {"field":{"name": {"name1": [null,"dsdsdsd"]}}}
             json = "{\"field\":{\"name\": {\"name1\": [null,\"dsdsdsd\"]}}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(4, fields.length);
-            assertEquals(new BytesRef("field.name"), fields[0].binaryValue());
-            assertEquals(new BytesRef("field.name1"), fields[2].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("dsdsdsd"), fieldValues[0].binaryValue());
@@ -334,10 +286,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test17: {"field":{"name": {"name1": [[],["dsdsdsd", null]]}}}
             json = "{\"field\":{\"name\": {\"name1\": [[],[\"dsdsdsd\", null]]}}}";
             doc = mapper.parse(source(json));
-            fields = doc.rootDoc().getFields("field");
-            assertEquals(4, fields.length);
-            assertEquals(new BytesRef("field.name"), fields[0].binaryValue());
-            assertEquals(new BytesRef("field.name1"), fields[2].binaryValue());
             fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
             assertEquals(2, fieldValues.length);
             assertEquals(new BytesRef("dsdsdsd"), fieldValues[0].binaryValue());
@@ -352,38 +300,12 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         // test2: {"field":{"name": null,"age":3}}
         String json = "{\"field\":{\"name\": null,\"age\":3}}";
         ParsedDocument doc = mapper.parse(source(json));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
         IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
         assertEquals(2, fieldValues.length);
         assertEquals(new BytesRef("3"), fieldValues[0].binaryValue());
         IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
         assertEquals(2, fieldValueAndPaths.length);
         assertEquals(new BytesRef("field.age=3"), fieldValueAndPaths[0].binaryValue());
-    }
-
-    // test deduplicationValue of keyList, valueList, valueAndPathList
-    public void testDeduplicationValue() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-
-        // test: {"field":{"age": 3,"labels": [null,"3"], "abc":{"abc":{"labels":"n"}}}}
-        String json = "{\"field\":{\"age\": 3,\"labels\": [null,\"3\"], \"abc\":{\"abc\":{\"labels\":\"n\"}}}}";
-        ParsedDocument doc = mapper.parse(source(json));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(6, fields.length);
-        assertEquals(new BytesRef("field.abc"), fields[0].binaryValue());
-        assertEquals(new BytesRef("field.age"), fields[2].binaryValue());
-        assertEquals(new BytesRef("field.labels"), fields[4].binaryValue());
-        IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
-        assertEquals(4, fieldValues.length);
-        assertEquals(new BytesRef("3"), fieldValues[0].binaryValue());
-        assertEquals(new BytesRef("n"), fieldValues[2].binaryValue());
-        IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
-        assertEquals(6, fieldValueAndPaths.length);
-        assertEquals(new BytesRef("field.abc.abc.labels=n"), fieldValueAndPaths[0].binaryValue());
-        assertEquals(new BytesRef("field.age=3"), fieldValueAndPaths[2].binaryValue());
-        assertEquals(new BytesRef("field.labels=3"), fieldValueAndPaths[4].binaryValue());
     }
 
     @Override

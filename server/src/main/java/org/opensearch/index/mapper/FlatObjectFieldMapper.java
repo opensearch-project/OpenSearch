@@ -8,8 +8,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -24,15 +22,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
-import org.opensearch.common.xcontent.JsonToStringXContentParser;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -44,9 +38,10 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -90,22 +85,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     /**
-     * FlatObjectFieldType is the parent field type.
-     */
-    public static class FlatObjectField extends Field {
-
-        public FlatObjectField(String field, BytesRef term, FieldType ft) {
-            super(field, term, ft);
-        }
-
-    }
-
-    /**
      * The builder for the flat_object field mapper using default parameters
      * @opensearch.internal
      */
     public static class Builder extends FieldMapper.Builder<Builder> {
-
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
             builder = this;
@@ -115,47 +98,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return new FlatObjectFieldType(buildFullName(context), fieldType);
         }
 
-        /**
-         * ValueFieldMapper is the subfield type for values in the Json.
-         * use a {@link KeywordFieldMapper.KeywordField}
-         */
-        private ValueFieldMapper buildValueFieldMapper(BuilderContext context, FieldType fieldType, FlatObjectFieldType fft) {
-            String fullName = buildFullName(context);
-            FieldType vft = new FieldType(fieldType);
-            KeywordFieldMapper.KeywordFieldType valueFieldType = new KeywordFieldMapper.KeywordFieldType(fullName + VALUE_SUFFIX, vft);
-
-            fft.setValueFieldType(valueFieldType);
-            return new ValueFieldMapper(vft, valueFieldType);
-        }
-
-        /**
-         * ValueAndPathFieldMapper is the subfield type for path=value format in the Json.
-         * also use a {@link KeywordFieldMapper.KeywordField}
-         */
-        private ValueAndPathFieldMapper buildValueAndPathFieldMapper(BuilderContext context, FieldType fieldType, FlatObjectFieldType fft) {
-            String fullName = buildFullName(context);
-            FieldType vft = new FieldType(fieldType);
-            KeywordFieldMapper.KeywordFieldType ValueAndPathFieldType = new KeywordFieldMapper.KeywordFieldType(
-                fullName + VALUE_AND_PATH_SUFFIX,
-                vft
-            );
-            fft.setValueAndPathFieldType(ValueAndPathFieldType);
-            return new ValueAndPathFieldMapper(vft, ValueAndPathFieldType);
-        }
-
         @Override
         public FlatObjectFieldMapper build(BuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             FlatObjectFieldType fft = buildFlatObjectFieldType(context, fieldtype);
-            return new FlatObjectFieldMapper(
-                name,
-                Defaults.FIELD_TYPE,
-                fft,
-                buildValueFieldMapper(context, fieldtype, fft),
-                buildValueAndPathFieldMapper(context, fieldtype, fft),
-                CopyTo.empty(),
-                this
-            );
+            return new FlatObjectFieldMapper(name, Defaults.FIELD_TYPE, fft, CopyTo.empty());
         }
     }
 
@@ -173,8 +120,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = builderFunction.apply(name, parserContext);
-            return builder;
+            return builderFunction.apply(name, parserContext);
         }
     }
 
@@ -187,7 +133,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         private final int ignoreAbove;
         private final String nullValue;
 
-        private final String mappedFieldTypeName;
+        private final String rootFieldTypeName;
 
         private KeywordFieldMapper.KeywordFieldType valueFieldType;
 
@@ -198,7 +144,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
-            this.mappedFieldTypeName = null;
+            this.rootFieldTypeName = null;
         }
 
         public FlatObjectFieldType(String name, FieldType fieldType) {
@@ -212,17 +158,17 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             );
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
-            this.mappedFieldTypeName = null;
+            this.rootFieldTypeName = null;
         }
 
         public FlatObjectFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
-            this.mappedFieldTypeName = null;
+            this.rootFieldTypeName = null;
         }
 
-        public FlatObjectFieldType(String name, String mappedFieldTypeName) {
+        public FlatObjectFieldType(String name, String rootFieldTypeName) {
             super(
                 name,
                 true,
@@ -233,23 +179,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             );
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
-            this.mappedFieldTypeName = mappedFieldTypeName;
-        }
-
-        void setValueFieldType(KeywordFieldMapper.KeywordFieldType valueFieldType) {
-            this.valueFieldType = valueFieldType;
-        }
-
-        void setValueAndPathFieldType(KeywordFieldMapper.KeywordFieldType ValueAndPathFieldType) {
-            this.valueAndPathFieldType = ValueAndPathFieldType;
-        }
-
-        public KeywordFieldMapper.KeywordFieldType getValueFieldType() {
-            return this.valueFieldType;
-        }
-
-        public KeywordFieldMapper.KeywordFieldType getValueAndPathFieldType() {
-            return this.valueAndPathFieldType;
+            this.rootFieldTypeName = rootFieldTypeName;
         }
 
         @Override
@@ -271,7 +201,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            if (isSubfield()) {
+                return super.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+            } else {
+                return new SortedSetOrdinalsIndexFieldData.Builder(name() + VALUE_SUFFIX, CoreValuesSourceType.BYTES);
+            }
         }
 
         @Override
@@ -295,7 +229,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                     }
 
                     try {
-                        return normalizeValue(normalizer, name(), flatObjectKeywordValue);
+                        return KeywordFieldMapper.normalizeValue(normalizer, name(), flatObjectKeywordValue);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -327,7 +261,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (value == null) {
                 return null;
             }
-            value = inputToString(value);
+            if (value instanceof BytesRef) {
+                value = ((BytesRef) value).utf8ToString();
+            }
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
 
@@ -336,14 +272,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-
-            String searchValueString = inputToString(value);
-            String directSubFieldName = directSubfield();
-            String rewriteSearchValue = rewriteValue(searchValueString);
-
             failIfNotIndexed();
-            Query query;
-            query = new TermQuery(new Term(directSubFieldName, indexedValueForSearch(rewriteSearchValue)));
+            final String searchValue = searchValue(inputToString(value));
+            Query query = new TermQuery(new Term(searchField(), indexedValueForSearch(searchValue)));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -353,16 +284,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexed();
-            String directedSearchFieldName = directSubfield();
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
+            final BytesRef[] bytesRefs = new BytesRef[values.size()];
             for (int i = 0; i < bytesRefs.length; i++) {
-                String rewriteValues = rewriteValue(inputToString(values.get(i)));
-
-                bytesRefs[i] = indexedValueForSearch(new BytesRef(rewriteValues));
-
+                final String searchValue = searchValue(inputToString(values.get(i)));
+                bytesRefs[i] = indexedValueForSearch(new BytesRef(searchValue));
             }
 
-            return new TermInSetQuery(directedSearchFieldName, bytesRefs);
+            return new TermInSetQuery(searchField(), bytesRefs);
         }
 
         /**
@@ -371,12 +299,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
          * else, direct to flatObjectFieldName._value subfield.
          * @return directedSubFieldName
          */
-        public String directSubfield() {
-            if (mappedFieldTypeName == null) {
-                return new StringBuilder().append(this.name()).append(VALUE_SUFFIX).toString();
-            } else {
-                return new StringBuilder().append(this.mappedFieldTypeName).append(VALUE_AND_PATH_SUFFIX).toString();
-            }
+        String searchField() {
+            return isSubfield() ? rootFieldTypeName + VALUE_AND_PATH_SUFFIX : name() + VALUE_SUFFIX;
         }
 
         /**
@@ -385,72 +309,24 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
          * then rewrite the searchValueString as the format "dotpath=value",
          * @return rewriteSearchValue
          */
-        public String rewriteValue(String searchValueString) {
-            if (!hasMappedFieldTyeNameInQueryFieldName(name())) {
-                return searchValueString;
-            } else {
-                String rewriteSearchValue = new StringBuilder().append(name()).append(EQUAL_SYMBOL).append(searchValueString).toString();
-                return rewriteSearchValue;
-            }
-
+        String searchValue(String searchValueString) {
+            return isSubfield() ? name() + EQUAL_SYMBOL + searchValueString : searchValueString;
         }
 
-        private boolean hasMappedFieldTyeNameInQueryFieldName(String input) {
-            String prefix = this.mappedFieldTypeName;
-            if (prefix == null) {
-                return false;
-            }
-            if (!input.startsWith(prefix)) {
-                return false;
-            }
-            String rest = input.substring(prefix.length());
-
-            if (rest.isEmpty()) {
-                return false;
-            } else {
-                return true;
-            }
+        private boolean isSubfield() {
+            return rootFieldTypeName != null;
         }
 
         private String inputToString(Object inputValue) {
-            if (inputValue instanceof Integer) {
-                String inputToString = Integer.toString((Integer) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Float) {
-                String inputToString = Float.toString((Float) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Boolean) {
-                String inputToString = Boolean.toString((Boolean) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Short) {
-                String inputToString = Short.toString((Short) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Long) {
-                String inputToString = Long.toString((Long) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Double) {
-                String inputToString = Double.toString((Double) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof BytesRef) {
-                String inputToString = (((BytesRef) inputValue).utf8ToString());
-                return inputToString;
-            } else if (inputValue instanceof String) {
-                String inputToString = (String) inputValue;
-                return inputToString;
-            } else if (inputValue instanceof Version) {
-                String inputToString = inputValue.toString();
-                return inputToString;
+            if (inputValue instanceof BytesRef) {
+                return ((BytesRef) inputValue).utf8ToString();
             } else {
-                // default to cast toString
                 return inputValue.toString();
             }
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
-            String directSubfield = directSubfield();
-            String rewriteValue = rewriteValue(value);
-
             if (context.allowExpensiveQueries() == false) {
                 throw new OpenSearchException(
                     "[prefix] queries cannot be executed when '"
@@ -463,17 +339,16 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (method == null) {
                 method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
             }
+            final String searchField = searchField();
+            final String searchValue = searchValue(value);
             if (caseInsensitive) {
-                return AutomatonQueries.caseInsensitivePrefixQuery((new Term(directSubfield, indexedValueForSearch(rewriteValue))), method);
+                return AutomatonQueries.caseInsensitivePrefixQuery((new Term(searchField, indexedValueForSearch(searchValue))), method);
             }
-            return new PrefixQuery(new Term(directSubfield, indexedValueForSearch(rewriteValue)), method);
+            return new PrefixQuery(new Term(searchField, indexedValueForSearch(searchValue)), method);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            String directSubfield = directSubfield();
-            String rewriteUpperTerm = rewriteValue(inputToString(upperTerm));
-            String rewriteLowerTerm = rewriteValue(inputToString(lowerTerm));
             if (context.allowExpensiveQueries() == false) {
                 throw new OpenSearchException(
                     "[range] queries on [text] or [keyword] fields cannot be executed when '"
@@ -482,8 +357,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 );
             }
             failIfNotIndexed();
+            final String searchField = searchField();
+            final String rewriteUpperTerm = searchValue(inputToString(upperTerm));
+            final String rewriteLowerTerm = searchValue(inputToString(lowerTerm));
             return new TermRangeQuery(
-                directSubfield,
+                searchField,
                 lowerTerm == null ? null : indexedValueForSearch(rewriteLowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(rewriteUpperTerm),
                 includeLower,
@@ -497,16 +375,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
          */
         @Override
         public Query existsQuery(QueryShardContext context) {
-            String searchKey;
-            String searchField;
-            if (hasMappedFieldTyeNameInQueryFieldName(name())) {
-                searchKey = this.mappedFieldTypeName;
-                searchField = name();
-            } else {
-                searchKey = FieldNamesFieldMapper.NAME;
-                searchField = name();
-            }
-            return new TermQuery(new Term(searchKey, indexedValueForSearch(searchField)));
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
 
         @Override
@@ -522,29 +391,19 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 context,
                 "Can only use wildcard queries on keyword and text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
             );
-
         }
-
     }
 
-    private final ValueFieldMapper valueFieldMapper;
-    private final ValueAndPathFieldMapper valueAndPathFieldMapper;
+    private final String valueFieldName;
+    private final String valueAndPathFieldName;
 
-    FlatObjectFieldMapper(
-        String simpleName,
-        FieldType fieldType,
-        FlatObjectFieldType mappedFieldType,
-        ValueFieldMapper valueFieldMapper,
-        ValueAndPathFieldMapper valueAndPathFieldMapper,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    FlatObjectFieldMapper(String simpleName, FieldType fieldType, FlatObjectFieldType mappedFieldType, CopyTo copyTo) {
         super(simpleName, fieldType, mappedFieldType, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.fieldType = fieldType;
-        this.valueFieldMapper = valueFieldMapper;
-        this.valueAndPathFieldMapper = valueAndPathFieldMapper;
         this.mappedFieldType = mappedFieldType;
+        this.valueFieldName = mappedFieldType.name() + VALUE_SUFFIX;
+        this.valueAndPathFieldName = mappedFieldType.name() + VALUE_AND_PATH_SUFFIX;
     }
 
     @Override
@@ -564,149 +423,19 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String fieldName = null;
-
-        if (context.externalValueSet()) {
-            String value = context.externalValue().toString();
-            parseValueAddFields(context, value, fieldType().name());
-        } else {
-            XContentParser ctxParser = context.parser();
-            if (ctxParser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                if (ctxParser.currentToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ParsingException(
-                        ctxParser.getTokenLocation(),
-                        "[" + this.name() + "] unexpected token [" + ctxParser.currentToken() + "] in flat_object field value"
-                    );
-                }
-
-                JsonToStringXContentParser jsonToStringParser = new JsonToStringXContentParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.IGNORE_DEPRECATIONS,
-                    ctxParser,
-                    fieldType().name()
+        XContentParser ctxParser = context.parser();
+        if (fieldType().isSearchable() == false && fieldType().isStored() == false && fieldType().hasDocValues() == false) {
+            ctxParser.skipChildren();
+            return;
+        }
+        if (ctxParser.currentToken() != XContentParser.Token.VALUE_NULL) {
+            if (ctxParser.currentToken() != XContentParser.Token.START_OBJECT) {
+                throw new ParsingException(
+                    ctxParser.getTokenLocation(),
+                    "[" + this.name() + "] unexpected token [" + ctxParser.currentToken() + "] in flat_object field value"
                 );
-                /*
-                  JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
-                  It reads the JSON object and parsed to a list of string
-                 */
-                XContentParser parser = jsonToStringParser.parseObject();
-
-                XContentParser.Token currentToken;
-                while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    switch (currentToken) {
-                        case FIELD_NAME:
-                            fieldName = parser.currentName();
-                            break;
-                        case VALUE_STRING:
-                            String value = parser.textOrNull();
-                            parseValueAddFields(context, value, fieldName);
-                            break;
-                    }
-
-                }
             }
-        }
-
-    }
-
-    @Override
-    public Iterator<Mapper> iterator() {
-        List<Mapper> subIterators = new ArrayList<>();
-        if (valueFieldMapper != null) {
-            subIterators.add(valueFieldMapper);
-        }
-        if (valueAndPathFieldMapper != null) {
-            subIterators.add(valueAndPathFieldMapper);
-        }
-        if (subIterators.size() == 0) {
-            return super.iterator();
-        }
-        @SuppressWarnings("unchecked")
-        Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
-        return concat;
-    }
-
-    /**
-     * parseValueAddFields method will store data to Lucene.
-     * the JsonToStringXContentParser returns XContentParser with 3 string fields
-     * fieldName, fieldName._value, fieldName._valueAndPath.
-     * parseValueAddFields recognized string by the stringfield name,
-     * fieldName will be store through the parent FlatObjectFieldMapper,which contains all the keys
-     * fieldName._value will be store through the valueFieldMapper, which contains the values of the Json Object
-     * fieldName._valueAndPath will be store through the valueAndPathFieldMapper, which contains the "path=values" format
-     */
-    private void parseValueAddFields(ParseContext context, String value, String fieldName) throws IOException {
-
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer != null) {
-            value = normalizeValue(normalizer, name(), value);
-        }
-
-        String[] valueTypeList = fieldName.split("\\._");
-        String valueType = "._" + valueTypeList[valueTypeList.length - 1];
-
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            // convert to utf8 only once before feeding postings/dv/stored fields
-
-            final BytesRef binaryValue = new BytesRef(fieldType().name() + DOT_SYMBOL + value);
-            Field field = new FlatObjectField(fieldType().name(), binaryValue, fieldType);
-
-            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                createFieldNamesField(context);
-            }
-            if (fieldName.equals(fieldType().name())) {
-                context.doc().add(field);
-            }
-            if (valueType.equals(VALUE_SUFFIX)) {
-                if (valueFieldMapper != null) {
-                    valueFieldMapper.addField(context, value);
-                }
-            }
-            if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
-                if (valueAndPathFieldMapper != null) {
-                    valueAndPathFieldMapper.addField(context, value);
-                }
-            }
-
-            if (fieldType().hasDocValues()) {
-                if (fieldName.equals(fieldType().name())) {
-                    context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-                }
-                if (valueType.equals(VALUE_SUFFIX)) {
-                    if (valueFieldMapper != null) {
-                        context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
-                    }
-                }
-                if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
-                    if (valueAndPathFieldMapper != null) {
-                        context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_AND_PATH_SUFFIX, binaryValue));
-                    }
-                }
-            }
-
-        }
-
-    }
-
-    private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
-        String normalizerErrorMessage = "The normalization token stream is "
-            + "expected to produce exactly 1 token, but got 0 for analyzer "
-            + normalizer
-            + " and input \""
-            + value
-            + "\"";
-        try (TokenStream ts = normalizer.tokenStream(field, value)) {
-            final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
-            ts.reset();
-            if (ts.incrementToken() == false) {
-                throw new IllegalStateException(normalizerErrorMessage);
-            }
-            final String newValue = termAtt.toString();
-            if (ts.incrementToken()) {
-                throw new IllegalStateException(normalizerErrorMessage);
-            }
-            ts.end();
-            return newValue;
+            parseObject(ctxParser, context);
         }
     }
 
@@ -715,83 +444,95 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         return CONTENT_TYPE;
     }
 
-    private static final class ValueAndPathFieldMapper extends FieldMapper {
+    private void parseObject(XContentParser parser, ParseContext context) throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+        parser.nextToken(); // Skip the outer START_OBJECT. Need to return on END_OBJECT.
 
-        protected ValueAndPathFieldMapper(FieldType fieldType, KeywordFieldMapper.KeywordFieldType mappedFieldType) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldType().name()));
+        HashSet<String> leafPaths = new HashSet<>();
+        while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            parseToken(parser, context, path, leafPaths);
         }
 
-        void addField(ParseContext context, String value) {
-            final BytesRef binaryValue = new BytesRef(value);
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                Field field = new KeywordFieldMapper.KeywordField(fieldType().name(), binaryValue, fieldType);
-
-                context.doc().add(field);
-
-                if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                    createFieldNamesField(context);
-                }
-            }
-        }
-
-        @Override
-        protected void parseCreateField(ParseContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-        }
-
-        @Override
-        protected String contentType() {
-            return "valueAndPath";
-        }
-
-        @Override
-        public String toString() {
-            return fieldType().toString();
-        }
-
+        // create FieldNamesField for exist query
+        createFieldNamesField(context, leafPaths);
     }
 
-    private static final class ValueFieldMapper extends FieldMapper {
-
-        protected ValueFieldMapper(FieldType fieldType, KeywordFieldMapper.KeywordFieldType mappedFieldType) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
-        }
-
-        void addField(ParseContext context, String value) {
-            final BytesRef binaryValue = new BytesRef(value);
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                Field field = new KeywordFieldMapper.KeywordField(fieldType().name(), binaryValue, fieldType);
-                context.doc().add(field);
-
-                if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                    createFieldNamesField(context);
+    private void createFieldNamesField(ParseContext context, HashSet<String> leafPaths) {
+        FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = context.docMapper()
+            .metadataMapper(FieldNamesFieldMapper.class)
+            .fieldType();
+        if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
+            final HashSet<String> fieldNames = new HashSet<>();
+            for (String path : leafPaths) {
+                for (String field : FieldNamesFieldMapper.extractFieldNames(path)) {
+                    fieldNames.add(field);
                 }
             }
+            for (String fieldName : fieldNames) {
+                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+            }
         }
+    }
 
-        @Override
-        protected void parseCreateField(ParseContext context) {
-            throw new UnsupportedOperationException();
+    private void parseToken(XContentParser parser, ParseContext context, Deque<String> path, HashSet<String> pathSet) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+            final String currentFieldName = parser.currentName();
+            path.addLast(currentFieldName); // Pushing onto the stack *must* be matched by pop
+            parser.nextToken(); // advance to the value of fieldName
+            parseToken(parser, context, path, pathSet); // parse the value for fieldName (which will be an array, an object,
+            // or a primitive value)
+            path.removeLast(); // Here is where we pop fieldName from the stack (since we're done with the value of fieldName)
+            // Note that whichever other branch we just passed through has already ended with nextToken(), so we
+            // don't need to call it.
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            parser.nextToken();
+            while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                parseToken(parser, context, path, pathSet);
+            }
+            parser.nextToken();
+        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+            while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                parseToken(parser, context, path, pathSet);
+            }
+            parser.nextToken();
+        } else {
+            String value = parseValue(parser);
+            if (value == null || value.length() > fieldType().ignoreAbove) {
+                parser.nextToken();
+                return;
+            }
+            NamedAnalyzer normalizer = fieldType().normalizer();
+            if (normalizer != null) {
+                value = KeywordFieldMapper.normalizeValue(normalizer, name(), value);
+            }
+            final String leafPath = Strings.collectionToDelimitedString(path, ".");
+            pathSet.add(leafPath);
+            final String valueAndPath = leafPath + EQUAL_SYMBOL + value;
+            if (fieldType().isSearchable() || fieldType().isStored()) {
+                context.doc().add(new KeywordFieldMapper.KeywordField(valueFieldName, new BytesRef(value), fieldType));
+                context.doc().add(new KeywordFieldMapper.KeywordField(valueAndPathFieldName, new BytesRef(valueAndPath), fieldType));
+            }
+            if (fieldType().hasDocValues()) {
+                // TODO: remove prefix 'fieldTypeName + DOT_SYMBOL'
+                context.doc().add(new SortedSetDocValuesField(valueFieldName, new BytesRef(name() + DOT_SYMBOL + value)));
+                context.doc().add(new SortedSetDocValuesField(valueAndPathFieldName, new BytesRef(name() + DOT_SYMBOL + valueAndPath)));
+            }
+            parser.nextToken();
         }
+    }
 
-        @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-        }
-
-        @Override
-        protected String contentType() {
-            return "value";
-        }
-
-        @Override
-        public String toString() {
-            return fieldType().toString();
+    private static String parseValue(XContentParser parser) throws IOException {
+        switch (parser.currentToken()) {
+            case VALUE_BOOLEAN:
+            case VALUE_NUMBER:
+            case VALUE_STRING:
+            case VALUE_NULL:
+                return parser.textOrNull();
+            // Handle other token types as needed
+            default:
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected value token type [" + parser.currentToken() + "]");
         }
     }
 

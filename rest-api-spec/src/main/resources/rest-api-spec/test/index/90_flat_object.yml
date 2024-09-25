@@ -724,7 +724,7 @@ teardown:
           }
         }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Field [catalog.rating] of type [flat_object] is not supported for aggregation [avg]" }
+  - match: { error.root_cause.0.reason: "Fielddata is not supported on field [catalog.rating] of type [flat_object]" }
   - match: { status: 400 }
 
   # Aggregation using average and Match Query with dot path.
@@ -748,7 +748,7 @@ teardown:
           }
         }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Field [catalog.rating] of type [flat_object] is not supported for aggregation [avg]" }
+  - match: { error.root_cause.0.reason: "Fielddata is not supported on field [catalog.rating] of type [flat_object]" }
   - match: { status: 400 }
 
   # Aggregation using geolocation and Match Query with dot path.
@@ -786,5 +786,5 @@ teardown:
           }
         }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Field [catalog.location] of type [flat_object] is not supported for aggregation [geo_distance]" }
+  - match: { error.root_cause.0.reason: "Fielddata is not supported on field [catalog.location] of type [flat_object]" }
   - match: { status: 400 }
