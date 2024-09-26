@@ -47,6 +47,7 @@ import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -58,7 +59,7 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
 
     static int numDocs;
 
-    private static final String LARGE_STRING = "a".repeat(2000);
+    private static final String LARGE_STRING = String.join("", Collections.nCopies(2000, "a"));
     private static final String LARGE_STRING_EXCEPTION_MESSAGE = "The length of regex ["
         + LARGE_STRING.length()
         + "] used in the request has exceeded the allowed maximum";
