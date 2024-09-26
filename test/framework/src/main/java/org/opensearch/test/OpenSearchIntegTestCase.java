@@ -220,6 +220,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
@@ -410,6 +412,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private ReplicationType randomReplicationType;
 
     private String randomStorageType;
+
+    protected Path translogRepoPath;
+    protected Path segmentRepoPath;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -1968,6 +1973,42 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), randomReplicationType);
             }
         }
+        if (segmentRepoPath == null || translogRepoPath == null) {
+            segmentRepoPath = randomRepoPath().toAbsolutePath();
+            translogRepoPath = randomRepoPath().toAbsolutePath();
+        }
+        String segmentRepoName = "test-remote-store-repo";
+        String stateRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+        String prefixModeVerificationSuffix = BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING.getKey();
+        String stateRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String routingTableRepoName = "remote-routing-repo";
+        String routingTableRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            routingTableRepoName
+        );
+        String routingTableRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            routingTableRepoName
+        );
+        builder.put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
+            .put(stateRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put(stateRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, prefixModeVerificationEnable)
+            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
+            .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
+            .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put(REMOTE_PUBLICATION_SETTING_KEY, true);
         return builder.build();
     }
 
