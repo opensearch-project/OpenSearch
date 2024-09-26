@@ -41,7 +41,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.Numbers;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -97,7 +96,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testBadIncludeExclude() throws IOException {
-        IncludeExclude includeExclude = new IncludeExclude(new RegExp("foo"), null);
+        IncludeExclude includeExclude = new IncludeExclude("foo", null);
 
         // Make sure the include/exclude fails regardless of how the user tries to type hint the agg
         AggregationExecutionException e = expectThrows(
