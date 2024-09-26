@@ -82,11 +82,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_GRACEFUL_SHUTDOWN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
-import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_GRACEFUL_SHUTDOWN;
 
 /**
  * Base HttpServer class
@@ -246,7 +246,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         long gracefulShutdownMillis = SETTING_HTTP_GRACEFUL_SHUTDOWN.get(settings).getMillis();
         if (gracefulShutdownMillis > 0 && httpChannels.size() > 0) {
 
-            logger.info("There are {} open client connections, try to close gracefully within {}ms.", httpChannels.size(), gracefulShutdownMillis);
+            logger.info(
+                "There are {} open client connections, try to close gracefully within {}ms.",
+                httpChannels.size(),
+                gracefulShutdownMillis
+            );
 
             // Set all httpchannels to close gracefully
             for (HttpChannel httpChannel : httpChannels) {
@@ -270,8 +274,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
             if (!closedAll) {
                 logger.info("Timeout reached, {} connections not closed gracefully.", httpChannels.size());
-            }
-            else {
+            } else {
                 logger.info("Closed all connections gracefully.");
             }
         }
