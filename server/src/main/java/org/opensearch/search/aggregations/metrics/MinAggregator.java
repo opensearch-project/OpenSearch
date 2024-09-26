@@ -159,7 +159,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
-        AtomicReference<Double> min = new AtomicReference<>(Double.POSITIVE_INFINITY);
+        AtomicReference<Double> min = new AtomicReference<>(mins.get(0));
         return StarTreeQueryHelper.getStarTreeLeafCollector(
             context,
             valuesSource,

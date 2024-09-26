@@ -162,7 +162,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
-        AtomicReference<Double> max = new AtomicReference<>(Double.NEGATIVE_INFINITY);
+        AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
         return StarTreeQueryHelper.getStarTreeLeafCollector(
             context,
             valuesSource,

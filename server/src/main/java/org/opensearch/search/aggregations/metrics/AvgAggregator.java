@@ -262,7 +262,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
         assert starTreeValues != null;
 
-        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
         SortedNumericStarTreeValuesIterator sumValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             sumMetricName
         );
