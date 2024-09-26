@@ -308,7 +308,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 derivedFields = in.readList(DerivedField::new);
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             searchPipeline = in.readOptionalString();
         }
     }
@@ -399,7 +399,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeList(derivedFields);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(searchPipeline);
         }
     }
