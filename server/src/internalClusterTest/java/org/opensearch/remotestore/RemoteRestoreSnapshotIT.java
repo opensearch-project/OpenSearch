@@ -46,14 +46,11 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
-import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -83,48 +80,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
-    private static final String BASE_REMOTE_REPO = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
-    private Path remoteRepoPath;
-
-    @Before
-    public void setup() {
-        remoteRepoPath = randomRepoPath().toAbsolutePath();
-    }
-
-    @After
-    public void teardown() {
-        clusterAdmin().prepareCleanupRepository(BASE_REMOTE_REPO).get();
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(BASE_REMOTE_REPO, remoteRepoPath))
-            .build();
-    }
-
-    private Settings.Builder getIndexSettings(int numOfShards, int numOfReplicas) {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s");
-        return settingsBuilder;
-    }
-
-    private void indexDocuments(Client client, String indexName, int numOfDocs) {
-        indexDocuments(client, indexName, 0, numOfDocs);
-    }
-
-    private void indexDocuments(Client client, String indexName, int fromId, int toId) {
-        for (int i = fromId; i < toId; i++) {
-            String id = Integer.toString(i);
-            client.prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
-        }
-        client.admin().indices().prepareFlush(indexName).get();
-    }
+public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     private void assertDocsPresentInIndex(Client client, String indexName, int numOfDocs) {
         for (int i = 0; i < numOfDocs; i++) {
@@ -1386,13 +1342,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         enableV2Thread.join();
         createV1SnapshotThread.join();
-    }
-
-    private Settings pinnedTimestampSettings() {
-        Settings settings = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
-            .build();
-        return settings;
     }
 
 }

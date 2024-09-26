@@ -605,6 +605,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         new ActionListener<RepositoryData>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {
+                                leaveRepoLoop(repositoryName);
                                 if (clusterService.state().nodes().isLocalNodeElectedClusterManager() == false) {
                                     failSnapshotCompletionListeners(
                                         snapshot,
@@ -617,10 +618,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             "Aborting snapshot-v2, no longer cluster manager"
                                         )
                                     );
-
                                     return;
                                 }
-                                leaveRepoLoop(repositoryName);
                                 listener.onResponse(snapshotInfo);
                             }
 
@@ -628,13 +627,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             public void onFailure(Exception e) {
                                 logger.error("Failed to finalize snapshot repo {} for snapshot-v2 {} ", repositoryName, snapshotName);
                                 leaveRepoLoop(repositoryName);
+                                // cleaning up in progress snapshot here
+                                stateWithoutSnapshotV2(newState);
                                 listener.onFailure(e);
                             }
                         }
                     );
                 }, e -> {
-                    logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                    logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} {} ", repositoryName, snapshotName, e);
                     leaveRepoLoop(repositoryName);
+                    // cleaning up in progress snapshot here
+                    stateWithoutSnapshotV2(newState);
                     listener.onFailure(e);
                 });
                 updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
@@ -931,7 +934,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         throw new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2 clone, no longer cluster manager");
                     }
                     final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-
                     pinnedTimestampListener.whenComplete(repoData -> {
                         repository.finalizeSnapshot(
                             shardGenerations,
@@ -950,6 +952,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             new ActionListener<RepositoryData>() {
                                 @Override
                                 public void onResponse(RepositoryData repositoryData) {
+                                    leaveRepoLoop(repositoryName);
                                     if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
                                         failSnapshotCompletionListeners(
                                             snapshot,
@@ -965,7 +968,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         return;
                                     }
                                     logger.info("snapshot-v2 clone [{}] completed successfully", snapshot);
-                                    leaveRepoLoop(repositoryName);
                                     listener.onResponse(null);
                                 }
 
@@ -976,14 +978,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         repositoryName,
                                         snapshotName
                                     );
+                                    stateWithoutSnapshotV2(newState);
                                     leaveRepoLoop(repositoryName);
                                     listener.onFailure(e);
                                 }
                             }
                         );
-                        listener.onResponse(null);
                     }, e -> {
                         logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                        stateWithoutSnapshotV2(newState);
                         leaveRepoLoop(repositoryName);
                         listener.onFailure(e);
                     });
@@ -997,6 +1000,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     );
                 }, e -> {
                     logger.error("Failed to retrieve snapshot info for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                    stateWithoutSnapshotV2(newState);
                     leaveRepoLoop(repositoryName);
                     listener.onFailure(e);
                 });
@@ -2302,6 +2306,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         if (changed) {
+            logger.info("Cleaning up in progress v2 snapshots now");
             clusterService.submitStateUpdateTask(
                 "remove in progress snapshot v2 after cluster manager switch",
                 new ClusterStateUpdateTask() {
