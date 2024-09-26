@@ -8,12 +8,15 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.rest.action.admin.cluster.ClusterAdminTask;
+import org.opensearch.rest.pagination.PageParams;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,11 +30,27 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     private String[] indices;
     private TimeValue cancelAfterTimeInterval;
+    private PageParams pageParams = null;
 
     public CatShardsRequest() {}
 
     public CatShardsRequest(StreamInput in) throws IOException {
         super(in);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            indices = in.readStringArray();
+            cancelAfterTimeInterval = in.readTimeValue();
+            pageParams = PageParams.readPageParams(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeStringArray(indices);
+            out.writeTimeValue(cancelAfterTimeInterval);
+            pageParams.writePageParams(out);
+        }
     }
 
     @Override
@@ -53,6 +72,14 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     public TimeValue getCancelAfterTimeInterval() {
         return this.cancelAfterTimeInterval;
+    }
+
+    public void setPageParams(PageParams pageParams) {
+        this.pageParams = pageParams;
+    }
+
+    public PageParams getPageParams() {
+        return pageParams;
     }
 
     @Override

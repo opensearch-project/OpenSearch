@@ -19,9 +19,13 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.NotifyOnceListener;
+import org.opensearch.rest.pagination.PageParams;
+import org.opensearch.rest.pagination.ShardPaginationStrategy;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+
+import java.util.Objects;
 
 /**
  * Perform cat shards action
@@ -44,7 +48,11 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
         clusterStateRequest.setShouldCancelOnTimeout(true);
         clusterStateRequest.local(shardsRequest.local());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.clusterManagerNodeTimeout());
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
+        if (Objects.nonNull(shardsRequest.getPageParams())) {
+            clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
+        } else {
+            clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices()).metadata(true);
+        }
         assert parentTask instanceof CancellableTask;
         clusterStateRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
 
@@ -73,11 +81,21 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
             client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
                 @Override
                 public void onResponse(ClusterStateResponse clusterStateResponse) {
+                    ShardPaginationStrategy paginationStrategy = getPaginationStrategy(shardsRequest.getPageParams(), clusterStateResponse);
+                    String[] indices = Objects.isNull(paginationStrategy)
+                        ? shardsRequest.getIndices()
+                        : paginationStrategy.getRequestedIndices().toArray(new String[0]);
                     catShardsResponse.setClusterStateResponse(clusterStateResponse);
+                    catShardsResponse.setResponseShards(
+                        Objects.isNull(paginationStrategy)
+                            ? clusterStateResponse.getState().routingTable().allShards()
+                            : paginationStrategy.getRequestedEntities()
+                    );
+                    catShardsResponse.setPageToken(Objects.isNull(paginationStrategy) ? null : paginationStrategy.getResponseToken());
                     IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                     indicesStatsRequest.setShouldCancelOnTimeout(true);
                     indicesStatsRequest.all();
-                    indicesStatsRequest.indices(shardsRequest.getIndices());
+                    indicesStatsRequest.indices(indices);
                     indicesStatsRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
                     try {
                         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
@@ -106,5 +124,9 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
             cancellableListener.onFailure(e);
         }
 
+    }
+
+    private ShardPaginationStrategy getPaginationStrategy(PageParams pageParams, ClusterStateResponse clusterStateResponse) {
+        return Objects.isNull(pageParams) ? null : new ShardPaginationStrategy(pageParams, clusterStateResponse.getState());
     }
 }

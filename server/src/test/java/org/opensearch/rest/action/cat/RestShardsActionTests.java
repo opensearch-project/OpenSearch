@@ -112,7 +112,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         when(state.getState()).thenReturn(clusterState);
 
         final RestShardsAction action = new RestShardsAction();
-        final Table table = action.buildTable(new FakeRestRequest(), state, stats);
+        final Table table = action.buildTable(new FakeRestRequest(), state, stats, state.getState().routingTable().allShards(), null);
 
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();

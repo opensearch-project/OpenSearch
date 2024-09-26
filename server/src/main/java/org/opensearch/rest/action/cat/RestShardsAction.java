@@ -63,6 +63,8 @@ import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.rest.pagination.PageToken;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
@@ -80,7 +82,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  *
  * @opensearch.api
  */
-public class RestShardsAction extends AbstractCatAction {
+public class RestShardsAction extends AbstractListAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestShardsAction.class);
 
@@ -119,14 +121,27 @@ public class RestShardsAction extends AbstractCatAction {
             public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {
                 ClusterStateResponse clusterStateResponse = catShardsResponse.getClusterStateResponse();
                 IndicesStatsResponse indicesStatsResponse = catShardsResponse.getIndicesStatsResponse();
-                return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
+                return RestTable.buildResponse(
+                    buildTable(
+                        request,
+                        clusterStateResponse,
+                        indicesStatsResponse,
+                        catShardsResponse.getResponseShards(),
+                        catShardsResponse.getPageToken()
+                    ),
+                    channel
+                );
             }
         });
     }
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        return getTableWithHeader(request, null);
+    }
+
+    protected Table getTableWithHeader(final RestRequest request, final PageToken pageToken) {
+        Table table = new Table(pageToken);
         table.startHeaders()
             .addCell("index", "default:true;alias:i,idx;desc:index name")
             .addCell("shard", "default:true;alias:s,sh;desc:shard name")
@@ -295,10 +310,16 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
-        Table table = getTableWithHeader(request);
+    Table buildTable(
+        RestRequest request,
+        ClusterStateResponse state,
+        IndicesStatsResponse stats,
+        List<ShardRouting> responseShards,
+        PageToken pageToken
+    ) {
+        Table table = getTableWithHeader(request, pageToken);
 
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : responseShards) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;
@@ -453,5 +474,10 @@ public class RestShardsAction extends AbstractCatAction {
         }
 
         return table;
+    }
+
+    @Override
+    public boolean isActionPaginated() {
+        return false;
     }
 }
