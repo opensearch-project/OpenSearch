@@ -70,6 +70,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 
@@ -310,6 +311,9 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             && IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(targetIndexSettings)
             && IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings) == false) {
             throw new IllegalArgumentException("Can't disable [index.soft_deletes.enabled] setting on resize");
+        }
+        if (IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.exists(targetIndexSettings)) {
+            throw new IllegalArgumentException("cannot provide [index.replication.type] setting on resize");
         }
         String cause = resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT) + "_index";
         targetIndex.cause(cause);

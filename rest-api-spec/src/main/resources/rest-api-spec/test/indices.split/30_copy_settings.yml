@@ -20,6 +20,7 @@
             index.number_of_shards: 1
             index.number_of_routing_shards: 4
             index.merge.scheduler.max_merge_count: 4
+            index.replication.type: SEGMENT
 
   # make it read-only
   - do:
@@ -64,6 +65,7 @@
   - match: { copy-settings-target.settings.index.merge.scheduler.max_thread_count: "2" }
   - match: { copy-settings-target.settings.index.blocks.write: "true" }
   - match: { copy-settings-target.settings.index.routing.allocation.include._id: $node_id }
+  - match: { copy-settings-target.settings.index.replication.type: "SEGMENT" }
 
   # now we do a actual shrink and copy settings (by default)
   - do:
@@ -93,6 +95,7 @@
   - match: { default-copy-settings-target.settings.index.merge.scheduler.max_thread_count: "2" }
   - match: { default-copy-settings-target.settings.index.blocks.write: "true" }
   - match: { default-copy-settings-target.settings.index.routing.allocation.include._id: $node_id }
+  - match: { default-copy-settings-target.settings.index.replication.type: "SEGMENT" }
 
   - do:
       catch: /illegal_argument_exception/

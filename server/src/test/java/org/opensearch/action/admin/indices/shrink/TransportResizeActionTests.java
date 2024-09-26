@@ -175,6 +175,27 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         });
         assertThat(softDeletesError.getMessage(), equalTo("Can't disable [index.soft_deletes.enabled] setting on resize"));
 
+        IllegalArgumentException resizeError = expectThrows(IllegalArgumentException.class, () -> {
+            ResizeRequest req = new ResizeRequest("target", "source");
+            req.getTargetIndexRequest().settings(Settings.builder().put("index.replication.type", "SEGMENT"));
+            ClusterState clusterState = createClusterState(
+                "source",
+                8,
+                1,
+                Settings.builder().put("index.blocks.write", true).build()
+            );
+            TransportResizeAction.prepareCreateIndexRequest(
+                req,
+                clusterState,
+                (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000)),
+                new StoreStats(between(1, 10000), between(1, 10000)),
+                clusterSettings,
+                "source",
+                "target"
+            );
+        });
+        assertThat(resizeError.getMessage(), equalTo("cannot provide [index.replication.type] setting on resize"));
+
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(
             createClusterState("source", randomIntBetween(2, 10), 0, Settings.builder().put("index.blocks.write", true).build())
