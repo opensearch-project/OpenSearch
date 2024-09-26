@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
@@ -76,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -84,6 +86,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_GRACEFUL_SHUTDOWN;
 
 /**
  * Base HttpServer class
@@ -240,6 +243,40 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             }
         }
 
+        long gracefulShutdownMillis = SETTING_HTTP_GRACEFUL_SHUTDOWN.get(settings).getMillis();
+        if (gracefulShutdownMillis > 0 && httpChannels.size() > 0) {
+
+            logger.info("There are {} open client connections, try to close gracefully within {}ms.", httpChannels.size(), gracefulShutdownMillis);
+
+            // Set all httpchannels to close gracefully
+            for (HttpChannel httpChannel : httpChannels) {
+                if (httpChannel instanceof DefaultRestChannel) {
+                    ((DefaultRestChannel) httpChannel).gracefulCloseConnection();
+                }
+            }
+            final long startTimeNS = System.currentTimeMillis();
+            boolean closedAll = false;
+            while (System.currentTimeMillis() - startTimeNS < gracefulShutdownMillis) {
+                if (httpChannels.isEmpty()) {
+                    closedAll = true;
+                    break;
+                }
+                try {
+                    TimeUnit.MILLISECONDS.sleep(30);
+                } catch (InterruptedException ie) {
+                    throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
+                }
+            }
+
+            if (!closedAll) {
+                logger.info("Timeout reached, {} connections not closed gracefully.", httpChannels.size());
+            }
+            else {
+                logger.info("Closed all connections gracefully.");
+            }
+        }
+
+        // Close all channels that are not yet closed
         try {
             CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
         } catch (Exception e) {
