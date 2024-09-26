@@ -76,7 +76,7 @@ teardown:
 ---
 "Invalid docs":
   - skip:
-      version: "- 2.99.99"
+      version: "- 2.17.99"
       reason: "parsing of these objects would infinite loop prior to 2.18"
   # The following documents are invalid.
   - do:
