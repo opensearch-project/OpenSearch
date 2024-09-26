@@ -214,12 +214,16 @@ public class StarTreeQueryHelper {
 
         int numBits = matchedDocIds.length();  // Get the length of the FixedBitSet
 
-        // Iterate over the FixedBitSet
-        for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = bit + 1 < numBits ? matchedDocIds.nextSetBit(bit + 1) : -1) {
-            // Advance to the bit (entryId) in the valuesIterator
-            if (valuesIterator.advance(bit) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-                int count = valuesIterator.valuesCount();
-                for (int i = 0; i < count; i++) {
+        if (numBits > 0) {
+            // Iterate over the FixedBitSet
+            for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = (bit + 1 < numBits) ? matchedDocIds.nextSetBit(bit + 1) : -1) {
+                // Advance to the bit (entryId) in the valuesIterator
+                if (valuesIterator.advance(bit) == StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                    continue;  // Skip if no more entries
+                }
+
+                // Iterate over the values for the current entryId
+                for (int i = 0, count = valuesIterator.valuesCount(); i < count; i++) {
                     long value = valuesIterator.nextValue();
                     valueConsumer.accept(value); // Apply the consumer operation (e.g., max, sum)
                 }
@@ -237,131 +241,4 @@ public class StarTreeQueryHelper {
             }
         };
     }
-
-//    public static LeafBucketCollector getStarTreeLeafCollectorNew(
-//        SearchContext context,
-//        ValuesSource.Numeric valuesSource,
-//        LeafReaderContext ctx,
-//        LeafBucketCollector sub,
-//        CompositeIndexFieldInfo starTree,
-//        String metric,
-//        Consumer<Long> valueConsumer,
-//        Runnable finalConsumer
-//    ) throws IOException {
-//        // Check in contextCache if the star-tree values are already computed
-//        Map<LeafReaderContext, Map<String, StarTreeQueryHelper.MetricInfo>> cache = context.getStarTreeQueryContext().getLeafResultsCache();
-//        if(cache != null) {
-//
-//            if (cache.containsKey(ctx)) {
-//                MetricInfo metricInfoMap = cache.get(ctx).get(metric);
-//               finalConsumer.run();
-//            }
-//        }
-//        else if (!cache.containsKey(ctx)) {
-//            // TODO: fetch from cache
-//
-//        } else {
-//            // TODO: compute cache first
-//        }
-//
-//        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-//        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
-//        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
-//
-//        assert starTreeValues != null;
-//        List<SortedNumericStarTreeValuesIterator> valuesIterators;
-//        SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
-//            metricName
-//        );
-//        StarTreeValuesIterator result = context.getStarTreeFilteredValues(ctx, starTreeValues);
-//
-//        int entryId;
-//        while ((entryId = result.nextEntry()) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-//            for
-//            if (valuesIterator.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-//                int count = valuesIterator.valuesCount();
-//                for (int i = 0; i < count; i++) {
-//                    long value = valuesIterator.nextValue();
-//                    valueConsumer.accept(value); // Apply the operation (max, sum, etc.)
-//                }
-//            }
-//        }
-//        finalConsumer.run();
-//        return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
-//            @Override
-//            public void collect(int doc, long bucket) {
-//                throw new CollectionTerminatedException();
-//            }
-//        };
-//    }
-//
-//    public abstract class MetricInfo {
-//        String metric;
-//        MetricStat metricStat;
-//
-//
-//
-//        MetricInfo (String metric, MetricStat metricStat) {
-//            if (metricStat == MetricStat.SUM) {
-//                return new SumMetricInfo(metric);
-//            }
-//            return null;
-//        }
-//
-//
-//        public abstract void valueConsumer(long value);
-//
-//        public abstract <T extends Number> T getMetricValue();
-//    }
-//
-//    public class SumMetricInfo extends MetricInfo {
-//        CompensatedSum compensatedSum;
-//
-//        public SumMetricInfo(String metric) {
-//            super(metric, MetricStat.SUM);
-//            compensatedSum = new CompensatedSum(0,0);
-//        }
-//
-//        public void valueConsumer(long value) {
-//            compensatedSum.add(NumericUtils.sortableLongToDouble(value));
-//        }
-//
-//        public Double getMetricValue() {
-//            return compensatedSum.value();
-//        }
-//    }
-//
-//    public static void computeLeafResultsCache(SearchContext context,
-//                                               LeafReaderContext ctx,
-//                                               CompositeIndexFieldInfo starTree,
-//                                               List<MetricInfo> metricInfos) throws IOException {
-//        Map<String, MetricInfo> leafCache = new HashMap<>();
-//        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-//        assert starTreeValues != null;
-//        StarTreeValuesIterator result = context.getStarTreeFilteredValues(ctx, starTreeValues);
-//
-//        List<Integer> entryIdCache = new ArrayList<>();
-//        int entryId;
-//        while ((entryId = result.nextEntry()) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-//            entryIdCache.add(entryId);
-//        }
-//
-//        for (MetricInfo metricInfo : metricInfos) {
-//            SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
-//                metricInfo.metric
-//            );
-//
-//            for (int cachedEntryId : entryIdCache) {
-//                if (valuesIterator.advance(cachedEntryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-//                    int count = valuesIterator.valuesCount();
-//                    for (int i = 0; i < count; i++) {
-//                        long value = valuesIterator.nextValue();
-//                        metricInfo.valueConsumer(value);
-//                    }
-//                }
-//            }
-//            leafCache.put(metricInfo.metric, metricInfo);
-//        }
-//        context.getStarTreeQueryContext().getLeafResultsCache().put(ctx, leafCache);
-//    }
 }
