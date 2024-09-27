@@ -119,8 +119,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final HttpTracer httpTracer;
     private final Tracer tracer;
 
-    private boolean stopGracefully = false;
-
     protected AbstractHttpServerTransport(
         Settings settings,
         NetworkService networkService,
@@ -254,9 +252,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 gracefulShutdownMillis
             );
 
-            // Close connection after the client is getting a response
+            // Close connection after the client is getting a response.
             handlingSettings.setForceCloseConnection();
 
+            // Wait until all connections are closed or the graceful timeout is reached.
             final long startTimeMillis = System.currentTimeMillis();
             while (System.currentTimeMillis() - startTimeMillis < gracefulShutdownMillis) {
                 if (httpChannels.isEmpty()) {
