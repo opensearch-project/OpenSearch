@@ -254,8 +254,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 gracefulShutdownMillis
             );
 
-            // This will trigger this.handleIncomingRequest() to close all connections after sending response to client.
-            this.stopGracefully = true;
+            // Close connection after the client is getting a response
+            handlingSettings.setForceCloseConnection();
 
             final long startTimeMillis = System.currentTimeMillis();
             while (System.currentTimeMillis() - startTimeMillis < gracefulShutdownMillis) {
@@ -537,10 +537,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
             channel = innerChannel;
-            if (this.stopGracefully) {
-                // After sending response to client, close the connection, including keep-alive connections
-                ((DefaultRestChannel) channel).gracefulCloseConnection();
-            }
         }
 
         dispatchRequest(restRequest, channel, badRequestCause);

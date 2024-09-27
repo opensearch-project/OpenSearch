@@ -124,7 +124,7 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
         Releasables.closeWhileHandlingException(httpRequest::release);
 
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
-        if (this.gracefulCloseConnection || HttpUtils.shouldCloseConnection(httpRequest)) {
+        if (settings.forceCloseConnection() || HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
 
