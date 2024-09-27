@@ -79,7 +79,7 @@ dependencies {
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
   api 'org.jline:jline:3.26.3'
   api 'org.apache.commons:commons-configuration2:2.11.0'
-  api 'com.nimbusds:nimbus-jose-jwt:9.40'
+  api 'com.nimbusds:nimbus-jose-jwt:9.41.1'
   api ('org.apache.kerby:kerb-admin:2.1.0') {
     exclude group: "org.jboss.xnio"
     exclude group: "org.jline"
