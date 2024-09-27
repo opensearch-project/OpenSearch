@@ -32,6 +32,8 @@
 
 package org.opensearch.http;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Build;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -84,6 +86,9 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
     private final Map<String, List<String>> SERVER_VERSION_HEADER = Map.of(SERVER_VERSION, List.of(SERVER_VERSION_VALUE));
+    private boolean gracefulCloseConnection = false;
+
+    private static final Logger logger = LogManager.getLogger(DefaultRestChannel.class);
 
     @Nullable
     private final HttpTracer tracerLog;
@@ -119,7 +124,7 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
         Releasables.closeWhileHandlingException(httpRequest::release);
 
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
-        if (HttpUtils.shouldCloseConnection(httpRequest)) {
+        if (this.gracefulCloseConnection || HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
 
@@ -212,5 +217,9 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
                 }
             }
         }
+    }
+
+    public void gracefulCloseConnection() {
+        this.gracefulCloseConnection = true;
     }
 }

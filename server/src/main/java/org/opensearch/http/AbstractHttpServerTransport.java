@@ -119,6 +119,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final HttpTracer httpTracer;
     private final Tracer tracer;
 
+    private boolean stopGracefully = false;
+
     protected AbstractHttpServerTransport(
         Settings settings,
         NetworkService networkService,
@@ -252,12 +254,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 gracefulShutdownMillis
             );
 
-            // Set all httpchannels to close gracefully
-            for (HttpChannel httpChannel : httpChannels) {
-                if (httpChannel instanceof DefaultRestChannel) {
-                    httpChannel.close();
-                }
-            }
+            // This will trigger this.handleIncomingRequest() to close all connections after sending response to client.
+            this.stopGracefully = true;
+
             final long startTimeMillis = System.currentTimeMillis();
             while (System.currentTimeMillis() - startTimeMillis < gracefulShutdownMillis) {
                 if (httpChannels.isEmpty()) {
@@ -538,6 +537,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
             channel = innerChannel;
+            if (this.stopGracefully) {
+                // After sending response to client, close the connection, including keep-alive connections
+                ((DefaultRestChannel) channel).gracefulCloseConnection();
+            }
         }
 
         dispatchRequest(restRequest, channel, badRequestCause);
