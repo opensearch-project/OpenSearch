@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
 
-
 /**
  * This strategy can be used by the Rest APIs wanting to paginate the responses based on Shards.
  * The strategy considers create timestamps of indices and shardID as the keys to iterate over pages.
@@ -50,89 +49,92 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
     };
 
     private PageToken pageToken;
-    private List<ShardRouting> requestedShardRoutings = new ArrayList<>();
-    private List<String> requestedIndices = new ArrayList<>();
+    private List<ShardRouting> pageShardRoutings = new ArrayList<>();
+    private List<String> pageIndices = new ArrayList<>();
 
     public ShardPaginationStrategy(PageParams pageParams, ClusterState clusterState) {
+        ShardStrategyToken shardStrategyToken = getShardStrategyToken(pageParams.getRequestedToken());
         // Get list of indices metadata sorted by their creation time and filtered by the last sent index
-        List<IndexMetadata> sortedIndices = PaginationStrategy.getSortedIndexMetadata(
+        List<IndexMetadata> filteredIndices = PaginationStrategy.getSortedIndexMetadata(
             clusterState,
-            getMetadataFilter(pageParams.getRequestedToken(), pageParams.getSort()),
+            getIndexFilter(shardStrategyToken, pageParams.getSort()),
             PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) ? ASC_COMPARATOR : DESC_COMPARATOR
         );
         // Get the list of shards and indices belonging to current page.
         Tuple<List<ShardRouting>, List<IndexMetadata>> tuple = getPageData(
             clusterState.getRoutingTable().getIndicesRouting(),
-            sortedIndices,
-            pageParams.getSize(),
-            pageParams.getRequestedToken()
+            filteredIndices,
+            shardStrategyToken,
+            pageParams.getSize()
         );
-        this.requestedShardRoutings = tuple.v1();
-        List<IndexMetadata> metadataSublist = tuple.v2();
+        List<ShardRouting> pageShardRoutings = tuple.v1();
+        List<IndexMetadata> pageIndices = tuple.v2();
+        this.pageShardRoutings = pageShardRoutings;
         // Get list of index names from the trimmed metadataSublist
-        this.requestedIndices = metadataSublist.stream().map(metadata -> metadata.getIndex().getName()).collect(Collectors.toList());
+        this.pageIndices = pageIndices.stream().map(metadata -> metadata.getIndex().getName()).collect(Collectors.toList());
         this.pageToken = getResponseToken(
-            pageParams.getSize(),
-            sortedIndices.size(),
-            metadataSublist.isEmpty() ? null : metadataSublist.get(metadataSublist.size() - 1),
-            tuple.v1().isEmpty() ? null : tuple.v1().get(tuple.v1().size() - 1)
+            pageIndices.isEmpty() ? null : pageIndices.get(pageIndices.size() - 1),
+            filteredIndices.isEmpty() ? null : filteredIndices.get(filteredIndices.size() - 1).getIndex().getName(),
+            pageShardRoutings.isEmpty() ? -1 : pageShardRoutings.get(pageShardRoutings.size() - 1).id()
         );
     }
 
-    private static Predicate<IndexMetadata> getMetadataFilter(String requestedTokenStr, String sortOrder) {
-        boolean isAscendingSort = sortOrder.equals(PARAM_ASC_SORT_VALUE);
-        ShardStrategyToken requestedToken = Objects.isNull(requestedTokenStr) || requestedTokenStr.isEmpty()
-            ? null
-            : new ShardStrategyToken(requestedTokenStr);
-        if (Objects.isNull(requestedToken)) {
+    private static Predicate<IndexMetadata> getIndexFilter(ShardStrategyToken token, String sortOrder) {
+        if (Objects.isNull(token)) {
             return indexMetadata -> true;
         }
+        boolean isAscendingSort = sortOrder.equals(PARAM_ASC_SORT_VALUE);
         return metadata -> {
-            if (metadata.getIndex().getName().equals(requestedToken.lastIndexName)) {
+            if (metadata.getIndex().getName().equals(token.lastIndexName)) {
                 return true;
-            } else if (metadata.getCreationDate() == requestedToken.lastIndexCreationTime) {
+            } else if (metadata.getCreationDate() == token.lastIndexCreationTime) {
                 return isAscendingSort
-                    ? metadata.getIndex().getName().compareTo(requestedToken.lastIndexName) > 0
-                    : metadata.getIndex().getName().compareTo(requestedToken.lastIndexName) < 0;
+                    ? metadata.getIndex().getName().compareTo(token.lastIndexName) > 0
+                    : metadata.getIndex().getName().compareTo(token.lastIndexName) < 0;
             }
             return isAscendingSort
-                ? metadata.getCreationDate() > requestedToken.lastIndexCreationTime
-                : metadata.getCreationDate() < requestedToken.lastIndexCreationTime;
+                ? metadata.getCreationDate() > token.lastIndexCreationTime
+                : metadata.getCreationDate() < token.lastIndexCreationTime;
         };
     }
 
+    /**
+     * Will be used to get the list of shards and respective indices to which they belong,
+     * which are to be displayed in a page.
+     * Note: All shards for a shardID will always be present in the same page.
+     */
     private Tuple<List<ShardRouting>, List<IndexMetadata>> getPageData(
         Map<String, IndexRoutingTable> indicesRouting,
-        List<IndexMetadata> sortedIndices,
-        final int pageSize,
-        String requestedTokenStr
+        List<IndexMetadata> filteredIndices,
+        final ShardStrategyToken token,
+        final int numShardsRequired
     ) {
         List<ShardRouting> shardRoutings = new ArrayList<>();
         List<IndexMetadata> indexMetadataList = new ArrayList<>();
-        ShardStrategyToken requestedToken = Objects.isNull(requestedTokenStr) || requestedTokenStr.isEmpty()
-            ? null
-            : new ShardStrategyToken(requestedTokenStr);
         int shardCount = 0;
-        for (IndexMetadata indexMetadata : sortedIndices) {
+
+        // iterate over indices until shardCount is less than numShardsRequired
+        for (IndexMetadata indexMetadata : filteredIndices) {
+            String indexName = indexMetadata.getIndex().getName();
+            int startShardId = getStartShardIdForPageIndex(token, indexName);
             boolean indexShardsAdded = false;
-            Map<Integer, IndexShardRoutingTable> indexShardRoutingTable = indicesRouting.get(indexMetadata.getIndex().getName())
-                .getShards();
-            int shardId = Objects.isNull(requestedToken) ? 0
-                : indexMetadata.getIndex().getName().equals(requestedToken.lastIndexName) ? requestedToken.lastShardId + 1
-                : 0;
-            for (; shardId < indexShardRoutingTable.size(); shardId++) {
-                shardCount += indexShardRoutingTable.get(shardId).size();
-                if (shardCount > pageSize) {
+            Map<Integer, IndexShardRoutingTable> indexShardRoutingTable = indicesRouting.get(indexName).getShards();
+            for (; startShardId < indexShardRoutingTable.size(); startShardId++) {
+                if (indexShardRoutingTable.get(startShardId).size() > numShardsRequired) {
+                    throw new IllegalArgumentException("size value should be greater than the replica count of all indices");
+                }
+                shardCount += indexShardRoutingTable.get(startShardId).size();
+                if (shardCount > numShardsRequired) {
                     break;
                 }
-                shardRoutings.addAll(indexShardRoutingTable.get(shardId).shards());
+                shardRoutings.addAll(indexShardRoutingTable.get(startShardId).shards());
                 indexShardsAdded = true;
             }
             // Add index to the list if any of its shard was added to the count.
             if (indexShardsAdded) {
                 indexMetadataList.add(indexMetadata);
             }
-            if (shardCount >= pageSize) {
+            if (shardCount >= numShardsRequired) {
                 break;
             }
         }
@@ -140,14 +142,30 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
         return new Tuple<>(shardRoutings, indexMetadataList);
     }
 
-    private PageToken getResponseToken(final int pageSize, final int totalIndices, IndexMetadata lastIndex, ShardRouting lastShard) {
-        if (totalIndices <= pageSize && lastIndex.getNumberOfShards() == lastShard.getId()) {
+    private PageToken getResponseToken(IndexMetadata pageEndIndex, final String lastFilteredIndexName, final int pageEndShardId) {
+        // If all the shards of filtered indices list have been included in pageShardRoutings, then no more
+        // shards are remaining to be fetched, and the next_token should thus be null.
+        String pageEndIndexName = Objects.isNull(pageEndIndex) ? null : pageEndIndex.getIndex().getName();
+        if (Objects.isNull(pageEndIndexName)
+            || (pageEndIndexName.equals(lastFilteredIndexName) && pageEndIndex.getNumberOfShards() == pageEndShardId + 1)) {
             return new PageToken(null, DEFAULT_SHARDS_PAGINATED_ENTITY);
         }
         return new PageToken(
-            new ShardStrategyToken(lastShard.getId(), lastIndex.getCreationDate(), lastIndex.getIndex().getName()).generateEncryptedToken(),
+            new ShardStrategyToken(pageEndIndexName, pageEndShardId, pageEndIndex.getCreationDate()).generateEncryptedToken(),
             DEFAULT_SHARDS_PAGINATED_ENTITY
         );
+    }
+
+    private ShardStrategyToken getShardStrategyToken(String requestedToken) {
+        return Objects.isNull(requestedToken) || requestedToken.isEmpty() ? null : new ShardStrategyToken(requestedToken);
+    }
+
+    /**
+     * Provides the shardId to start an index which is to be included in the page. If the index is same as
+     * lastIndex, start from the shardId next to lastShardId, else always start from 0.
+     */
+    private int getStartShardIdForPageIndex(ShardStrategyToken token, final String pageIndexName) {
+        return Objects.isNull(token) ? 0 : token.lastIndexName.equals(pageIndexName) ? token.lastShardId + 1 : 0;
     }
 
     @Override
@@ -157,11 +175,11 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
 
     @Override
     public List<ShardRouting> getRequestedEntities() {
-        return requestedShardRoutings;
+        return pageShardRoutings;
     }
 
     public List<String> getRequestedIndices() {
-        return requestedIndices;
+        return pageIndices;
     }
 
     /**
@@ -203,11 +221,11 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
             this.lastIndexName = decryptedTokenElements[INDEX_NAME_POS_IN_TOKEN];
         }
 
-        public ShardStrategyToken(int lastShardId, long creationTimeOfLastRespondedIndex, String nameOfLastRespondedIndex) {
+        public ShardStrategyToken(String lastIndexName, int lastShardId, long lastIndexCreationTime) {
+            Objects.requireNonNull(lastIndexName, "index name should be provided");
+            this.lastIndexName = lastIndexName;
             this.lastShardId = lastShardId;
-            Objects.requireNonNull(nameOfLastRespondedIndex, "index name should be provided");
-            this.lastIndexCreationTime = creationTimeOfLastRespondedIndex;
-            this.lastIndexName = nameOfLastRespondedIndex;
+            this.lastIndexCreationTime = lastIndexCreationTime;
         }
 
         public String generateEncryptedToken() {

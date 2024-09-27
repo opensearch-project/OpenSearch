@@ -42,7 +42,9 @@ public class CatShardsResponse extends ActionResponse {
         indicesStatsResponse = new IndicesStatsResponse(in);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             responseShards = in.readList(ShardRouting::new);
-            pageToken = PageToken.readPageToken(in);
+            if (in.readBoolean()) {
+                pageToken = PageToken.readPageToken(in);
+            }
         }
     }
 
@@ -52,7 +54,10 @@ public class CatShardsResponse extends ActionResponse {
         indicesStatsResponse.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeList(responseShards);
-            pageToken.writePageToken(out);
+            out.writeBoolean(pageToken != null);
+            if (pageToken != null) {
+                pageToken.writePageToken(out);
+            }
         }
     }
 

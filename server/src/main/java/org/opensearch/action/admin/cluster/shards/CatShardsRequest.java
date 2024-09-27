@@ -39,7 +39,9 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             indices = in.readStringArray();
             cancelAfterTimeInterval = in.readTimeValue();
-            pageParams = PageParams.readPageParams(in);
+            if (in.readBoolean()) {
+                pageParams = PageParams.readPageParams(in);
+            }
         }
     }
 
@@ -49,7 +51,10 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeStringArray(indices);
             out.writeTimeValue(cancelAfterTimeInterval);
-            pageParams.writePageParams(out);
+            out.writeBoolean(pageParams != null);
+            if (pageParams != null) {
+                pageParams.writePageParams(out);
+            }
         }
     }
 
