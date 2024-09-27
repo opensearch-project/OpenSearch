@@ -153,7 +153,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                     .size()];
                 for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
                     String dimension = dimensionsSplitOrder.get(i).getField();
-                    dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionDocIdSetIterator(dimension));
+                    dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionValuesIterator(dimension));
                 }
                 List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
                 // get doc id set iterators for metrics
@@ -164,7 +164,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                             metric.getField(),
                             metricStat.getTypeName()
                         );
-                        metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricDocIdSetIterator(metricFullName)));
+                        metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricValuesIterator(metricFullName)));
                     }
                 }
                 int currentDocId = 0;
