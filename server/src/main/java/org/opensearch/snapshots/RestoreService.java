@@ -92,6 +92,7 @@ import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.IndexId;
@@ -106,6 +107,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -119,10 +121,12 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
@@ -400,6 +404,13 @@ public class RestoreService implements ClusterStateApplier {
                                     overrideSettingsInternal,
                                     ignoreSettingsInternal
                                 );
+
+                                validateReplicationTypeRestoreSettings(
+                                    metadata.index(index).getSettings().get(SETTING_REPLICATION_TYPE),
+                                    snapshotIndexMetadata.getSettings().get(SETTING_REPLICATION_TYPE),
+                                    snapshotIndexMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
+                                );
+
                                 if (isRemoteSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
                                 }
@@ -648,6 +659,23 @@ public class RestoreService implements ClusterStateApplier {
                         RoutingTable rt = rtBuilder.build();
                         ClusterState updatedState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rt).build();
                         return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
+                    }
+
+                    private void validateReplicationTypeRestoreSettings(String snapshotReplicationType,
+                                                                        String restoreReplicationType,
+                                                                        int restoreNumberOfSearchReplicas) {
+                        if(Objects.equals(restoreReplicationType, ReplicationType.DOCUMENT.toString())) {
+                            if(restoreNumberOfSearchReplicas > 0) {
+                                throw new SnapshotRestoreException(
+                                    snapshot,
+                                    "snapshot was created with [" + SETTING_REPLICATION_TYPE + "]"
+                                        + " as ["+ snapshotReplicationType + "]."
+                                        + " To restore with [" + SETTING_REPLICATION_TYPE + "]" + " as ["
+                                        + ReplicationType.DOCUMENT + "], [" + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                                        + "] must be set to [0]"
+                                );
+                            }
+                        }
                     }
 
                     private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {
