@@ -259,10 +259,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
             final long startTimeMillis = System.currentTimeMillis();
-            boolean closedAll = false;
             while (System.currentTimeMillis() - startTimeMillis < gracefulShutdownMillis) {
                 if (httpChannels.isEmpty()) {
-                    closedAll = true;
                     break;
                 }
                 try {
@@ -272,7 +270,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
 
-            if (!closedAll) {
+            if (!httpChannels.isEmpty()) {
                 logger.info("Timeout reached, {} connections not closed gracefully.", httpChannels.size());
             } else {
                 logger.info("Closed all connections gracefully.");
