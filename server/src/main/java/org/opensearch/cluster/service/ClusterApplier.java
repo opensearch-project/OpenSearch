@@ -50,6 +50,12 @@ public interface ClusterApplier {
     void setInitialState(ClusterState initialState);
 
     /**
+     * Sets the pre-commit state for the applier.
+     * @param clusterState state that has been committed by coordinator to store
+     */
+    void setPreCommitState(ClusterState clusterState);
+
+    /**
      * Method to invoke when a new cluster state is available to be applied
      *
      * @param source information where the cluster state came from

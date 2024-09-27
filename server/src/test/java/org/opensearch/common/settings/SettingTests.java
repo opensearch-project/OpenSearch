@@ -1274,6 +1274,20 @@ public class SettingTests extends OpenSearchTestCase {
     public void testDoubleWithDefaultValue() {
         Setting<Double> doubleSetting = Setting.doubleSetting("foo.bar", 42.1);
         assertEquals(doubleSetting.get(Settings.EMPTY), Double.valueOf(42.1));
+
+        Setting<Double> doubleSettingWithValidator = Setting.doubleSetting("foo.bar", 42.1, value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("The setting foo.bar must be >0");
+            }
+        });
+        try {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> doubleSettingWithValidator.get(Settings.builder().put("foo.bar", randomFrom(-1, 0)).build())
+            );
+        } catch (IllegalArgumentException ex) {
+            assertEquals("The setting foo.bar must be >0", ex.getMessage());
+        }
     }
 
     public void testDoubleWithFallbackValue() {
@@ -1282,6 +1296,20 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(doubleSetting.get(Settings.EMPTY), Double.valueOf(2.1));
         assertEquals(doubleSetting.get(Settings.builder().put("foo.bar", 3.2).build()), Double.valueOf(3.2));
         assertEquals(doubleSetting.get(Settings.builder().put("foo.baz", 3.2).build()), Double.valueOf(3.2));
+
+        Setting<Double> doubleSettingWithValidator = Setting.doubleSetting("foo.bar", fallbackSetting, value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("The setting foo.bar must be >0");
+            }
+        });
+        try {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> doubleSettingWithValidator.get(Settings.builder().put("foo.bar", randomFrom(-1, 0)).build())
+            );
+        } catch (IllegalArgumentException ex) {
+            assertEquals("The setting foo.bar must be >0", ex.getMessage());
+        }
     }
 
     public void testDoubleWithMinMax() throws Exception {

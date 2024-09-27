@@ -25,7 +25,7 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
-        sut = new WorkloadManagementTransportInterceptor(threadPool);
+        sut = new WorkloadManagementTransportInterceptor(threadPool, new QueryGroupService());
     }
 
     public void tearDown() throws Exception {

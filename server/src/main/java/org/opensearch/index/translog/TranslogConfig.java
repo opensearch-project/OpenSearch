@@ -60,6 +60,7 @@ public final class TranslogConfig {
     private final ByteSizeValue bufferSize;
     private final String nodeId;
     private final boolean seedRemote;
+    private boolean downloadRemoteTranslogOnInit = true;
 
     /**
      * Creates a new TranslogConfig instance
@@ -139,5 +140,13 @@ public final class TranslogConfig {
 
     public boolean shouldSeedRemote() {
         return seedRemote;
+    }
+
+    public boolean downloadRemoteTranslogOnInit() {
+        return downloadRemoteTranslogOnInit;
+    }
+
+    public void setDownloadRemoteTranslogOnInit(boolean downloadRemoteTranslogOnInit) {
+        this.downloadRemoteTranslogOnInit = downloadRemoteTranslogOnInit;
     }
 }

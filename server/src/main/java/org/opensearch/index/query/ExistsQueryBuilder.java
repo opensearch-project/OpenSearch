@@ -59,7 +59,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
+public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> implements WithFieldName {
     public static final String NAME = "exists";
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -89,6 +89,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     /**
      * @return the field name that has to exist for this query to match
      */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

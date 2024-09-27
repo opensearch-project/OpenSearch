@@ -9,26 +9,27 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.apache.lucene.util.NumericUtils;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
+import org.opensearch.index.mapper.NumberFieldMapper;
 
 public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
     private MinValueAggregator aggregator;
 
-    public MinValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
-        super(starTreeNumericType);
+    public MinValueAggregatorTests(FieldValueConverter fieldValueConverter) {
+        super(fieldValueConverter);
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
         Long randomLong = randomLong();
         double randomDouble = randomDouble();
         assertEquals(
-            Math.min(starTreeNumericType.getDoubleValue(randomLong), randomDouble),
+            Math.min(fieldValueConverter.toDoubleValue(randomLong), randomDouble),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
-        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
+        assertEquals(fieldValueConverter.toDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
         assertEquals(randomDouble, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, null), 0.0);
-        assertEquals(Math.min(2.0, starTreeNumericType.getDoubleValue(3L)), aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
+        assertEquals(Math.min(2.0, fieldValueConverter.toDoubleValue(3L)), aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
     }
 
     public void testMergeAggregatedValues() {
@@ -45,7 +46,7 @@ public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
     }
 
     public void testToAggregatedValueType() {
-        MinValueAggregator aggregator = new MinValueAggregator(StarTreeNumericType.DOUBLE);
+        MinValueAggregator aggregator = new MinValueAggregator(NumberFieldMapper.NumberType.DOUBLE);
         long randomLong = randomLong();
         assertEquals(NumericUtils.sortableLongToDouble(randomLong), aggregator.toAggregatedValueType(randomLong), 0.0);
     }
@@ -55,8 +56,8 @@ public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
     }
 
     @Override
-    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
-        aggregator = new MinValueAggregator(starTreeNumericType);
+    public ValueAggregator getValueAggregator(FieldValueConverter fieldValueConverter) {
+        aggregator = new MinValueAggregator(fieldValueConverter);
         return aggregator;
     }
 

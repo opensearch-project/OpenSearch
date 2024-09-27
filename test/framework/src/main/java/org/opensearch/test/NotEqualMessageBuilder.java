@@ -181,18 +181,9 @@ public class NotEqualMessageBuilder {
             field(field, "same [" + expected + "]");
             return;
         }
-        field(
-            field,
-            "expected "
-                + expected.getClass().getSimpleName()
-                + " ["
-                + expected
-                + "] but was "
-                + actual.getClass().getSimpleName()
-                + " ["
-                + actual
-                + "]"
-        );
+        String expectedClass = expected == null ? "null object" : expected.getClass().getSimpleName();
+        String actualClass = actual == null ? "null object" : actual.getClass().getSimpleName();
+        field(field, "expected " + expectedClass + " [" + expected + "] but was " + actualClass + " [" + actual + "]");
     }
 
     private void indent() {

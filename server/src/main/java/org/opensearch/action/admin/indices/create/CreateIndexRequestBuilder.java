@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -274,5 +275,25 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      */
     public CreateIndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    /**
+     * Adds context that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     */
+    public CreateIndexRequestBuilder setContext(Map<String, ?> source) {
+        request.context(source);
+        return this;
+    }
+
+    /**
+     * Adds context that will be added when the index gets created.
+     *
+     * @param source The context source
+     */
+    public CreateIndexRequestBuilder setContext(Context source) {
+        request.context(source);
+        return this;
     }
 }

@@ -88,7 +88,12 @@ public class RemoteDiscoveryNodes extends AbstractClusterMetadataWriteableBlobEn
 
     @Override
     public InputStream serialize() throws IOException {
-        return DISCOVERY_NODES_FORMAT.serialize(discoveryNodes, generateBlobFileName(), getCompressor()).streamInput();
+        return DISCOVERY_NODES_FORMAT.serialize(
+            (out, discoveryNode) -> discoveryNode.writeToWithAttribute(out),
+            discoveryNodes,
+            generateBlobFileName(),
+            getCompressor()
+        ).streamInput();
     }
 
     @Override

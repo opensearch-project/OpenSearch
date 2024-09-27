@@ -184,6 +184,24 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
             .filter(repo -> !reposToSkip.contains(repo.name()))
             .collect(Collectors.toList());
 
+        return equalsRepository(currentRepositories, otherRepositories);
+    }
+
+    public boolean equalsIgnoreGenerationsForRepo(@Nullable RepositoriesMetadata other, List<String> reposToValidate) {
+        if (other == null) {
+            return false;
+        }
+        List<RepositoryMetadata> currentRepositories = repositories.stream()
+            .filter(repo -> reposToValidate.contains(repo.name()))
+            .collect(Collectors.toList());
+        List<RepositoryMetadata> otherRepositories = other.repositories.stream()
+            .filter(repo -> reposToValidate.contains(repo.name()))
+            .collect(Collectors.toList());
+
+        return equalsRepository(currentRepositories, otherRepositories);
+    }
+
+    public static boolean equalsRepository(List<RepositoryMetadata> currentRepositories, List<RepositoryMetadata> otherRepositories) {
         if (otherRepositories.size() != currentRepositories.size()) {
             return false;
         }

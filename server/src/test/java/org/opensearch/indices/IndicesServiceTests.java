@@ -31,12 +31,15 @@
 
 package org.opensearch.indices;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexGraveyard;
@@ -44,6 +47,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader.DelegatingCacheHelper;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -76,8 +80,11 @@ import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.TestSearchContext;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -626,5 +633,33 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
             indicesService.getRemoteStoreSettings().getClusterRemoteTranslogBufferInterval()
         );
+    }
+
+    public void testDirectoryReaderWithoutDelegatingCacheHelperNotCacheable() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        final IndexService indexService = createIndex("test");
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.requestCache()).thenReturn(true);
+
+        TestSearchContext context = new TestSearchContext(indexService.getBigArrays(), indexService) {
+            @Override
+            public SearchType searchType() {
+                return SearchType.QUERY_THEN_FETCH;
+            }
+        };
+
+        ContextIndexSearcher searcher = mock(ContextIndexSearcher.class);
+        context.setSearcher(searcher);
+        DirectoryReader reader = mock(DirectoryReader.class);
+        when(searcher.getDirectoryReader()).thenReturn(reader);
+        when(searcher.getIndexReader()).thenReturn(reader);
+        IndexReader.CacheHelper notDelegatingCacheHelper = mock(IndexReader.CacheHelper.class);
+        DelegatingCacheHelper delegatingCacheHelper = mock(DelegatingCacheHelper.class);
+
+        for (boolean useDelegatingCacheHelper : new boolean[] { true, false }) {
+            IndexReader.CacheHelper cacheHelper = useDelegatingCacheHelper ? delegatingCacheHelper : notDelegatingCacheHelper;
+            when(reader.getReaderCacheHelper()).thenReturn(cacheHelper);
+            assertEquals(useDelegatingCacheHelper, indicesService.canCache(request, context));
+        }
     }
 }

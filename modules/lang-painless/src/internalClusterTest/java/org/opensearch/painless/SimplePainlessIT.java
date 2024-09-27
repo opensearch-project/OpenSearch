@@ -188,10 +188,6 @@ public class SimplePainlessIT extends ParameterizedStaticSettingsOpenSearchInteg
     }
 
     public void testSimpleDerivedFieldsQuery() {
-        assumeFalse(
-            "Derived fields do not support concurrent search https://github.com/opensearch-project/OpenSearch/issues/15007",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         SearchRequest searchRequest = new SearchRequest("test-df").source(
             SearchSourceBuilder.searchSource()
                 .derivedField("result", "keyword", new Script("emit(params._source[\"field\"])"))
@@ -204,10 +200,6 @@ public class SimplePainlessIT extends ParameterizedStaticSettingsOpenSearchInteg
     }
 
     public void testSimpleDerivedFieldsAgg() {
-        assumeFalse(
-            "Derived fields do not support concurrent search https://github.com/opensearch-project/OpenSearch/issues/15007",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         SearchRequest searchRequest = new SearchRequest("test-df").source(
             SearchSourceBuilder.searchSource()
                 .derivedField("result", "keyword", new Script("emit(params._source[\"field\"])"))

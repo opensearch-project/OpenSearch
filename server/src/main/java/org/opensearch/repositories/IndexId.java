@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -40,6 +41,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.remote.RemoteStoreEnums;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -51,23 +53,36 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public final class IndexId implements Writeable, ToXContentObject {
-    protected static final String NAME = "name";
-    protected static final String ID = "id";
+    static final String NAME = "name";
+    static final String ID = "id";
+    static final String SHARD_PATH_TYPE = "shard_path_type";
+    public static final int DEFAULT_SHARD_PATH_TYPE = RemoteStoreEnums.PathType.FIXED.getCode();
 
     private final String name;
     private final String id;
+    private final int shardPathType;
     private final int hashCode;
 
+    // Used for testing only
     public IndexId(final String name, final String id) {
+        this(name, id, DEFAULT_SHARD_PATH_TYPE);
+    }
+
+    public IndexId(String name, String id, int shardPathType) {
         this.name = name;
         this.id = id;
+        this.shardPathType = shardPathType;
         this.hashCode = computeHashCode();
-
     }
 
     public IndexId(final StreamInput in) throws IOException {
         this.name = in.readString();
         this.id = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            this.shardPathType = in.readVInt();
+        } else {
+            this.shardPathType = DEFAULT_SHARD_PATH_TYPE;
+        }
         this.hashCode = computeHashCode();
     }
 
@@ -93,9 +108,16 @@ public final class IndexId implements Writeable, ToXContentObject {
         return id;
     }
 
+    /**
+     * The storage path type in remote store for the indexes having the underlying index ids.
+     */
+    public int getShardPathType() {
+        return shardPathType;
+    }
+
     @Override
     public String toString() {
-        return "[" + name + "/" + id + "]";
+        return "[" + name + "/" + id + "/" + shardPathType + "]";
     }
 
     @Override
@@ -107,7 +129,7 @@ public final class IndexId implements Writeable, ToXContentObject {
             return false;
         }
         IndexId that = (IndexId) o;
-        return Objects.equals(name, that.name) && Objects.equals(id, that.id);
+        return Objects.equals(name, that.name) && Objects.equals(id, that.id) && Objects.equals(this.shardPathType, that.shardPathType);
     }
 
     @Override
@@ -116,13 +138,16 @@ public final class IndexId implements Writeable, ToXContentObject {
     }
 
     private int computeHashCode() {
-        return Objects.hash(name, id);
+        return Objects.hash(name, id, shardPathType);
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(id);
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeVInt(shardPathType);
+        }
     }
 
     @Override
@@ -130,6 +155,7 @@ public final class IndexId implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(NAME, name);
         builder.field(ID, id);
+        builder.field(SHARD_PATH_TYPE, shardPathType);
         builder.endObject();
         return builder;
     }

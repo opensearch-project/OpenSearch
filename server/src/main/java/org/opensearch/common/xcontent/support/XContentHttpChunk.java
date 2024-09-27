@@ -12,6 +12,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 
@@ -19,6 +20,7 @@ import org.opensearch.http.HttpChunk;
  * Wraps the instance of the {@link XContentBuilder} into {@link HttpChunk}
  */
 public final class XContentHttpChunk implements HttpChunk {
+    private static final byte[] CHUNK_SEPARATOR = new byte[] { '\r', '\n' };
     private final BytesReference content;
 
     /**
@@ -42,7 +44,8 @@ public final class XContentHttpChunk implements HttpChunk {
         if (builder == null /* no content */) {
             content = BytesArray.EMPTY;
         } else {
-            content = BytesReference.bytes(builder);
+            // Always finalize the output chunk with '\r\n' sequence
+            content = CompositeBytesReference.of(BytesReference.bytes(builder), new BytesArray(CHUNK_SEPARATOR));
         }
     }
 

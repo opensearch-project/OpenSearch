@@ -486,4 +486,35 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
 
         assertThat(failure.diagnotics(), not(hasItem(matching(Diagnostic.Kind.ERROR))));
     }
+
+    public void testPublicApiUnparseableVersion() {
+        final CompilerResult result = compile("PublicApiAnnotatedUnparseable.java");
+        assertThat(result, instanceOf(Failure.class));
+
+        final Failure failure = (Failure) result;
+        assertThat(failure.diagnotics(), hasSize(3));
+
+        assertThat(
+            failure.diagnotics(),
+            hasItem(
+                matching(
+                    Diagnostic.Kind.ERROR,
+                    containsString(
+                        "The type org.opensearch.common.annotation.processor.PublicApiAnnotatedUnparseable has @PublicApi annotation with unparseable OpenSearch version: 2.x"
+                    )
+                )
+            )
+        );
+    }
+
+    public void testPublicApiWithDeprecatedApiMethod() {
+        final CompilerResult result = compile("PublicApiWithDeprecatedApiMethod.java");
+        assertThat(result, instanceOf(Failure.class));
+
+        final Failure failure = (Failure) result;
+        assertThat(failure.diagnotics(), hasSize(2));
+
+        assertThat(failure.diagnotics(), not(hasItem(matching(Diagnostic.Kind.ERROR))));
+    }
+
 }

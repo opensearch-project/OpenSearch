@@ -67,19 +67,11 @@ public class URLSnapshotRestoreIT extends OpenSearchIntegTestCase {
 
         logger.info("-->  creating repository");
         Path repositoryLocation = randomRepoPath();
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType(FsRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
-                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
-
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository("test-repo", FsRepository.TYPE, settings);
         createIndex("test-idx");
         ensureGreen();
 
@@ -115,17 +107,10 @@ public class URLSnapshotRestoreIT extends OpenSearchIntegTestCase {
         cluster().wipeIndices("test-idx");
 
         logger.info("--> create read-only URL repository");
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository("url-repo")
-                .setType(URLRepository.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put(URLRepository.URL_SETTING.getKey(), repositoryLocation.toUri().toURL().toString())
-                        .put("list_directories", randomBoolean())
-                )
-        );
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(URLRepository.URL_SETTING.getKey(), repositoryLocation.toUri().toURL().toString())
+            .put("list_directories", randomBoolean());
+        createRepository("url-repo", URLRepository.TYPE, settingsBuilder);
         logger.info("--> restore index after deletion");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()

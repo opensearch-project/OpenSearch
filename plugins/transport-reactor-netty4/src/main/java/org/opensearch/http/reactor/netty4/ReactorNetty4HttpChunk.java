@@ -8,39 +8,31 @@
 
 package org.opensearch.http.reactor.netty4;
 
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.http.HttpChunk;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.netty.buffer.ByteBuf;
 
 class ReactorNetty4HttpChunk implements HttpChunk {
-    private final AtomicBoolean released;
-    private final boolean pooled;
-    private final ByteBuf content;
+    private final BytesArray content;
     private final boolean last;
 
-    ReactorNetty4HttpChunk(ByteBuf content, boolean last) {
-        this.content = content;
-        this.pooled = true;
-        this.released = new AtomicBoolean(false);
+    ReactorNetty4HttpChunk(ByteBuf buf, boolean last) {
+        // Since the chunks could be batched and processing could be delayed, we are copying the content here
+        final byte[] content = new byte[buf.readableBytes()];
+        buf.readBytes(content);
+        this.content = new BytesArray(content);
         this.last = last;
     }
 
     @Override
     public BytesReference content() {
-        assert released.get() == false;
-        return Netty4Utils.toBytesReference(content);
+        return content;
     }
 
     @Override
-    public void close() {
-        if (pooled && released.compareAndSet(false, true)) {
-            content.release();
-        }
-    }
+    public void close() {}
 
     @Override
     public boolean isLast() {

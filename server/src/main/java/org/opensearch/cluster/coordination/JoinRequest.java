@@ -84,7 +84,7 @@ public class JoinRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        sourceNode.writeTo(out);
+        sourceNode.writeToWithAttribute(out);
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }

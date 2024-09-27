@@ -8,11 +8,15 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.identity.Subject;
 
 /**
  * This interface defines the expected methods of a token manager
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface TokenManager {
 
     /**

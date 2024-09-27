@@ -19,6 +19,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.translog.RemoteTranslogStats;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -67,6 +68,7 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
                 assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
             }
 
+            String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
             assertBusy(() -> {
                 String shardPath = getShardLevelBlobPath(
                     client(),
@@ -74,7 +76,8 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
                     new BlobPath(),
                     String.valueOf(shardRouting.getId()),
                     SEGMENTS,
-                    DATA
+                    DATA,
+                    segmentsPathFixedPrefix
                 ).buildAsString();
                 Path segmentDataRepoPath = segmentRepoPath.resolve(shardPath);
                 List<String> segmentsNFilesInRepo = Arrays.stream(FileSystemUtils.files(segmentDataRepoPath))

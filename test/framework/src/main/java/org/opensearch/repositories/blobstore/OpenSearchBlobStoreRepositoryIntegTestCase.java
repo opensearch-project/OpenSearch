@@ -110,9 +110,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         final boolean verify = randomBoolean();
 
         logger.debug("-->  creating repository [name: {}, verify: {}, settings: {}]", name, verify, settings);
-        assertAcked(
-            client().admin().cluster().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings)
-        );
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), name, repositoryType(), verify, Settings.builder().put(settings));
 
         internalCluster().getDataOrClusterManagerNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());

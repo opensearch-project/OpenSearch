@@ -49,6 +49,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -63,6 +64,8 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
@@ -74,6 +77,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -94,6 +98,8 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    protected RemoteClusterStateService remoteClusterStateService;
 
     private final String executor;
 
@@ -378,9 +384,12 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                                 response.getClusterStateTermVersion(),
                                 isLatestClusterStatePresentOnLocalNode
                             );
-                            if (isLatestClusterStatePresentOnLocalNode) {
-                                onLatestLocalState.accept(clusterState);
+
+                            ClusterState stateFromNode = getStateFromLocalNode(response);
+                            if (stateFromNode != null) {
+                                onLatestLocalState.accept(stateFromNode);
                             } else {
+                                // fallback to clusterManager
                                 onStaleLocalState.accept(clusterManagerNode, clusterState);
                             }
                         }
@@ -403,6 +412,52 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                     }
                 );
             };
+        }
+
+        private ClusterState getStateFromLocalNode(GetTermVersionResponse termVersionResponse) {
+            ClusterStateTermVersion termVersion = termVersionResponse.getClusterStateTermVersion();
+            ClusterState appliedState = clusterService.state();
+            if (termVersion.equals(new ClusterStateTermVersion(appliedState))) {
+                logger.trace("Using the applied State from local, ClusterStateTermVersion {}", termVersion);
+                return appliedState;
+            }
+
+            ClusterState preCommitState = clusterService.preCommitState();
+            if (preCommitState != null && termVersion.equals(new ClusterStateTermVersion(preCommitState))) {
+                logger.trace("Using the published state from local, ClusterStateTermVersion {}", termVersion);
+                return preCommitState;
+            }
+
+            if (remoteClusterStateService != null && termVersionResponse.isStatePresentInRemote()) {
+                try {
+                    ClusterStateTermVersion clusterStateTermVersion = termVersionResponse.getClusterStateTermVersion();
+                    Optional<ClusterMetadataManifest> clusterMetadataManifest = remoteClusterStateService
+                        .getClusterMetadataManifestByTermVersion(
+                            clusterStateTermVersion.getClusterName().value(),
+                            clusterStateTermVersion.getClusterUUID(),
+                            clusterStateTermVersion.getTerm(),
+                            clusterStateTermVersion.getVersion()
+                        );
+                    if (clusterMetadataManifest.isEmpty()) {
+                        logger.trace("could not find manifest in remote-store for ClusterStateTermVersion {}", termVersion);
+                        return null;
+                    }
+                    ClusterState clusterStateFromRemote = remoteClusterStateService.getClusterStateForManifest(
+                        appliedState.getClusterName().value(),
+                        clusterMetadataManifest.get(),
+                        appliedState.nodes().getLocalNode().getId(),
+                        true
+                    );
+
+                    if (clusterStateFromRemote != null) {
+                        logger.trace("Using the remote cluster-state fetched from local node, ClusterStateTermVersion {}", termVersion);
+                        return clusterStateFromRemote;
+                    }
+                } catch (Exception e) {
+                    logger.trace("Error while fetching from remote cluster state", e);
+                }
+            }
+            return null;
         }
 
         private boolean checkForBlock(Request request, ClusterState localClusterState) {

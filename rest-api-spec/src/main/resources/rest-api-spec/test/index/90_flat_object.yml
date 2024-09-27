@@ -62,7 +62,6 @@ setup:
           },
           "required_matches": 1
         }
-
   # Do index refresh
   - do:
       indices.refresh:
@@ -74,7 +73,52 @@ teardown:
   - do:
       indices.delete:
         index: test
-
+---
+"Invalid docs":
+  - skip:
+      version: "- 2.17.99"
+      reason: "parsing of these objects would infinite loop prior to 2.18"
+  # The following documents are invalid.
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": [ "Arrays in Action" ],
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": "Strings in Action",
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": 12345,
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": [ 12345 ],
+          "required_matches": 1
+        }
 ---
 # Verify that mappings under the catalog field did not expand
 # and no dynamic fields were created.
@@ -97,8 +141,8 @@ teardown:
 ---
 "Supported queries":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   # Verify Document Count
   - do:
@@ -607,8 +651,8 @@ teardown:
 ---
 "Unsupported":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   # Mapping parameters (such as index/search analyzers) are currently not supported
   # The plan is to support them in the next version

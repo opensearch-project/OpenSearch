@@ -125,6 +125,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final ValuesSourceRegistry valuesSourceRegistry;
     private BitSetProducer parentFilter;
     private DerivedFieldResolver derivedFieldResolver;
+    private boolean keywordIndexOrDocValuesEnabled;
 
     public QueryShardContext(
         int shardId,
@@ -208,7 +209,55 @@ public class QueryShardContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            validate
+            validate,
+            false
+        );
+    }
+
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate,
+        boolean keywordIndexOrDocValuesEnabled
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            indexNameMatcher,
+            new Index(
+                RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                indexSettings.getIndex().getUUID()
+            ),
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            validate,
+            keywordIndexOrDocValuesEnabled
         );
     }
 
@@ -231,7 +280,8 @@ public class QueryShardContext extends QueryRewriteContext {
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
-            source.validate()
+            source.validate(),
+            source.keywordIndexOrDocValuesEnabled
         );
     }
 
@@ -253,7 +303,8 @@ public class QueryShardContext extends QueryRewriteContext {
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
-        boolean validate
+        boolean validate,
+        boolean keywordIndexOrDocValuesEnabled
     ) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
         this.shardId = shardId;
@@ -277,6 +328,7 @@ public class QueryShardContext extends QueryRewriteContext {
             emptyList(),
             indexSettings.isDerivedFieldAllowed()
         );
+        this.keywordIndexOrDocValuesEnabled = keywordIndexOrDocValuesEnabled;
     }
 
     private void reset() {
@@ -412,6 +464,14 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public void setDerivedFieldResolver(DerivedFieldResolver derivedFieldResolver) {
         this.derivedFieldResolver = derivedFieldResolver;
+    }
+
+    public boolean keywordFieldIndexOrDocValuesEnabled() {
+        return keywordIndexOrDocValuesEnabled;
+    }
+
+    public void setKeywordFieldIndexOrDocValuesEnabled(boolean keywordIndexOrDocValuesEnabled) {
+        this.keywordIndexOrDocValuesEnabled = keywordIndexOrDocValuesEnabled;
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {

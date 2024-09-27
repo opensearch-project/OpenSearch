@@ -386,6 +386,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.get().handleCommit(applyCommitRequest);
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(committedState) : committedState;
+            clusterApplier.setPreCommitState(applierState);
+
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // cluster-manager node applies the committed state at the end of the publication process, not here.
                 applyListener.onResponse(null);
@@ -901,6 +903,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 stats.add(persistedStateRegistry.getPersistedState(stateType).getStats());
             }
         });
+        if (coordinationState.get().isRemotePublicationEnabled()) {
+            stats.add(publicationHandler.getFullDownloadStats());
+            stats.add(publicationHandler.getDiffDownloadStats());
+        }
         clusterStateStats.setPersistenceStats(stats);
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
     }
@@ -1337,6 +1343,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     coordinationState.get().isRemotePublicationEnabled(),
                     persistedStateRegistry
                 );
+                logger.debug("initialized PublicationContext using class: {}", publicationContext.getClass().toString());
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final CoordinatorPublication publication = new CoordinatorPublication(
@@ -1856,5 +1863,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
         return Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false"));
+    }
+
+    public boolean isRemotePublicationEnabled() {
+        if (coordinationState.get() != null) {
+            return coordinationState.get().isRemotePublicationEnabled();
+        }
+        return false;
     }
 }

@@ -57,6 +57,7 @@ import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
+import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -285,7 +286,15 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assertEquals("field:[1465975790000 TO 1466062190999]", ((IndexOrDocValuesQuery) queryOnDateField).getIndexQuery().toString());
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
+        );
+        assertEquals(
+            "field:[1465975790000 TO 1466062190999]",
+            ((IndexOrDocValuesQuery) ((ApproximateIndexOrDocValuesQuery) queryOnDateField).getOriginalQuery()).getIndexQuery().toString()
+        );
     }
 
     public void testDateRangeQueryUsingMappingFormat() {

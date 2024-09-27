@@ -57,6 +57,12 @@ setup:
         body:
           other_field: "test"
   - do:
+      index:
+        index: test
+        id: 7
+        body:
+          my_field: "ABCD"
+  - do:
       indices.refresh: {}
 
 ---
@@ -90,8 +96,9 @@ setup:
           query:
             term:
               my_field.lower: "abcd"
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "7" }
 
   - do:
       search:
@@ -100,8 +107,9 @@ setup:
           query:
             term:
               my_field.lower: "ABCD"
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "7" }
 
   - do:
       search:
@@ -215,7 +223,7 @@ setup:
             wildcard:
               my_field:
                 value: "*"
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 6 }
 ---
 "regexp match-all works":
   - do:
@@ -226,4 +234,39 @@ setup:
             regexp:
               my_field:
                 value: ".*"
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 6 }
+---
+"terms query on wildcard field matches":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            terms: { my_field: ["AbCd"] }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+---
+"case insensitive query on wildcard field":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "AbCd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "AbCd"
+                case_insensitive: true
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "7" }

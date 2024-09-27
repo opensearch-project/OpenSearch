@@ -7,7 +7,8 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
+import org.opensearch.index.mapper.NumberFieldMapper;
 
 /**
  * This is an abstract class that defines the common methods for all double value aggregators
@@ -17,17 +18,17 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  */
 abstract class StatelessDoubleValueAggregator implements ValueAggregator<Double> {
 
-    protected final StarTreeNumericType starTreeNumericType;
+    protected final FieldValueConverter fieldValueConverter;
     protected final Double identityValue;
-    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+    private static final FieldValueConverter VALUE_AGGREGATOR_TYPE = NumberFieldMapper.NumberType.DOUBLE;
 
-    public StatelessDoubleValueAggregator(StarTreeNumericType starTreeNumericType, Double identityValue) {
-        this.starTreeNumericType = starTreeNumericType;
+    public StatelessDoubleValueAggregator(FieldValueConverter fieldValueConverter, Double identityValue) {
+        this.fieldValueConverter = fieldValueConverter;
         this.identityValue = identityValue;
     }
 
     @Override
-    public StarTreeNumericType getAggregatedValueType() {
+    public FieldValueConverter getAggregatedValueType() {
         return VALUE_AGGREGATOR_TYPE;
     }
 
@@ -36,7 +37,7 @@ abstract class StatelessDoubleValueAggregator implements ValueAggregator<Double>
         if (segmentDocValue == null) {
             return getIdentityMetricValue();
         }
-        return starTreeNumericType.getDoubleValue(segmentDocValue);
+        return fieldValueConverter.toDoubleValue(segmentDocValue);
     }
 
     @Override
@@ -57,7 +58,7 @@ abstract class StatelessDoubleValueAggregator implements ValueAggregator<Double>
             if (value == null) {
                 return getIdentityMetricValue();
             }
-            return VALUE_AGGREGATOR_TYPE.getDoubleValue(value);
+            return VALUE_AGGREGATOR_TYPE.toDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }

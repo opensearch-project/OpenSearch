@@ -119,7 +119,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Map<TimeoutClusterStateListener, NotifyTimeout> timeoutClusterStateListeners = new ConcurrentHashMap<>();
-
+    private final AtomicReference<ClusterState> preCommitState = new AtomicReference<>(); // last state which is yet to be applied
     private final AtomicReference<ClusterState> state; // last applied state
 
     private final String nodeName;
@@ -750,4 +750,18 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     protected boolean applicationMayFail() {
         return false;
     }
+
+    /**
+     * Pre-commit State of the cluster-applier
+     * @return ClusterState
+     */
+    public ClusterState preCommitState() {
+        return preCommitState.get();
+    }
+
+    @Override
+    public void setPreCommitState(ClusterState clusterState) {
+        preCommitState.set(clusterState);
+    }
+
 }

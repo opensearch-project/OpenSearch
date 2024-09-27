@@ -42,7 +42,7 @@ public class RemoteStoreLockManagerFactoryTests extends OpenSearchTestCase {
         repositoriesServiceSupplier = mock(Supplier.class);
         repositoriesService = mock(RepositoriesService.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(repositoriesServiceSupplier);
+        remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(repositoriesServiceSupplier, "");
     }
 
     public void testNewLockManager() throws IOException {

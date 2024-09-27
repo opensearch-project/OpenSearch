@@ -31,16 +31,138 @@
 
 package org.opensearch.cluster.health;
 
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ClusterShardHealthTests extends AbstractSerializingTestCase<ClusterShardHealth> {
+
+    public void testClusterShardGreenHealth() {
+        String indexName = "test";
+        int shardID = 0;
+        Index index = new Index(indexName, UUID.randomUUID().toString());
+        ShardId shardId = new ShardId(index, shardID);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+        indexShardRoutingBuilder.addShard(
+            TestShardRouting.newShardRouting(indexName, shardID, "node_0", null, true, ShardRoutingState.STARTED)
+        );
+        indexShardRoutingBuilder.addShard(
+            TestShardRouting.newShardRouting(indexName, shardID, "node_1", null, false, ShardRoutingState.STARTED)
+        );
+        IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
+        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable);
+        assertEquals(2, clusterShardHealth.getActiveShards());
+        assertEquals(0, clusterShardHealth.getInitializingShards());
+        assertEquals(0, clusterShardHealth.getRelocatingShards());
+        assertEquals(0, clusterShardHealth.getUnassignedShards());
+        assertEquals(0, clusterShardHealth.getDelayedUnassignedShards());
+        assertEquals(ClusterHealthStatus.GREEN, clusterShardHealth.getStatus());
+        assertTrue(clusterShardHealth.isPrimaryActive());
+    }
+
+    public void testClusterShardYellowHealth() {
+        String indexName = "test";
+        int shardID = 0;
+        Index index = new Index(indexName, UUID.randomUUID().toString());
+        ShardId shardId = new ShardId(index, shardID);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+        indexShardRoutingBuilder.addShard(
+            TestShardRouting.newShardRouting(indexName, shardID, "node_0", null, true, ShardRoutingState.STARTED)
+        );
+        indexShardRoutingBuilder.addShard(
+            TestShardRouting.newShardRouting(indexName, shardID, "node_1", "node_5", false, ShardRoutingState.RELOCATING)
+        );
+        indexShardRoutingBuilder.addShard(
+            TestShardRouting.newShardRouting(indexName, shardID, "node_2", null, false, ShardRoutingState.INITIALIZING)
+        );
+        indexShardRoutingBuilder.addShard(
+            TestShardRouting.newShardRouting(indexName, shardID, null, null, false, ShardRoutingState.UNASSIGNED)
+        );
+        indexShardRoutingBuilder.addShard(
+            ShardRouting.newUnassigned(
+                shardId,
+                false,
+                RecoverySource.PeerRecoverySource.INSTANCE,
+                new UnassignedInfo(
+                    UnassignedInfo.Reason.NODE_LEFT,
+                    "node_4 left",
+                    null,
+                    0,
+                    0,
+                    0,
+                    true,
+                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                    Collections.emptySet()
+                )
+            )
+        );
+        IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
+        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable);
+        assertEquals(2, clusterShardHealth.getActiveShards());
+        assertEquals(1, clusterShardHealth.getInitializingShards());
+        assertEquals(1, clusterShardHealth.getRelocatingShards());
+        assertEquals(2, clusterShardHealth.getUnassignedShards());
+        assertEquals(1, clusterShardHealth.getDelayedUnassignedShards());
+        assertEquals(ClusterHealthStatus.YELLOW, clusterShardHealth.getStatus());
+        assertTrue(clusterShardHealth.isPrimaryActive());
+    }
+
+    public void testClusterShardRedHealth() {
+        String indexName = "test";
+        int shardID = 0;
+        Index index = new Index(indexName, UUID.randomUUID().toString());
+        ShardId shardId = new ShardId(index, shardID);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+        indexShardRoutingBuilder.addShard(
+            ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.PeerRecoverySource.INSTANCE,
+                new UnassignedInfo(
+                    UnassignedInfo.Reason.NODE_LEFT,
+                    "node_4 left",
+                    null,
+                    0,
+                    0,
+                    0,
+                    false,
+                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                    Collections.emptySet()
+                )
+            )
+        );
+        indexShardRoutingBuilder.addShard(
+            TestShardRouting.newShardRouting(indexName, shardID, null, null, false, ShardRoutingState.UNASSIGNED)
+        );
+        IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
+        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable);
+        assertEquals(0, clusterShardHealth.getActiveShards());
+        assertEquals(0, clusterShardHealth.getInitializingShards());
+        assertEquals(0, clusterShardHealth.getRelocatingShards());
+        assertEquals(2, clusterShardHealth.getUnassignedShards());
+        assertEquals(0, clusterShardHealth.getDelayedUnassignedShards());
+        assertEquals(ClusterHealthStatus.RED, clusterShardHealth.getStatus());
+        assertFalse(clusterShardHealth.isPrimaryActive());
+    }
+
+    public void testShardRoutingNullCheck() {
+        assertThrows(AssertionError.class, () -> ClusterShardHealth.getShardHealth(null, 0, 0));
+    }
 
     @Override
     protected ClusterShardHealth doParseInstance(XContentParser parser) throws IOException {

@@ -40,7 +40,6 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.CompressorRegistry;
-import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 
@@ -65,7 +64,7 @@ public final class TransportLogger {
         }
     }
 
-    static void logInboundMessage(TcpChannel channel, NativeInboundMessage message) {
+    static void logInboundMessage(TcpChannel channel, InboundMessage message) {
         if (logger.isTraceEnabled()) {
             try {
                 String logMessage = format(channel, message, "READ");
@@ -137,7 +136,7 @@ public final class TransportLogger {
         return sb.toString();
     }
 
-    private static String format(TcpChannel channel, NativeInboundMessage message, String event) throws IOException {
+    private static String format(TcpChannel channel, InboundMessage message, String event) throws IOException {
         final StringBuilder sb = new StringBuilder();
         sb.append(channel);
 

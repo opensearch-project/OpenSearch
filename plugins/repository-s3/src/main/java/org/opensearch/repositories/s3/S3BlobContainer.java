@@ -62,6 +62,7 @@ import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 import software.amazon.awssdk.utils.CollectionUtils;
 
 import org.apache.logging.log4j.LogManager;
@@ -90,6 +91,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.S3AsyncDeleteHelper;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.UploadRequest;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
@@ -108,6 +110,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
@@ -874,5 +879,124 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .build();
 
         return SocketAccess.doPrivileged(() -> s3AsyncClient.getObjectAttributes(getObjectAttributesRequest));
+    }
+
+    @Override
+    public void deleteAsync(ActionListener<DeleteResult> completionListener) {
+        try (AmazonAsyncS3Reference asyncClientReference = blobStore.asyncClientReference()) {
+            S3AsyncClient s3AsyncClient = asyncClientReference.get().client();
+
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder().bucket(blobStore.bucket()).prefix(keyPath).build();
+            ListObjectsV2Publisher listPublisher = s3AsyncClient.listObjectsV2Paginator(listRequest);
+
+            AtomicLong deletedBlobs = new AtomicLong();
+            AtomicLong deletedBytes = new AtomicLong();
+
+            CompletableFuture<Void> listingFuture = new CompletableFuture<>();
+
+            listPublisher.subscribe(new Subscriber<>() {
+                private Subscription subscription;
+                private final List<String> objectsToDelete = new ArrayList<>();
+                private CompletableFuture<Void> deletionChain = CompletableFuture.completedFuture(null);
+
+                @Override
+                public void onSubscribe(Subscription s) {
+                    this.subscription = s;
+                    subscription.request(1);
+                }
+
+                @Override
+                public void onNext(ListObjectsV2Response response) {
+                    response.contents().forEach(s3Object -> {
+                        deletedBlobs.incrementAndGet();
+                        deletedBytes.addAndGet(s3Object.size());
+                        objectsToDelete.add(s3Object.key());
+                    });
+
+                    int bulkDeleteSize = blobStore.getBulkDeletesSize();
+                    if (objectsToDelete.size() >= bulkDeleteSize) {
+                        int fullBatchesCount = objectsToDelete.size() / bulkDeleteSize;
+                        int itemsToDelete = fullBatchesCount * bulkDeleteSize;
+
+                        List<String> batchToDelete = new ArrayList<>(objectsToDelete.subList(0, itemsToDelete));
+                        objectsToDelete.subList(0, itemsToDelete).clear();
+
+                        deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
+                            s3AsyncClient,
+                            blobStore,
+                            batchToDelete,
+                            deletionChain,
+                            () -> subscription.request(1)
+                        );
+                    } else {
+                        subscription.request(1);
+                    }
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    listingFuture.completeExceptionally(new IOException("Failed to list objects for deletion", t));
+                }
+
+                @Override
+                public void onComplete() {
+                    if (!objectsToDelete.isEmpty()) {
+                        deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
+                            s3AsyncClient,
+                            blobStore,
+                            objectsToDelete,
+                            deletionChain,
+                            null
+                        );
+                    }
+                    deletionChain.whenComplete((v, throwable) -> {
+                        if (throwable != null) {
+                            listingFuture.completeExceptionally(throwable);
+                        } else {
+                            listingFuture.complete(null);
+                        }
+                    });
+                }
+            });
+
+            listingFuture.whenComplete((v, throwable) -> {
+                if (throwable != null) {
+                    completionListener.onFailure(
+                        throwable instanceof Exception
+                            ? (Exception) throwable
+                            : new IOException("Unexpected error during async deletion", throwable)
+                    );
+                } else {
+                    completionListener.onResponse(new DeleteResult(deletedBlobs.get(), deletedBytes.get()));
+                }
+            });
+        } catch (Exception e) {
+            completionListener.onFailure(new IOException("Failed to initiate async deletion", e));
+        }
+    }
+
+    @Override
+    public void deleteBlobsAsyncIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> completionListener) {
+        if (blobNames.isEmpty()) {
+            completionListener.onResponse(null);
+            return;
+        }
+
+        try (AmazonAsyncS3Reference asyncClientReference = blobStore.asyncClientReference()) {
+            S3AsyncClient s3AsyncClient = asyncClientReference.get().client();
+
+            List<String> keysToDelete = blobNames.stream().map(this::buildKey).collect(Collectors.toList());
+
+            S3AsyncDeleteHelper.executeDeleteChain(s3AsyncClient, blobStore, keysToDelete, CompletableFuture.completedFuture(null), null)
+                .whenComplete((v, throwable) -> {
+                    if (throwable != null) {
+                        completionListener.onFailure(new IOException("Failed to delete blobs " + blobNames, throwable));
+                    } else {
+                        completionListener.onResponse(null);
+                    }
+                });
+        } catch (Exception e) {
+            completionListener.onFailure(new IOException("Failed to initiate async blob deletion", e));
+        }
     }
 }

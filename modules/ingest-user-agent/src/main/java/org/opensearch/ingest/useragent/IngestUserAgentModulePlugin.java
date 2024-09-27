@@ -33,6 +33,7 @@
 package org.opensearch.ingest.useragent;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
@@ -47,10 +48,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class IngestUserAgentModulePlugin extends Plugin implements IngestPlugin {
 
+    static final Setting<List<String>> PROCESSORS_ALLOWLIST_SETTING = Setting.listSetting(
+        "ingest.useragent.processors.allowed",
+        List.of(),
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
     private final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting(
         "ingest.user_agent.cache_size",
         1000,
@@ -77,7 +87,34 @@ public class IngestUserAgentModulePlugin extends Plugin implements IngestPlugin 
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParsers));
+        return filterForAllowlistSetting(
+            parameters.env.settings(),
+            Collections.singletonMap(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParsers))
+        );
+    }
+
+    private Map<String, Processor.Factory> filterForAllowlistSetting(Settings settings, Map<String, Processor.Factory> map) {
+        if (PROCESSORS_ALLOWLIST_SETTING.exists(settings) == false) {
+            return Map.copyOf(map);
+        }
+        final Set<String> allowlist = Set.copyOf(PROCESSORS_ALLOWLIST_SETTING.get(settings));
+        // Assert that no unknown processors are defined in the allowlist
+        final Set<String> unknownAllowlistProcessors = allowlist.stream()
+            .filter(p -> map.containsKey(p) == false)
+            .collect(Collectors.toUnmodifiableSet());
+        if (unknownAllowlistProcessors.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "Processor(s) "
+                    + unknownAllowlistProcessors
+                    + " were defined in ["
+                    + PROCESSORS_ALLOWLIST_SETTING.getKey()
+                    + "] but do not exist"
+            );
+        }
+        return map.entrySet()
+            .stream()
+            .filter(e -> allowlist.contains(e.getKey()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     static Map<String, UserAgentParser> createUserAgentParsers(Path userAgentConfigDirectory, UserAgentCache cache) throws IOException {

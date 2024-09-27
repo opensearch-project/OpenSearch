@@ -32,6 +32,7 @@
 
 package org.opensearch.indices;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -63,9 +64,11 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Global information on indices stats running on a specific node.
@@ -74,26 +77,27 @@ import java.util.Map;
  */
 @PublicApi(since = "1.0.0")
 public class NodeIndicesStats implements Writeable, ToXContentFragment {
-    private CommonStats stats;
-    private Map<Index, List<IndexShardStats>> statsByShard;
+    protected CommonStats stats;
+    protected Map<Index, CommonStats> statsByIndex;
+    protected Map<Index, List<IndexShardStats>> statsByShard;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
-        if (in.readBoolean()) {
-            int entries = in.readVInt();
-            statsByShard = new HashMap<>();
-            for (int i = 0; i < entries; i++) {
-                Index index = new Index(in);
-                int indexShardListSize = in.readVInt();
-                List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
-                for (int j = 0; j < indexShardListSize; j++) {
-                    indexShardStats.add(new IndexShardStats(in));
-                }
-                statsByShard.put(index, indexShardStats);
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            // contains statsByIndex
+            if (in.readBoolean()) {
+                statsByIndex = readStatsByIndex(in);
             }
+        }
+        if (in.readBoolean()) {
+            statsByShard = readStatsByShard(in);
         }
     }
 
+    /**
+     * Without passing the information of the levels to the constructor, we return the Node-level aggregated stats as
+     * {@link CommonStats} along with a hash-map containing Index to List of Shard Stats.
+     */
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, SearchRequestStats searchRequestStats) {
         // this.stats = stats;
         this.statsByShard = statsByShard;
@@ -110,6 +114,90 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (this.stats.search != null) {
             this.stats.search.setSearchRequestStats(searchRequestStats);
         }
+    }
+
+    /**
+     * Passing the level information to the nodes allows us to aggregate the stats based on the level passed. This
+     * allows us to aggregate based on NodeLevel (default - if no level is passed) or Index level if `indices` level is
+     * passed and finally return the statsByShards map if `shards` level is passed. This allows us to reduce ser/de of
+     * stats and return only the information that is required while returning to the client.
+     */
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        SearchRequestStats searchRequestStats,
+        StatsLevel level
+    ) {
+        // make a total common stats from old ones and current ones
+        this.stats = oldStats;
+        for (List<IndexShardStats> shardStatsList : statsByShard.values()) {
+            for (IndexShardStats indexShardStats : shardStatsList) {
+                for (ShardStats shardStats : indexShardStats.getShards()) {
+                    stats.add(shardStats.getStats());
+                }
+            }
+        }
+
+        if (this.stats.search != null) {
+            this.stats.search.setSearchRequestStats(searchRequestStats);
+        }
+
+        if (level != null) {
+            switch (level) {
+                case INDICES:
+                    this.statsByIndex = createStatsByIndex(statsByShard);
+                    break;
+                case SHARDS:
+                    this.statsByShard = statsByShard;
+                    break;
+            }
+        }
+    }
+
+    /**
+     * By default, the levels passed from the transport action will be a list of strings, since NodeIndicesStats can
+     * only aggregate on one level, we pick the first accepted level else we ignore if no known level is passed. Level is
+     * selected based on enum defined in {@link StatsLevel}
+     *
+     * Note - we are picking the first level as multiple levels are not supported in the previous versions.
+     * @param levels - levels sent in the request.
+     *
+     * @return Corresponding identified enum {@link StatsLevel}
+     */
+    public static StatsLevel getAcceptedLevel(String[] levels) {
+        if (levels != null && levels.length > 0) {
+            Optional<StatsLevel> level = Arrays.stream(StatsLevel.values())
+                .filter(field -> field.getRestName().equals(levels[0]))
+                .findFirst();
+            return level.orElseThrow(() -> new IllegalArgumentException("Level provided is not supported by NodeIndicesStats"));
+        }
+        return null;
+    }
+
+    private Map<Index, CommonStats> readStatsByIndex(StreamInput in) throws IOException {
+        Map<Index, CommonStats> statsByIndex = new HashMap<>();
+        int indexEntries = in.readVInt();
+        for (int i = 0; i < indexEntries; i++) {
+            Index index = new Index(in);
+            CommonStats commonStats = new CommonStats(in);
+            statsByIndex.put(index, commonStats);
+        }
+        return statsByIndex;
+    }
+
+    private Map<Index, List<IndexShardStats>> readStatsByShard(StreamInput in) throws IOException {
+        Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+        int entries = in.readVInt();
+        for (int i = 0; i < entries; i++) {
+            Index index = new Index(in);
+            int indexShardListSize = in.readVInt();
+            List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
+            for (int j = 0; j < indexShardListSize; j++) {
+                indexShardStats.add(new IndexShardStats(in));
+            }
+            statsByShard.put(index, indexShardStats);
+        }
+        return statsByShard;
     }
 
     @Nullable
@@ -195,7 +283,31 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
+
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeBoolean(statsByIndex != null);
+            if (statsByIndex != null) {
+                writeStatsByIndex(out);
+            }
+        }
+
         out.writeBoolean(statsByShard != null);
+        if (statsByShard != null) {
+            writeStatsByShards(out);
+        }
+    }
+
+    private void writeStatsByIndex(StreamOutput out) throws IOException {
+        if (statsByIndex != null) {
+            out.writeVInt(statsByIndex.size());
+            for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
+                entry.getKey().writeTo(out);
+                entry.getValue().writeTo(out);
+            }
+        }
+    }
+
+    private void writeStatsByShards(StreamOutput out) throws IOException {
         if (statsByShard != null) {
             out.writeVInt(statsByShard.size());
             for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
@@ -210,29 +322,46 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", "node");
-        final boolean isLevelValid = "indices".equalsIgnoreCase(level)
-            || "node".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
+        final String level = params.param("level", StatsLevel.NODE.getRestName());
+        final boolean isLevelValid = StatsLevel.NODE.getRestName().equalsIgnoreCase(level)
+            || StatsLevel.INDICES.getRestName().equalsIgnoreCase(level)
+            || StatsLevel.SHARDS.getRestName().equalsIgnoreCase(level);
         if (!isLevelValid) {
-            throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
+            throw new IllegalArgumentException(
+                "level parameter must be one of ["
+                    + StatsLevel.INDICES.getRestName()
+                    + "] or ["
+                    + StatsLevel.NODE.getRestName()
+                    + "] or ["
+                    + StatsLevel.SHARDS.getRestName()
+                    + "] but was ["
+                    + level
+                    + "]"
+            );
         }
 
         // "node" level
-        builder.startObject(Fields.INDICES);
+        builder.startObject(StatsLevel.INDICES.getRestName());
         stats.toXContent(builder, params);
 
-        if ("indices".equals(level)) {
-            Map<Index, CommonStats> indexStats = createStatsByIndex();
-            builder.startObject(Fields.INDICES);
-            for (Map.Entry<Index, CommonStats> entry : indexStats.entrySet()) {
+        if (StatsLevel.INDICES.getRestName().equals(level)) {
+            assert statsByIndex != null || statsByShard != null : "Expected shard stats or index stats in response for generating ["
+                + StatsLevel.INDICES
+                + "] field";
+            if (statsByIndex == null) {
+                statsByIndex = createStatsByIndex(statsByShard);
+            }
+
+            builder.startObject(StatsLevel.INDICES.getRestName());
+            for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
                 builder.startObject(entry.getKey().getName());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();
-        } else if ("shards".equals(level)) {
-            builder.startObject("shards");
+        } else if (StatsLevel.SHARDS.getRestName().equals(level)) {
+            builder.startObject(StatsLevel.SHARDS.getRestName());
+            assert statsByShard != null : "Expected shard stats in response for generating [" + StatsLevel.SHARDS + "] field";
             for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
                 builder.startArray(entry.getKey().getName());
                 for (IndexShardStats indexShardStats : entry.getValue()) {
@@ -251,7 +380,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    private Map<Index, CommonStats> createStatsByIndex() {
+    private Map<Index, CommonStats> createStatsByIndex(Map<Index, List<IndexShardStats>> statsByShard) {
         Map<Index, CommonStats> statsMap = new HashMap<>();
         for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
             if (!statsMap.containsKey(entry.getKey())) {
@@ -281,7 +410,21 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
-    static final class Fields {
-        static final String INDICES = "indices";
+    @PublicApi(since = "3.0.0")
+    public enum StatsLevel {
+        INDICES("indices"),
+        SHARDS("shards"),
+        NODE("node");
+
+        private final String restName;
+
+        StatsLevel(String restName) {
+            this.restName = restName;
+        }
+
+        public String getRestName() {
+            return restName;
+        }
+
     }
 }

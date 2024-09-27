@@ -69,13 +69,20 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
         IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
 
         ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
-        assertIndexHealth(indexHealth, counter, indexMetadata);
+        assertIndexHealth(indexHealth, counter, indexMetadata, ClusterHealthRequest.Level.SHARDS);
+
+        indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable, ClusterHealthRequest.Level.INDICES);
+        assertIndexHealth(indexHealth, counter, indexMetadata, ClusterHealthRequest.Level.INDICES);
+
+        indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable, ClusterHealthRequest.Level.SHARDS);
+        assertIndexHealth(indexHealth, counter, indexMetadata, ClusterHealthRequest.Level.SHARDS);
     }
 
     private void assertIndexHealth(
         ClusterIndexHealth indexHealth,
         RoutingTableGenerator.ShardCounter counter,
-        IndexMetadata indexMetadata
+        IndexMetadata indexMetadata,
+        ClusterHealthRequest.Level clusterHealthRequestLevel
     ) {
         assertThat(indexHealth.getStatus(), equalTo(counter.status()));
         assertThat(indexHealth.getNumberOfShards(), equalTo(indexMetadata.getNumberOfShards()));
@@ -84,13 +91,17 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
         assertThat(indexHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(indexHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(indexHealth.getUnassignedShards(), equalTo(counter.unassigned));
-        assertThat(indexHealth.getShards().size(), equalTo(indexMetadata.getNumberOfShards()));
-        int totalShards = 0;
-        for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
-            totalShards += shardHealth.getActiveShards() + shardHealth.getInitializingShards() + shardHealth.getUnassignedShards();
-        }
+        if (ClusterHealthRequest.Level.SHARDS.equals(clusterHealthRequestLevel)) {
+            assertThat(indexHealth.getShards().size(), equalTo(indexMetadata.getNumberOfShards()));
+            int totalShards = 0;
+            for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
+                totalShards += shardHealth.getActiveShards() + shardHealth.getInitializingShards() + shardHealth.getUnassignedShards();
+            }
 
-        assertThat(totalShards, equalTo(indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas())));
+            assertThat(totalShards, equalTo(indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas())));
+        } else {
+            assertTrue(indexHealth.getShards().isEmpty());
+        }
     }
 
     @Override

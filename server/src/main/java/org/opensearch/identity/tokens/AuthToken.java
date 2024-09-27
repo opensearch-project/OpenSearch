@@ -8,11 +8,14 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Interface for all token formats to support to authenticate user such as UserName/Password tokens, Access tokens, and more.
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface AuthToken {
 
     String asAuthHeaderValue();

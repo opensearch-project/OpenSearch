@@ -57,7 +57,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         repositoriesService = mock(RepositoriesService.class);
         threadPool = mock(ThreadPool.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier, threadPool);
+        remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier, threadPool, "");
     }
 
     public void testNewDirectory() throws IOException {

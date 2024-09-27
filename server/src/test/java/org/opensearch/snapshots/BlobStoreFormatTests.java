@@ -39,6 +39,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
@@ -63,6 +64,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -334,6 +336,16 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
 
         public BlobContainer getDelegate() {
             return delegate;
+        }
+
+        @Override
+        public void deleteAsync(ActionListener<DeleteResult> completionListener) {
+            throw new RuntimeException("deleteAsync not supported");
+        }
+
+        @Override
+        public void deleteBlobsAsyncIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> completionListener) {
+            throw new RuntimeException("deleteBlobsAsyncIgnoringIfNotExists not supported");
         }
     }
 }

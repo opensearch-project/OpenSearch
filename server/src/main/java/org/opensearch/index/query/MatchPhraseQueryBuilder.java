@@ -52,7 +52,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> {
+public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> implements WithFieldName {
     public static final String NAME = "match_phrase";
     public static final ParseField SLOP_FIELD = new ParseField("slop");
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
@@ -100,6 +100,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     }
 
     /** Returns the field name used in this query. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

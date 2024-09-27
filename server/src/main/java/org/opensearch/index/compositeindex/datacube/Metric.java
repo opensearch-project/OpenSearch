@@ -13,6 +13,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,10 +24,18 @@ import java.util.Objects;
 public class Metric implements ToXContent {
     private final String field;
     private final List<MetricStat> metrics;
+    private final List<MetricStat> baseMetrics;
 
     public Metric(String field, List<MetricStat> metrics) {
         this.field = field;
         this.metrics = metrics;
+        this.baseMetrics = new ArrayList<>();
+        for (MetricStat metricStat : metrics) {
+            if (metricStat.isDerivedMetric()) {
+                continue;
+            }
+            baseMetrics.add(metricStat);
+        }
     }
 
     public String getField() {
@@ -35,6 +44,13 @@ public class Metric implements ToXContent {
 
     public List<MetricStat> getMetrics() {
         return metrics;
+    }
+
+    /**
+     * Returns only the base metrics
+     */
+    public List<MetricStat> getBaseMetrics() {
+        return baseMetrics;
     }
 
     @Override

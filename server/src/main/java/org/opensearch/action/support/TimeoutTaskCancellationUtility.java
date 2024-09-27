@@ -12,11 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.CancellableTask;
@@ -27,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
 /**
  * Utility to cancel a timeout task
@@ -38,25 +38,25 @@ public class TimeoutTaskCancellationUtility {
 
     private static final Logger logger = LogManager.getLogger(TimeoutTaskCancellationUtility.class);
 
+    private static final AtomicBoolean executeResponseOrFailureOnce = new AtomicBoolean(true);
+
     /**
      * Wraps a listener with a timeout listener {@link TimeoutRunnableListener} to schedule the task cancellation for provided tasks on
      * generic thread pool
      * @param client - {@link NodeClient}
      * @param taskToCancel - task to schedule cancellation for
-     * @param clusterSettings - {@link ClusterSettings}
+     * @param timeout - {@link TimeValue}
      * @param listener - original listener associated with the task
      * @return wrapped listener
      */
     public static <Response> ActionListener<Response> wrapWithCancellationListener(
         NodeClient client,
         CancellableTask taskToCancel,
-        ClusterSettings clusterSettings,
-        ActionListener<Response> listener
+        TimeValue timeout,
+        ActionListener<Response> listener,
+        TimeoutHandler timeoutHandler
     ) {
-        final TimeValue globalTimeout = clusterSettings.get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
-        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null)
-            ? globalTimeout
-            : taskToCancel.getCancellationTimeout();
+        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? timeout : taskToCancel.getCancellationTimeout();
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
         // set to null and cluster level set to -1.
         ActionListener<Response> listenerToReturn = listener;
@@ -72,24 +72,30 @@ public class TimeoutTaskCancellationUtility {
                 // force the origin to execute the cancellation as a system user
                 new OriginSettingClient(client, TASKS_ORIGIN).admin()
                     .cluster()
-                    .cancelTasks(
-                        cancelTasksRequest,
-                        ActionListener.wrap(
-                            r -> logger.debug(
+                    .cancelTasks(cancelTasksRequest, new ActionListener<CancelTasksResponse>() {
+                        @Override
+                        public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                            logger.debug(
                                 "Scheduled cancel task with timeout: {} for original task: {} is successfully completed",
                                 timeoutInterval,
                                 cancelTasksRequest.getTaskId()
-                            ),
-                            e -> logger.error(
+                            );
+                            // Notify the timeoutHandler that the task was canceled due to timeout
+                            timeoutHandler.onTimeout(new TaskCancelledException(cancelTasksRequest.getReason()));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(
                                 new ParameterizedMessage(
                                     "Scheduled cancel task with timeout: {} for original task: {} is failed",
                                     timeoutInterval,
                                     cancelTasksRequest.getTaskId()
                                 ),
                                 e
-                            )
-                        )
-                    );
+                            );
+                        }
+                    });
             });
             wrappedListener.cancellable = client.threadPool().schedule(wrappedListener, timeoutInterval, ThreadPool.Names.GENERIC);
             listenerToReturn = wrappedListener;
@@ -98,6 +104,22 @@ public class TimeoutTaskCancellationUtility {
             logger.warn("Failed to schedule the cancellation task for original task: {}, will continue without it", taskToCancel.getId());
         }
         return listenerToReturn;
+    }
+
+    /**
+     * A functional interface used to handle the timeout of a cancellable task.
+     * Implementations of this interface provide a callback method that is invoked
+     * when a task is cancelled due to a timeout.
+     */
+    public interface TimeoutHandler {
+
+        /**
+         * Called when a cancellable task is cancelled due to a timeout.
+         *
+         * @param e the exception that contains details about the task cancellation,
+         *          including the reason for cancellation.
+         */
+        void onTimeout(TaskCancelledException e);
     }
 
     /**
@@ -144,6 +166,7 @@ public class TimeoutTaskCancellationUtility {
                 if (executeRunnable.compareAndSet(true, false)) {
                     timeoutRunnable.run();
                 } // else do nothing since either response/failure is already sent to client
+
             } catch (Exception ex) {
                 // ignore the exception
                 logger.error(

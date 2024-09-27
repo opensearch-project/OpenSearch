@@ -20,7 +20,6 @@ import java.util.Iterator;
  */
 @ExperimentalApi
 public interface StarTreeNode {
-    long ALL = -1l;
 
     /**
      * Returns the dimension ID of the current star-tree node.
@@ -86,21 +85,37 @@ public interface StarTreeNode {
     boolean isLeaf();
 
     /**
-     * Checks if the current node is a star node.
+     * Determines the type of the current node in the Star Tree index structure.
      *
-     * @return true if the node is a star node, false otherwise
-     * @throws IOException if an I/O error occurs while reading the star node status
+     * <p>The node type can be one of the following:
+     * <ul>
+     *     <li>Star Node: Represented by the value -2.
+     *     <li>Null Node: Represented by the value -1.
+     *     <li>Default Node: Represented by the value 0.
+     * </ul>
+     * @see StarTreeNodeType
+     *
+     * @return The type of the current node, represented by the corresponding integer value (-2, -1, or 0).
+     * @throws IOException if an I/O error occurs while reading the node type
      */
-    boolean isStarNode() throws IOException;
+    byte getStarTreeNodeType() throws IOException;
 
     /**
-     * Returns the child star-tree node for the given dimension value.
+     * Returns the child node for the given dimension value in the star-tree.
      *
      * @param dimensionValue the dimension value
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
-    StarTreeNode getChildForDimensionValue(long dimensionValue) throws IOException;
+    StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException;
+
+    /**
+     * Returns the child star node for a node in the star-tree.
+     *
+     * @return the child node for the star node if star child node is not present
+     * @throws IOException if an I/O error occurs while retrieving the child node
+     */
+    StarTreeNode getChildStarNode() throws IOException;
 
     /**
      * Returns an iterator over the children of the current star-tree node.

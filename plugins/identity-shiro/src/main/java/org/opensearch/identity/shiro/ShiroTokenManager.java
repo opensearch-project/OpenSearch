@@ -36,8 +36,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Extracts Shiro's {@link AuthenticationToken} from different types of auth headers
- *
- * @opensearch.experimental
  */
 class ShiroTokenManager implements TokenManager {
 

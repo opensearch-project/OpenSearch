@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -179,6 +180,19 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
         List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
+        return startInitialisingShardsAndReroute(strategy, clusterState, initializingShards);
+    }
+
+    protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy, String index) {
+        List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING);
+        return startInitialisingShardsAndReroute(strategy, clusterState, initializingShards);
+    }
+
+    private static ClusterState startInitialisingShardsAndReroute(
+        AllocationService strategy,
+        ClusterState clusterState,
+        List<ShardRouting> initializingShards
+    ) {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
@@ -209,6 +223,16 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
                     Settings.EMPTY,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 )
+            )
+        );
+    }
+
+    protected static AllocationDeciders allocationDecidersForExcludeAPI(Settings settings) {
+        return new AllocationDeciders(
+            Arrays.asList(
+                new TestAllocateDecision(Decision.YES),
+                new SameShardAllocationDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+                new FilterAllocationDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             )
         );
     }

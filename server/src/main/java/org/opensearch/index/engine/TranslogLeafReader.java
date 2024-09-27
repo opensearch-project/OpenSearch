@@ -264,13 +264,13 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-        return getFloatVectorValues(field);
+    public FloatVectorValues getFloatVectorValues(String field) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public ByteVectorValues getByteVectorValues(String field) throws IOException {
-        return getByteVectorValues(field);
+    public ByteVectorValues getByteVectorValues(String field) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

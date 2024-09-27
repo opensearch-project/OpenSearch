@@ -32,10 +32,11 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.shards.CatShardsAction;
+import org.opensearch.action.admin.cluster.shards.CatShardsRequest;
+import org.opensearch.action.admin.cluster.shards.CatShardsResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
-import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.client.node.NodeClient;
@@ -61,7 +62,6 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
@@ -73,6 +73,7 @@ import java.util.function.Function;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * _cat API action to get shard information
@@ -107,25 +108,18 @@ public class RestShardsAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
-        );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        final CatShardsRequest shardsRequest = new CatShardsRequest();
+        shardsRequest.local(request.paramAsBoolean("local", shardsRequest.local()));
+        shardsRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", shardsRequest.clusterManagerNodeTimeout()));
+        shardsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
+        shardsRequest.setIndices(indices);
+        parseDeprecatedMasterTimeoutParameter(shardsRequest, request, deprecationLogger, getName());
+        return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                indicesStatsRequest.all();
-                indicesStatsRequest.indices(indices);
-                client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
-                    }
-                });
+            public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {
+                ClusterStateResponse clusterStateResponse = catShardsResponse.getClusterStateResponse();
+                IndicesStatsResponse indicesStatsResponse = catShardsResponse.getIndicesStatsResponse();
+                return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
             }
         });
     }
@@ -321,7 +315,11 @@ public class RestShardsAction extends AbstractCatAction {
             if (shard.primary()) {
                 table.addCell("p");
             } else {
-                table.addCell("r");
+                if (shard.isSearchOnly()) {
+                    table.addCell("s");
+                } else {
+                    table.addCell("r");
+                }
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));

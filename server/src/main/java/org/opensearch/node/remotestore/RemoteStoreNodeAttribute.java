@@ -13,7 +13,6 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -28,8 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 
 /**
  * This is an abstraction for validating and storing information specific to remote backed storage nodes.
@@ -56,6 +53,11 @@ public class RemoteStoreNodeAttribute {
     public static List<String> SUPPORTED_DATA_REPO_NAME_ATTRIBUTES = List.of(
         REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
         REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+    );
+
+    public static List<String> REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES = List.of(
+        REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+        REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY
     );
 
     /**
@@ -202,7 +204,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isRemoteRoutingTableEnabled(Settings settings) {
-        return FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL) && isRemoteRoutingTableAttributePresent(settings);
+        return isRemoteRoutingTableAttributePresent(settings);
     }
 
     public RepositoriesMetadata getRepositoriesMetadata() {
@@ -262,6 +264,14 @@ public class RemoteStoreNodeAttribute {
 
         RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
         return this.getRepositoriesMetadata().equalsIgnoreGenerationsWithRepoSkip(that.getRepositoriesMetadata(), reposToSkip);
+    }
+
+    public boolean equalsForRepositories(Object otherNode, List<String> repositoryToValidate) {
+        if (this == otherNode) return true;
+        if (otherNode == null || getClass() != otherNode.getClass()) return false;
+
+        RemoteStoreNodeAttribute other = (RemoteStoreNodeAttribute) otherNode;
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsForRepo(other.repositoriesMetadata, repositoryToValidate);
     }
 
     @Override

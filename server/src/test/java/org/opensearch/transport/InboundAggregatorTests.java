@@ -42,7 +42,6 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -79,7 +78,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
     public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -108,7 +107,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         }
 
         // Signal EOS
-        NativeInboundMessage aggregated = aggregator.finishAggregation();
+        InboundMessage aggregated = aggregator.finishAggregation();
 
         assertThat(aggregated, notNullValue());
         assertFalse(aggregated.isPing());
@@ -126,7 +125,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
     public void testInboundUnknownAction() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = unknownAction;
         // Initiate Message
@@ -139,7 +138,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         assertEquals(0, content.refCount());
 
         // Signal EOS
-        NativeInboundMessage aggregated = aggregator.finishAggregation();
+        InboundMessage aggregated = aggregator.finishAggregation();
 
         assertThat(aggregated, notNullValue());
         assertTrue(aggregated.isShortCircuit());
@@ -150,7 +149,13 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
     public void testCircuitBreak() throws IOException {
         circuitBreaker.startBreaking();
         // Actions are breakable
-        Header breakableHeader = new Header(randomInt(), randomNonNegativeLong(), TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header breakableHeader = new Header(
+            TransportProtocol.NATIVE,
+            randomInt(),
+            randomNonNegativeLong(),
+            TransportStatus.setRequest((byte) 0),
+            Version.CURRENT
+        );
         breakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         breakableHeader.actionName = "action_name";
         // Initiate Message
@@ -162,7 +167,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         content1.close();
 
         // Signal EOS
-        NativeInboundMessage aggregated1 = aggregator.finishAggregation();
+        InboundMessage aggregated1 = aggregator.finishAggregation();
 
         assertEquals(0, content1.refCount());
         assertThat(aggregated1, notNullValue());
@@ -170,7 +175,13 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         assertThat(aggregated1.getException(), instanceOf(CircuitBreakingException.class));
 
         // Actions marked as unbreakable are not broken
-        Header unbreakableHeader = new Header(randomInt(), randomNonNegativeLong(), TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header unbreakableHeader = new Header(
+            TransportProtocol.NATIVE,
+            randomInt(),
+            randomNonNegativeLong(),
+            TransportStatus.setRequest((byte) 0),
+            Version.CURRENT
+        );
         unbreakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         unbreakableHeader.actionName = unBreakableAction;
         // Initiate Message
@@ -181,7 +192,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         content2.close();
 
         // Signal EOS
-        NativeInboundMessage aggregated2 = aggregator.finishAggregation();
+        InboundMessage aggregated2 = aggregator.finishAggregation();
 
         assertEquals(1, content2.refCount());
         assertThat(aggregated2, notNullValue());
@@ -189,7 +200,13 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
         // Handshakes are not broken
         final byte handshakeStatus = TransportStatus.setHandshake(TransportStatus.setRequest((byte) 0));
-        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, Version.CURRENT);
+        Header handshakeHeader = new Header(
+            TransportProtocol.NATIVE,
+            randomInt(),
+            randomNonNegativeLong(),
+            handshakeStatus,
+            Version.CURRENT
+        );
         handshakeHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         handshakeHeader.actionName = "handshake";
         // Initiate Message
@@ -200,7 +217,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         content3.close();
 
         // Signal EOS
-        NativeInboundMessage aggregated3 = aggregator.finishAggregation();
+        InboundMessage aggregated3 = aggregator.finishAggregation();
 
         assertEquals(1, content3.refCount());
         assertThat(aggregated3, notNullValue());
@@ -209,7 +226,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
 
     public void testCloseWillCloseContent() {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -249,7 +266,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         } else {
             actionName = "action_name";
         }
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        Header header = new Header(TransportProtocol.NATIVE, randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         // Initiate Message
         aggregator.headerReceived(header);
 
@@ -264,7 +281,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
             content.close();
 
             // Signal EOS
-            NativeInboundMessage aggregated = aggregator.finishAggregation();
+            InboundMessage aggregated = aggregator.finishAggregation();
 
             assertThat(aggregated, notNullValue());
             assertFalse(header.needsToReadVariableHeader());

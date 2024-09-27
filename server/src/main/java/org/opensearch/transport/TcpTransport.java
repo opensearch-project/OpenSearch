@@ -778,12 +778,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected abstract void stopInternal();
 
     /**
+     * @deprecated Use {{@link #inboundMessage(TcpChannel, InboundMessage)}} instead
+     */
+    @Deprecated
+    public void inboundMessage(TcpChannel channel, ProtocolInboundMessage message) {
+        inboundMessage(channel, (InboundMessage) message);
+    }
+
+    /**
      * Handles inbound message that has been decoded.
      *
      * @param channel the channel the message is from
      * @param message the message
      */
-    public void inboundMessage(TcpChannel channel, ProtocolInboundMessage message) {
+    public void inboundMessage(TcpChannel channel, InboundMessage message) {
         try {
             inboundHandler.inboundMessage(channel, message);
         } catch (Exception e) {

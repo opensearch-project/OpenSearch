@@ -47,7 +47,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
+public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryBuilder<QB> implements WithFieldName {
 
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
@@ -153,6 +153,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     }
 
     /** Returns the field name used in this query. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

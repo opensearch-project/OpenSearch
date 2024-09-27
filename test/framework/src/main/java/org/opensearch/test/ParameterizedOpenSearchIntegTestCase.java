@@ -10,7 +10,10 @@ package org.opensearch.test;
 
 import org.opensearch.common.settings.Settings;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 
 /**
  * Base class for running the tests with parameterization of the settings.
@@ -35,7 +38,9 @@ abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchIntegTestC
 
     // This method shouldn't be called in setupSuiteScopeCluster(). Only call this method inside single test.
     public void indexRandomForConcurrentSearch(String... indices) throws InterruptedException {
-        if (CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settings)) {
+        if (CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settings)
+            || CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.get(settings).equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
+            || CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.get(settings).equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL)) {
             indexRandomForMultipleSlices(indices);
         }
     }

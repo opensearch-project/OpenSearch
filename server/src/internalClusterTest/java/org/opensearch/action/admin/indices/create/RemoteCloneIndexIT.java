@@ -224,7 +224,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
         Settings.Builder settings = Settings.builder()
             .put("location", rmd.settings().get("location"))
             .put("max_remote_low_priority_upload_bytes_per_sec", value);
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType(rmd.type()).setSettings(settings).get());
+        createRepository(repoName, rmd.type(), settings);
     }
 
     public void testCreateCloneIndexFailure() throws ExecutionException, InterruptedException {

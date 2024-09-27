@@ -9,6 +9,7 @@
 package org.opensearch.wlm;
 
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -20,12 +21,16 @@ import org.opensearch.transport.TransportRequestHandler;
 
 import java.util.Collections;
 
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTestCase {
     private WorkloadManagementTransportInterceptor.RequestHandler<TransportRequest> sut;
     private ThreadPool threadPool;
+    private QueryGroupService queryGroupService;
 
     private TestTransportRequestHandler<TransportRequest> actualHandler;
 
@@ -33,8 +38,9 @@ public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTe
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
         actualHandler = new TestTransportRequestHandler<>();
+        queryGroupService = mock(QueryGroupService.class);
 
-        sut = new WorkloadManagementTransportInterceptor.RequestHandler<>(threadPool, actualHandler);
+        sut = new WorkloadManagementTransportInterceptor.RequestHandler<>(threadPool, actualHandler, queryGroupService);
     }
 
     public void tearDown() throws Exception {
@@ -42,12 +48,20 @@ public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTe
         threadPool.shutdown();
     }
 
-    public void testMessageReceivedForSearchWorkload() throws Exception {
+    public void testMessageReceivedForSearchWorkload_nonRejectionCase() throws Exception {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         QueryGroupTask spyTask = getSpyTask();
-
+        doNothing().when(queryGroupService).rejectIfNeeded(anyString());
         sut.messageReceived(request, mock(TransportChannel.class), spyTask);
         assertTrue(sut.isSearchWorkloadRequest(spyTask));
+    }
+
+    public void testMessageReceivedForSearchWorkload_RejectionCase() throws Exception {
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        QueryGroupTask spyTask = getSpyTask();
+        doThrow(OpenSearchRejectedExecutionException.class).when(queryGroupService).rejectIfNeeded(anyString());
+
+        assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.messageReceived(request, mock(TransportChannel.class), spyTask));
     }
 
     public void testMessageReceivedForNonSearchWorkload() throws Exception {

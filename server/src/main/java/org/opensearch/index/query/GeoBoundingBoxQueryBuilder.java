@@ -66,7 +66,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  * */
-public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
+public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> implements WithFieldName {
     public static final String NAME = "geo_bounding_box";
 
     /** Default type for executing this query (memory as of this writing). */
@@ -263,6 +263,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     /** Returns the name of the field to base the bounding box computation on. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

@@ -196,6 +196,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
         if (expectedType == SortField.Type.CUSTOM) {
             assertEquals(builder.getFieldName(), sortField.getField());
+            assertEquals(builder.fieldName(), sortField.getField());
         }
         assertEquals(DocValueFormat.RAW, format);
     }

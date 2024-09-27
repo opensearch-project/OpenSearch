@@ -95,7 +95,7 @@ public final class TransportCloneSnapshotAction extends TransportClusterManagerN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        snapshotsService.cloneSnapshot(request, ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
+        snapshotsService.executeClone(request, ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
     }
 
     @Override

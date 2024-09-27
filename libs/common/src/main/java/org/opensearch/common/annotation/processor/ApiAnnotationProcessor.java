@@ -59,6 +59,7 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
     private static final String OPENSEARCH_PACKAGE = "org.opensearch";
 
     private final Set<Element> reported = new HashSet<>();
+    private final Set<Element> validated = new HashSet<>();
     private final Set<AnnotatedConstruct> processed = new HashSet<>();
     private Kind reportFailureAs = Kind.ERROR;
 
@@ -85,6 +86,8 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
         );
 
         for (var element : elements) {
+            validate(element);
+
             if (!checkPackage(element)) {
                 continue;
             }
@@ -98,6 +101,64 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
         }
 
         return false;
+    }
+
+    private void validate(Element element) {
+        // The element was validated already
+        if (validated.contains(element)) {
+            return;
+        }
+
+        validated.add(element);
+
+        final PublicApi publicApi = element.getAnnotation(PublicApi.class);
+        if (publicApi != null) {
+            if (!validateVersion(publicApi.since())) {
+                processingEnv.getMessager()
+                    .printMessage(
+                        reportFailureAs,
+                        "The type " + element + " has @PublicApi annotation with unparseable OpenSearch version: " + publicApi.since()
+                    );
+            }
+        }
+
+        final DeprecatedApi deprecatedApi = element.getAnnotation(DeprecatedApi.class);
+        if (deprecatedApi != null) {
+            if (!validateVersion(deprecatedApi.since())) {
+                processingEnv.getMessager()
+                    .printMessage(
+                        reportFailureAs,
+                        "The type "
+                            + element
+                            + " has @DeprecatedApi annotation with unparseable OpenSearch version: "
+                            + deprecatedApi.since()
+                    );
+            }
+        }
+    }
+
+    private boolean validateVersion(String version) {
+        String[] parts = version.split("[.-]");
+        if (parts.length < 3 || parts.length > 4) {
+            return false;
+        }
+
+        int major = Integer.parseInt(parts[0]);
+        if (major > 3 || major < 0) {
+            return false;
+        }
+
+        int minor = Integer.parseInt(parts[1]);
+        if (minor < 0) {
+            return false;
+        }
+
+        int patch = Integer.parseInt(parts[2]);
+        if (patch < 0) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

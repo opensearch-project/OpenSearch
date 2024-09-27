@@ -15,11 +15,14 @@ import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeR
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.ClusterStateTermVersion;
+import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -34,13 +37,18 @@ public class TransportGetTermVersionAction extends TransportClusterManagerNodeRe
 
     private final Logger logger = LogManager.getLogger(getClass());
 
+    private final Discovery discovery;
+
+    private boolean usePreCommitState = false;
+
     @Inject
     public TransportGetTermVersionAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Discovery discovery
     ) {
         super(
             GetTermVersionAction.NAME,
@@ -52,6 +60,8 @@ public class TransportGetTermVersionAction extends TransportClusterManagerNodeRe
             GetTermVersionRequest::new,
             indexNameExpressionResolver
         );
+        this.usePreCommitState = FeatureFlags.isEnabled(FeatureFlags.TERM_VERSION_PRECOMMIT_ENABLE_SETTING);
+        this.discovery = discovery;
     }
 
     @Override
@@ -76,10 +86,22 @@ public class TransportGetTermVersionAction extends TransportClusterManagerNodeRe
         ClusterState state,
         ActionListener<GetTermVersionResponse> listener
     ) throws Exception {
-        ActionListener.completeWith(listener, () -> buildResponse(request, state));
+        if (usePreCommitState) {
+            ActionListener.completeWith(listener, () -> buildResponse(request, clusterService.preCommitState()));
+        } else {
+            ActionListener.completeWith(listener, () -> buildResponse(request, state));
+        }
+
     }
 
     private GetTermVersionResponse buildResponse(GetTermVersionRequest request, ClusterState state) {
-        return new GetTermVersionResponse(new ClusterStateTermVersion(state));
+        ClusterStateTermVersion termVersion = new ClusterStateTermVersion(state);
+        if (discovery instanceof Coordinator) {
+            Coordinator coordinator = (Coordinator) discovery;
+            if (coordinator.isRemotePublicationEnabled()) {
+                return new GetTermVersionResponse(termVersion, coordinator.isRemotePublicationEnabled());
+            }
+        }
+        return new GetTermVersionResponse(termVersion);
     }
 }

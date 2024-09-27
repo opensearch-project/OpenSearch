@@ -72,7 +72,8 @@ public class ReplicationGroup {
         this.replicationTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
         for (final ShardRouting shard : routingTable) {
-            if (shard.unassigned()) {
+            // search only replicas never receive any replicated operations
+            if (shard.unassigned() || shard.isSearchOnly()) {
                 assert shard.primary() == false : "primary shard should not be unassigned in a replication group: " + shard;
                 skippedShards.add(shard);
             } else {

@@ -68,14 +68,11 @@ public class FeatureFlags {
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
     /**
-     * Gates the functionality of remote routing table.
-     */
-    public static final String REMOTE_PUBLICATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.publication.enabled";
-
-    /**
      * Gates the functionality of background task execution.
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = "opensearch.experimental.feature.task.background.enabled";
+
+    public static final String READER_WRITER_SPLIT_EXPERIMENTAL = "opensearch.experimental.feature.read.write.split.enabled";
 
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
@@ -99,8 +96,8 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 
-    public static final Setting<Boolean> REMOTE_PUBLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
-        REMOTE_PUBLICATION_EXPERIMENTAL,
+    public static final Setting<Boolean> READER_WRITER_SPLIT_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        READER_WRITER_SPLIT_EXPERIMENTAL,
         false,
         Property.NodeScope
     );
@@ -122,6 +119,22 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    /**
+     * Gates the functionality of ApproximatePointRangeQuery where we approximate query results.
+     */
+    public static final String APPROXIMATE_POINT_RANGE_QUERY = "opensearch.experimental.feature.approximate_point_range_query.enabled";
+    public static final Setting<Boolean> APPROXIMATE_POINT_RANGE_QUERY_SETTING = Setting.boolSetting(
+        APPROXIMATE_POINT_RANGE_QUERY,
+        false,
+        Property.NodeScope
+    );
+    public static final String TERM_VERSION_PRECOMMIT_ENABLE = "opensearch.experimental.optimization.termversion.precommit.enabled";
+    public static final Setting<Boolean> TERM_VERSION_PRECOMMIT_ENABLE_SETTING = Setting.boolSetting(
+        TERM_VERSION_PRECOMMIT_ENABLE,
+        false,
+        Property.NodeScope
+    );
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -130,9 +143,10 @@ public class FeatureFlags {
         DATETIME_FORMATTER_CACHING_SETTING,
         TIERED_REMOTE_INDEX_SETTING,
         PLUGGABLE_CACHE_SETTING,
-        REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
         STAR_TREE_INDEX_SETTING,
-        APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING
+        APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
+        READER_WRITER_SPLIT_EXPERIMENTAL_SETTING,
+        TERM_VERSION_PRECOMMIT_ENABLE_SETTING
     );
 
     /**

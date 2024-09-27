@@ -8,19 +8,19 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
 
     private SumValueAggregator aggregator;
 
-    public SumValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
-        super(starTreeNumericType);
+    public SumValueAggregatorTests(FieldValueConverter fieldValueConverter) {
+        super(fieldValueConverter);
     }
 
     @Override
-    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
-        aggregator = new SumValueAggregator(starTreeNumericType);
+    public ValueAggregator getValueAggregator(FieldValueConverter fieldValueConverter) {
+        aggregator = new SumValueAggregator(fieldValueConverter);
         return aggregator;
     }
 
@@ -29,7 +29,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(randomDouble);
         assertEquals(
-            randomDouble + starTreeNumericType.getDoubleValue(randomLong),
+            randomDouble + fieldValueConverter.toDoubleValue(randomLong),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
@@ -41,7 +41,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         aggregator.getInitialAggregatedValue(randomDouble1);
         assertEquals(randomDouble1, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, null), 0.0);
         assertEquals(
-            randomDouble1 + starTreeNumericType.getDoubleValue(randomLong),
+            randomDouble1 + fieldValueConverter.toDoubleValue(randomLong),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, randomLong),
             0.0
         );
@@ -50,7 +50,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
     public void testMergeAggregatedValueAndSegmentValue_nullInitialDocValue() {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(null);
-        assertEquals(starTreeNumericType.getDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
+        assertEquals(fieldValueConverter.toDoubleValue(randomLong), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
     }
 
     public void testMergeAggregatedValues() {

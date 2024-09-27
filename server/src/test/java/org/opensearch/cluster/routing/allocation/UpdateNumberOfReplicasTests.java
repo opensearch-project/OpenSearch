@@ -41,7 +41,9 @@ import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -187,5 +189,249 @@ public class UpdateNumberOfReplicasTests extends OpenSearchAllocationTestCase {
         logger.info("do a reroute, should remain the same");
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
+    }
+
+    public void testUpdateNumberOfReplicasDoesNotImpactSearchReplicas() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        logger.info("Building initial routing table");
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .numberOfSearchReplicas(1)
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        assertEquals(1, routingTable.index("test").shards().size());
+        IndexShardRoutingTable shardRoutingTable = routingTable.index("test").shard(0);
+        // 1 primary, 1 replica, 1 search replica
+        assertEquals(3, shardRoutingTable.size());
+        assertEquals(2, shardRoutingTable.replicaShards().size());
+        assertEquals(1, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(UNASSIGNED, shardRoutingTable.shards().get(0).state());
+        assertEquals(UNASSIGNED, shardRoutingTable.shards().get(1).state());
+        assertEquals(UNASSIGNED, shardRoutingTable.shards().get(2).state());
+        assertNull(shardRoutingTable.shards().get(0).currentNodeId());
+        assertNull(shardRoutingTable.shards().get(1).currentNodeId());
+        assertNull(shardRoutingTable.shards().get(2).currentNodeId());
+
+        logger.info("Adding two nodes and performing rerouting");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
+            .build();
+
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        logger.info("Start all the primary shards");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        logger.info("Start all the replica and search shards");
+        ClusterState newState = startInitializingShardsAndReroute(strategy, clusterState);
+        assertNotEquals(newState, clusterState);
+        clusterState = newState;
+
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        final String nodeHoldingPrimary = shardRoutingTable.primaryShard().currentNodeId();
+        final String nodeHoldingSearchReplica = shardRoutingTable.searchOnlyReplicas().get(0).currentNodeId();
+        final String nodeHoldingReplica = shardRoutingTable.writerReplicas().get(0).currentNodeId();
+
+        assertNotEquals(nodeHoldingPrimary, nodeHoldingReplica);
+        assertNotEquals(nodeHoldingPrimary, nodeHoldingSearchReplica);
+        assertNotEquals(nodeHoldingReplica, nodeHoldingSearchReplica);
+
+        assertEquals(
+            "There is a single routing shard routing table in the cluster",
+            clusterState.routingTable().index("test").shards().size(),
+            1
+        );
+        assertEquals("There are three shards as part of the shard routing table", 3, shardRoutingTable.size());
+        assertEquals("There are two replicas one search and one write", 2, shardRoutingTable.replicaShards().size());
+        assertEquals(1, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(STARTED, shardRoutingTable.shards().get(0).state());
+        assertEquals(STARTED, shardRoutingTable.shards().get(1).state());
+        assertEquals(STARTED, shardRoutingTable.shards().get(2).state());
+
+        logger.info("add another replica");
+        final String[] indices = { "test" };
+        routingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2, indices).build();
+        metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(2, indices).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadata).build();
+        IndexMetadata indexMetadata = clusterState.metadata().index("test");
+        assertEquals(2, indexMetadata.getNumberOfReplicas());
+        assertEquals(1, indexMetadata.getNumberOfSearchOnlyReplicas());
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        assertEquals(4, shardRoutingTable.size());
+        assertEquals(3, shardRoutingTable.replicaShards().size());
+        assertEquals(2, shardRoutingTable.writerReplicas().size());
+        assertEquals(1, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(shardRoutingTable.primaryShard().state(), STARTED);
+        assertEquals(shardRoutingTable.searchOnlyReplicas().get(0).state(), STARTED);
+
+        ShardRouting existingReplica = shardRoutingTable.writerReplicas().get(0);
+        assertEquals(existingReplica.state(), STARTED);
+        assertEquals(existingReplica.currentNodeId(), nodeHoldingReplica);
+        ShardRouting newReplica = shardRoutingTable.writerReplicas().get(0);
+        assertEquals(newReplica.state(), STARTED);
+
+        logger.info("Add another node and start the added replica");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
+        newState = strategy.reroute(clusterState, "reroute");
+        newState = startInitializingShardsAndReroute(strategy, newState);
+        assertNotEquals(newState, clusterState);
+        clusterState = newState;
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        for (ShardRouting replicaShard : shardRoutingTable.replicaShards()) {
+            assertEquals(replicaShard.state(), STARTED);
+        }
+        assertTrue(shardRoutingTable.replicaShards().stream().allMatch(r -> r.state().equals(STARTED)));
+
+        // remove both replicas and assert search replica is unchanged
+        routingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(0, indices).build();
+        metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(0, indices).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadata).build();
+        indexMetadata = clusterState.metadata().index("test");
+        assertEquals(0, indexMetadata.getNumberOfReplicas());
+        assertEquals(1, indexMetadata.getNumberOfSearchOnlyReplicas());
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        assertEquals(2, shardRoutingTable.size());
+        assertEquals(1, shardRoutingTable.replicaShards().size());
+        assertEquals(0, shardRoutingTable.writerReplicas().size());
+        assertEquals(1, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(shardRoutingTable.primaryShard().state(), STARTED);
+        assertEquals(shardRoutingTable.searchOnlyReplicas().get(0).state(), STARTED);
+        assertEquals(shardRoutingTable.searchOnlyReplicas().get(0).currentNodeId(), nodeHoldingSearchReplica);
+    }
+
+    public void testUpdateSearchReplicasDoesNotImpactRegularReplicas() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        logger.info("Building initial routing table");
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .numberOfSearchReplicas(1)
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        assertEquals(1, routingTable.index("test").shards().size());
+        IndexShardRoutingTable shardRoutingTable = routingTable.index("test").shard(0);
+        // 1 primary, 1 replica, 1 search replica
+        assertEquals(3, shardRoutingTable.size());
+        assertEquals(2, shardRoutingTable.replicaShards().size());
+        assertEquals(1, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(UNASSIGNED, shardRoutingTable.shards().get(0).state());
+        assertEquals(UNASSIGNED, shardRoutingTable.shards().get(1).state());
+        assertEquals(UNASSIGNED, shardRoutingTable.shards().get(2).state());
+        assertNull(shardRoutingTable.shards().get(0).currentNodeId());
+        assertNull(shardRoutingTable.shards().get(1).currentNodeId());
+        assertNull(shardRoutingTable.shards().get(2).currentNodeId());
+
+        logger.info("Adding three nodes and performing rerouting");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
+            .build();
+
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        logger.info("Start all the primary shards");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        logger.info("Start all the replica and search shards");
+        ClusterState newState = startInitializingShardsAndReroute(strategy, clusterState);
+        assertNotEquals(newState, clusterState);
+        clusterState = newState;
+
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        final String nodeHoldingPrimary = shardRoutingTable.primaryShard().currentNodeId();
+        final String nodeHoldingSearchReplica = shardRoutingTable.searchOnlyReplicas().get(0).currentNodeId();
+        final String nodeHoldingReplica = shardRoutingTable.writerReplicas().get(0).currentNodeId();
+
+        assertNotEquals(nodeHoldingPrimary, nodeHoldingReplica);
+        assertNotEquals(nodeHoldingPrimary, nodeHoldingSearchReplica);
+        assertNotEquals(nodeHoldingReplica, nodeHoldingSearchReplica);
+
+        assertEquals(
+            "There is a single routing shard routing table in the cluster",
+            clusterState.routingTable().index("test").shards().size(),
+            1
+        );
+        assertEquals("There are three shards as part of the shard routing table", 3, shardRoutingTable.size());
+        assertEquals("There are two replicas one search and one write", 2, shardRoutingTable.replicaShards().size());
+        assertEquals(1, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(STARTED, shardRoutingTable.shards().get(0).state());
+        assertEquals(STARTED, shardRoutingTable.shards().get(1).state());
+        assertEquals(STARTED, shardRoutingTable.shards().get(2).state());
+
+        logger.info("add another replica");
+        final String[] indices = { "test" };
+        routingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfSearchReplicas(2, indices).build();
+        metadata = Metadata.builder(clusterState.metadata()).updateNumberOfSearchReplicas(2, indices).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadata).build();
+        IndexMetadata indexMetadata = clusterState.metadata().index("test");
+        assertEquals(1, indexMetadata.getNumberOfReplicas());
+        assertEquals(2, indexMetadata.getNumberOfSearchOnlyReplicas());
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        assertEquals(4, shardRoutingTable.size());
+        assertEquals(3, shardRoutingTable.replicaShards().size());
+        assertEquals(1, shardRoutingTable.writerReplicas().size());
+        assertEquals(2, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(shardRoutingTable.primaryShard().state(), STARTED);
+        assertEquals(shardRoutingTable.writerReplicas().get(0).state(), STARTED);
+        assertEquals(shardRoutingTable.searchOnlyReplicas().get(0).state(), STARTED);
+        assertEquals(shardRoutingTable.searchOnlyReplicas().get(1).state(), UNASSIGNED);
+
+        logger.info("Add another node and start the added replica");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
+        newState = strategy.reroute(clusterState, "reroute");
+        newState = startInitializingShardsAndReroute(strategy, newState);
+        assertNotEquals(newState, clusterState);
+        clusterState = newState;
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        for (ShardRouting replicaShard : shardRoutingTable.replicaShards()) {
+            assertEquals(replicaShard.state(), STARTED);
+        }
+        assertTrue(shardRoutingTable.replicaShards().stream().allMatch(r -> r.state().equals(STARTED)));
+
+        // remove both replicas and assert search replica is unchanged
+        routingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfSearchReplicas(0, indices).build();
+        metadata = Metadata.builder(clusterState.metadata()).updateNumberOfSearchReplicas(0, indices).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadata).build();
+        indexMetadata = clusterState.metadata().index("test");
+        assertEquals(1, indexMetadata.getNumberOfReplicas());
+        assertEquals(0, indexMetadata.getNumberOfSearchOnlyReplicas());
+        shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        assertEquals(2, shardRoutingTable.size());
+        assertEquals(1, shardRoutingTable.replicaShards().size());
+        assertEquals(1, shardRoutingTable.writerReplicas().size());
+        assertEquals(0, shardRoutingTable.searchOnlyReplicas().size());
+        assertEquals(shardRoutingTable.primaryShard().state(), STARTED);
+        assertEquals(shardRoutingTable.replicaShards().get(0).state(), STARTED);
+        assertEquals(shardRoutingTable.replicaShards().get(0).currentNodeId(), nodeHoldingReplica);
     }
 }

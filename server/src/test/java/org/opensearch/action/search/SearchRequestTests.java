@@ -42,6 +42,8 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
@@ -50,14 +52,18 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntConsumer;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -242,6 +248,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
+    public void testParseSearchRequestWithUnsupportedSearchType() throws IOException {
+        RestRequest restRequest = new FakeRestRequest();
+        SearchRequest searchRequest = createSearchRequest();
+        IntConsumer setSize = mock(IntConsumer.class);
+        restRequest.params().put("search_type", "query_and_fetch");
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestSearchAction.parseSearchRequest(searchRequest, restRequest, null, namedWriteableRegistry, setSize)
+        );
+        assertEquals("Unsupported search type [query_and_fetch]", exception.getMessage());
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
     }
@@ -268,10 +287,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
         mutators.add(
             () -> mutation.searchType(
-                randomValueOtherThan(
-                    searchRequest.searchType(),
-                    () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH)
-                )
+                randomValueOtherThan(searchRequest.searchType(), () -> randomFrom(DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))
             )
         );
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));

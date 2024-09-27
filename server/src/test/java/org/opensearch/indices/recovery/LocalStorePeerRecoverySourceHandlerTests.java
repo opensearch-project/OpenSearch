@@ -52,6 +52,8 @@ import org.opensearch.action.StepListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
@@ -141,6 +143,8 @@ import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -744,6 +748,206 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
+    }
+
+    /*
+    If the replica allocation id is not reflected in source nodes routing table even after retries,
+    recoveries should fail
+     */
+    public void testThrowExceptionOnNoTargetInRouting() throws IOException {
+        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
+        final StartRecoveryRequest request = getStartRecoveryRequest();
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
+        when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
+        when(shard.isRelocatedPrimary()).thenReturn(false);
+        final org.opensearch.index.shard.ReplicationGroup replicationGroup = mock(org.opensearch.index.shard.ReplicationGroup.class);
+        final IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
+        when(routingTable.getByAllocationId(anyString())).thenReturn(null);
+        when(shard.getReplicationGroup()).thenReturn(replicationGroup);
+        when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
+        when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
+        doAnswer(invocation -> {
+            ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
+            return null;
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+            );
+        if (randomBoolean()) {
+            indexMetadata.state(IndexMetadata.State.CLOSE);
+        }
+        when(shard.indexSettings()).thenReturn(new IndexSettings(indexMetadata.build(), Settings.EMPTY));
+
+        final AtomicBoolean phase1Called = new AtomicBoolean();
+        final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
+        final AtomicBoolean phase2Called = new AtomicBoolean();
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
+            shard,
+            mock(RecoveryTargetHandler.class),
+            threadPool,
+            request,
+            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+            between(1, 8),
+            between(1, 8)
+        ) {
+
+            @Override
+            void phase1(
+                IndexCommit snapshot,
+                long startingSeqNo,
+                IntSupplier translogOps,
+                ActionListener<SendFileResult> listener,
+                boolean skipCreateRetentionLeaseStep
+            ) {
+                phase1Called.set(true);
+                super.phase1(snapshot, startingSeqNo, translogOps, listener, skipCreateRetentionLeaseStep);
+            }
+
+            @Override
+            void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
+                prepareTargetForTranslogCalled.set(true);
+                super.prepareTargetForTranslog(totalTranslogOps, listener);
+            }
+
+            @Override
+            void phase2(
+                long startingSeqNo,
+                long endingSeqNo,
+                Translog.Snapshot snapshot,
+                long maxSeenAutoIdTimestamp,
+                long maxSeqNoOfUpdatesOrDeletes,
+                RetentionLeases retentionLeases,
+                long mappingVersion,
+                ActionListener<SendSnapshotResult> listener
+            ) throws IOException {
+                phase2Called.set(true);
+                super.phase2(
+                    startingSeqNo,
+                    endingSeqNo,
+                    snapshot,
+                    maxSeenAutoIdTimestamp,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    retentionLeases,
+                    mappingVersion,
+                    listener
+                );
+            }
+
+        };
+        PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+        expectThrows(DelayRecoveryException.class, () -> {
+            handler.recoverToTarget(future);
+            future.actionGet();
+        });
+        verify(routingTable, times(5)).getByAllocationId(null);
+        assertFalse(phase1Called.get());
+        assertFalse(prepareTargetForTranslogCalled.get());
+        assertFalse(phase2Called.get());
+    }
+
+    /*
+    Tests when the replica allocation id is  reflected in source nodes routing table even after 1 retry
+    */
+    public void testTargetInRoutingInSecondAttempt() throws IOException {
+        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
+        final StartRecoveryRequest request = getStartRecoveryRequest();
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
+        when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
+        when(shard.isRelocatedPrimary()).thenReturn(false);
+        when(shard.getRetentionLeases()).thenReturn(mock(RetentionLeases.class));
+        final org.opensearch.index.shard.ReplicationGroup replicationGroup = mock(org.opensearch.index.shard.ReplicationGroup.class);
+        final IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
+        final ShardRouting shardRouting = mock(ShardRouting.class);
+        when(shardRouting.initializing()).thenReturn(true);
+        when(shardRouting.currentNodeId()).thenReturn("node");
+        when(routingTable.getByAllocationId(any())).thenReturn(null, shardRouting);
+        when(shard.getReplicationGroup()).thenReturn(replicationGroup);
+        when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
+        when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
+        doAnswer(invocation -> {
+            ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
+            return null;
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+            );
+        if (randomBoolean()) {
+            indexMetadata.state(IndexMetadata.State.CLOSE);
+        }
+        when(shard.indexSettings()).thenReturn(new IndexSettings(indexMetadata.build(), Settings.EMPTY));
+
+        final AtomicBoolean phase1Called = new AtomicBoolean();
+        final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
+        final AtomicBoolean phase2Called = new AtomicBoolean();
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
+            shard,
+            mock(RecoveryTargetHandler.class),
+            threadPool,
+            request,
+            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+            between(1, 8),
+            between(1, 8)
+        ) {
+
+            @Override
+            void phase1(
+                IndexCommit snapshot,
+                long startingSeqNo,
+                IntSupplier translogOps,
+                ActionListener<SendFileResult> listener,
+                boolean skipCreateRetentionLeaseStep
+            ) {
+                phase1Called.set(true);
+                super.phase1(snapshot, startingSeqNo, translogOps, listener, skipCreateRetentionLeaseStep);
+            }
+
+            @Override
+            void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
+                prepareTargetForTranslogCalled.set(true);
+                super.prepareTargetForTranslog(totalTranslogOps, listener);
+            }
+
+            @Override
+            void phase2(
+                long startingSeqNo,
+                long endingSeqNo,
+                Translog.Snapshot snapshot,
+                long maxSeenAutoIdTimestamp,
+                long maxSeqNoOfUpdatesOrDeletes,
+                RetentionLeases retentionLeases,
+                long mappingVersion,
+                ActionListener<SendSnapshotResult> listener
+            ) throws IOException {
+                phase2Called.set(true);
+                super.phase2(
+                    startingSeqNo,
+                    endingSeqNo,
+                    snapshot,
+                    maxSeenAutoIdTimestamp,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    retentionLeases,
+                    mappingVersion,
+                    listener
+                );
+            }
+
+        };
+        handler.waitForAssignmentPropagate(new SetOnce<>());
+        verify(routingTable, times(2)).getByAllocationId(null);
     }
 
     public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {

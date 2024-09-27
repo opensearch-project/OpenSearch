@@ -55,13 +55,17 @@ public class RepositoryBlocksIT extends OpenSearchIntegTestCase {
         logger.info("-->  registering a repository is blocked when the cluster is read only");
         try {
             setClusterReadOnly(true);
+            Settings.Builder settings = Settings.builder().put("location", randomRepoPath());
             assertBlocked(
-                client().admin()
-                    .cluster()
-                    .preparePutRepository("test-repo-blocks")
-                    .setType("fs")
-                    .setVerify(false)
-                    .setSettings(Settings.builder().put("location", randomRepoPath())),
+                OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+                    client().admin().cluster(),
+                    "test-repo-blocks",
+                    "fs",
+                    false,
+                    settings,
+                    null,
+                    false
+                ),
                 Metadata.CLUSTER_READ_ONLY_BLOCK
             );
         } finally {
@@ -69,25 +73,13 @@ public class RepositoryBlocksIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("-->  registering a repository is allowed when the cluster is not read only");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo-blocks")
-                .setType("fs")
-                .setVerify(false)
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-        );
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath());
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo-blocks", "fs", false, settings);
     }
 
     public void testVerifyRepositoryWithBlocks() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo-blocks")
-                .setType("fs")
-                .setVerify(false)
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-        );
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath());
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo-blocks", "fs", false, settings);
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {
@@ -104,14 +96,8 @@ public class RepositoryBlocksIT extends OpenSearchIntegTestCase {
     }
 
     public void testDeleteRepositoryWithBlocks() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo-blocks")
-                .setType("fs")
-                .setVerify(false)
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-        );
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath());
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo-blocks", "fs", false, settings);
 
         logger.info("-->  deleting a repository is blocked when the cluster is read only");
         try {
@@ -126,14 +112,8 @@ public class RepositoryBlocksIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetRepositoryWithBlocks() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo-blocks")
-                .setType("fs")
-                .setVerify(false)
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-        );
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath());
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo-blocks", "fs", false, settings);
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {

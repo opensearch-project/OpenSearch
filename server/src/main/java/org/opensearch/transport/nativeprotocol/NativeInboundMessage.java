@@ -32,118 +32,34 @@
 
 package org.opensearch.transport.nativeprotocol;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.transport.Header;
-import org.opensearch.transport.ProtocolInboundMessage;
-
-import java.io.IOException;
+import org.opensearch.transport.InboundMessage;
 
 /**
  * Inbound data as a message
  *
- * @opensearch.api
+ * This class is deprecated in favor of {@link InboundMessage}.
  */
-@PublicApi(since = "2.14.0")
-public class NativeInboundMessage implements Releasable, ProtocolInboundMessage {
+@DeprecatedApi(since = "2.17.0")
+public class NativeInboundMessage extends InboundMessage {
 
     /**
      * The protocol used to encode this message
      */
     public static String NATIVE_PROTOCOL = "native";
 
-    private final Header header;
-    private final ReleasableBytesReference content;
-    private final Exception exception;
-    private final boolean isPing;
-    private Releasable breakerRelease;
-    private StreamInput streamInput;
-
     public NativeInboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
-        this.header = header;
-        this.content = content;
-        this.breakerRelease = breakerRelease;
-        this.exception = null;
-        this.isPing = false;
+        super(header, content, breakerRelease);
     }
 
     public NativeInboundMessage(Header header, Exception exception) {
-        this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = exception;
-        this.isPing = false;
+        super(header, exception);
     }
 
     public NativeInboundMessage(Header header, boolean isPing) {
-        this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = null;
-        this.isPing = isPing;
+        super(header, isPing);
     }
-
-    @Override
-    public String getProtocol() {
-        return NATIVE_PROTOCOL;
-    }
-
-    public Header getHeader() {
-        return header;
-    }
-
-    public int getContentLength() {
-        if (content == null) {
-            return 0;
-        } else {
-            return content.length();
-        }
-    }
-
-    public Exception getException() {
-        return exception;
-    }
-
-    public boolean isPing() {
-        return isPing;
-    }
-
-    public boolean isShortCircuit() {
-        return exception != null;
-    }
-
-    public Releasable takeBreakerReleaseControl() {
-        final Releasable toReturn = breakerRelease;
-        breakerRelease = null;
-        if (toReturn != null) {
-            return toReturn;
-        } else {
-            return () -> {};
-        }
-    }
-
-    public StreamInput openOrGetStreamInput() throws IOException {
-        assert isPing == false && content != null;
-        if (streamInput == null) {
-            streamInput = content.streamInput();
-            streamInput.setVersion(header.getVersion());
-        }
-        return streamInput;
-    }
-
-    @Override
-    public void close() {
-        IOUtils.closeWhileHandlingException(streamInput);
-        Releasables.closeWhileHandlingException(content, breakerRelease);
-    }
-
-    @Override
-    public String toString() {
-        return "InboundMessage{" + header + "}";
-    }
-
 }

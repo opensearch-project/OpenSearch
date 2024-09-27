@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Supplier;
 
@@ -36,6 +37,7 @@ public class SearchRequestContext {
     private final Map<String, Long> phaseTookMap;
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
+    private Set<String> successfulSearchShardIndices;
 
     private final SearchRequest searchRequest;
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
@@ -140,6 +142,18 @@ public class SearchRequestContext {
 
     public SearchRequest getRequest() {
         return searchRequest;
+    }
+
+    void setSuccessfulSearchShardIndices(Set<String> successfulSearchShardIndices) {
+        this.successfulSearchShardIndices = successfulSearchShardIndices;
+    }
+
+    /**
+     * @return A {@link List} of {@link String} representing the names of the indices that were
+     * successfully queried at the shard level.
+     */
+    public Set<String> getSuccessfulSearchShardIndices() {
+        return successfulSearchShardIndices;
     }
 }
 

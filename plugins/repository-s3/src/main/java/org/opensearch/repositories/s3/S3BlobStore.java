@@ -63,7 +63,7 @@ import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION
 import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.UPLOAD_RETRY_ENABLED;
 
-class S3BlobStore implements BlobStore {
+public class S3BlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 

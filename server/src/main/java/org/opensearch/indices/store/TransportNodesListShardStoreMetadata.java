@@ -176,7 +176,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
 
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
-            super(nodes);
+            super(false, nodes);
             this.shardId = Objects.requireNonNull(shardId);
             this.customDataPath = Objects.requireNonNull(customDataPath);
         }

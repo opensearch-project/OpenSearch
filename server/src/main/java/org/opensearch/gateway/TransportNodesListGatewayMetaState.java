@@ -133,7 +133,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         }
 
         public Request(String... nodesIds) {
-            super(nodesIds);
+            super(false, nodesIds);
         }
     }
 

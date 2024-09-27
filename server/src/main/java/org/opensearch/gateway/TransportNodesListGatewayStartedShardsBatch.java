@@ -182,7 +182,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
         }
 
         public Request(DiscoveryNode[] nodes, Map<ShardId, ShardAttributes> shardAttributes) {
-            super(nodes);
+            super(false, nodes);
             this.shardAttributes = Objects.requireNonNull(shardAttributes);
         }
 

@@ -38,6 +38,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.compress.Compressor;
@@ -167,6 +168,10 @@ public final class CompressedXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(crc32);
         out.writeByteArray(bytes);
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeInt(crc32);
     }
 
     @Override

@@ -392,6 +392,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexedAndNoDocValues();
             // has index and doc_values enabled
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.termsQuery(values, context);
+                }
                 BytesRef[] bytesRefs = new BytesRef[values.size()];
                 for (int i = 0; i < bytesRefs.length; i++) {
                     bytesRefs[i] = indexedValueForSearch(values.get(i));
@@ -429,6 +432,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             failIfNotIndexedAndNoDocValues();
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.prefixQuery(value, method, caseInsensitive, context);
+                }
                 Query indexQuery = super.prefixQuery(value, method, caseInsensitive, context);
                 Query dvQuery = super.prefixQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, context);
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
@@ -461,6 +467,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             failIfNotIndexedAndNoDocValues();
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                }
                 Query indexQuery = super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
                 Query dvQuery = super.regexpQuery(
                     value,
@@ -549,6 +558,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+                }
                 Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
                 Query dvQuery = super.fuzzyQuery(
                     value,
@@ -591,6 +603,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             // wildcard
             // query text
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.wildcardQuery(value, method, caseInsensitive, true, context);
+                }
                 Query indexQuery = super.wildcardQuery(value, method, caseInsensitive, true, context);
                 Query dvQuery = super.wildcardQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, true, context);
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
