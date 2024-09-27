@@ -47,6 +47,8 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         RecoverySettings recoverySettings,
         DiscoveryNode sourceNode
     ) {
+        assert targetNode != null : "Target node must be set";
+        assert sourceNode != null : "Source node must be set";
         this.targetAllocationId = targetAllocationId;
         this.transportService = transportService;
         this.sourceNode = sourceNode;
