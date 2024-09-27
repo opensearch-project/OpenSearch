@@ -255,7 +255,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             // Set all httpchannels to close gracefully
             for (HttpChannel httpChannel : httpChannels) {
                 if (httpChannel instanceof DefaultRestChannel) {
-                    ((DefaultRestChannel) httpChannel).gracefulCloseConnection();
+                    httpChannel.close();
                 }
             }
             final long startTimeMillis = System.currentTimeMillis();
