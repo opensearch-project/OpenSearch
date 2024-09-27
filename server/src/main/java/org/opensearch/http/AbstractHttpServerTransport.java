@@ -263,7 +263,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
                 try {
                     TimeUnit.MILLISECONDS.sleep(30);
-                    TimeUnit.MILLISECONDS.sleep(30);
                 } catch (InterruptedException ie) {
                     throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
                 }
