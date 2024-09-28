@@ -773,6 +773,18 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.disconnectFromNode(node);
     }
 
+    public void setPendingDisconnection(DiscoveryNode node) {
+        connectionManager.setPendingDisconnection(node);
+    }
+
+    /**
+     * Wipes out all pending disconnections.
+     * This is called on cluster-manager failover to remove stale entries
+     */
+    public void clearPendingDisconnections() {
+        connectionManager.clearPendingDisconnections();
+    }
+
     public void addMessageListener(TransportMessageListener listener) {
         messageListener.listeners.add(listener);
     }
