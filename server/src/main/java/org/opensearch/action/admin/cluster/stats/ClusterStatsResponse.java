@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
@@ -91,16 +92,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         List<FailedNodeException> failures,
         ClusterState state
     ) {
-        this(
-            timestamp,
-            clusterUUID,
-            clusterName,
-            nodes,
-            failures,
-            state,
-            ClusterStatsRequest.Metric.allMetrics(),
-            ClusterStatsRequest.IndexMetrics.allIndicesMetrics()
-        );
+        this(timestamp, clusterUUID, clusterName, nodes, failures, state, Set.of(Metric.values()), Set.of(IndexMetric.values()));
     }
 
     public ClusterStatsResponse(
@@ -110,8 +102,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         List<ClusterStatsNodeResponse> nodes,
         List<FailedNodeException> failures,
         ClusterState state,
-        Set<String> requestedMetrics,
-        Set<String> indicesMetrics
+        Set<Metric> requestedMetrics,
+        Set<IndexMetric> indicesMetrics
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -119,11 +111,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         nodesStats = requestedMetrics.stream().anyMatch(ClusterStatsNodes.NODE_STATS_METRICS::contains)
             ? new ClusterStatsNodes(requestedMetrics, nodes)
             : null;
-        MappingStats mappingStats = ClusterStatsRequest.IndexMetrics.MAPPINGS.containedIn(indicesMetrics) ? MappingStats.of(state) : null;
-        AnalysisStats analysisStats = ClusterStatsRequest.IndexMetrics.ANALYSIS.containedIn(indicesMetrics)
-            ? AnalysisStats.of(state)
-            : null;
-        indicesStats = Metric.INDICES.containedIn(requestedMetrics)
+        MappingStats mappingStats = indicesMetrics.contains(IndexMetric.MAPPINGS) ? MappingStats.of(state) : null;
+        AnalysisStats analysisStats = indicesMetrics.contains(IndexMetric.ANALYSIS) ? AnalysisStats.of(state) : null;
+        indicesStats = requestedMetrics.contains(Metric.INDICES)
             ? new ClusterStatsIndices(indicesMetrics, nodes, mappingStats, analysisStats)
             : null;
         ClusterHealthStatus status = null;

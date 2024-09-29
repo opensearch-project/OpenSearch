@@ -90,26 +90,29 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final PackagingTypes packagingTypes;
     private final IngestStats ingestStats;
 
-    public static final Set<String> NODE_STATS_METRICS = Set.of(
-        Metric.OS.metricName(),
-        Metric.PROCESS.metricName(),
-        Metric.JVM.metricName(),
-        Metric.FS.metricName(),
-        Metric.PLUGINS.metricName(),
-        Metric.INGEST.metricName(),
-        Metric.NETWORK_TYPES.metricName(),
-        Metric.DISCOVERY_TYPES.metricName(),
-        Metric.PACKAGING_TYPES.metricName()
+    public static final Set<Metric> NODE_STATS_METRICS = Set.of(
+        // Stats computed from node info and node stat
+        Metric.OS,
+        Metric.JVM,
+        // Stats computed from node stat
+        Metric.FS,
+        Metric.PROCESS,
+        Metric.INGEST,
+        // Stats computed from node info
+        Metric.PLUGINS,
+        Metric.NETWORK_TYPES,
+        Metric.DISCOVERY_TYPES,
+        Metric.PACKAGING_TYPES
     );
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
-        this(Metric.allMetrics(), nodeResponses);
+        this(Set.of(Metric.values()), nodeResponses);
     }
 
-    ClusterStatsNodes(Set<String> requestedMetrics, List<ClusterStatsNodeResponse> nodeResponses) {
+    ClusterStatsNodes(Set<Metric> requestedMetrics, List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
-        this.fs = ClusterStatsRequest.Metric.FS.containedIn(requestedMetrics) ? new FsInfo.Path() : null;
-        this.plugins = ClusterStatsRequest.Metric.PLUGINS.containedIn(requestedMetrics) ? new HashSet<>() : null;
+        this.fs = requestedMetrics.contains(ClusterStatsRequest.Metric.FS) ? new FsInfo.Path() : null;
+        this.plugins = requestedMetrics.contains(ClusterStatsRequest.Metric.PLUGINS) ? new HashSet<>() : null;
 
         Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
@@ -132,18 +135,15 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
             }
         }
+
         this.counts = new Counts(nodeInfos);
-        this.os = ClusterStatsRequest.Metric.OS.containedIn(requestedMetrics) ? new OsStats(nodeInfos, nodeStats) : null;
-        this.process = ClusterStatsRequest.Metric.PROCESS.containedIn(requestedMetrics) ? new ProcessStats(nodeStats) : null;
-        this.jvm = ClusterStatsRequest.Metric.JVM.containedIn(requestedMetrics) ? new JvmStats(nodeInfos, nodeStats) : null;
-        this.networkTypes = ClusterStatsRequest.Metric.NETWORK_TYPES.containedIn(requestedMetrics) ? new NetworkTypes(nodeInfos) : null;
-        this.discoveryTypes = ClusterStatsRequest.Metric.DISCOVERY_TYPES.containedIn(requestedMetrics)
-            ? new DiscoveryTypes(nodeInfos)
-            : null;
-        this.packagingTypes = ClusterStatsRequest.Metric.PACKAGING_TYPES.containedIn(requestedMetrics)
-            ? new PackagingTypes(nodeInfos)
-            : null;
-        this.ingestStats = ClusterStatsRequest.Metric.INGEST.containedIn(requestedMetrics) ? new IngestStats(nodeStats) : null;
+        this.networkTypes = requestedMetrics.contains(ClusterStatsRequest.Metric.NETWORK_TYPES) ? new NetworkTypes(nodeInfos) : null;
+        this.discoveryTypes = requestedMetrics.contains(ClusterStatsRequest.Metric.DISCOVERY_TYPES) ? new DiscoveryTypes(nodeInfos) : null;
+        this.packagingTypes = requestedMetrics.contains(ClusterStatsRequest.Metric.PACKAGING_TYPES) ? new PackagingTypes(nodeInfos) : null;
+        this.ingestStats = requestedMetrics.contains(ClusterStatsRequest.Metric.INGEST) ? new IngestStats(nodeStats) : null;
+        this.process = requestedMetrics.contains(ClusterStatsRequest.Metric.PROCESS) ? new ProcessStats(nodeStats) : null;
+        this.os = requestedMetrics.contains(ClusterStatsRequest.Metric.OS) ? new OsStats(nodeInfos, nodeStats) : null;
+        this.jvm = requestedMetrics.contains(ClusterStatsRequest.Metric.JVM) ? new JvmStats(nodeInfos, nodeStats) : null;
     }
 
     public Counts getCounts() {

@@ -79,20 +79,19 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     TransportClusterStatsAction.ClusterStatsNodeRequest,
     ClusterStatsNodeResponse> {
 
-    private static final Map<String, CommonStatsFlags.Flag> INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP = Map.of(
-        ClusterStatsRequest.IndexMetrics.DOCS.metricName(),
+    private static final Map<ClusterStatsRequest.IndexMetric, CommonStatsFlags.Flag> INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP = Map.of(
+        ClusterStatsRequest.IndexMetric.DOCS,
         CommonStatsFlags.Flag.Docs,
-        ClusterStatsRequest.IndexMetrics.STORE.metricName(),
+        ClusterStatsRequest.IndexMetric.STORE,
         CommonStatsFlags.Flag.Store,
-        ClusterStatsRequest.IndexMetrics.FIELDDATA.metricName(),
+        ClusterStatsRequest.IndexMetric.FIELDDATA,
         CommonStatsFlags.Flag.FieldData,
-        ClusterStatsRequest.IndexMetrics.QUERY_CACHE.metricName(),
+        ClusterStatsRequest.IndexMetric.QUERY_CACHE,
         CommonStatsFlags.Flag.QueryCache,
-        ClusterStatsRequest.IndexMetrics.COMPLETION.metricName(),
+        ClusterStatsRequest.IndexMetric.COMPLETION,
         CommonStatsFlags.Flag.Completion,
-        ClusterStatsRequest.IndexMetrics.SEGMENTS.metricName(),
+        ClusterStatsRequest.IndexMetric.SEGMENTS,
         CommonStatsFlags.Flag.Segments
-
     );
 
     private final NodeService nodeService;
@@ -171,20 +170,20 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false, false);
         boolean applyMetricFiltering = nodeRequest.request.applyMetricFiltering();
-        Set<String> requestedMetrics = nodeRequest.request.requestedMetrics();
+        Set<Metric> requestedMetrics = nodeRequest.request.requestedMetrics();
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
-            !applyMetricFiltering || Metric.OS.containedIn(requestedMetrics),
-            !applyMetricFiltering || Metric.PROCESS.containedIn(requestedMetrics),
-            !applyMetricFiltering || Metric.JVM.containedIn(requestedMetrics),
+            isMetricRequired(applyMetricFiltering, Metric.OS, requestedMetrics),
+            isMetricRequired(applyMetricFiltering, Metric.PROCESS, requestedMetrics),
+            isMetricRequired(applyMetricFiltering, Metric.JVM, requestedMetrics),
             false,
-            !applyMetricFiltering || Metric.FS.containedIn(requestedMetrics),
-            false,
-            false,
+            isMetricRequired(applyMetricFiltering, Metric.FS, requestedMetrics),
             false,
             false,
             false,
-            !applyMetricFiltering || Metric.INGEST.containedIn(requestedMetrics),
+            false,
+            false,
+            isMetricRequired(applyMetricFiltering, Metric.INGEST, requestedMetrics),
             false,
             false,
             false,
@@ -203,11 +202,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
-        if (!applyMetricFiltering || Metric.INDICES.containedIn(requestedMetrics)) {
+        if (isMetricRequired(applyMetricFiltering, Metric.INDICES, requestedMetrics)) {
             CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
-            for (String metric : nodeRequest.request.indicesMetrics()) {
-                if (INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP.containsKey(metric)) {
-                    commonStatsFlags.set(INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP.get(metric), true);
+            for (ClusterStatsRequest.IndexMetric indexMetric : nodeRequest.request.indicesMetrics()) {
+                if (INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP.containsKey(indexMetric)) {
+                    commonStatsFlags.set(INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP.get(indexMetric), true);
                 }
             }
             for (IndexService indexService : indicesService) {
@@ -255,6 +254,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             shardsStats.toArray(new ShardStats[0]),
             nodeRequest.request.useAggregatedNodeLevelResponses()
         );
+    }
+
+    private boolean isMetricRequired(boolean applyMetricFilter, Metric metric, Set<Metric> requestedMetrics) {
+        return !applyMetricFilter || requestedMetrics.contains(metric);
     }
 
     /**
