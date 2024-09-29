@@ -32,8 +32,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestIndicesListAction extends RestIndicesAction {
 
-    protected static final int MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE_STRING = 5000;
-    protected static final int DEFAULT_LIST_INDICES_PAGE_SIZE_STRING = 500;
+    private static final int MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE = 5000;
+    private static final int DEFAULT_LIST_INDICES_PAGE_SIZE = 500;
 
     @Override
     public List<Route> routes() {
@@ -60,10 +60,10 @@ public class RestIndicesListAction extends RestIndicesAction {
     protected PageParams validateAndGetPageParams(RestRequest restRequest) {
         PageParams pageParams = super.validateAndGetPageParams(restRequest);
         // validate max supported pageSize
-        if (pageParams.getSize() > MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE_STRING) {
-            throw new IllegalArgumentException("size should be less than [" + MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE_STRING + "]");
+        if (pageParams.getSize() > MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE) {
+            throw new IllegalArgumentException("size should be less than [" + MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE + "]");
         }
-        // Next Token in the request will be validated by the IndexStrategyTokenParser itself.
+        // Next Token in the request will be validated by the IndexStrategyToken itself.
         if (Objects.nonNull(pageParams.getRequestedToken())) {
             IndexPaginationStrategy.IndexStrategyToken.validateIndexStrategyToken(pageParams.getRequestedToken());
         }
@@ -71,7 +71,7 @@ public class RestIndicesListAction extends RestIndicesAction {
     }
 
     protected int defaultPageSize() {
-        return DEFAULT_LIST_INDICES_PAGE_SIZE_STRING;
+        return DEFAULT_LIST_INDICES_PAGE_SIZE;
     }
 
     @Override

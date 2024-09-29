@@ -29,7 +29,7 @@ import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
  * @opensearch.internal
  */
 public class IndexPaginationStrategy implements PaginationStrategy<String> {
-    private static final String DEFAULT_INDICES_PAGINATED_ELEMENT = "indices";
+    private static final String DEFAULT_INDICES_PAGINATED_ENTITY = "indices";
 
     private static final Comparator<IndexMetadata> ASC_COMPARATOR = (metadata1, metadata2) -> {
         if (metadata1.getCreationDate() == metadata2.getCreationDate()) {
@@ -96,11 +96,11 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
 
     private PageToken getResponseToken(final int pageSize, final int totalIndices, IndexMetadata lastIndex) {
         if (totalIndices <= pageSize) {
-            return new PageToken(null, DEFAULT_INDICES_PAGINATED_ELEMENT);
+            return new PageToken(null, DEFAULT_INDICES_PAGINATED_ENTITY);
         }
         return new PageToken(
             new IndexStrategyToken(lastIndex.getCreationDate(), lastIndex.getIndex().getName()).generateEncryptedToken(),
-            DEFAULT_INDICES_PAGINATED_ELEMENT
+            DEFAULT_INDICES_PAGINATED_ENTITY
         );
     }
 
@@ -117,8 +117,7 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
 
     /**
      * TokenParser to be used by {@link IndexPaginationStrategy}.
-     * Token would look like: IndexNumberToStartTheNextPageFrom + | + CreationTimeOfLastRespondedIndex + | +
-     * QueryStartTime + | + NameOfLastRespondedIndex
+     * Token would look like: CreationTimeOfLastRespondedIndex + | + NameOfLastRespondedIndex
      */
     public static class IndexStrategyToken {
 
@@ -140,6 +139,7 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
         private final String lastIndexName;
 
         public IndexStrategyToken(String requestedTokenString) {
+            // TODO: Avoid validating the requested token multiple times while calling from Rest and/or Transport layer.
             validateIndexStrategyToken(requestedTokenString);
             String decryptedToken = PaginationStrategy.decryptStringToken(requestedTokenString);
             final String[] decryptedTokenElements = decryptedToken.split(SPLIT_REGEX);
