@@ -21,7 +21,8 @@ import static org.opensearch.rest.pagination.PageParams.PARAM_DESC_SORT_VALUE;
 
 /**
  * Base Transport action class for _list API.
- *
+ * Serves as a base class for APIs wanting to support pagination.
+ * Existing _cat APIs can refer {@link org.opensearch.rest.action.cat.RestIndicesAction}.
  * @opensearch.api
  */
 public abstract class AbstractListAction extends AbstractCatAction {
