@@ -38,6 +38,9 @@ import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Set;
 
+import static org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
+import static org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
+
 /**
  * Transport request builder for obtaining cluster stats
  *
@@ -63,12 +66,12 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
-    public final ClusterStatsRequestBuilder requestMetrics(Set<String> requestMetrics) {
+    public final ClusterStatsRequestBuilder requestMetrics(Set<Metric> requestMetrics) {
         requestMetrics.forEach(request::addMetric);
         return this;
     }
 
-    public final ClusterStatsRequestBuilder indexMetrics(Set<String> indexMetrics) {
+    public final ClusterStatsRequestBuilder indexMetrics(Set<IndexMetric> indexMetrics) {
         indexMetrics.forEach(request::addIndexMetric);
         return this;
     }

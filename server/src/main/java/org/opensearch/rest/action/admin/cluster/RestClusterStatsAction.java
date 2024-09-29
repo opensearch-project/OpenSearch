@@ -80,15 +80,15 @@ public class RestClusterStatsAction extends BaseRestHandler {
     static {
         Map<String, Consumer<ClusterStatsRequest>> metricRequestConsumerMap = new HashMap<>();
         for (ClusterStatsRequest.Metric metric : ClusterStatsRequest.Metric.values()) {
-            metricRequestConsumerMap.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
+            metricRequestConsumerMap.put(metric.metricName(), request -> request.addMetric(metric));
         }
         METRIC_REQUEST_CONSUMER_MAP = Collections.unmodifiableMap(metricRequestConsumerMap);
     }
 
     static {
         Map<String, Consumer<ClusterStatsRequest>> metricMap = new HashMap<>();
-        for (ClusterStatsRequest.IndexMetrics indexMetric : ClusterStatsRequest.IndexMetrics.values()) {
-            metricMap.put(indexMetric.metricName(), request -> request.addIndexMetric(indexMetric.metricName()));
+        for (ClusterStatsRequest.IndexMetric indexMetric : ClusterStatsRequest.IndexMetric.values()) {
+            metricMap.put(indexMetric.metricName(), request -> request.addIndexMetric(indexMetric));
         }
         INDEX_METRIC_TO_REQUEST_CONSUMER_MAP = Collections.unmodifiableMap(metricMap);
     }
@@ -100,7 +100,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", null));
+        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         Set<String> indexMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", null));
         String[] nodeIds = request.paramAsStringArray("nodeId", null);
 
@@ -126,7 +126,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
                         Locale.ROOT,
                         "request [%s] contains _all and individual index metrics [%s]",
                         request.path(),
-                        request.param("sub_metric")
+                        request.param("index_metric")
                     )
                 );
             }
@@ -162,10 +162,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
                 );
             }
 
-            if (ClusterStatsRequest.Metric.INDICES.containedIn(metricsRequested)) {
+            if (metricsRequested.contains(ClusterStatsRequest.Metric.INDICES.metricName())) {
                 final Set<String> indexMetricsRequested = new HashSet<>();
                 if (indexMetrics.isEmpty() || indexMetrics.contains("_all")) {
-                    indexMetricsRequested.addAll(ClusterStatsRequest.IndexMetrics.allIndicesMetrics());
+                    indexMetricsRequested.addAll(INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet());
                 } else {
                     indexMetricsRequested.addAll(indexMetrics);
                 }
@@ -181,7 +181,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
                 if (!invalidIndexMetrics.isEmpty()) {
                     throw new IllegalArgumentException(
-                        unrecognized(request, invalidIndexMetrics, INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet(), "index_metric")
+                        unrecognized(request, invalidIndexMetrics, INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet(), "index metric")
                     );
                 }
             }
