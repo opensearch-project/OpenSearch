@@ -336,8 +336,8 @@ final class Bootstrap {
     }
 
     private void start() throws NodeValidationException {
-        node.start();
         keepAliveThread.start();
+        node.start();
     }
 
     static void stop() throws IOException {
