@@ -35,7 +35,6 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.StarTreeMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -221,12 +220,8 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         }
         // we have all the required fields to build composite fields
         if (compositeFieldSet.isEmpty()) {
-            for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
-                if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
-                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-                        starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, composite99DocValuesConsumer);
-                    }
-                }
+            try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, composite99DocValuesConsumer);
             }
         }
     }
@@ -295,16 +290,12 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                     if (compositeIndexValues instanceof StarTreeValues) {
                         StarTreeValues starTreeValues = (StarTreeValues) compositeIndexValues;
                         List<StarTreeValues> fieldsList = starTreeSubsPerField.getOrDefault(fieldInfo.getField(), new ArrayList<>());
-                        if (starTreeField == null) {
-                            starTreeField = starTreeValues.getStarTreeField();
-                        }
+                        starTreeField = starTreeValues.getStarTreeField();
                         // assert star tree configuration is same across segments
-                        else {
-                            if (starTreeField.equals(starTreeValues.getStarTreeField()) == false) {
-                                throw new IllegalArgumentException(
-                                    "star tree field configuration must match the configuration of the field being merged"
-                                );
-                            }
+                        if (starTreeField.equals(starTreeValues.getStarTreeField()) == false) {
+                            throw new IllegalArgumentException(
+                                "star tree field configuration must match the configuration of the field being merged"
+                            );
                         }
                         fieldsList.add(starTreeValues);
                         starTreeSubsPerField.put(fieldInfo.getField(), fieldsList);
