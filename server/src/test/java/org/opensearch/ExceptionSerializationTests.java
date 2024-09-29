@@ -106,6 +106,7 @@ import org.opensearch.indices.recovery.RecoverFilesRecoveryException;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.ingest.IngestProcessorException;
 import org.opensearch.repositories.RepositoryException;
+import org.opensearch.rest.ResponseLimitBreachedException;
 import org.opensearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.opensearch.search.SearchContextMissingException;
 import org.opensearch.search.SearchException;
@@ -898,6 +899,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(172, ViewNotFoundException.class);
         ids.put(173, ViewAlreadyExistsException.class);
         ids.put(174, InvalidIndexContextException.class);
+        ids.put(175, ResponseLimitBreachedException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

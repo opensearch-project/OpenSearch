@@ -126,7 +126,6 @@ public class ResponseLimitSettings {
                     totalShards += entry.getValue().getShards().size();
                     if (totalShards > limit) return true;
                 }
-                System.out.println("Total Shards" + totalShards);
                 break;
         }
         return false;

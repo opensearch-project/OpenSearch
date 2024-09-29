@@ -15,7 +15,7 @@ import org.opensearch.core.rest.RestStatus;
 import java.io.IOException;
 
 /**
- * Thrown when api response limit threshold exceeds
+ * Thrown when api response breaches threshold limit.
  *
  * @opensearch.internal
  */
