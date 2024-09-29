@@ -28,34 +28,37 @@
  */
 package org.opensearch.gradle.precommit
 
-import org.apache.rat.anttasks.Report
-import org.apache.rat.anttasks.SubstringLicenseMatcher
-import org.apache.rat.license.SimpleLicenseFamily
+import org.apache.rat.analysis.HeaderCheckWorker
+import org.apache.rat.analysis.matchers.SimpleTextMatcher
+import org.apache.rat.anttasks.License
+import org.apache.rat.api.MetaData
+import org.apache.rat.document.impl.FileDocument
+import org.apache.rat.license.ILicense
+import org.apache.rat.license.ILicenseFamily
+import org.apache.rat.license.ILicenseFamilyBuilder
 import org.opensearch.gradle.AntTask
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
-import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SkipWhenEmpty
 
-import java.nio.file.Files
-
 /**
  * Checks files for license headers.
  * <p>
- * This is a port of the apache lucene check
  */
 class LicenseHeadersTask extends AntTask {
-
-    @OutputFile
-    File reportFile = new File(project.buildDir, 'reports/licenseHeaders/rat.log')
 
     /** Allowed license families for this project. */
     @Input
     List<String> approvedLicenses = ['Apache', 'Generated', 'SPDX', 'Vendored']
+
+    /** Disallowed license families for this project. BSD4 at the moment */
+    @Internal
+    List<String> disapprovedLicenses = ['Original BSD License (with advertising clause)']
 
     /**
      * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
@@ -88,6 +91,50 @@ class LicenseHeadersTask extends AntTask {
     }
 
     /**
+     *  Internal class to hold license metadata
+     */
+    private class LicenseSettings {
+        private String licenseCategory
+        private String licenseFamilyName
+        private String pattern
+        private LicenseSettings(String licenseCategory, String licenseFamilyName, String pattern) {
+            this.licenseCategory = licenseCategory
+            this.licenseFamilyName = licenseFamilyName
+            this.pattern = pattern
+        }
+    }
+
+    /**
+     * Create license matcher from allowed/disallowed license list.
+     *
+     * @param licenseSettingsMap A map of license identifier and its associated data (family name, category and pattern)
+     */
+    private Map<String, ILicense> getLicenseMatchers(Map<String, LicenseSettings> licenseSettingsMap) {
+        Map<String, ILicense> licenseHashMap = new HashMap<>()
+
+        for (Map.Entry<String, LicenseSettings> entry: licenseSettingsMap.entrySet()) {
+            SortedSet<ILicenseFamily> licenseCtx = new TreeSet<ILicenseFamily>()
+            var licenseCodeName = entry.getKey()
+            var licenseSetting = entry.getValue()
+            var licenseFamilyBuilder = new ILicenseFamilyBuilder()
+            var licenseFamily = licenseFamilyBuilder.setLicenseFamilyCategory(licenseSetting.licenseCategory)
+                .setLicenseFamilyName(licenseSetting.licenseFamilyName)
+                .build()
+            licenseCtx.add(licenseFamily)
+
+            var license = new License()
+            license.setName(licenseFamily.getFamilyName())
+            license.setFamily(licenseFamily.getFamilyCategory())
+            license.add(new SimpleTextMatcher(licenseSetting.pattern))
+
+            var configuredLicense = license.build(licenseCtx)
+            licenseHashMap.put(licenseCodeName, configuredLicense)
+        }
+
+        return licenseHashMap
+    }
+
+    /**
      * Add a new license type.
      *
      * The license may be added to the {@link #approvedLicenses} using the {@code familyName}.
@@ -105,100 +152,72 @@ class LicenseHeadersTask extends AntTask {
 
     @Override
     protected void runAnt(AntBuilder ant) {
-        ant.project.addTaskDefinition('ratReport', Report)
-        ant.project.addDataTypeDefinition('substringMatcher', SubstringLicenseMatcher)
-        ant.project.addDataTypeDefinition('approvedLicense', SimpleLicenseFamily)
+        Map<String, LicenseSettings> licenseSettingsHashMap = new HashMap<>()
+        Map<String, List<String>> licenseStats = new HashMap<>()
 
-        Files.deleteIfExists(reportFile.toPath())
+        // BSD 4-clause stuff (is disallowed below)
+        // we keep this here, in case someone adds BSD code for some reason, it should never be allowed.
+        licenseSettingsHashMap.put("BSD4", new LicenseSettings("BSD4", "Original BSD License (with advertising clause)", "All advertising materials"))
+        // Apache
+        licenseSettingsHashMap.put("AL", new LicenseSettings("AL", "Apache", "Licensed to Elasticsearch under one or more contributor"))
+        // SPDX
+        licenseSettingsHashMap.put("SPDX1", new LicenseSettings("SPDX", "SPDX", "SPDX-License-Identifier: Apache-2.0"))
+        // SPDX: Apache license (OpenSearch)
+        licenseSettingsHashMap.put("SPDX2", new LicenseSettings("SPDX", "SPDX", "Copyright OpenSearch Contributors."))
+        // Generated resources
+        licenseSettingsHashMap.put("GEN", new LicenseSettings("GEN", "Generated", "ANTLR GENERATED CODE"))
+        // Vendored code
+        licenseSettingsHashMap.put("VEN", new LicenseSettings("VEN", "Vendored", "@noticed"))
 
-        // run rat, going to the file
-        ant.ratReport(reportFile: reportFile.absolutePath, addDefaultLicenseMatchers: true) {
-            for (FileCollection dirSet : javaFiles) {
-               for (File dir: dirSet.srcDirs) {
-                   // sometimes these dirs don't exist, e.g. site-plugin has no actual java src/main...
-                   if (dir.exists()) {
-                       ant.fileset(dir: dir, excludes: excludes.join(' '))
-                   }
-               }
-            }
+        // License types added by the project
+        for (Map.Entry<String, String> additional : additionalLicenses.entrySet()) {
+            String category = additional.getKey().substring(0, 5)
+            String family = additional.getKey().substring(5)
+            licenseSettingsHashMap.put(category, new LicenseSettings(
+                category,
+                family,
+                additional.getValue(),
+            ))
+        }
 
-            // BSD 4-clause stuff (is disallowed below)
-            // we keep this here, in case someone adds BSD code for some reason, it should never be allowed.
-            substringMatcher(licenseFamilyCategory: "BSD4 ",
-                             licenseFamilyName:     "Original BSD License (with advertising clause)") {
-               pattern(substring: "All advertising materials")
-            }
+        Map<String, ILicense> licenseHashMap = this.getLicenseMatchers(licenseSettingsHashMap);
 
-            // Apache
-            substringMatcher(licenseFamilyCategory: "AL   ",
-                             licenseFamilyName:     "Apache") {
-               // Apache license (ES)
-               pattern(substring: "Licensed to Elasticsearch under one or more contributor")
-            }
-
-            // SPDX
-            substringMatcher(licenseFamilyCategory: "SPDX ",
-                licenseFamilyName:     "SPDX") {
-                // Apache license (OpenSearch)
-                pattern(substring: "SPDX-License-Identifier: Apache-2.0")
-                pattern(substring: "Copyright OpenSearch Contributors.")
-            }
-
-            // Generated resources
-            substringMatcher(licenseFamilyCategory: "GEN  ",
-                             licenseFamilyName:     "Generated") {
-               // parsers generated by antlr
-               pattern(substring: "ANTLR GENERATED CODE")
-            }
-
-            // Vendored Code
-            substringMatcher(licenseFamilyCategory: "VEN  ",
-                licenseFamilyName:     "Vendored") {
-                pattern(substring: "@notice")
-            }
-
-            // license types added by the project
-            for (Map.Entry<String, String[]> additional : additionalLicenses.entrySet()) {
-                String category = additional.getKey().substring(0, 5)
-                String family = additional.getKey().substring(5)
-                substringMatcher(licenseFamilyCategory: category,
-                                 licenseFamilyName: family) {
-                    pattern(substring: additional.getValue())
+        for (FileCollection dirSet : javaFiles) {
+            for (File file: dirSet) {
+                var ratDoc = new FileDocument(file)
+                var detectedLicenseFamilyName = null
+                var detectedLicenseCodename = null
+                for (Map.Entry<String, ILicense> entry: licenseHashMap.entrySet()) {
+                    try (Reader reader = ratDoc.reader()) {
+                        var worker = new HeaderCheckWorker(reader, HeaderCheckWorker.DEFAULT_NUMBER_OF_RETAINED_HEADER_LINES, entry.getValue(), ratDoc)
+                        worker.read()
+                        detectedLicenseFamilyName = ratDoc.getMetaData().get(MetaData.RAT_URL_LICENSE_FAMILY_NAME).value
+                        if (!detectedLicenseFamilyName.equals("Unknown license")) {
+                            detectedLicenseCodename = entry.getKey()
+                            break;
+                        }
+                    }
                 }
-            }
-
-            // approved categories
-            for (String licenseFamily : approvedLicenses) {
-                approvedLicense(familyName: licenseFamily)
+                var sourceFilePath = file.getCanonicalPath()
+                if (disapprovedLicenses.contains(detectedLicenseFamilyName)) {
+                    licenseStats.computeIfAbsent('DISAPPROVED', k -> new ArrayList<>()).add("(" + detectedLicenseCodename + ") " + sourceFilePath)
+                } else if (detectedLicenseFamilyName.equals("Unknown license")) {
+                    licenseStats.computeIfAbsent('MISSING/UNKNOWN', k -> new ArrayList<>()).add(sourceFilePath)
+                }
             }
         }
 
         // check the license file for any errors, this should be fast.
-        boolean zeroUnknownLicenses = false
-        boolean foundProblemsWithFiles = false
-        reportFile.eachLine('UTF-8') { line ->
-            if (line.startsWith("0 Unknown Licenses")) {
-                zeroUnknownLicenses = true
-            }
+        boolean hasDisapprovedLicenses = licenseStats.containsKey('DISAPPROVED') && licenseStats.get('DISAPPROVED').size() > 0
+        boolean hasUnknownLicenses = licenseStats.containsKey('MISSING/UNKNOWN') && licenseStats.get('MISSING/UNKNOWN').size() > 0
 
-            if (line.startsWith(" !")) {
-                foundProblemsWithFiles = true
-            }
-        }
-
-        if (zeroUnknownLicenses == false || foundProblemsWithFiles) {
-            // print the unapproved license section, usually its all you need to fix problems.
-            int sectionNumber = 0
-            reportFile.eachLine('UTF-8') { line ->
-                if (line.startsWith("*******************************")) {
-                    sectionNumber++
-                } else {
-                    if (sectionNumber == 2) {
-                        logger.error(line)
-                    }
+        if (hasDisapprovedLicenses || hasUnknownLicenses)  {
+            for (Map.Entry<String, List<String>> entry: licenseStats.entrySet()) {
+                for (String line: entry.getValue()) {
+                    logger.error(entry.getKey() + " " + line)
                 }
             }
-            throw new IllegalStateException("License header problems were found! Full details: " + reportFile.absolutePath)
+            throw new IllegalStateException("License header problems were found!")
         }
     }
 }
