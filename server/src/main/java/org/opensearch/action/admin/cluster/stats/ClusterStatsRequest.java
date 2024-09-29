@@ -39,10 +39,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A request to get cluster level stats.
@@ -52,8 +50,8 @@ import java.util.stream.Collectors;
 @PublicApi(since = "1.0.0")
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
-    private final Set<String> requestedMetrics = new HashSet<>();
-    private final Set<String> indexMetricsRequested = new HashSet<>();
+    private final Set<Metric> requestedMetrics = new HashSet<>();
+    private final Set<IndexMetric> indexMetricsRequested = new HashSet<>();
     private Boolean applyMetricFiltering = false;
 
     public ClusterStatsRequest(StreamInput in) throws IOException {
@@ -63,8 +61,18 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             applyMetricFiltering = in.readOptionalBoolean();
-            requestedMetrics.addAll(in.readStringList());
-            indexMetricsRequested.addAll(in.readStringList());
+            final long longMetricsFlags = in.readLong();
+            for (Metric metric : Metric.values()) {
+                if ((longMetricsFlags & (1 << metric.getIndex())) != 0) {
+                    requestedMetrics.add(metric);
+                }
+            }
+            final long longIndexMetricFlags = in.readLong();
+            for (IndexMetric indexMetric : IndexMetric.values()) {
+                if ((longIndexMetricFlags & (1 << indexMetric.getIndex())) != 0) {
+                    indexMetricsRequested.add(indexMetric);
+                }
+            }
         }
     }
 
@@ -97,10 +105,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     /**
      * Add Metric
      */
-    public ClusterStatsRequest addMetric(String metric) {
-        if (Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal Metric: " + metric);
-        }
+    public ClusterStatsRequest addMetric(Metric metric) {
         requestedMetrics.add(metric);
         return this;
     }
@@ -108,31 +113,20 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     /**
      * Get the names of requested metrics
      */
-    public Set<String> requestedMetrics() {
+    public Set<Metric> requestedMetrics() {
         return new HashSet<>(requestedMetrics);
     }
 
     /**
      * Add IndexMetric
      */
-    public ClusterStatsRequest addIndexMetric(String indexMetric) {
-        if (IndexMetrics.allIndicesMetrics().contains(indexMetric) == false) {
-            throw new IllegalStateException("Used an illegal index metric: " + indexMetric);
-        }
+    public ClusterStatsRequest addIndexMetric(IndexMetric indexMetric) {
         indexMetricsRequested.add(indexMetric);
         return this;
     }
 
-    public Set<String> indicesMetrics() {
+    public Set<IndexMetric> indicesMetrics() {
         return new HashSet<>(indexMetricsRequested);
-    }
-
-    public void clearRequestedMetrics() {
-        requestedMetrics.clear();
-    }
-
-    public void clearIndicesMetrics() {
-        indexMetricsRequested.clear();
     }
 
     @Override
@@ -143,8 +137,16 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalBoolean(applyMetricFiltering);
-            out.writeStringArray(requestedMetrics.toArray(new String[0]));
-            out.writeStringArray(indexMetricsRequested.toArray(new String[0]));
+            long longMetricFlags = 0;
+            for (Metric metric : requestedMetrics) {
+                longMetricFlags |= (1 << metric.getIndex());
+            }
+            out.writeLong(longMetricFlags);
+            long longIndexMetricFlags = 0;
+            for (IndexMetric indexMetric : indexMetricsRequested) {
+                longIndexMetricFlags |= (1 << indexMetric.getIndex());
+            }
+            out.writeLong(longIndexMetricFlags);
         }
     }
 
@@ -154,33 +156,32 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      */
     @PublicApi(since = "3.0.0")
     public enum Metric {
-        OS("os"),
-        PROCESS("process"),
-        JVM("jvm"),
-        FS("fs"),
-        PLUGINS("plugins"),
-        INGEST("ingest"),
-        NETWORK_TYPES("network_types"),
-        DISCOVERY_TYPES("discovery_types"),
-        PACKAGING_TYPES("packaging_types"),
-        INDICES("indices");
+        OS("os", 0),
+        JVM("jvm", 1),
+        FS("fs", 2),
+        PROCESS("process", 3),
+        INGEST("ingest", 4),
+        PLUGINS("plugins", 5),
+        NETWORK_TYPES("network_types", 6),
+        DISCOVERY_TYPES("discovery_types", 7),
+        PACKAGING_TYPES("packaging_types", 8),
+        INDICES("indices", 9);
 
         private String metricName;
 
-        Metric(String name) {
+        private int index;
+
+        Metric(String name, int index) {
             this.metricName = name;
+            this.index = index;
         }
 
         public String metricName() {
             return this.metricName;
         }
 
-        public static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
-        }
-
-        public boolean containedIn(Set<String> metricNames) {
-            return metricNames.contains(this.metricName());
+        public int getIndex() {
+            return index;
         }
 
     }
@@ -190,33 +191,32 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      * from the cluster stats endpoint.
      */
     @PublicApi(since = "3.0.0")
-    public enum IndexMetrics {
-        SHARDS("shards"),
-        DOCS("docs"),
-        STORE("store"),
-        FIELDDATA("fielddata"),
-        QUERY_CACHE("query_cache"),
-        COMPLETION("completion"),
-        SEGMENTS("segments"),
-        ANALYSIS("analysis"),
-        MAPPINGS("mappings");
+    public enum IndexMetric {
+        SHARDS("shards", 0),
+        DOCS("docs", 1),
+        STORE("store", 2),
+        FIELDDATA("fielddata", 3),
+        QUERY_CACHE("query_cache", 4),
+        COMPLETION("completion", 5),
+        SEGMENTS("segments", 6),
+        ANALYSIS("analysis", 7),
+        MAPPINGS("mappings", 8);
 
         private String metricName;
 
-        IndexMetrics(String name) {
+        private int index;
+
+        IndexMetric(String name, int index) {
             this.metricName = name;
+            this.index = index;
         }
 
         public String metricName() {
             return this.metricName;
         }
 
-        public boolean containedIn(Set<String> metricNames) {
-            return metricNames.contains(this.metricName());
-        }
-
-        public static Set<String> allIndicesMetrics() {
-            return Arrays.stream(values()).map(IndexMetrics::metricName).collect(Collectors.toSet());
+        public int getIndex() {
+            return this.index;
         }
     }
 }
