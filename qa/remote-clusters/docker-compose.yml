@@ -67,9 +67,6 @@ services:
       timeout: 2s
       retries: 5
   haproxy:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: haproxy:2.1.2
     ports:
       - "9600"
@@ -78,7 +75,7 @@ services:
     depends_on:
       - opensearch-2
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "9600"]
+      test: ["CMD", "timeout", "1", "bash", "-c", "cat < /dev/null > /dev/tcp/localhost/9600"]
       interval: 2s
       timeout: 1s
       retries: 5
