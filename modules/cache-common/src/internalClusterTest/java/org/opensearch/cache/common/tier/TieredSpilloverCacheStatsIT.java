@@ -45,7 +45,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 
 // Use a single data node to simplify accessing cache stats across different shards.
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
+public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(TieredSpilloverCachePlugin.class, TieredSpilloverCacheIT.MockDiskCachePlugin.class);
@@ -63,7 +63,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -116,7 +116,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -196,7 +196,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -237,7 +237,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING, TieredSpilloverCacheIT.getNumberOfSegments()))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -288,7 +288,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING, TieredSpilloverCacheIT.getNumberOfSegments()))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -349,7 +349,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(heap_cache_size_per_segment * numberOfSegments + "B", numberOfSegments))
+                .put(defaultSettings(heap_cache_size_per_segment * numberOfSegments + "B", numberOfSegments))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)

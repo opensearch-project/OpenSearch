@@ -22,12 +22,8 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
-import org.opensearch.common.cache.settings.CacheSettings;
-import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
-import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesRequestCache;
@@ -50,7 +46,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
-import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -59,45 +54,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.hamcrest.Matchers.greaterThan;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
-public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
+public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(TieredSpilloverCachePlugin.class, MockDiskCachePlugin.class);
-    }
-
-    static Settings defaultSettings(String onHeapCacheSizeInBytesOrPercentage, int numberOfSegments) {
-        return Settings.builder()
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
-            .put(
-                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
-            )
-            .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_NAME.getConcreteSettingForNamespace(
-                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                ).getKey(),
-                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
-            )
-            .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
-                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                ).getKey(),
-                MockDiskCache.MockDiskCacheFactory.NAME
-            )
-            .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(
-                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                ).getKey(),
-                numberOfSegments
-            )
-            .put(
-                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
-                    .getKey(),
-                onHeapCacheSizeInBytesOrPercentage
-            )
-            .build();
     }
 
     public void testPluginsAreInstalled() {
@@ -572,10 +533,6 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
 
     private RequestCacheStats getRequestCacheStats(Client client, String indexName) {
         return client.admin().indices().prepareStats(indexName).setRequestCache(true).get().getTotal().getRequestCache();
-    }
-
-    public static int getNumberOfSegments() {
-        return randomFrom(1, 2, 4, 8, 16, 64, 128, 256);
     }
 
     public static class MockDiskCachePlugin extends Plugin implements CachePlugin {
