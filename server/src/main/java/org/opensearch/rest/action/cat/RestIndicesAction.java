@@ -252,13 +252,7 @@ public class RestIndicesAction extends AbstractListAction {
         if (isRequestLimitCheckSupported() && Objects.nonNull(clusterStateResponse) && Objects.nonNull(clusterStateResponse.getState())) {
             int limit = responseLimitSettings.getCatIndicesResponseLimit();
             if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getMetadata(), INDICES, limit)) {
-                listener.onFailure(
-                    new ResponseLimitBreachedException(
-                        "Too many indices requested. Can not request indices beyond {" + limit + "}",
-                        limit,
-                        INDICES
-                    )
-                );
+                listener.onFailure(new ResponseLimitBreachedException("Too many indices requested.", limit, INDICES));
             }
         }
     }

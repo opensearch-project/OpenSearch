@@ -70,6 +70,13 @@ public class ResponseLimitSettingsTests extends OpenSearchTestCase {
         ResponseLimitSettings.isResponseLimitBreached(clusterState.getMetadata(), null, 4);
     }
 
+    public void testIsResponseLimitBreachedForCatIndicesWithNoSettingPassedExpectNotBreached() {
+        // Don't set setting
+        final Settings settings = Settings.builder().build();
+        final boolean breached = isBreachedForIndices(settings);
+        assertFalse(breached);
+    }
+
     public void testIsResponseLimitBreachedForCatIndicesWithSettingDisabledExpectNotBreached() {
         // Don't enable limit
         final Settings settings = Settings.builder().put(CAT_INDICES_RESPONSE_LIMIT_SETTING.getKey(), -1).build();
@@ -110,6 +117,13 @@ public class ResponseLimitSettingsTests extends OpenSearchTestCase {
         assertFalse(breached);
     }
 
+    public void testIsResponseLimitBreachedForCatShardsWithNoSettingPassedExpectNotBreached() {
+        // Don't set setting
+        final Settings settings = Settings.builder().build();
+        final boolean breached = isBreachedForShards(settings);
+        assertFalse(breached);
+    }
+
     private static boolean isBreachedForShards(Settings settings) {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
@@ -143,6 +157,13 @@ public class ResponseLimitSettingsTests extends OpenSearchTestCase {
         assertFalse(breached);
     }
 
+    public void testIsResponseLimitBreachedForCatSegmentsWithNoSettingPassedExpectNotBreached() {
+        // Don't set setting
+        final Settings settings = Settings.builder().build();
+        final boolean breached = isBreachedForSegments(settings);
+        assertFalse(breached);
+    }
+
     private static boolean isBreachedForSegments(Settings settings) {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
@@ -164,7 +185,7 @@ public class ResponseLimitSettingsTests extends OpenSearchTestCase {
     }
 
     public void testIsResponseLimitBreachedForCatSegmentsWithSettingEnabledExpectNotBreached() {
-        // Set limit of 3 indices
+        // Set limit of 5 indices
         final Settings settings = Settings.builder().put(CAT_SEGMENTS_RESPONSE_LIMIT_SETTING.getKey(), 5).build();
         final boolean breached = isBreachedForSegments(settings);
         assertFalse(breached);

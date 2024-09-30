@@ -130,11 +130,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         if (isRequestLimitCheckSupported() && Objects.nonNull(clusterStateResponse) && Objects.nonNull(clusterStateResponse.getState())) {
             int limit = responseLimitSettings.getCatSegmentsResponseLimit();
             if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getRoutingTable(), INDICES, limit)) {
-                throw new ResponseLimitBreachedException(
-                    "Segments from too many indices requested. Can not request indices beyond {" + limit + "}",
-                    limit,
-                    INDICES
-                );
+                throw new ResponseLimitBreachedException("Segments from too many indices requested.", limit, INDICES);
             }
         }
     }

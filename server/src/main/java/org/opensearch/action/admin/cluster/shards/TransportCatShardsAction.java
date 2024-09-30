@@ -132,13 +132,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
             && Objects.nonNull(clusterStateResponse.getState())) {
             int limit = responseLimitSettings.getCatShardsResponseLimit();
             if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getRoutingTable(), SHARDS, limit)) {
-                listener.onFailure(
-                    new ResponseLimitBreachedException(
-                        "Too many shards requested. Can not request shards beyond {" + limit + "}",
-                        limit,
-                        SHARDS
-                    )
-                );
+                listener.onFailure(new ResponseLimitBreachedException("Too many shards requested.", limit, SHARDS));
             }
         }
     }
