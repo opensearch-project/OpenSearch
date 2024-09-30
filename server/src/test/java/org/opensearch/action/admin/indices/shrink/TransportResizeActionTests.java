@@ -178,12 +178,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         IllegalArgumentException resizeError = expectThrows(IllegalArgumentException.class, () -> {
             ResizeRequest req = new ResizeRequest("target", "source");
             req.getTargetIndexRequest().settings(Settings.builder().put("index.replication.type", "SEGMENT"));
-            ClusterState clusterState = createClusterState(
-                "source",
-                8,
-                1,
-                Settings.builder().put("index.blocks.write", true).build()
-            );
+            ClusterState clusterState = createClusterState("source", 8, 1, Settings.builder().put("index.blocks.write", true).build());
             TransportResizeAction.prepareCreateIndexRequest(
                 req,
                 clusterState,
