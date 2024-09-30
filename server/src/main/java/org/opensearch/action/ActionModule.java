@@ -464,6 +464,7 @@ import org.opensearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.rest.action.list.RestListAction;
 import org.opensearch.rest.action.list.RestShardsListAction;
+import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
@@ -989,6 +990,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestTemplatesAction());
 
         // LIST API
+        registerHandler.accept(new RestIndicesListAction());
         registerHandler.accept(new RestShardsListAction());
 
         // Point in time API

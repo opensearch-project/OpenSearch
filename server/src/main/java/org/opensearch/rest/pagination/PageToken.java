@@ -55,4 +55,5 @@ public class PageToken {
         String paginatedEntity = in.readString();
         return new PageToken(nextToken, paginatedEntity);
     }
+
 }
