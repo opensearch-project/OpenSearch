@@ -30,6 +30,9 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -49,6 +52,7 @@ import java.util.stream.Collectors;
 public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
     private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
+    private static HashMap<String, List<Long>> pinnedEntityToTimestampsMap = new HashMap<>();
     public static final String PINNED_TIMESTAMPS_PATH_TOKEN = "pinned_timestamps";
     public static final String PINNED_TIMESTAMPS_FILENAME_SEPARATOR = "__";
 
@@ -216,6 +220,16 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         return -1;
     }
 
+    private String getEntityFromBlobName(String blobName) {
+        String[] blobNameTokens = blobName.split(PINNED_TIMESTAMPS_FILENAME_SEPARATOR);
+        if (blobNameTokens.length < 2) {
+            String errorMessage = "Pinned timestamps blob name contains invalid format: " + blobName;
+            logger.error(errorMessage);
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return String.join(PINNED_TIMESTAMPS_FILENAME_SEPARATOR, Arrays.copyOfRange(blobNameTokens, 0, blobNameTokens.length - 1));
+    }
+
     /**
      * Unpins a timestamp from the remote store.
      *
@@ -262,6 +276,10 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         return pinnedTimestampsSet;
     }
 
+    public static HashMap<String, List<Long>> getPinnedEntities() {
+        return pinnedEntityToTimestampsMap;
+    }
+
     /**
      * Inner class for asynchronously updating the pinned timestamp set.
      */
@@ -290,8 +308,23 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                     .map(RemoteStorePinnedTimestampService.this::getTimestampFromBlobName)
                     .filter(timestamp -> timestamp != -1)
                     .collect(Collectors.toSet());
+
                 logger.debug("Fetched pinned timestamps from remote store: {} - {}", triggerTimestamp, pinnedTimestamps);
                 pinnedTimestampsSet = new Tuple<>(triggerTimestamp, pinnedTimestamps);
+
+                pinnedEntityToTimestampsMap = new HashMap<>();
+                pinnedEntityToTimestampsMap.putAll(
+                    pinnedTimestampList.keySet()
+                        .stream()
+                        .collect(Collectors.toMap(RemoteStorePinnedTimestampService.this::getEntityFromBlobName, blobName -> {
+                            long timestamp = RemoteStorePinnedTimestampService.this.getTimestampFromBlobName(blobName);
+                            return Collections.singletonList(timestamp);
+                        }, (existingList, newList) -> {
+                            List<Long> mergedList = new ArrayList<>(existingList);
+                            mergedList.addAll(newList);
+                            return mergedList;
+                        }))
+                );
             } catch (Throwable t) {
                 logger.error("Exception while fetching pinned timestamp details", t);
             }
