@@ -39,6 +39,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -320,6 +321,52 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertEquals(msg, OsStats.calculatePercentage(free, total), response.nodesStats.getOs().getMem().getFreePercent());
     }
 
+    public void testValuesSmokeScreenWithMetricFilter() throws IOException, ExecutionException, InterruptedException {
+        internalCluster().startNodes(randomIntBetween(1, 3));
+        index("test1", "type", "1", "f", "f");
+
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .computeAllMetrics(false)
+            .requestMetrics(Set.of(Metric.values()))
+            .indexMetrics(Set.of(IndexMetric.values()))
+            .get();
+        String msg = response.toString();
+        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
+        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
+
+        assertThat(msg, response.nodesStats.getFs().getTotal().getBytes(), Matchers.greaterThan(0L));
+        assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
+
+        assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
+        assertThat(msg, response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
+
+        assertThat(msg, response.nodesStats.getProcess().count, Matchers.greaterThan(0));
+        // 0 happens when not supported on platform
+        assertThat(msg, response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
+        // these can be -1 if not supported on platform
+        assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().addMetric(OS.metricName()).get();
+        long total = 0;
+        long free = 0;
+        long used = 0;
+        for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
+            total += nodeStats.getOs().getMem().getTotal().getBytes();
+            free += nodeStats.getOs().getMem().getFree().getBytes();
+            used += nodeStats.getOs().getMem().getUsed().getBytes();
+        }
+        assertEquals(msg, free, response.nodesStats.getOs().getMem().getFree().getBytes());
+        assertEquals(msg, total, response.nodesStats.getOs().getMem().getTotal().getBytes());
+        assertEquals(msg, used, response.nodesStats.getOs().getMem().getUsed().getBytes());
+        assertEquals(msg, OsStats.calculatePercentage(used, total), response.nodesStats.getOs().getMem().getUsedPercent());
+        assertEquals(msg, OsStats.calculatePercentage(free, total), response.nodesStats.getOs().getMem().getFreePercent());
+    }
+
     public void testAllocatedProcessors() throws Exception {
         // start one node with 7 processors.
         internalCluster().startNode(Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
@@ -360,6 +407,9 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean())
+            .computeAllMetrics(randomBoolean())
+            .requestMetrics(Set.of(Metric.INDICES))
+            .indexMetrics(Set.of(IndexMetric.MAPPINGS))
             .get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
@@ -518,7 +568,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean());
-        assertFalse(clusterStatsRequestBuilder.request().applyMetricFiltering());
+        assertTrue(clusterStatsRequestBuilder.request().computeAllMetrics());
 
         ClusterStatsResponse response = clusterStatsRequestBuilder.get();
         assertNotNull(response.getNodesStats());
@@ -528,7 +578,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean())
-            .applyMetricFiltering(false)
+            .computeAllMetrics(true)
             .requestMetrics(Set.of(Metric.FS, Metric.JVM, Metric.PLUGINS, Metric.OS))
             .get();
 
@@ -578,7 +628,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean());
-        assertFalse(clusterStatsRequestBuilder.request().applyMetricFiltering());
+        assertTrue(clusterStatsRequestBuilder.request().computeAllMetrics());
 
         ClusterStatsResponse response = clusterStatsRequestBuilder.get();
         assertNotNull(response);
@@ -590,7 +640,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(ClusterStatsNodes.NODE_STATS_METRICS)
-            .applyMetricFiltering(true)
+            .computeAllMetrics(false)
             .get();
         assertNotNull(statsResponseWithAllNodeStatsMetrics);
         assertNotNull(statsResponseWithAllNodeStatsMetrics.getNodesStats());
@@ -615,7 +665,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(Set.of(Metric.PLUGINS, Metric.INDICES))
-            .applyMetricFiltering(true)
+            .computeAllMetrics(false)
             .get();
         assertNotNull(statsResponseWithIndicesRequestMetrics);
         assertNotNull(statsResponseWithIndicesRequestMetrics.getNodesStats());
@@ -633,12 +683,14 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        IndexRequest indexRequest = new IndexRequest("test1").id("doc_id").source("{\"test_type\" : \"metrics_filter\"}");
+        client().index(indexRequest);
 
         ClusterStatsRequestBuilder clusterStatsRequestBuilder = client().admin()
             .cluster()
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean());
-        assertFalse(clusterStatsRequestBuilder.request().applyMetricFiltering());
+        assertTrue(clusterStatsRequestBuilder.request().computeAllMetrics());
 
         ClusterStatsResponse response = clusterStatsRequestBuilder.get();
         assertNotNull(response);
@@ -651,7 +703,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(Set.of(Metric.INDICES))
             .indexMetrics(Set.of(IndexMetric.MAPPINGS, IndexMetric.ANALYSIS))
-            .applyMetricFiltering(true)
+            .computeAllMetrics(false)
             .get();
         assertNotNull(statsResponseWithSpecificIndicesMetrics);
         assertNull(statsResponseWithSpecificIndicesMetrics.getNodesStats());
@@ -666,7 +718,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(Set.of(Metric.INDICES))
             .indexMetrics(Set.of(IndexMetric.values()))
-            .applyMetricFiltering(true)
+            .computeAllMetrics(false)
             .get();
         assertNotNull(statsResponseWithAllIndicesMetrics);
         assertNull(statsResponseWithAllIndicesMetrics.getNodesStats());
@@ -688,6 +740,32 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getQueryCache());
         assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getCompletion());
         assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getStore());
+    }
+
+    public void testClusterStatsWithIndexMetricWithDocsFilter() throws IOException {
+        internalCluster().startNode();
+        createIndex("test1");
+
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(2)).setSource("field2", "value2").execute().actionGet();
+        refreshAndWaitForReplication();
+
+        ClusterStatsResponse statsResponseWithAllIndicesMetrics = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.INDICES))
+            .indexMetrics(Set.of(IndexMetric.DOCS))
+            .computeAllMetrics(true)
+            .get();
+        assertNotNull(statsResponseWithAllIndicesMetrics);
+        assertNull(statsResponseWithAllIndicesMetrics.getNodesStats());
+        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats());
+        assertNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getShards());
+        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs());
+        assertEquals(2, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getCount());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getDeleted());
+        assertTrue(statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getAverageSizeInBytes() > 0);
     }
 
     private Map<String, Integer> getExpectedCounts(

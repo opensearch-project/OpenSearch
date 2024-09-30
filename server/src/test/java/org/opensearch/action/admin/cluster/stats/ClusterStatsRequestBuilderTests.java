@@ -49,9 +49,9 @@ public class ClusterStatsRequestBuilderTests extends OpenSearchTestCase {
             this.testClient,
             ClusterStatsAction.INSTANCE
         );
-        assertFalse(clusterStatsRequestBuilder.request().applyMetricFiltering());
-        clusterStatsRequestBuilder.applyMetricFiltering(true);
-        assertTrue(clusterStatsRequestBuilder.request().applyMetricFiltering());
+        assertTrue(clusterStatsRequestBuilder.request().computeAllMetrics());
+        clusterStatsRequestBuilder.computeAllMetrics(false);
+        assertFalse(clusterStatsRequestBuilder.request().computeAllMetrics());
     }
 
     public void testRequestedMetrics() {
@@ -59,9 +59,9 @@ public class ClusterStatsRequestBuilderTests extends OpenSearchTestCase {
             this.testClient,
             ClusterStatsAction.INSTANCE
         );
-        clusterStatsRequestBuilder.applyMetricFiltering(true);
+        clusterStatsRequestBuilder.computeAllMetrics(false);
         clusterStatsRequestBuilder.requestMetrics(Set.of(Metric.OS, Metric.JVM));
-        assertTrue(clusterStatsRequestBuilder.request().applyMetricFiltering());
+        assertFalse(clusterStatsRequestBuilder.request().computeAllMetrics());
         assertEquals(Set.of(Metric.OS, Metric.JVM), clusterStatsRequestBuilder.request().requestedMetrics());
     }
 
@@ -70,10 +70,10 @@ public class ClusterStatsRequestBuilderTests extends OpenSearchTestCase {
             this.testClient,
             ClusterStatsAction.INSTANCE
         );
-        clusterStatsRequestBuilder.applyMetricFiltering(true);
+        clusterStatsRequestBuilder.computeAllMetrics(false);
         clusterStatsRequestBuilder.requestMetrics(Set.of(Metric.INDICES, Metric.JVM));
         clusterStatsRequestBuilder.indexMetrics(Set.of(IndexMetric.MAPPINGS, IndexMetric.ANALYSIS));
-        assertTrue(clusterStatsRequestBuilder.request().applyMetricFiltering());
+        assertFalse(clusterStatsRequestBuilder.request().computeAllMetrics());
         assertEquals(Set.of(Metric.INDICES, Metric.JVM), clusterStatsRequestBuilder.request().requestedMetrics());
         assertEquals(Set.of(IndexMetric.MAPPINGS, IndexMetric.ANALYSIS), clusterStatsRequestBuilder.request().indicesMetrics());
     }

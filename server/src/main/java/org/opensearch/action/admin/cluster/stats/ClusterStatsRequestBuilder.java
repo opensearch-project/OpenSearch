@@ -61,8 +61,8 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
-    public final ClusterStatsRequestBuilder applyMetricFiltering(boolean applyMetricFiltering) {
-        request.applyMetricFiltering(applyMetricFiltering);
+    public final ClusterStatsRequestBuilder computeAllMetrics(boolean applyMetricFiltering) {
+        request.computeAllMetrics(applyMetricFiltering);
         return this;
     }
 
