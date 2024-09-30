@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -92,11 +93,12 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public GatewayAllocator(
         RerouteService rerouteService,
         TransportNodesListGatewayStartedShards startedAction,
-        TransportNodesListShardStoreMetadata storeAction
+        TransportNodesListShardStoreMetadata storeAction,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.rerouteService = rerouteService;
-        this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
-        this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
+        this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction, clusterManagerMetrics);
+        this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction, clusterManagerMetrics);
     }
 
     @Override
@@ -251,9 +253,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             String type,
             ShardId shardId,
             String customDataPath,
-            Lister<? extends BaseNodesResponse<T>, T> action
+            Lister<? extends BaseNodesResponse<T>, T> action,
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super(logger, type, shardId, customDataPath, action);
+            super(logger, type, shardId, customDataPath, action, clusterManagerMetrics);
         }
 
         @Override
@@ -274,9 +277,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     class InternalPrimaryShardAllocator extends PrimaryShardAllocator {
 
         private final TransportNodesListGatewayStartedShards startedAction;
+        private final ClusterManagerMetrics clusterManagerMetrics;
 
-        InternalPrimaryShardAllocator(TransportNodesListGatewayStartedShards startedAction) {
+        InternalPrimaryShardAllocator(TransportNodesListGatewayStartedShards startedAction, ClusterManagerMetrics clusterManagerMetrics) {
             this.startedAction = startedAction;
+            this.clusterManagerMetrics = clusterManagerMetrics;
         }
 
         @Override
@@ -291,7 +296,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     "shard_started",
                     shardId,
                     IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                    startedAction
+                    startedAction,
+                    clusterManagerMetrics
                 )
             );
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetch.fetchData(
@@ -313,9 +319,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     class InternalReplicaShardAllocator extends ReplicaShardAllocator {
 
         private final TransportNodesListShardStoreMetadata storeAction;
+        private final ClusterManagerMetrics clusterManagerMetrics;
 
-        InternalReplicaShardAllocator(TransportNodesListShardStoreMetadata storeAction) {
+        InternalReplicaShardAllocator(TransportNodesListShardStoreMetadata storeAction, ClusterManagerMetrics clusterManagerMetrics) {
             this.storeAction = storeAction;
+            this.clusterManagerMetrics = clusterManagerMetrics;
         }
 
         @Override
@@ -330,7 +338,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     "shard_store",
                     shard.shardId(),
                     IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                    storeAction
+                    storeAction,
+                    clusterManagerMetrics
                 )
             );
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> shardStores = fetch.fetchData(
