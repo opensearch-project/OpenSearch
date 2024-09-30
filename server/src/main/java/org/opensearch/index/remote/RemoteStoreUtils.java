@@ -476,7 +476,7 @@ public class RemoteStoreUtils {
         Set<Long> newPinnedTimestamps = new TreeSet<>(Collections.reverseOrder());
         for (Long pinnedTimestamp : pinnedTimestampSet) {
             String cachedFile = metadataFilePinnedTimestampMap.get(pinnedTimestamp);
-            if (cachedFile != null) {
+            if (cachedFile != null && metadataFiles.contains(cachedFile)) {
                 implicitLockedFiles.add(cachedFile);
             } else {
                 newPinnedTimestamps.add(pinnedTimestamp);
