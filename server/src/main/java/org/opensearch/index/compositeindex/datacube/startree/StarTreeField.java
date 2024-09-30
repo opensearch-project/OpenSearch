@@ -42,7 +42,7 @@ public class StarTreeField implements ToXContent {
         this.starTreeConfig = starTreeConfig;
         dimensionNames = new ArrayList<>();
         for (Dimension dimension : dimensions) {
-            dimensionNames.addAll(dimension.getDimensionFieldsNames());
+            dimensionNames.addAll(dimension.getSubDimensionNames());
         }
         metricNames = new ArrayList<>();
         for (Metric metric : metrics) {

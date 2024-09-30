@@ -28,7 +28,7 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @opensearch.experimental
  */
-public enum ExtendedDateTimeUnit implements DateTimeUnitRounding {
+public enum DataCubeDateTimeUnit implements DateTimeUnitRounding {
     HALF_HOUR_OF_DAY("half-hour") {
         @Override
         public long roundFloor(long utcMillis) {
@@ -42,19 +42,19 @@ public enum ExtendedDateTimeUnit implements DateTimeUnitRounding {
         }
     };
 
-    public static final Map<String, ExtendedDateTimeUnit> DATE_FIELD_UNITS;
+    public static final Map<String, DataCubeDateTimeUnit> DATE_FIELD_UNITS;
     static {
-        Map<String, ExtendedDateTimeUnit> dateFieldUnits = new HashMap<>();
-        dateFieldUnits.put("30m", ExtendedDateTimeUnit.HALF_HOUR_OF_DAY);
-        dateFieldUnits.put("half-hour", ExtendedDateTimeUnit.HALF_HOUR_OF_DAY);
-        dateFieldUnits.put("15m", ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY);
-        dateFieldUnits.put("quarter-hour", ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY);
+        Map<String, DataCubeDateTimeUnit> dateFieldUnits = new HashMap<>();
+        dateFieldUnits.put("30m", DataCubeDateTimeUnit.HALF_HOUR_OF_DAY);
+        dateFieldUnits.put("half-hour", DataCubeDateTimeUnit.HALF_HOUR_OF_DAY);
+        dateFieldUnits.put("15m", DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY);
+        dateFieldUnits.put("quarter-hour", DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY);
         DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
     }
 
     private final String shortName;
 
-    ExtendedDateTimeUnit(String shortName) {
+    DataCubeDateTimeUnit(String shortName) {
         this.shortName = shortName;
     }
 

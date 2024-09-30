@@ -27,9 +27,9 @@ import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchHit;
@@ -392,7 +392,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
                     List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
                         new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-                        ExtendedDateTimeUnit.HALF_HOUR_OF_DAY
+                        DataCubeDateTimeUnit.HALF_HOUR_OF_DAY
                     );
                     for (int i = 0; i < dateDim.getSortedCalendarIntervals().size(); i++) {
                         assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
@@ -428,8 +428,8 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
                     DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
                     List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
-                        ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY,
-                        ExtendedDateTimeUnit.HALF_HOUR_OF_DAY,
+                        DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY,
+                        DataCubeDateTimeUnit.HALF_HOUR_OF_DAY,
                         new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
                     );
                     for (int i = 0; i < dateDim.getIntervals().size(); i++) {
@@ -466,7 +466,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
                     DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
                     List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
-                        ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY,
+                        DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY,
                         new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
                     );
                     for (int i = 0; i < dateDim.getIntervals().size(); i++) {
@@ -637,7 +637,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
                     List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
                         new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-                        ExtendedDateTimeUnit.HALF_HOUR_OF_DAY
+                        DataCubeDateTimeUnit.HALF_HOUR_OF_DAY
                     );
                     for (int i = 0; i < expectedTimeUnits.size(); i++) {
                         assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getIntervals().get(i).shortName());

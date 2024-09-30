@@ -59,7 +59,7 @@ public class StarTreeTestUtils {
             int dimIndex = 0;
             for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
                 Dimension dimension = dimensionsSplitOrder.get(i);
-                for (String name : dimension.getDimensionFieldsNames()) {
+                for (String name : dimension.getSubDimensionNames()) {
                     dimensionReaders[dimIndex] = new SequentialDocValuesIterator(starTreeValues.getDimensionValuesIterator(name));
                     dimIndex++;
                 }

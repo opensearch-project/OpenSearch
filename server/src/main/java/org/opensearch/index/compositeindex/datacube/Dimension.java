@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Base interface for data-cube dimensions
@@ -30,17 +31,15 @@ public interface Dimension extends ToXContent {
     int getNumSubDimensions();
 
     /**
-     * Sets the dimension values in the provided array starting from the given index.
+     * Sets the dimension values with the consumer
      *
      * @param value   The value to be set
-     * @param dims  The dimensions array to set the values in
-     * @param index The starting index in the array
-     * @return The next available index in the array
+     * @param dimSetter  Consumer which sets the dimensions
      */
-    int setDimensionValues(Long value, Long[] dims, int index);
+    void setDimensionValues(final Long value, final Consumer<Long> dimSetter);
 
     /**
      * Returns the list of dimension fields that represent the dimension
      */
-    List<String> getDimensionFieldsNames();
+    List<String> getSubDimensionNames();
 }

@@ -55,9 +55,9 @@ import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNo
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.ContentPath;
@@ -1871,7 +1871,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
 
         List<String> dimensionNames = new ArrayList<>();
         for (Dimension dimension : dimensionsOrder) {
-            dimensionNames.addAll(dimension.getDimensionFieldsNames());
+            dimensionNames.addAll(dimension.getSubDimensionNames());
         }
         return dimensionNames;
 
@@ -4264,9 +4264,15 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
 
         compositeField = getStarTreeFieldWithDateDimension();
         SortedNumericStarTreeValuesIterator d1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList, docsWithField));
-        SortedNumericStarTreeValuesIterator d2sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList2, docsWithField2));
-        SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(metricsList, metricsWithField));
-        SortedNumericStarTreeValuesIterator m2sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(metricsList, metricsWithField));
+        SortedNumericStarTreeValuesIterator d2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(dimList2, docsWithField2)
+        );
+        SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
+        SortedNumericStarTreeValuesIterator m2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
             Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
@@ -4474,7 +4480,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         List<DateTimeUnitRounding> intervals = new ArrayList<>();
         intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR));
         intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
-        intervals.add(ExtendedDateTimeUnit.HALF_HOUR_OF_DAY);
+        intervals.add(DataCubeDateTimeUnit.HALF_HOUR_OF_DAY);
         Dimension d1 = new DateDimension("field1", intervals, DateFieldMapper.Resolution.MILLISECONDS);
         Dimension d2 = new NumericDimension("field3");
         Metric m1 = new Metric("field2", List.of(MetricStat.VALUE_COUNT, MetricStat.SUM));

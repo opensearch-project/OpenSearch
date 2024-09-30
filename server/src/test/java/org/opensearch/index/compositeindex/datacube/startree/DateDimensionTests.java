@@ -10,15 +10,16 @@ package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.opensearch.common.Rounding;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.index.compositeindex.datacube.DateDimension.DateTimeUnitComparator.ORDERED_DATE_TIME_UNIT;
 
@@ -26,7 +27,7 @@ public class DateDimensionTests extends OpenSearchTestCase {
     public void testDateDimension() {
         String field = "timestamp";
         List<DateTimeUnitRounding> intervals = Arrays.asList(
-            ExtendedDateTimeUnit.HALF_HOUR_OF_DAY,
+            DataCubeDateTimeUnit.HALF_HOUR_OF_DAY,
             new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR),
             new DateTimeUnitAdapter(Rounding.DateTimeUnit.YEAR_OF_CENTURY)
         );
@@ -50,9 +51,10 @@ public class DateDimensionTests extends OpenSearchTestCase {
         Long[] dims = new Long[4];
         Long testValue = 1609459200000L; // 2021-01-01 00:00:00 UTC
 
-        int nextIndex = dateDimension.setDimensionValues(testValue, dims, 0);
+        AtomicInteger dimIndex = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValue, value -> { dims[dimIndex.getAndIncrement()] = value; });
 
-        assertEquals(4, nextIndex);
+        assertEquals(4, dimIndex.get());
         assertEquals(1609459200000L, (long) dims[0]); // Hour rounded
         assertEquals(1609459200000L, (long) dims[1]); // Day rounded
         assertEquals(1609459200000L, (long) dims[2]); // Month rounded
@@ -62,42 +64,51 @@ public class DateDimensionTests extends OpenSearchTestCase {
 
     public void testSetDimensionValuesForHalfAndQuarterHour() {
         List<DateTimeUnitRounding> intervals = Arrays.asList(
-            ExtendedDateTimeUnit.HALF_HOUR_OF_DAY,
-            ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY
+            DataCubeDateTimeUnit.HALF_HOUR_OF_DAY,
+            DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY
         );
         DateDimension dateDimension = new DateDimension("timestamp", intervals, DateFieldMapper.Resolution.MILLISECONDS);
         Long[] dims = new Long[2];
         long testValue = 1724230620123L; // August 21, 2024 8:57:00.123 UTC
 
-        int nextIndex = dateDimension.setDimensionValues(testValue, dims, 0);
+        AtomicInteger dimIndex = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValue, value -> { dims[dimIndex.getAndIncrement()] = value; });
 
-        assertEquals(2, nextIndex);
+        assertEquals(2, dimIndex.get());
         assertEquals(1724229900000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:45:00 UTC
         assertEquals(1724229000000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
         assertEquals(2, dateDimension.getNumSubDimensions());
 
-        dims = new Long[2];
+        Long[] dims1 = new Long[2];
         testValue = 1724229899234L; // Wed, 21 Aug 2024 08:44:59 GMT
-        dateDimension.setDimensionValues(testValue, dims, 0);
-        assertEquals(2, nextIndex);
-        assertEquals(1724229000000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
-        assertEquals(1724229000000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+
+        AtomicInteger dimIndex1 = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValue, value -> { dims1[dimIndex1.getAndIncrement()] = value; });
+
+        assertEquals(1724229000000L, (long) dims1[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+        assertEquals(1724229000000L, (long) dims1[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
         assertEquals(2, dateDimension.getNumSubDimensions());
 
-        dims = new Long[2];
+        Long[] dims2 = new Long[2];
         testValue = 1724229000123L; // Wed, 21 Aug 2024 08:30:00 GMT
-        dateDimension.setDimensionValues(testValue, dims, 0);
-        assertEquals(2, nextIndex);
-        assertEquals(1724229000000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
-        assertEquals(1724229000000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+
+        AtomicInteger dimIndex2 = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValue, value -> { dims2[dimIndex2.getAndIncrement()] = value; });
+
+        assertEquals(2, dimIndex2.get());
+        assertEquals(1724229000000L, (long) dims2[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
+        assertEquals(1724229000000L, (long) dims2[1]); // Half hour rounded - Wed, 21 Aug 2024 08:30:00 UTC
         assertEquals(2, dateDimension.getNumSubDimensions());
 
-        dims = new Long[2];
+        Long[] dims3 = new Long[2];
         testValue = 1724228940000L; // Wed, 21 Aug 2024 08:29:00 GMT
-        dateDimension.setDimensionValues(testValue, dims, 0);
-        assertEquals(2, nextIndex);
-        assertEquals(1724228100000L, (long) dims[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:15:00 UTC
-        assertEquals(1724227200000L, (long) dims[1]); // Half hour rounded - Wed, 21 Aug 2024 08:00:00 UTC
+
+        AtomicInteger dimIndex3 = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValue, value -> { dims3[dimIndex3.getAndIncrement()] = value; });
+
+        assertEquals(2, dimIndex3.get());
+        assertEquals(1724228100000L, (long) dims3[0]); // Quarter Hour rounded - Wed, 21 Aug 2024 08:15:00 UTC
+        assertEquals(1724227200000L, (long) dims3[1]); // Half hour rounded - Wed, 21 Aug 2024 08:00:00 UTC
         assertEquals(2, dateDimension.getNumSubDimensions());
     }
 
@@ -120,7 +131,9 @@ public class DateDimensionTests extends OpenSearchTestCase {
         // Test rounding
         long testValueNanos = 1655293505382719622L; // 2022-06-15T11:45:05.382719622Z
         Long[] dims = new Long[allUnits.size()];
-        dateDimension.setDimensionValues(testValueNanos, dims, 0);
+
+        AtomicInteger dimIndex = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValueNanos, value -> { dims[dimIndex.getAndIncrement()] = value; });
 
         // Expected rounded values (in nanoseconds)
         long secondRounded = 1655293505000L; // 2022-06-15T11:45:05Z
@@ -169,7 +182,9 @@ public class DateDimensionTests extends OpenSearchTestCase {
         // Test rounding
         long testValueNanos = 1724114825234L; // 2024-08-20T00:47:05.234Z
         Long[] dims = new Long[allUnits.size()];
-        dateDimension.setDimensionValues(testValueNanos, dims, 0);
+
+        AtomicInteger dimIndex = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValueNanos, value -> { dims[dimIndex.getAndIncrement()] = value; });
 
         // Expected rounded values (in millis)
         long secondRounded = 1724114825000L; // 2024-08-20T00:47:05.000Z
@@ -209,8 +224,8 @@ public class DateDimensionTests extends OpenSearchTestCase {
             new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
             new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY),
             new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH),
-            ExtendedDateTimeUnit.HALF_HOUR_OF_DAY,
-            ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY
+            DataCubeDateTimeUnit.HALF_HOUR_OF_DAY,
+            DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY
         );
     }
 
@@ -268,7 +283,7 @@ public class DateDimensionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testGetDimensionFieldsNames() {
+    public void testGetSubDimensionNames() {
         DateDimension dateDimension = new DateDimension(
             "timestamp",
             Arrays.asList(
@@ -278,7 +293,7 @@ public class DateDimensionTests extends OpenSearchTestCase {
             DateFieldMapper.Resolution.MILLISECONDS
         );
 
-        List<String> fields = dateDimension.getDimensionFieldsNames();
+        List<String> fields = dateDimension.getSubDimensionNames();
 
         assertEquals(2, fields.size());
         assertEquals("timestamp_hour", fields.get(0));
@@ -288,11 +303,11 @@ public class DateDimensionTests extends OpenSearchTestCase {
     public void testGetExtendedTimeUnitFieldsNames() {
         DateDimension dateDimension = new DateDimension(
             "timestamp",
-            Arrays.asList(ExtendedDateTimeUnit.HALF_HOUR_OF_DAY, ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY),
+            Arrays.asList(DataCubeDateTimeUnit.HALF_HOUR_OF_DAY, DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY),
             DateFieldMapper.Resolution.MILLISECONDS
         );
 
-        List<String> fields = dateDimension.getDimensionFieldsNames();
+        List<String> fields = dateDimension.getSubDimensionNames();
 
         assertEquals(2, fields.size());
         assertEquals("timestamp_quarter-hour", fields.get(0));
@@ -311,9 +326,10 @@ public class DateDimensionTests extends OpenSearchTestCase {
         Long[] dims = new Long[2];
         Long testValue = 1609459200000L; // 2021-01-01 00:00:00 UTC
 
-        int nextIndex = dateDimension.setDimensionValues(testValue, dims, 0);
+        AtomicInteger dimIndex = new AtomicInteger(0);
+        dateDimension.setDimensionValues(testValue, value -> { dims[dimIndex.getAndIncrement()] = value; });
 
-        assertEquals(2, nextIndex);
+        assertEquals(2, dimIndex.get());
         assertEquals(1609459200000L, (long) dims[0]); // Hour rounded
         assertEquals(1609459200000L, (long) dims[1]); // Year rounded
     }

@@ -27,9 +27,9 @@ import org.opensearch.index.compositeindex.datacube.ReadDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.junit.After;
 import org.junit.Before;
 
@@ -230,10 +230,10 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
             DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
             List<String> expectedDimensionFields = Arrays.asList("@timestamp_minute", "@timestamp_half-hour");
-            assertEquals(expectedDimensionFields, dateDim.getDimensionFieldsNames());
+            assertEquals(expectedDimensionFields, dateDim.getSubDimensionNames());
             List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
                 new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-                ExtendedDateTimeUnit.HALF_HOUR_OF_DAY
+                DataCubeDateTimeUnit.HALF_HOUR_OF_DAY
             );
             for (int i = 0; i < expectedTimeUnits.size(); i++) {
                 assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getIntervals().get(i).shortName());
@@ -265,9 +265,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
             DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
             List<String> expectedDimensionFields = Arrays.asList("@timestamp_half-hour", "@timestamp_week", "@timestamp_month");
-            assertEquals(expectedDimensionFields, dateDim.getDimensionFieldsNames());
+            assertEquals(expectedDimensionFields, dateDim.getSubDimensionNames());
             List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
-                ExtendedDateTimeUnit.HALF_HOUR_OF_DAY,
+                DataCubeDateTimeUnit.HALF_HOUR_OF_DAY,
                 new DateTimeUnitAdapter(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
                 new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR)
             );

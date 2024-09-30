@@ -14,6 +14,7 @@ import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Represents a dimension for reconstructing StarTreeField from file formats during searches and merges.
@@ -38,13 +39,12 @@ public class ReadDimension implements Dimension {
     }
 
     @Override
-    public int setDimensionValues(Long value, Long[] dims, int index) {
-        dims[index++] = value;
-        return index;
+    public void setDimensionValues(final Long val, final Consumer<Long> dimSetter) {
+        dimSetter.accept(val);
     }
 
     @Override
-    public List<String> getDimensionFieldsNames() {
+    public List<String> getSubDimensionNames() {
         return List.of(field);
     }
 

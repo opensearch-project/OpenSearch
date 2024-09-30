@@ -15,6 +15,7 @@ import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Composite index numeric dimension class
@@ -40,13 +41,12 @@ public class NumericDimension implements Dimension {
     }
 
     @Override
-    public int setDimensionValues(final Long val, final Long[] dims, int index) {
-        dims[index++] = val;
-        return index;
+    public void setDimensionValues(final Long val, final Consumer<Long> dimSetter) {
+        dimSetter.accept(val);
     }
 
     @Override
-    public List<String> getDimensionFieldsNames() {
+    public List<String> getSubDimensionNames() {
         // TODO : revisit this post file format changes
         return List.of(field);
     }

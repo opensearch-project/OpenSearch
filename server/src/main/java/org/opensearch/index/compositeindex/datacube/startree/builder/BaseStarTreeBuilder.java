@@ -325,7 +325,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         FieldInfo[] metricFieldInfoList = new FieldInfo[metricAggregatorInfos.size()];
         int dimIndex = 0;
         for (Dimension dim : dimensionsSplitOrder) {
-            for (String name : dim.getDimensionFieldsNames()) {
+            for (String name : dim.getSubDimensionNames()) {
                 final FieldInfo fi = getFieldInfo(
                     fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeField.getName(), name),
                     DocValuesType.SORTED_NUMERIC,
@@ -539,7 +539,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     Long[] getStarTreeDimensionsFromSegment(int currentDocId, SequentialDocValuesIterator[] dimensionReaders) throws IOException {
         Long[] dimensions = new Long[numDimensions];
-        int dimIndex = 0;
+        AtomicInteger dimIndex = new AtomicInteger(0);
         for (int i = 0; i < dimensionReaders.length; i++) {
             if (dimensionReaders[i] != null) {
                 try {
@@ -551,10 +551,15 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     logger.error("unable to read the dimension values from the segment", e);
                     throw new IllegalStateException("unable to read the dimension values from the segment", e);
                 }
-                dimIndex = dimensionsSplitOrder.get(i).setDimensionValues(dimensionReaders[i].value(currentDocId), dimensions, dimIndex);
+                dimensionsSplitOrder.get(i).setDimensionValues(dimensionReaders[i].value(currentDocId), value -> {
+                    dimensions[dimIndex.getAndIncrement()] = value;
+                });
             } else {
                 throw new IllegalStateException("dimension readers are empty");
             }
+        }
+        if (dimIndex.get() != numDimensions) {
+            throw new IllegalStateException("Values are not set for all dimensions");
         }
         return dimensions;
     }

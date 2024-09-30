@@ -12,8 +12,8 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.ExtendedDateTimeUnit;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
 
@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -64,26 +65,24 @@ public class DateDimension implements Dimension {
      * Sets the dimension values in sorted order in the provided array starting from the given index.
      *
      * @param val   The value to be set
-     * @param dims  The dimensions array to set the values in
-     * @param index The starting index in the array
-     * @return The next available index in the array
+     * @param dimSetter  Consumer which sets the dimensions
      */
     @Override
-    public int setDimensionValues(final Long val, final Long[] dims, int index) {
+    public void setDimensionValues(final Long val, final Consumer<Long> dimSetter) {
         for (DateTimeUnitRounding dateTimeUnit : sortedCalendarIntervals) {
             if (val == null) {
-                dims[index++] = null;
-                continue;
+                dimSetter.accept(null);
+            } else {
+                Long roundedValue = dateTimeUnit.roundFloor(storedDurationSinceEpoch(val));
+                dimSetter.accept(roundedValue);
             }
-            dims[index++] = dateTimeUnit.roundFloor(maybeConvertNanosToMillis(val));
         }
-        return index;
     }
 
     /**
      * Converts nanoseconds to milliseconds based on the resolution of the field
      */
-    private long maybeConvertNanosToMillis(long nanoSecondsSinceEpoch) {
+    private long storedDurationSinceEpoch(long nanoSecondsSinceEpoch) {
         if (resolution.equals(DateFieldMapper.Resolution.NANOSECONDS)) return DateUtils.toMilliSeconds(nanoSecondsSinceEpoch);
         return nanoSecondsSinceEpoch;
     }
@@ -92,7 +91,7 @@ public class DateDimension implements Dimension {
      * Returns the list of fields that represent the dimension
      */
     @Override
-    public List<String> getDimensionFieldsNames() {
+    public List<String> getSubDimensionNames() {
         List<String> fields = new ArrayList<>(calendarIntervals.size());
         for (DateTimeUnitRounding interval : sortedCalendarIntervals) {
             // TODO : revisit this post file format changes
@@ -147,8 +146,8 @@ public class DateDimension implements Dimension {
         static {
             ORDERED_DATE_TIME_UNIT.put(Rounding.DateTimeUnit.SECOND_OF_MINUTE.shortName(), 1);
             ORDERED_DATE_TIME_UNIT.put(Rounding.DateTimeUnit.MINUTES_OF_HOUR.shortName(), 2);
-            ORDERED_DATE_TIME_UNIT.put(ExtendedDateTimeUnit.QUARTER_HOUR_OF_DAY.shortName(), 3);
-            ORDERED_DATE_TIME_UNIT.put(ExtendedDateTimeUnit.HALF_HOUR_OF_DAY.shortName(), 4);
+            ORDERED_DATE_TIME_UNIT.put(DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY.shortName(), 3);
+            ORDERED_DATE_TIME_UNIT.put(DataCubeDateTimeUnit.HALF_HOUR_OF_DAY.shortName(), 4);
             ORDERED_DATE_TIME_UNIT.put(Rounding.DateTimeUnit.HOUR_OF_DAY.shortName(), 5);
             ORDERED_DATE_TIME_UNIT.put(Rounding.DateTimeUnit.DAY_OF_MONTH.shortName(), 6);
             ORDERED_DATE_TIME_UNIT.put(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR.shortName(), 7);
