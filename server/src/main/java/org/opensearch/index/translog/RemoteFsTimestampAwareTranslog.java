@@ -460,7 +460,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
     }
 
-    private static Long getMinPrimaryTermInRemote(
+    protected static Long getMinPrimaryTermInRemote(
         AtomicLong minPrimaryTermInRemote,
         TranslogTransferManager translogTransferManager,
         Logger logger

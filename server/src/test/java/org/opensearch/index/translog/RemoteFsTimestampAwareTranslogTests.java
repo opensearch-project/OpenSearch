@@ -1146,4 +1146,41 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertEquals(2, minPrimaryTermInRemote.get());
     }
 
+    public void testGetMinPrimaryTermInRemoteAlreadyFetched() {
+        Long expectedMinPrimaryTerm = 12L;
+        assertEquals(expectedMinPrimaryTerm, RemoteFsTimestampAwareTranslog.getMinPrimaryTermInRemote(new AtomicLong(12), null, null));
+    }
+
+    public void testGetMinPrimaryTermInRemoteNotFetchedEmpty() throws IOException {
+        TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
+        when(translogTransferManager.listPrimaryTermsInRemote()).thenReturn(Set.of());
+        Long expectedMinPrimaryTerm = Long.MAX_VALUE;
+        assertEquals(
+            expectedMinPrimaryTerm,
+            RemoteFsTimestampAwareTranslog.getMinPrimaryTermInRemote(new AtomicLong(Long.MAX_VALUE), translogTransferManager, null)
+        );
+        verify(translogTransferManager).listPrimaryTermsInRemote();
+    }
+
+    public void testGetMinPrimaryTermInRemoteNotFetchedException() throws IOException {
+        TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
+        when(translogTransferManager.listPrimaryTermsInRemote()).thenThrow(new IOException());
+        Long expectedMinPrimaryTerm = Long.MAX_VALUE;
+        assertEquals(
+            expectedMinPrimaryTerm,
+            RemoteFsTimestampAwareTranslog.getMinPrimaryTermInRemote(new AtomicLong(Long.MAX_VALUE), translogTransferManager, logger)
+        );
+        verify(translogTransferManager).listPrimaryTermsInRemote();
+    }
+
+    public void testGetMinPrimaryTermInRemoteNotFetched() throws IOException {
+        TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
+        when(translogTransferManager.listPrimaryTermsInRemote()).thenReturn(Set.of(12L, 23L, 34L, 4L, 89L));
+        Long expectedMinPrimaryTerm = 4L;
+        assertEquals(
+            expectedMinPrimaryTerm,
+            RemoteFsTimestampAwareTranslog.getMinPrimaryTermInRemote(new AtomicLong(Long.MAX_VALUE), translogTransferManager, logger)
+        );
+        verify(translogTransferManager).listPrimaryTermsInRemote();
+    }
 }
