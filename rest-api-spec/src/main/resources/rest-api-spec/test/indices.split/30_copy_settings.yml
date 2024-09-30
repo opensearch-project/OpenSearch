@@ -110,3 +110,21 @@
         body:
           settings:
             index.number_of_replicas: 0
+
+  - do:
+      catch: /illegal_argument_exception/
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.split:
+        index: "source"
+        target: "explicit-illegal-settings-target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.replication.type: DOCUMENT
+
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "cannot provide [index.replication.type] setting on resize" }
