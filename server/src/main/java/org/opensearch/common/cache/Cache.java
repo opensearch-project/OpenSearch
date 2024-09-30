@@ -115,11 +115,14 @@ public class Cache<K, V> {
     // the removal callback
     private RemovalListener<K, V> removalListener = notification -> {};
 
-    private int numberOfSegments = 256;
+    private final int numberOfSegments;
+    private static final int NUMBER_OF_SEGMENTS_DEFAULT = 256;
 
     Cache(final int numberOfSegments) {
         if (numberOfSegments != -1) {
             this.numberOfSegments = numberOfSegments;
+        } else {
+            this.numberOfSegments = NUMBER_OF_SEGMENTS_DEFAULT;
         }
         this.segments = new CacheSegment[this.numberOfSegments];
         for (int i = 0; i < this.numberOfSegments; i++) {
@@ -158,13 +161,6 @@ public class Cache<K, V> {
             throw new IllegalArgumentException("maximumWeight < 0");
         }
         this.maximumWeight = maximumWeight;
-    }
-
-    void setNumberOfSegments(int numberOfSegments) {
-        if (numberOfSegments < 0) {
-            throw new IllegalArgumentException("numberOfSegments < 0");
-        }
-        this.numberOfSegments = numberOfSegments;
     }
 
     void setWeigher(ToLongBiFunction<K, V> weigher) {

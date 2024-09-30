@@ -12,11 +12,15 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
 
+import java.util.List;
+
 /**
  * Settings related to cache.
  */
 @ExperimentalApi
 public class CacheSettings {
+
+    public static final List<Integer> VALID_SEGMENT_NUMBER_LIST = List.of(1, 2, 4, 8, 16, 32, 64, 128, 256);
 
     /**
      * Used to store cache store name for desired cache types within OpenSearch.

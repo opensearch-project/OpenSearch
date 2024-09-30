@@ -58,6 +58,8 @@ import java.util.function.Predicate;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCache.NUMBER_OF_SEGMENTS_ZERO_EXCEPTION_MESSAGE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
@@ -173,12 +175,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
-            .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(
-                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                ).getKey(),
-                1
-            )
+            .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 1)
             .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .build();
         String storagePath = getStoragePath(settings);
@@ -260,9 +257,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
             )
             .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(
-                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                ).getKey(),
+                TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(),
                 numberOfSegments
             )
             .put(
@@ -1460,12 +1455,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 new TimeValue(timeValueThresholdNanos / 1_000_000)
             )
-            .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(
-                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                ).getKey(),
-                1
-            )
+            .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 1)
             .build();
 
         ICache<String, String> tieredSpilloverICache = new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
@@ -1924,6 +1914,67 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     .build(),
                 0,
                 0
+            )
+        );
+    }
+
+    public void testWithInvalidSegmentNumber() throws Exception {
+        int onHeapCacheSize = 10;
+        int diskCacheSize = randomIntBetween(700, 1200);
+        int keyValueSize = 1;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                MockDiskCache.MockDiskCacheFactory.NAME
+            )
+            .put(
+                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                    .getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+            )
+            .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 1)
+            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
+            .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 3)
+            .build();
+        String storagePath = getStoragePath(settings);
+        assertThrows(
+            INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE,
+            IllegalArgumentException.class,
+            () -> new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
+                new CacheConfig.Builder<String, String>().setKeyType(String.class)
+                    .setKeyType(String.class)
+                    .setWeigher((k, v) -> keyValueSize)
+                    .setRemovalListener(removalListener)
+                    .setKeySerializer(new StringSerializer())
+                    .setValueSerializer(new StringSerializer())
+                    .setSettings(settings)
+                    .setDimensionNames(dimensionNames)
+                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
+                    // 20_000_000 ns = 20 ms to compute
+                    .setClusterSettings(clusterSettings)
+                    .setStoragePath(storagePath)
+                    .build(),
+                CacheType.INDICES_REQUEST_CACHE,
+                Map.of(
+                    OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+                    new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+                    MockDiskCache.MockDiskCacheFactory.NAME,
+                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300), false)
+                )
             )
         );
     }

@@ -955,4 +955,12 @@ public class CacheTests extends OpenSearchTestCase {
             assertEquals(RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
         }
     }
+
+    public void testWithInvalidSegmentNumber() {
+        assertThrows(
+            "Number of segments for cache should be a power of two up-to 256",
+            IllegalArgumentException.class,
+            () -> CacheBuilder.<Integer, String>builder().setMaximumWeight(1000).setNumberOfSegments(21).build()
+        );
+    }
 }

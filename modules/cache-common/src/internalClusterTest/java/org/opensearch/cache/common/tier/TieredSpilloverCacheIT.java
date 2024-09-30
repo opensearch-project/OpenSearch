@@ -49,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -550,6 +551,23 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
         requestCacheStats = getRequestCacheStats(client, "index");
         assertEquals(0, lastKnownMissCount - requestCacheStats.getMissCount());
         assertEquals(0, lastKnownHitCount - requestCacheStats.getHitCount());
+    }
+
+    public void testWithInvalidSegmentNumberSetting() throws Exception {
+        int numberOfSegments = getNumberOfSegments();
+        int onHeapCacheSizeInBytes = randomIntBetween(numberOfSegments + 1, numberOfSegments * 2); // Keep it low so
+        // that all items are
+        // cached onto disk.
+        assertThrows(
+            INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE,
+            IllegalArgumentException.class,
+            () -> internalCluster().startNode(
+                Settings.builder()
+                    .put(defaultSettings(onHeapCacheSizeInBytes + "b", 300))
+                    .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
+                    .build()
+            )
+        );
     }
 
     private RequestCacheStats getRequestCacheStats(Client client, String indexName) {

@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_NUMBER_LIST;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
 /**
@@ -23,6 +24,11 @@ import static org.opensearch.common.settings.Setting.Property.NodeScope;
  */
 public class TieredSpilloverCacheSettings {
 
+    /**
+     * Exception message for invalid segment number.
+     */
+    public static final String INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE = "Tiered cache segment number should be "
+        + "power of two up-to 256";
     /**
      * Setting which defines the onHeap cache store to be used in TieredSpilloverCache.
      *
@@ -55,7 +61,11 @@ public class TieredSpilloverCacheSettings {
      */
     public static final Setting.AffixSetting<Integer> TIERED_SPILLOVER_SEGMENTS = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".segments",
-        (key) -> Setting.intSetting(key, 16, 1, 256, NodeScope)
+        (key) -> Setting.intSetting(key, 16, 1, k -> {
+            if (!VALID_SEGMENT_NUMBER_LIST.contains(k)) {
+                throw new IllegalArgumentException(INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE);
+            }
+        }, NodeScope)
     );
 
     /**

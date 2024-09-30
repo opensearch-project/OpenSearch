@@ -49,9 +49,11 @@ import java.util.function.Predicate;
 import java.util.function.ToLongBiFunction;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
+import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_NUMBER_LIST;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -800,8 +802,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
             int numberOfSegments = TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(cacheType.getSettingPrefix()).get(settings);
 
-            if (numberOfSegments <= 0) {
-                throw new IllegalArgumentException("Number of segments for tiered cache cannot be less than or equal " + "to zero");
+            if (!VALID_SEGMENT_NUMBER_LIST.contains(numberOfSegments)) {
+                throw new IllegalArgumentException(INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE);
             }
 
             return new Builder<K, V>().setDiskCacheFactory(diskCacheFactory)
