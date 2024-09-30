@@ -999,6 +999,65 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         verify(translogTransferManager).readMetadata("metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1");
     }
 
+    public void testGetMinMaxPrimaryTermFromMetadataFile() throws IOException {
+        TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
+
+        RemoteFsTimestampAwareTranslog translog = (RemoteFsTimestampAwareTranslog) this.translog;
+
+        // Fetch generations directly from the filename
+        assertEquals(
+            new Tuple<>(1L, 1008L),
+            RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
+                "metadata__9223372036854774799__9223372036854774799__9223370311919910393__31__9223372036854775106__1__1",
+                translogTransferManager,
+                new HashMap<>()
+            )
+        );
+        assertEquals(
+            new Tuple<>(4L, 7L),
+            RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
+                "metadata__9223372036854775800__9223372036854775800__9223370311919910398__31__9223372036854775803__4__1",
+                translogTransferManager,
+                new HashMap<>()
+            )
+        );
+        assertEquals(
+            new Tuple<>(10L, 10L),
+            RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
+                "metadata__9223372036854775797__9223372036854775800__9223370311919910398__31__9223372036854775803__10__1",
+                translogTransferManager,
+                new HashMap<>()
+            )
+        );
+
+        // For older md filenames, it needs to read the content
+        TranslogTransferMetadata md1 = mock(TranslogTransferMetadata.class);
+        when(md1.getGenerationToPrimaryTermMapper()).thenReturn(Map.of("12", "1", "23", "1", "34", "2"));
+        when(translogTransferManager.readMetadata("metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1"))
+            .thenReturn(md1);
+        assertEquals(
+            new Tuple<>(1L, 2L),
+            RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
+                "metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1",
+                translogTransferManager,
+                new HashMap<>()
+            )
+        );
+        assertEquals(
+            new Tuple<>(4L, 7L),
+            RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
+                "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1",
+                translogTransferManager,
+                Map.of("metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1", new Tuple<>(4L, 7L))
+            )
+        );
+
+        verify(translogTransferManager).readMetadata("metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1");
+        verify(translogTransferManager, times(0)).readMetadata(
+            "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1"
+        );
+    }
+
     public void testDeleteStaleRemotePrimaryTerms() throws IOException {
         TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
 

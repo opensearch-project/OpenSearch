@@ -233,6 +233,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
                         // Update cache to keep only those metadata files that are not getting deleted
                         oldFormatMetadataFileGenerationMap.keySet().retainAll(metadataFilesNotToBeDeleted);
+                        oldFormatMetadataFilePrimaryTermMap.keySet().retainAll(metadataFilesNotToBeDeleted);
                         // Delete stale primary terms
                         deleteStaleRemotePrimaryTerms(metadataFilesNotToBeDeleted);
                     } else {
@@ -408,9 +409,9 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
     }
 
-    private void deleteStaleRemotePrimaryTerms(List<String> metadataFiles) {
+    private void deleteStaleRemotePrimaryTerms(List<String> metadataFilesNotToBeDeleted) {
         deleteStaleRemotePrimaryTerms(
-            metadataFiles,
+            metadataFilesNotToBeDeleted,
             translogTransferManager,
             oldFormatMetadataFilePrimaryTermMap,
             minPrimaryTermInRemote,
@@ -425,7 +426,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
      * This will also delete all stale translog metadata files from remote except the latest basis the metadata file comparator.
      */
     protected static void deleteStaleRemotePrimaryTerms(
-        List<String> metadataFiles,
+        List<String> metadataFilesNotToBeDeleted,
         TranslogTransferManager translogTransferManager,
         Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap,
         AtomicLong minPrimaryTermInRemoteAtomicLong,
@@ -434,15 +435,15 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
         // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
         // of older primary term.
-        if (metadataFiles.isEmpty()) {
+        if (metadataFilesNotToBeDeleted.isEmpty()) {
             logger.trace("No metadata is uploaded yet, returning from deleteStaleRemotePrimaryTerms");
             return;
         }
-        Optional<Long> minPrimaryTermFromMetadataFiles = metadataFiles.stream().map(file -> {
+        Optional<Long> minPrimaryTermFromMetadataFiles = metadataFilesNotToBeDeleted.stream().map(file -> {
             try {
                 return getMinMaxPrimaryTermFromMetadataFile(file, translogTransferManager, oldFormatMetadataFilePrimaryTermMap).v1();
             } catch (IOException e) {
-                return Long.MAX_VALUE;
+                return Long.MIN_VALUE;
             }
         }).min(Long::compareTo);
         // First we delete all stale primary terms folders from remote store
