@@ -240,6 +240,10 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         }
     }
 
+    public void forceSyncPinnedTimestamps() {
+        asyncUpdatePinnedTimestampTask.run();
+    }
+
     @Override
     public void close() throws IOException {
         asyncUpdatePinnedTimestampTask.close();
