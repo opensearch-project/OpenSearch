@@ -8,12 +8,15 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -27,6 +30,77 @@ public class RestClusterStatsActionTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         action = new RestClusterStatsAction();
+    }
+
+    public void testFromRequestBasePath() {
+        final HashMap<String, String> params = new HashMap<>();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_cluster/stats").withParams(params).build();
+        ClusterStatsRequest clusterStatsRequest = RestClusterStatsAction.fromRequest(request);
+        assertNotNull(clusterStatsRequest);
+        assertTrue(clusterStatsRequest.useAggregatedNodeLevelResponses());
+        assertTrue(clusterStatsRequest.computeAllMetrics());
+        assertNotNull(clusterStatsRequest.requestedMetrics());
+        assertFalse(clusterStatsRequest.requestedMetrics().isEmpty());
+        for (ClusterStatsRequest.Metric metric : ClusterStatsRequest.Metric.values()) {
+            assertTrue(clusterStatsRequest.requestedMetrics().contains(metric));
+        }
+        assertNotNull(clusterStatsRequest.indicesMetrics());
+        assertFalse(clusterStatsRequest.indicesMetrics().isEmpty());
+        for (ClusterStatsRequest.IndexMetric indexMetric : ClusterStatsRequest.IndexMetric.values()) {
+            assertTrue(clusterStatsRequest.indicesMetrics().contains(indexMetric));
+        }
+    }
+
+    public void testFromRequestWithNodeStatsMetricsFilter() {
+        Set<ClusterStatsRequest.Metric> metricsRequested = Set.of(ClusterStatsRequest.Metric.OS, ClusterStatsRequest.Metric.FS);
+        String metricParam = metricsRequested.stream().map(ClusterStatsRequest.Metric::metricName).collect(Collectors.joining(","));
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("metric", metricParam);
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_cluster/stats").withParams(params).build();
+        ClusterStatsRequest clusterStatsRequest = RestClusterStatsAction.fromRequest(request);
+        assertNotNull(clusterStatsRequest);
+        assertTrue(clusterStatsRequest.useAggregatedNodeLevelResponses());
+        assertTrue(clusterStatsRequest.computeAllMetrics());
+        assertFalse(clusterStatsRequest.requestedMetrics().isEmpty());
+        assertEquals(2, clusterStatsRequest.requestedMetrics().size());
+        for (ClusterStatsRequest.Metric metric : metricsRequested) {
+            assertTrue(clusterStatsRequest.requestedMetrics().contains(metric));
+        }
+        assertTrue(clusterStatsRequest.indicesMetrics().isEmpty());
+    }
+
+    public void testFromRequestWithIndicesStatsMetricsFilter() {
+        Set<ClusterStatsRequest.Metric> metricsRequested = Set.of(
+            ClusterStatsRequest.Metric.OS,
+            ClusterStatsRequest.Metric.FS,
+            ClusterStatsRequest.Metric.INDICES
+        );
+        Set<ClusterStatsRequest.IndexMetric> indicesMetricsRequested = Set.of(
+            ClusterStatsRequest.IndexMetric.SHARDS,
+            ClusterStatsRequest.IndexMetric.SEGMENTS
+        );
+        String metricParam = metricsRequested.stream().map(ClusterStatsRequest.Metric::metricName).collect(Collectors.joining(","));
+        String indicesMetricParam = indicesMetricsRequested.stream()
+            .map(ClusterStatsRequest.IndexMetric::metricName)
+            .collect(Collectors.joining(","));
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("metric", metricParam);
+        params.put("index_metric", indicesMetricParam);
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_cluster/stats").withParams(params).build();
+        ClusterStatsRequest clusterStatsRequest = RestClusterStatsAction.fromRequest(request);
+        assertNotNull(clusterStatsRequest);
+        assertTrue(clusterStatsRequest.useAggregatedNodeLevelResponses());
+        assertTrue(clusterStatsRequest.computeAllMetrics());
+        assertFalse(clusterStatsRequest.requestedMetrics().isEmpty());
+        assertEquals(3, clusterStatsRequest.requestedMetrics().size());
+        for (ClusterStatsRequest.Metric metric : metricsRequested) {
+            assertTrue(clusterStatsRequest.requestedMetrics().contains(metric));
+        }
+        assertFalse(clusterStatsRequest.indicesMetrics().isEmpty());
+        assertEquals(2, clusterStatsRequest.indicesMetrics().size());
+        for (ClusterStatsRequest.IndexMetric indexMetric : indicesMetricsRequested) {
+            assertTrue(clusterStatsRequest.indicesMetrics().contains(indexMetric));
+        }
     }
 
     public void testUnrecognizedMetric() {

@@ -100,8 +100,12 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        ClusterStatsRequest clusterStatsRequest = fromRequest(request);
+        return channel -> client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
+    }
+
+    public static ClusterStatsRequest fromRequest(final RestRequest request) {
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
-        Set<String> indexMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", null));
         String[] nodeIds = request.paramAsStringArray("nodeId", null);
 
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(nodeIds);
@@ -120,6 +124,17 @@ public class RestClusterStatsAction extends BaseRestHandler {
                 );
             }
 
+            final Set<String> metricsRequested = new HashSet<>();
+            if (metrics.contains("_all")) {
+                metricsRequested.addAll(METRIC_REQUEST_CONSUMER_MAP.keySet());
+            } else {
+                metricsRequested.addAll(metrics);
+            }
+
+            Set<String> indexMetrics = Strings.tokenizeByCommaToSet(
+                request.param("index_metric", metricsRequested.contains(ClusterStatsRequest.Metric.INDICES.metricName()) ? "_all" : null)
+            );
+
             if (indexMetrics.size() > 1 && indexMetrics.contains("_all")) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -131,14 +146,6 @@ public class RestClusterStatsAction extends BaseRestHandler {
                 );
             }
 
-            clusterStatsRequest.applyMetricFiltering(true);
-
-            final Set<String> metricsRequested = new HashSet<>();
-            if (metrics.contains("_all")) {
-                metricsRequested.addAll(METRIC_REQUEST_CONSUMER_MAP.keySet());
-            } else {
-                metricsRequested.addAll(metrics);
-            }
             final Set<String> invalidMetrics = new TreeSet<>();
             for (String metric : metricsRequested) {
                 Consumer<ClusterStatsRequest> clusterStatsRequestConsumer = METRIC_REQUEST_CONSUMER_MAP.get(metric);
@@ -149,8 +156,11 @@ public class RestClusterStatsAction extends BaseRestHandler {
                 }
             }
             if (!invalidMetrics.isEmpty()) {
-                throw new IllegalArgumentException(unrecognized(request, invalidMetrics, METRIC_REQUEST_CONSUMER_MAP.keySet(), "metric"));
+                throw new IllegalArgumentException(
+                    unrecognizedStrings(request, invalidMetrics, METRIC_REQUEST_CONSUMER_MAP.keySet(), "metric")
+                );
             }
+
             if (!metricsRequested.contains(ClusterStatsRequest.Metric.INDICES.metricName()) && !indexMetrics.isEmpty()) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -164,7 +174,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
             if (metricsRequested.contains(ClusterStatsRequest.Metric.INDICES.metricName())) {
                 final Set<String> indexMetricsRequested = new HashSet<>();
-                if (indexMetrics.isEmpty() || indexMetrics.contains("_all")) {
+                if (indexMetrics.contains("_all")) {
                     indexMetricsRequested.addAll(INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet());
                 } else {
                     indexMetricsRequested.addAll(indexMetrics);
@@ -181,13 +191,13 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
                 if (!invalidIndexMetrics.isEmpty()) {
                     throw new IllegalArgumentException(
-                        unrecognized(request, invalidIndexMetrics, INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet(), "index metric")
+                        unrecognizedStrings(request, invalidIndexMetrics, INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet(), "index metric")
                     );
                 }
             }
+            clusterStatsRequest.computeAllMetrics(false);
         }
-
-        return channel -> client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
+        return clusterStatsRequest;
     }
 
     @Override
