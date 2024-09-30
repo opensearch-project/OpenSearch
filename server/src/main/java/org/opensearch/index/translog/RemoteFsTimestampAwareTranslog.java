@@ -121,7 +121,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     protected void trimUnreferencedReaders(boolean indexDeleted, boolean trimLocal) throws IOException {
         if (trimLocal) {
             // clean up local translog files and updates readers
-            super.trimUnreferencedReaders();
+            super.trimUnreferencedReaders(true);
         }
 
         // Update file tracker to reflect local translog state
