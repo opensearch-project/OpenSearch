@@ -17,7 +17,7 @@ import org.opensearch.action.ActionType;
  */
 public class QueryGroupStatsAction extends ActionType<QueryGroupStatsResponse> {
     public static final QueryGroupStatsAction INSTANCE = new QueryGroupStatsAction();
-    public static final String NAME = "cluster:monitor/query_group_stats";
+    public static final String NAME = "cluster:monitor/wlm/stats";
 
     private QueryGroupStatsAction() {
         super(NAME, QueryGroupStatsResponse::new);

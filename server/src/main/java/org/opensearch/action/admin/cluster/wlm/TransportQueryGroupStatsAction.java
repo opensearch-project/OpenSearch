@@ -36,7 +36,7 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
     TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest,
     QueryGroupStats> {
 
-    QueryGroupService queryGroupService;
+    final QueryGroupService queryGroupService;
 
     @Inject
     public TransportQueryGroupStatsAction(
