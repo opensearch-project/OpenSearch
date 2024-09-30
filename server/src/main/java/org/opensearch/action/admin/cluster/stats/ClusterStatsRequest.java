@@ -52,7 +52,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     private final Set<Metric> requestedMetrics = new HashSet<>();
     private final Set<IndexMetric> indexMetricsRequested = new HashSet<>();
-    private Boolean applyMetricFiltering = false;
+    private Boolean computeAllMetric = true;
 
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,7 +60,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
             useAggregatedNodeLevelResponses = in.readOptionalBoolean();
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            applyMetricFiltering = in.readOptionalBoolean();
+            computeAllMetric = in.readOptionalBoolean();
             final long longMetricsFlags = in.readLong();
             for (Metric metric : Metric.values()) {
                 if ((longMetricsFlags & (1 << metric.getIndex())) != 0) {
@@ -94,12 +94,12 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         this.useAggregatedNodeLevelResponses = useAggregatedNodeLevelResponses;
     }
 
-    public boolean applyMetricFiltering() {
-        return applyMetricFiltering;
+    public boolean computeAllMetrics() {
+        return computeAllMetric;
     }
 
-    public void applyMetricFiltering(boolean honourMetricFiltering) {
-        this.applyMetricFiltering = honourMetricFiltering;
+    public void computeAllMetrics(boolean computeAllMetrics) {
+        this.computeAllMetric = computeAllMetrics;
     }
 
     /**
@@ -136,7 +136,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
             out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(applyMetricFiltering);
+            out.writeOptionalBoolean(computeAllMetric);
             long longMetricFlags = 0;
             for (Metric metric : requestedMetrics) {
                 longMetricFlags |= (1 << metric.getIndex());
@@ -192,6 +192,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      */
     @PublicApi(since = "3.0.0")
     public enum IndexMetric {
+        // Metrics computed from ShardStats
         SHARDS("shards", 0),
         DOCS("docs", 1),
         STORE("store", 2),
@@ -199,6 +200,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         QUERY_CACHE("query_cache", 4),
         COMPLETION("completion", 5),
         SEGMENTS("segments", 6),
+        // Metrics computed from ClusterState
         ANALYSIS("analysis", 7),
         MAPPINGS("mappings", 8);
 
