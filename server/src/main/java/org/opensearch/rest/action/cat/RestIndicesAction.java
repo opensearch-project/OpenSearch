@@ -50,6 +50,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Table;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
@@ -63,6 +64,9 @@ import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.rest.pagination.IndexPaginationStrategy;
+import org.opensearch.rest.pagination.PageToken;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -70,6 +74,7 @@ import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -91,7 +96,7 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  *
  * @opensearch.api
  */
-public class RestIndicesAction extends AbstractCatAction {
+public class RestIndicesAction extends AbstractListAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
@@ -190,16 +195,25 @@ public class RestIndicesAction extends AbstractCatAction {
                                 @Override
                                 public void onResponse(ClusterStateResponse clusterStateResponse) {
                                     validateRequestLimit(clusterStateResponse, listener);
+                                    IndexPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
+                                    // For non-paginated queries, indicesToBeQueried would be same as indices retrieved from
+                                    // rest request and unresolved, while for paginated queries, it would be a list of indices
+                                    // already resolved by ClusterStateRequest and to be displayed in a page.
+                                    final String[] indicesToBeQueried = Objects.isNull(paginationStrategy)
+                                        ? indices
+                                        : paginationStrategy.getRequestedEntities().toArray(new String[0]);
                                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
                                         request,
                                         4,
-                                        listener
+                                        listener,
+                                        indicesToBeQueried,
+                                        Objects.isNull(paginationStrategy) ? null : paginationStrategy.getResponseToken()
                                     );
                                     groupedListener.onResponse(getSettingsResponse);
                                     groupedListener.onResponse(clusterStateResponse);
 
                                     sendIndicesStatsRequest(
-                                        indices,
+                                        indicesToBeQueried,
                                         subRequestIndicesOptions,
                                         includeUnloadedSegments,
                                         client,
@@ -207,7 +221,7 @@ public class RestIndicesAction extends AbstractCatAction {
                                     );
 
                                     sendClusterHealthRequest(
-                                        indices,
+                                        indicesToBeQueried,
                                         subRequestIndicesOptions,
                                         local,
                                         clusterManagerNodeTimeout,
@@ -231,6 +245,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             );
         };
+
     }
 
     private void validateRequestLimit(final ClusterStateResponse clusterStateResponse, final ActionListener<Table> listener) {
@@ -326,7 +341,9 @@ public class RestIndicesAction extends AbstractCatAction {
     private GroupedActionListener<ActionResponse> createGroupedListener(
         final RestRequest request,
         final int size,
-        final ActionListener<Table> listener
+        final ActionListener<Table> listener,
+        final String[] indicesToBeQueried,
+        final PageToken pageToken
     ) {
         return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
             @Override
@@ -350,7 +367,15 @@ public class RestIndicesAction extends AbstractCatAction {
                     IndicesStatsResponse statsResponse = extractResponse(responses, IndicesStatsResponse.class);
                     Map<String, IndexStats> indicesStats = statsResponse.getIndices();
 
-                    Table responseTable = buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates);
+                    Table responseTable = buildTable(
+                        request,
+                        indicesSettings,
+                        indicesHealths,
+                        indicesStats,
+                        indicesStates,
+                        getTableIterator(indicesToBeQueried, indicesSettings),
+                        pageToken
+                    );
                     listener.onResponse(responseTable);
                 } catch (Exception e) {
                     onFailure(e);
@@ -379,7 +404,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        return getTableWithHeader(request, null);
+    }
+
+    protected Table getTableWithHeader(final RestRequest request, final PageToken pageToken) {
+        Table table = new Table(pageToken);
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");
@@ -743,22 +772,27 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(
+    protected Table buildTable(
         final RestRequest request,
         final Map<String, Settings> indicesSettings,
         final Map<String, ClusterIndexHealth> indicesHealths,
         final Map<String, IndexStats> indicesStats,
-        final Map<String, IndexMetadata> indicesMetadatas
+        final Map<String, IndexMetadata> indicesMetadatas,
+        final Iterator<Tuple<String, Settings>> tableIterator,
+        final PageToken pageToken
     ) {
-
         final String healthParam = request.param("health");
-        final Table table = getTableWithHeader(request);
+        final Table table = getTableWithHeader(request, pageToken);
 
-        indicesSettings.forEach((indexName, settings) -> {
+        while (tableIterator.hasNext()) {
+            final Tuple<String, Settings> tuple = tableIterator.next();
+            String indexName = tuple.v1();
+            Settings settings = tuple.v2();
+
             if (indicesMetadatas.containsKey(indexName) == false) {
                 // the index exists in the Get Indices response but is not present in the cluster state:
                 // it is likely that the index was deleted in the meanwhile, so we ignore it.
-                return;
+                continue;
             }
 
             final IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
@@ -787,7 +821,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     skip = ClusterHealthStatus.RED != healthStatusFilter;
                 }
                 if (skip) {
-                    return;
+                    continue;
                 }
             }
 
@@ -1021,7 +1055,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(searchThrottled);
 
             table.endRow();
-        });
+
+        }
 
         return table;
     }
@@ -1030,4 +1065,34 @@ public class RestIndicesAction extends AbstractCatAction {
     private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
+
+    @Override
+    public boolean isActionPaginated() {
+        return false;
+    }
+
+    protected IndexPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
+        return null;
+    }
+
+    /**
+     * Provides the iterator to be used for building the response table.
+     */
+    protected Iterator<Tuple<String, Settings>> getTableIterator(String[] indices, Map<String, Settings> indexSettingsMap) {
+        return new Iterator<>() {
+            final Iterator<String> settingsMapIter = indexSettingsMap.keySet().iterator();
+
+            @Override
+            public boolean hasNext() {
+                return settingsMapIter.hasNext();
+            }
+
+            @Override
+            public Tuple<String, Settings> next() {
+                String index = settingsMapIter.next();
+                return new Tuple<>(index, indexSettingsMap.get(index));
+            }
+        };
+    }
+
 }

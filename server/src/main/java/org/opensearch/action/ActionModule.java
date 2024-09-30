@@ -462,6 +462,9 @@ import org.opensearch.rest.action.ingest.RestDeletePipelineAction;
 import org.opensearch.rest.action.ingest.RestGetPipelineAction;
 import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.rest.action.ingest.RestSimulatePipelineAction;
+import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.rest.action.list.RestIndicesListAction;
+import org.opensearch.rest.action.list.RestListAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
@@ -805,9 +808,14 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
+        List<AbstractListAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
             if (handler instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) handler);
+                if (handler instanceof AbstractListAction && ((AbstractListAction) handler).isActionPaginated()) {
+                    listActions.add((AbstractListAction) handler);
+                } else {
+                    catActions.add((AbstractCatAction) handler);
+                }
             }
             restController.registerHandler(handler);
         };
@@ -983,6 +991,9 @@ public class ActionModule extends AbstractModule {
         }
         registerHandler.accept(new RestTemplatesAction());
 
+        // LIST API
+        registerHandler.accept(new RestIndicesListAction());
+
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());
         registerHandler.accept(new RestDeletePitAction());
@@ -1014,6 +1025,7 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+        registerHandler.accept(new RestListAction(listActions));
         registerHandler.accept(new RestDecommissionAction());
         registerHandler.accept(new RestGetDecommissionStateAction());
         registerHandler.accept(new RestRemoteStoreStatsAction());
