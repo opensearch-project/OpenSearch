@@ -43,7 +43,6 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
@@ -59,10 +58,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -185,7 +181,6 @@ final class DefaultSearchContext extends SearchContext {
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
     private final Version minNodeVersion;
-    private StarTreeQueryContext starTreeQueryContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -1157,28 +1152,5 @@ final class DefaultSearchContext extends SearchContext {
             return clusterService.getClusterSettings().get(KEYWORD_INDEX_OR_DOC_VALUES_ENABLED);
         }
         return false;
-    }
-
-    @Override
-    public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
-        this.starTreeQueryContext = starTreeQueryContext;
-        return this;
-    }
-
-    @Override
-    public StarTreeQueryContext getStarTreeQueryContext() {
-        return this.starTreeQueryContext;
-    }
-
-    @Override
-    public FixedBitSet getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
-        if (this.starTreeValuesMap.containsKey(ctx)) {
-            return starTreeValuesMap.get(ctx);
-        }
-        StarTreeFilter filter = new StarTreeFilter(starTreeValues, this.getStarTreeQueryContext().getQueryMap());
-        FixedBitSet result = filter.getStarTreeResult();
-
-        starTreeValuesMap.put(ctx, result);
-        return result;
     }
 }
