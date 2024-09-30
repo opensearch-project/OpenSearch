@@ -27,8 +27,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestShardsListAction extends RestShardsAction {
 
-    private static final int MAX_SUPPORTED_LIST_SHARDS_PAGE_SIZE_STRING = 20000;
-    private static final int MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE_STRING = 2000;
+    protected static final int MAX_SUPPORTED_LIST_SHARDS_PAGE_SIZE = 20000;
+    protected static final int MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE = 2000;
 
     @Override
     public List<Route> routes() {
@@ -55,10 +55,10 @@ public class RestShardsListAction extends RestShardsAction {
     protected PageParams validateAndGetPageParams(RestRequest restRequest) {
         PageParams pageParams = super.validateAndGetPageParams(restRequest);
         // validate max supported pageSize
-        if (pageParams.getSize() < MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE_STRING) {
-            throw new IllegalArgumentException("size should at least be [" + MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE_STRING + "]");
-        } else if (pageParams.getSize() > MAX_SUPPORTED_LIST_SHARDS_PAGE_SIZE_STRING) {
-            throw new IllegalArgumentException("size should be less than [" + MAX_SUPPORTED_LIST_SHARDS_PAGE_SIZE_STRING + "]");
+        if (pageParams.getSize() < MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE) {
+            throw new IllegalArgumentException("size should at least be [" + MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE + "]");
+        } else if (pageParams.getSize() > MAX_SUPPORTED_LIST_SHARDS_PAGE_SIZE) {
+            throw new IllegalArgumentException("size should be less than [" + MAX_SUPPORTED_LIST_SHARDS_PAGE_SIZE + "]");
         }
         // Next Token in the request will be validated by the ShardStrategyToken itself.
         if (Objects.nonNull(pageParams.getRequestedToken())) {
@@ -68,6 +68,6 @@ public class RestShardsListAction extends RestShardsAction {
     }
 
     protected int defaultPageSize() {
-        return MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE_STRING;
+        return MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE;
     }
 }

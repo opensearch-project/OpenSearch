@@ -48,8 +48,10 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.rest.pagination.PageToken;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -64,14 +66,18 @@ import static org.mockito.Mockito.when;
 
 public class RestShardsActionTests extends OpenSearchTestCase {
 
-    public void testBuildTable() {
+    private final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+    private List<ShardRouting> shardRoutings = new ArrayList<>();
+    private Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
+    private ClusterStateResponse state;
+    private IndicesStatsResponse stats;
+
+    @Before
+    public void setup() {
         final int numShards = randomIntBetween(1, 5);
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
-        DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        List<ShardRouting> shardRoutings = new ArrayList<>(numShards);
-        Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
         String index = "index";
         for (int i = 0; i < numShards; i++) {
             ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
@@ -97,23 +103,43 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         when(indexStats.getPrimaries()).thenReturn(new CommonStats());
         when(indexStats.getTotal()).thenReturn(new CommonStats());
 
-        IndicesStatsResponse stats = mock(IndicesStatsResponse.class);
+        stats = mock(IndicesStatsResponse.class);
         when(stats.asMap()).thenReturn(shardStatsMap);
 
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(discoveryNodes.get(localNode.getId())).thenReturn(localNode);
 
-        ClusterStateResponse state = mock(ClusterStateResponse.class);
+        state = mock(ClusterStateResponse.class);
         RoutingTable routingTable = mock(RoutingTable.class);
         when(routingTable.allShards()).thenReturn(shardRoutings);
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.routingTable()).thenReturn(routingTable);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
         when(state.getState()).thenReturn(clusterState);
+    }
 
+    public void testBuildTable() {
         final RestShardsAction action = new RestShardsAction();
         final Table table = action.buildTable(new FakeRestRequest(), state, stats, state.getState().routingTable().allShards(), null);
+        assertTable(table);
+    }
 
+    public void testBuildTableWithPageToken() {
+        final RestShardsAction action = new RestShardsAction();
+        final Table table = action.buildTable(
+            new FakeRestRequest(),
+            state,
+            stats,
+            state.getState().routingTable().allShards(),
+            new PageToken("foo", "test")
+        );
+        assertTable(table);
+        assertNotNull(table.getPageToken());
+        assertEquals("foo", table.getPageToken().getNextToken());
+        assertEquals("test", table.getPageToken().getPaginatedEntity());
+    }
+
+    private void assertTable(Table table) {
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
         assertThat(headers.get(0).value, equalTo("index"));
@@ -128,7 +154,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertThat(headers.get(79).value, equalTo("docs.deleted"));
 
         final List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(numShards));
+        assertThat(rows.size(), equalTo(shardRoutings.size()));
 
         Iterator<ShardRouting> shardRoutingsIt = shardRoutings.iterator();
         for (final List<Table.Cell> row : rows) {
