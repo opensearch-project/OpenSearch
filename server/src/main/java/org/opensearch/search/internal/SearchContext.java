@@ -46,9 +46,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -81,6 +79,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
@@ -133,6 +132,7 @@ public abstract class SearchContext implements Releasable {
     private InnerHitsContext innerHitsContext;
     protected volatile Map<LeafReaderContext, FixedBitSet> starTreeValuesMap;
     private volatile boolean searchTimedOut;
+    private StarTreeQueryContext starTreeQueryContext;
 
     protected SearchContext() {}
 
@@ -538,15 +538,21 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public StarTreeQueryContext getStarTreeQueryContext() {
-        return null;
-    }
 
     public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        this.starTreeQueryContext = starTreeQueryContext;
         return this;
     }
 
-    public FixedBitSet getStarTreeFilteredValues(LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
-        return null;
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        return this.starTreeQueryContext;
+    }
+
+    public void initializeStarTreeValuesMap() {
+        this.starTreeValuesMap = new HashMap<>();
+    }
+
+    public Map<LeafReaderContext, FixedBitSet> getStarTreeValuesMap() {
+        return starTreeValuesMap;
     }
 }

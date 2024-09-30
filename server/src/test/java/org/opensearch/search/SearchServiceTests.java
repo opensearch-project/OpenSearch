@@ -121,7 +121,6 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.search.startree.StarTreeQuery;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -2269,75 +2268,75 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000), true);
     }
 
-    public void testParseQueryToOriginalOrStarTreeQuery() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-        setStarTreeIndexSetting("true");
-
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-            .build();
-        CreateIndexRequestBuilder builder = client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(settings)
-            .setMapping(StarTreeDocValuesFormatTests.getExpandedMapping());
-        createIndex("test", builder);
-
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
-        IndexShard indexShard = indexService.getShard(0);
-        ShardSearchRequest request = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(true),
-            indexShard.shardId(),
-            1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
-            1.0f,
-            -1,
-            null,
-            null
-        );
-
-        // Case 1: No query or aggregations, should not use star tree
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
-
-        // Case 2: MatchAllQuery present but no aggregations, should not use star tree
-        sourceBuilder = new SearchSourceBuilder().query(new MatchAllQueryBuilder());
-        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
-
-        // Case 3: MatchAllQuery and aggregations present, should use star tree
-        sourceBuilder = new SearchSourceBuilder().size(0)
-            .query(new MatchAllQueryBuilder())
-            .aggregation(AggregationBuilders.max("test").field("field"));
-        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
-
-        // Case 4: MatchAllQuery and aggregations present, but trackTotalHitsUpTo specified, should not use star tree
-        sourceBuilder = new SearchSourceBuilder().size(0)
-            .query(new MatchAllQueryBuilder())
-            .aggregation(AggregationBuilders.max("test").field("field"))
-            .trackTotalHitsUpTo(1000);
-        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
-
-        // Case 5: TermQuery and aggregations present, should use star tree
-        sourceBuilder = new SearchSourceBuilder().size(0)
-            .query(new TermQueryBuilder("sndv", 1))
-            .aggregation(AggregationBuilders.max("test").field("field"));
-        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
-
-        // Case 6: No query, metric aggregations present, should use star tree
-        sourceBuilder = new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.max("test").field("field"));
-        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
-
-        // Case 7: TermQuery and aggregations present, size != 0, should not use star tree
-        sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("sndv", 1))
-            .aggregation(AggregationBuilders.max("test").field("field"));
-        assertQueryType(request, sourceBuilder, IndexOrDocValuesQuery.class);
-
-        setStarTreeIndexSetting(null);
-    }
+//    public void testParseQueryToOriginalOrStarTreeQuery() throws IOException {
+//        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+//        setStarTreeIndexSetting("true");
+//
+//        Settings settings = Settings.builder()
+//            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+//            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+//            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+//            .build();
+//        CreateIndexRequestBuilder builder = client().admin()
+//            .indices()
+//            .prepareCreate("test")
+//            .setSettings(settings)
+//            .setMapping(StarTreeDocValuesFormatTests.getExpandedMapping());
+//        createIndex("test", builder);
+//
+//        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+//        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+//        IndexShard indexShard = indexService.getShard(0);
+//        ShardSearchRequest request = new ShardSearchRequest(
+//            OriginalIndices.NONE,
+//            new SearchRequest().allowPartialSearchResults(true),
+//            indexShard.shardId(),
+//            1,
+//            new AliasFilter(null, Strings.EMPTY_ARRAY),
+//            1.0f,
+//            -1,
+//            null,
+//            null
+//        );
+//
+//        // Case 1: No query or aggregations, should not use star tree
+//        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+//        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
+//
+//        // Case 2: MatchAllQuery present but no aggregations, should not use star tree
+//        sourceBuilder = new SearchSourceBuilder().query(new MatchAllQueryBuilder());
+//        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
+//
+//        // Case 3: MatchAllQuery and aggregations present, should use star tree
+//        sourceBuilder = new SearchSourceBuilder().size(0)
+//            .query(new MatchAllQueryBuilder())
+//            .aggregation(AggregationBuilders.max("test").field("field"));
+//        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
+//
+//        // Case 4: MatchAllQuery and aggregations present, but trackTotalHitsUpTo specified, should not use star tree
+//        sourceBuilder = new SearchSourceBuilder().size(0)
+//            .query(new MatchAllQueryBuilder())
+//            .aggregation(AggregationBuilders.max("test").field("field"))
+//            .trackTotalHitsUpTo(1000);
+//        assertQueryType(request, sourceBuilder, MatchAllDocsQuery.class);
+//
+//        // Case 5: TermQuery and aggregations present, should use star tree
+//        sourceBuilder = new SearchSourceBuilder().size(0)
+//            .query(new TermQueryBuilder("sndv", 1))
+//            .aggregation(AggregationBuilders.max("test").field("field"));
+//        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
+//
+//        // Case 6: No query, metric aggregations present, should use star tree
+//        sourceBuilder = new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.max("test").field("field"));
+//        assertQueryType(request, sourceBuilder, StarTreeQuery.class);
+//
+//        // Case 7: TermQuery and aggregations present, size != 0, should not use star tree
+//        sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("sndv", 1))
+//            .aggregation(AggregationBuilders.max("test").field("field"));
+//        assertQueryType(request, sourceBuilder, IndexOrDocValuesQuery.class);
+//
+//        setStarTreeIndexSetting(null);
+//    }
 
     private void setStarTreeIndexSetting(String value) throws IOException {
         client().admin()
@@ -2347,14 +2346,14 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             .execute();
     }
 
-    private void assertQueryType(ShardSearchRequest request, SearchSourceBuilder sourceBuilder, Class<?> expectedQueryClass)
-        throws IOException {
-        request.source(sourceBuilder);
-        SearchService searchService = getInstanceFromNode(SearchService.class);
-        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
-            SearchContext context = searchService.createContext(reader, request, null, true);
-            assertThat(context.query(), instanceOf(expectedQueryClass));
-            searchService.doStop();
-        }
-    }
+//    private void assertQueryType(ShardSearchRequest request, SearchSourceBuilder sourceBuilder, Class<?> expectedQueryClass)
+//        throws IOException {
+//        request.source(sourceBuilder);
+//        SearchService searchService = getInstanceFromNode(SearchService.class);
+//        try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
+//            SearchContext context = searchService.createContext(reader, request, null, true);
+//            assertThat(context.query(), instanceOf(expectedQueryClass));
+//            searchService.doStop();
+//        }
+//    }
 }

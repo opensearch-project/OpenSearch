@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -30,15 +29,14 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
-import org.opensearch.search.aggregations.metrics.CompensatedSum;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,14 +93,16 @@ public class StarTreeQueryHelper {
             return null;
         }
 
-        boolean needCaching = context.aggregations().factories().getFactories().length > 1;
-//        List<MetricInfo> metricInfos = new ArrayList<>();
+
         for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
-            MetricStat metricStat = validateStarTreeMetricSuport(compositeMappedFieldType, aggregatorFactory);
+            MetricStat metricStat = validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory);
             if (metricStat == null) {
                 return null;
             }
-//            metricInfos.add(new )
+        }
+
+        if (context.aggregations().factories().getFactories().length > 1) {
+            context.initializeStarTreeValuesMap();
         }
 
         return starTreeQueryContext;
@@ -134,7 +134,7 @@ public class StarTreeQueryHelper {
 
     /**
      * Parse query body to star-tree predicates
-     * @param queryBuilder
+     * @param queryBuilder to match supported query shape
      * @return predicates to match
      */
     private static Map<String, Long> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
@@ -151,11 +151,10 @@ public class StarTreeQueryHelper {
         return predicateMap;
     }
 
-    private static MetricStat validateStarTreeMetricSuport(
+    private static MetricStat validateStarTreeMetricSupport(
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
-//        List<MetricStat> metricStats = new ArrayList<>();
         if (aggregatorFactory instanceof MetricAggregatorFactory && aggregatorFactory.getSubFactories().getFactories().length == 0) {
             String field;
             Map<String, List<MetricStat>> supportedMetrics = compositeIndexFieldInfo.getMetrics()
@@ -197,6 +196,7 @@ public class StarTreeQueryHelper {
         Runnable finalConsumer
     ) throws IOException {
         StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        assert starTreeValues != null;
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
 
@@ -205,15 +205,10 @@ public class StarTreeQueryHelper {
             metricName
         );
         // Obtain a FixedBitSet of matched document IDs
-        FixedBitSet matchedDocIds = context.getStarTreeFilteredValues(ctx, starTreeValues);  // Assuming this method gives a FixedBitSet
-
-        // Safety check: make sure the FixedBitSet is non-null and valid
-        if (matchedDocIds == null) {
-            throw new IllegalStateException("FixedBitSet is null");
-        }
+        FixedBitSet matchedDocIds = getStarTreeFilteredValues(context, ctx, starTreeValues);  // Assuming this method gives a FixedBitSet
+        assert matchedDocIds != null;
 
         int numBits = matchedDocIds.length();  // Get the length of the FixedBitSet
-
         if (numBits > 0) {
             // Iterate over the FixedBitSet
             for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = (bit + 1 < numBits) ? matchedDocIds.nextSetBit(bit + 1) : -1) {
@@ -230,6 +225,7 @@ public class StarTreeQueryHelper {
             }
         }
 
+
         // Call the final consumer after processing all entries
         finalConsumer.run();
 
@@ -240,5 +236,17 @@ public class StarTreeQueryHelper {
                 throw new CollectionTerminatedException();
             }
         };
+    }
+
+    public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
+        if (context.getStarTreeValuesMap() != null && context.getStarTreeValuesMap().containsKey(ctx)) {
+            return context.getStarTreeValuesMap().get(ctx);
+        }
+
+        StarTreeFilter filter = new StarTreeFilter(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
+        FixedBitSet result = filter.getStarTreeResult();
+
+        context.getStarTreeValuesMap().put(ctx, result);
+        return result;
     }
 }

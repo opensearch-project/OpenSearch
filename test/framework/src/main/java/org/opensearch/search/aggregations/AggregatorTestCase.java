@@ -60,6 +60,7 @@ import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -91,32 +92,19 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.opensearch.index.cache.query.DisabledQueryCache;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
-import org.opensearch.index.mapper.BinaryFieldMapper;
-import org.opensearch.index.mapper.CompletionFieldMapper;
-import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
-import org.opensearch.index.mapper.ContentPath;
-import org.opensearch.index.mapper.DateFieldMapper;
-import org.opensearch.index.mapper.DerivedFieldMapper;
-import org.opensearch.index.mapper.FieldAliasMapper;
-import org.opensearch.index.mapper.FieldMapper;
-import org.opensearch.index.mapper.GeoPointFieldMapper;
-import org.opensearch.index.mapper.GeoShapeFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.*;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
-import org.opensearch.index.mapper.NumberFieldMapper;
-import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ObjectMapper.Nested;
-import org.opensearch.index.mapper.RangeFieldMapper;
-import org.opensearch.index.mapper.RangeType;
-import org.opensearch.index.mapper.StarTreeMapper;
-import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
@@ -135,12 +123,15 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTr
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.startree.StarTreeFilter;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -152,9 +143,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -331,6 +325,28 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return aggregator;
     }
 
+    protected CountingAggregator createCountingAggregator(
+        Query query,
+        QueryBuilder queryBuilder,
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        CompositeIndexFieldInfo starTree,
+        MultiBucketConsumer bucketConsumer,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext;
+        if (starTree != null) {
+            searchContext = createSearchContextWithStarTreeContext(indexSearcher, indexSettings, query, queryBuilder, starTree, bucketConsumer, fieldTypes);
+        } else {
+            searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        }
+        return new CountingAggregator(
+            new AtomicInteger(),
+            createAggregator(aggregationBuilder, searchContext)
+        );
+    }
+
     /**
      * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
      */
@@ -342,6 +358,45 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         return createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+    }
+
+    protected SearchContext createSearchContextWithStarTreeContext(
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        Query query,
+        QueryBuilder queryBuilder,
+        CompositeIndexFieldInfo starTree,
+        MultiBucketConsumer bucketConsumer,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+
+// Mock SearchContextAggregations
+        SearchContextAggregations searchContextAggregations = mock(SearchContextAggregations.class);
+        AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
+        when(searchContext.aggregations()).thenReturn(searchContextAggregations);
+        when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[]{});
+
+        StarTreeMapper.StarTreeFieldType compositeMappedFieldType = mock(StarTreeMapper.StarTreeFieldType.class);
+        when(compositeMappedFieldType.name()).thenReturn(starTree.getField());
+        when(compositeMappedFieldType.getCompositeIndexType()).thenReturn(starTree.getType());
+        Set<CompositeMappedFieldType> compositeFieldTypes = Set.of(compositeMappedFieldType);
+
+        List<Dimension> dimensions = new LinkedList<>();
+        dimensions.add(new NumericDimension("sndv"));
+        dimensions.add(new NumericDimension("dv"));
+        when((compositeMappedFieldType).getDimensions()).thenReturn(dimensions);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
+        when(searchContext.mapperService()).thenReturn(mapperService);
+
+        SearchSourceBuilder sb = new SearchSourceBuilder().query(queryBuilder);
+        StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(searchContext, sb);
+
+        when(searchContext.getStarTreeQueryContext()).thenReturn(starTreeQueryContext);
+        return searchContext;
+
     }
 
     protected SearchContext createSearchContext(
@@ -655,7 +710,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         IndexSettings indexSettings,
         IndexSearcher searcher,
         Query query,
+        QueryBuilder queryBuilder,
         AggregationBuilder builder,
+        CompositeIndexFieldInfo compositeIndexFieldInfo,
         int maxBucket,
         boolean hasNested,
         MappedFieldType... fieldTypes
@@ -672,35 +729,14 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
+        CountingAggregator countingAggregator = createCountingAggregator(query, queryBuilder, builder, searcher, indexSettings, compositeIndexFieldInfo, bucketConsumer, fieldTypes);
 
-        if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {
-            assertTrue(ctx instanceof LeafReaderContext);
-            final LeafReaderContext compCTX = (LeafReaderContext) ctx;
-            final int size = compCTX.leaves().size();
-            final ShardSearcher[] subSearchers = new ShardSearcher[size];
-            for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
-                final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
-                subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
-            }
-            for (ShardSearcher subSearcher : subSearchers) {
-                MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(
-                    maxBucket,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                );
-                C a = createAggregator(query, builder, subSearcher, indexSettings, shardBucketConsumer, fieldTypes);
-                a.preCollection();
-                Weight weight = subSearcher.createWeight(query, ScoreMode.COMPLETE, 1f);
-
-                subSearcher.search(weight, a);
-                a.postCollection();
-                aggs.add(a.buildTopLevel());
-            }
-        } else {
-            root.preCollection();
-            searcher.search(query, root);
-            root.postCollection();
-            aggs.add(root.buildTopLevel());
+        countingAggregator.preCollection();
+        searcher.search(query, countingAggregator);
+        countingAggregator.postCollection();
+        aggs.add(countingAggregator.buildTopLevel());
+        if (compositeIndexFieldInfo != null) {
+            assertEquals(0, countingAggregator.collectCounter.get());
         }
 
         MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
@@ -708,7 +744,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            root.context().bigArrays(),
+            countingAggregator.context().bigArrays(),
             getMockScriptService(),
             reduceBucketConsumer,
             pipelines
