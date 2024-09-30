@@ -42,11 +42,11 @@ import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.engine.Segment;
-import org.opensearch.rest.ResponseLimitBreachedException;
-import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
@@ -58,7 +58,7 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.rest.ResponseLimitSettings.LimitEntity.INDICES;
+import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.INDICES;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -131,7 +131,9 @@ public class RestSegmentsAction extends AbstractCatAction {
             int limit = responseLimitSettings.getCatSegmentsResponseLimit();
             if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getRoutingTable(), INDICES, limit)) {
                 throw new ResponseLimitBreachedException(
-                    "Segments from too many indices requested. Can not request indices beyond {" + limit + "}"
+                    "Segments from too many indices requested. Can not request indices beyond {" + limit + "}",
+                    limit,
+                    INDICES
                 );
             }
         }

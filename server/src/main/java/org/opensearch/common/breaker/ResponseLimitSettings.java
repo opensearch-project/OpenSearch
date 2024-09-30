@@ -6,10 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest;
+package org.opensearch.common.breaker;
 
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -89,13 +90,13 @@ public class ResponseLimitSettings {
      * @return True/False
      */
     public static boolean isResponseLimitBreached(final Metadata metadata, final LimitEntity limitEntity, final int limit) {
-        if (Objects.isNull(metadata)) return false;
-        if (limit <= 0) return false;
-        if (Objects.requireNonNull(limitEntity) == LimitEntity.INDICES) {
+        if (Objects.isNull(metadata) || limit <= 0) return false;
+        if (limitEntity == LimitEntity.INDICES) {
             int indicesCount = getTotalIndicesFromMetadata.apply(metadata);
             return indicesCount > limit;
+        } else {
+            throw new IllegalArgumentException("Unsupported limit entity [" + limitEntity + "]");
         }
-        return false;
     }
 
     /**
@@ -108,25 +109,33 @@ public class ResponseLimitSettings {
      * @return True/False
      */
     public static boolean isResponseLimitBreached(final RoutingTable routingTable, final LimitEntity limitEntity, final int limit) {
-        if (Objects.isNull(routingTable)) return false;
-        if (limit <= 0) return false;
+        if (Objects.isNull(routingTable) || limit <= 0) return false;
+        if (Objects.isNull(limitEntity)) {
+            throw new IllegalArgumentException("Limit entity cannot be null");
+        }
         switch (limitEntity) {
             case INDICES:
                 int indicesCount = getTotalIndicesFromRoutingTable.apply(routingTable);
                 if (indicesCount > limit) return true;
                 break;
             case SHARDS:
-                final Map<String, IndexRoutingTable> indexRoutingTableMap = routingTable.getIndicesRouting();
-                int totalShards = 0;
-                for (final Map.Entry<String, IndexRoutingTable> entry : indexRoutingTableMap.entrySet()) {
-                    // In case routing table is corrupted. We will not block actions.
-                    if (Objects.isNull(entry.getValue()) || Objects.isNull(entry.getValue().getShards())) {
-                        return false;
-                    }
-                    totalShards += entry.getValue().getShards().size();
-                    if (totalShards > limit) return true;
-                }
+                if (isShardsLimitBreached(routingTable, limit)) return true;
                 break;
+            default:
+                throw new IllegalArgumentException("Unsupported limit entity [" + limitEntity + "]");
+        }
+        return false;
+    }
+
+    private static boolean isShardsLimitBreached(final RoutingTable routingTable, final int limit) {
+        final Map<String, IndexRoutingTable> indexRoutingTableMap = routingTable.getIndicesRouting();
+        int totalShards = 0;
+        for (final Map.Entry<String, IndexRoutingTable> entry : indexRoutingTableMap.entrySet()) {
+            for (final Map.Entry<Integer, IndexShardRoutingTable> indexShardRoutingTableEntry : entry.getValue().getShards().entrySet()) {
+                totalShards += indexShardRoutingTableEntry.getValue().getShards().size();
+                // Fail fast if limit value is breached and avoid unnecessary computation.
+                if (totalShards > limit) return true;
+            }
         }
         return false;
     }

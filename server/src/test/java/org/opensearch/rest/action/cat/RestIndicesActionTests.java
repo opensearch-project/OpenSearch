@@ -43,12 +43,12 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.rest.pagination.PageToken;
 import org.opensearch.test.OpenSearchTestCase;
@@ -145,7 +145,6 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         }
     }
 
-
     public void testBuildTable() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder().build();
@@ -171,8 +170,11 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
     }
 
     public void testBuildPaginatedTable() {
-        final RestIndicesAction action = new RestIndicesAction();
-        final RestIndicesListAction indicesListAction = new RestIndicesListAction();
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings = Settings.builder().build();
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
+        final RestIndicesListAction indicesListAction = new RestIndicesListAction(responseLimitSettings);
         List<String> indicesList = new ArrayList<>(indicesMetadatas.keySet());
         // Using half of the indices from metadata list for a page
         String[] indicesToBeQueried = indicesList.subList(0, indicesMetadatas.size() / 2).toArray(new String[0]);

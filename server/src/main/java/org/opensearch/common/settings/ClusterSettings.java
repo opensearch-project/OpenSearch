@@ -84,6 +84,7 @@ import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
@@ -155,7 +156,6 @@ import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionCo
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;

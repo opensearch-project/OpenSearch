@@ -1213,8 +1213,8 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.rest.ResponseLimitBreachedException.class,
-                org.opensearch.rest.ResponseLimitBreachedException::new,
+                org.opensearch.common.breaker.ResponseLimitBreachedException.class,
+                org.opensearch.common.breaker.ResponseLimitBreachedException::new,
                 175,
                 V_2_18_0
             )

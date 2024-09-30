@@ -300,6 +300,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
@@ -325,7 +326,6 @@ import org.opensearch.persistent.UpdatePersistentTaskStatusAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.NamedRoute;
-import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -992,7 +992,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestTemplatesAction());
 
         // LIST API
-        registerHandler.accept(new RestIndicesListAction());
+        registerHandler.accept(new RestIndicesListAction(responseLimitSettings));
 
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());

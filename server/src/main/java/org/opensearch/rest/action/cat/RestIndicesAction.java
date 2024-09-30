@@ -50,6 +50,8 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Table;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
@@ -59,8 +61,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.rest.ResponseLimitBreachedException;
-import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -88,7 +88,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
-import static org.opensearch.rest.ResponseLimitSettings.LimitEntity.INDICES;
+import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.INDICES;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -253,7 +253,11 @@ public class RestIndicesAction extends AbstractListAction {
             int limit = responseLimitSettings.getCatIndicesResponseLimit();
             if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getMetadata(), INDICES, limit)) {
                 listener.onFailure(
-                    new ResponseLimitBreachedException("Too many indices requested. Can not request indices beyond {" + limit + "}")
+                    new ResponseLimitBreachedException(
+                        "Too many indices requested. Can not request indices beyond {" + limit + "}",
+                        limit,
+                        INDICES
+                    )
                 );
             }
         }

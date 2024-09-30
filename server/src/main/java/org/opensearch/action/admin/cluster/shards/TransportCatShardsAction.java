@@ -16,18 +16,18 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.NotifyOnceListener;
-import org.opensearch.rest.ResponseLimitBreachedException;
-import org.opensearch.rest.ResponseLimitSettings;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 import java.util.Objects;
 
-import static org.opensearch.rest.ResponseLimitSettings.LimitEntity.SHARDS;
+import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.SHARDS;
 
 /**
  * Perform cat shards action
@@ -133,7 +133,11 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
             int limit = responseLimitSettings.getCatShardsResponseLimit();
             if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getRoutingTable(), SHARDS, limit)) {
                 listener.onFailure(
-                    new ResponseLimitBreachedException("Too many shards requested. Can not request shards beyond {" + limit + "}")
+                    new ResponseLimitBreachedException(
+                        "Too many shards requested. Can not request shards beyond {" + limit + "}",
+                        limit,
+                        SHARDS
+                    )
                 );
             }
         }
