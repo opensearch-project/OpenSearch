@@ -33,7 +33,6 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import com.jcraft.jzlib.JZlib;
 
@@ -81,58 +80,58 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         executeChecksumTask((stream) -> {
             clusterState.routingTable().writeVerifiableTo(stream);
             return null;
-            }, checksum -> routingTableChecksum = checksum, executorService, latch);
+        }, checksum -> routingTableChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                clusterState.nodes().writeVerifiableTo(stream);
+            clusterState.nodes().writeVerifiableTo(stream);
             return null;
         }, checksum -> nodesChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                clusterState.coordinationMetadata().writeVerifiableTo(stream);
+            clusterState.coordinationMetadata().writeVerifiableTo(stream);
             return null;
         }, checksum -> coordinationMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                Settings.writeSettingsToStream(clusterState.metadata().persistentSettings(), stream);
+            Settings.writeSettingsToStream(clusterState.metadata().persistentSettings(), stream);
             return null;
         }, checksum -> settingMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                Settings.writeSettingsToStream(clusterState.metadata().transientSettings(), stream);
+            Settings.writeSettingsToStream(clusterState.metadata().transientSettings(), stream);
             return null;
         }, checksum -> transientSettingsMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                clusterState.metadata().templatesMetadata().writeVerifiableTo(stream);
+            clusterState.metadata().templatesMetadata().writeVerifiableTo(stream);
             return null;
         }, checksum -> templatesMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                stream.writeStringCollection(clusterState.metadata().customs().keySet());
+            stream.writeStringCollection(clusterState.metadata().customs().keySet());
             return null;
         }, checksum -> customMetadataMapChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(stream);
+            ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(stream);
             return null;
         }, checksum -> hashesOfConsistentSettingsChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                stream.writeMapValues(
-                    clusterState.metadata().indices(),
-                    (checksumStream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) checksumStream)
-                );
+            stream.writeMapValues(
+                clusterState.metadata().indices(),
+                (checksumStream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) checksumStream)
+            );
             return null;
         }, checksum -> indicesChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                clusterState.blocks().writeVerifiableTo(stream);
+            clusterState.blocks().writeVerifiableTo(stream);
             return null;
         }, checksum -> blocksChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-                stream.writeStringCollection(clusterState.customs().keySet());
+            stream.writeStringCollection(clusterState.customs().keySet());
             return null;
         }, checksum -> clusterStateCustomsChecksum = checksum, executorService, latch);
 
