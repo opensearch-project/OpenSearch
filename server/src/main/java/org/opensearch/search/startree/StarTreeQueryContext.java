@@ -8,15 +8,10 @@
 
 package org.opensearch.search.startree;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Query class for querying star tree data structure.
@@ -38,17 +33,17 @@ public class StarTreeQueryContext {
      */
     private final Map<String, Long> queryMap;
 
-//    /**
-//     * Cache for leaf results
-//     * This is used to cache the results for each leaf reader context
-//     * to avoid reading the data from the leaf reader context multiple times
-//     */
-//    private volatile Map<LeafReaderContext, Map<String, StarTreeQueryHelper.MetricInfo>> leafResultsCache;
+    // /**
+    // * Cache for leaf results
+    // * This is used to cache the results for each leaf reader context
+    // * to avoid reading the data from the leaf reader context multiple times
+    // */
+    // private volatile Map<LeafReaderContext, Map<String, StarTreeQueryHelper.MetricInfo>> leafResultsCache;
 
-//    /**
-//     * List of metrics to be computed & cached
-//     */
-//    private List<StarTreeQueryHelper.MetricInfo> metrics;
+    // /**
+    // * List of metrics to be computed & cached
+    // */
+    // private List<StarTreeQueryHelper.MetricInfo> metrics;
 
     public StarTreeQueryContext(CompositeIndexFieldInfo starTree, Map<String, Long> queryMap) {
         this.starTree = starTree;
@@ -62,18 +57,4 @@ public class StarTreeQueryContext {
     public Map<String, Long> getQueryMap() {
         return queryMap;
     }
-
-//    public void initializeLeafResultsCache() {
-//        this.leafResultsCache = new ConcurrentHashMap<>();
-//        this.metrics = new ArrayList<>();
-//    }
-//
-//    public Map<LeafReaderContext, Map<String, StarTreeQueryHelper.MetricInfo>> getLeafResultsCache() {
-//        return leafResultsCache;
-//    }
-//
-//    public void addMetric(StarTreeQueryHelper.MetricInfo metric) {
-//        metrics.add(metric);
-//    }
-
 }

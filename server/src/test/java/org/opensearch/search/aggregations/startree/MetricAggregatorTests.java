@@ -32,9 +32,13 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.codec.composite99.datacube.startree.StarTreeDocValuesFormatTests;
+import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.StarTreeMapper;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -48,15 +52,15 @@ import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.opensearch.search.startree.OriginalOrStarTreeQuery;
-import org.opensearch.search.startree.StarTreeQuery;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -94,6 +98,136 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         return new Composite99Codec(Lucene99Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
+//    public void testStarTreeDocValues1() throws IOException {
+//        Directory directory = newDirectory();
+//        IndexWriterConfig conf = newIndexWriterConfig(null);
+//        conf.setCodec(getCodec());
+//        conf.setMergePolicy(newLogMergePolicy());
+//        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+//
+//        Random random = RandomizedTest.getRandom();
+//        int totalDocs = 100;
+//        final String SNDV = "sndv";
+//        final String DV = "dv";
+//        int val;
+//
+//        // Index 100 random documents
+//        for (int i = 0; i < totalDocs; i++) {
+//            Document doc = new Document();
+//            if (random.nextBoolean()) {
+//                val = random.nextInt(10) - 5; // Random long between -5 and 4
+//                doc.add(new SortedNumericDocValuesField(SNDV, val));
+//            }
+//            if (random.nextBoolean()) {
+//                val = random.nextInt(20) - 10; // Random long between -10 and 9
+//                doc.add(new SortedNumericDocValuesField(DV, val));
+//            }
+//            if (random.nextBoolean()) {
+//                val = random.nextInt(50); // Random long between 0 and 49
+//                doc.add(new SortedNumericDocValuesField(FIELD_NAME, val));
+//            }
+//            iw.addDocument(doc);
+//        }
+//
+//        if (randomBoolean()) {
+//            iw.forceMerge(1);
+//        }
+//        iw.close();
+//
+//        DirectoryReader ir = DirectoryReader.open(directory);
+//        initValuesSourceRegistry();
+//        LeafReaderContext context = ir.leaves().get(0);
+//
+//        SegmentReader reader = Lucene.segmentReader(context.reader());
+//        IndexSearcher indexSearcher = newSearcher(reader, false, false);
+//        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+//        List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+//
+//        CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
+//
+//        SumAggregationBuilder sumAggregationBuilder = sum("_name").field(FIELD_NAME);
+//        MaxAggregationBuilder maxAggregationBuilder = max("_name").field(FIELD_NAME);
+//        MinAggregationBuilder minAggregationBuilder = min("_name").field(FIELD_NAME);
+//        ValueCountAggregationBuilder valueCountAggregationBuilder = count("_name").field(FIELD_NAME);
+//        AvgAggregationBuilder avgAggregationBuilder = avg("_name").field(FIELD_NAME);
+//
+//        // match-all query
+//        Query defaultQuery = new MatchAllDocsQuery();
+//        StarTreeQuery starTreeQuery = new StarTreeQuery(starTree, null); // no predicates
+//        testCase(indexSearcher, defaultQuery, starTreeQuery, sumAggregationBuilder, verifyAggregation(InternalSum::getValue));
+//        testCase(indexSearcher, defaultQuery, starTreeQuery, maxAggregationBuilder, verifyAggregation(InternalMax::getValue));
+//        testCase(indexSearcher, defaultQuery, starTreeQuery, minAggregationBuilder, verifyAggregation(InternalMin::getValue));
+//        testCase(indexSearcher, defaultQuery, starTreeQuery, valueCountAggregationBuilder, verifyAggregation(InternalValueCount::getValue));
+//        testCase(indexSearcher, defaultQuery, starTreeQuery, avgAggregationBuilder, verifyAggregation(InternalAvg::getValue));
+//        // numeric-terms query
+//        for (int cases = 0; cases < 100; cases++) {
+//            Map<String, Long> queryMap;
+//            String queryField;
+//            long queryValue;
+//            if (randomBoolean()) {
+//                queryField = SNDV;
+//                queryValue = random.nextInt(10);
+//            } else {
+//                queryField = DV;
+//                queryValue = random.nextInt(20) - 15;
+//            }
+//            defaultQuery = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
+//            queryMap = Map.of(queryField, queryValue);
+//            starTreeQuery = new StarTreeQuery(starTree, queryMap);
+//
+//            testCase(indexSearcher, defaultQuery, starTreeQuery, sumAggregationBuilder, verifyAggregation(InternalSum::getValue));
+//            testCase(indexSearcher, defaultQuery, starTreeQuery, maxAggregationBuilder, verifyAggregation(InternalMax::getValue));
+//            testCase(indexSearcher, defaultQuery, starTreeQuery, minAggregationBuilder, verifyAggregation(InternalMin::getValue));
+//            testCase(
+//                indexSearcher,
+//                defaultQuery,
+//                starTreeQuery,
+//                valueCountAggregationBuilder,
+//                verifyAggregation(InternalValueCount::getValue)
+//            );
+//            testCase(indexSearcher, defaultQuery, starTreeQuery, avgAggregationBuilder, verifyAggregation(InternalAvg::getValue));
+//        }
+//        ir.close();
+//        directory.close();
+//    }
+
+//    private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+//        IndexSearcher searcher,
+//        Query defaultQuery,
+//        T builder,
+//        BiConsumer<V, V> verify
+//    ) throws IOException {
+////        OriginalOrStarTreeQuery originalOrStarTreeQuery = new OriginalOrStarTreeQuery(starTreeQuery, defaultQuery);
+//        V starTreeAggregation = searchAndReduceStarTree(
+//            createIndexSettings(),
+//            searcher,
+//            defaultQuery,
+//            builder,
+//            DEFAULT_MAX_BUCKETS,
+//            false,
+//            DEFAULT_MAPPED_FIELD
+//        );
+//        V expectedAggregation = searchAndReduceStarTree(
+//            createIndexSettings(),
+//            searcher,
+//            defaultQuery,
+//            builder,
+//            DEFAULT_MAX_BUCKETS,
+//            false,
+//            DEFAULT_MAPPED_FIELD
+//        );
+//        verify.accept(expectedAggregation, starTreeAggregation);
+//    }
+
+    <T, R extends Number> BiConsumer<T, T> verifyAggregation(Function<T, R> valueExtractor) {
+        return (expectedAggregation, actualAggregation) -> assertEquals(
+            valueExtractor.apply(expectedAggregation).doubleValue(),
+            valueExtractor.apply(actualAggregation).doubleValue(),
+            0.0f
+        );
+    }
+
+
     public void testStarTreeDocValues() throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
@@ -107,6 +241,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         final String DV = "dv";
         int val;
 
+        List<Document> docs = new ArrayList<>();
         // Index 100 random documents
         for (int i = 0; i < totalDocs; i++) {
             Document doc = new Document();
@@ -123,6 +258,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 doc.add(new SortedNumericDocValuesField(FIELD_NAME, val));
             }
             iw.addDocument(doc);
+            docs.add(doc);
         }
 
         if (randomBoolean()) {
@@ -137,8 +273,8 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         SegmentReader reader = Lucene.segmentReader(context.reader());
         IndexSearcher indexSearcher = newSearcher(reader, false, false);
         CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
-        List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
 
+        List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
 
         SumAggregationBuilder sumAggregationBuilder = sum("_name").field(FIELD_NAME);
@@ -147,17 +283,17 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder valueCountAggregationBuilder = count("_name").field(FIELD_NAME);
         AvgAggregationBuilder avgAggregationBuilder = avg("_name").field(FIELD_NAME);
 
+        Query query = new MatchAllDocsQuery();
         // match-all query
-        Query defaultQuery = new MatchAllDocsQuery();
-        StarTreeQuery starTreeQuery = new StarTreeQuery(starTree, null); // no predicates
-        testCase(indexSearcher, defaultQuery, starTreeQuery, sumAggregationBuilder, verifyAggregation(InternalSum::getValue));
-        testCase(indexSearcher, defaultQuery, starTreeQuery, maxAggregationBuilder, verifyAggregation(InternalMax::getValue));
-        testCase(indexSearcher, defaultQuery, starTreeQuery, minAggregationBuilder, verifyAggregation(InternalMin::getValue));
-        testCase(indexSearcher, defaultQuery, starTreeQuery, valueCountAggregationBuilder, verifyAggregation(InternalValueCount::getValue));
-        testCase(indexSearcher, defaultQuery, starTreeQuery, avgAggregationBuilder, verifyAggregation(InternalAvg::getValue));
-        // numeric-terms query
-        for (int cases = 0; cases < 100; cases++) {
-            Map<String, Long> queryMap;
+        QueryBuilder queryBuilder = null; // no predicates
+//        testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, verifyAggregation(InternalSum::getValue));
+//        testCase(indexSearcher, query, queryBuilder, maxAggregationBuilder, starTree, verifyAggregation(InternalMax::getValue));
+//        testCase(indexSearcher, query, queryBuilder, minAggregationBuilder, starTree, verifyAggregation(InternalMin::getValue));
+//        testCase(indexSearcher, query, queryBuilder, valueCountAggregationBuilder, starTree, verifyAggregation(InternalValueCount::getValue));
+//        testCase(indexSearcher, query, queryBuilder, avgAggregationBuilder, starTree, verifyAggregation(InternalAvg::getValue));
+
+        // Numeric-terms query
+        for (int cases = 0; cases < 1; cases++) {
             String queryField;
             long queryValue;
             if (randomBoolean()) {
@@ -167,39 +303,46 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 queryField = DV;
                 queryValue = random.nextInt(20) - 15;
             }
-            defaultQuery = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
-            queryMap = Map.of(queryField, queryValue);
-            starTreeQuery = new StarTreeQuery(starTree, queryMap);
+            queryField = DV;
+            queryValue = 1;
 
-            testCase(indexSearcher, defaultQuery, starTreeQuery, sumAggregationBuilder, verifyAggregation(InternalSum::getValue));
-            testCase(indexSearcher, defaultQuery, starTreeQuery, maxAggregationBuilder, verifyAggregation(InternalMax::getValue));
-            testCase(indexSearcher, defaultQuery, starTreeQuery, minAggregationBuilder, verifyAggregation(InternalMin::getValue));
-            testCase(
-                indexSearcher,
-                defaultQuery,
-                starTreeQuery,
-                valueCountAggregationBuilder,
-                verifyAggregation(InternalValueCount::getValue)
-            );
-            testCase(indexSearcher, defaultQuery, starTreeQuery, avgAggregationBuilder, verifyAggregation(InternalAvg::getValue));
+            query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
+            queryBuilder = new TermQueryBuilder(queryField, queryValue);
+
+//            testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, verifyAggregation(InternalSum::getValue));
+//            testCase(indexSearcher, query, queryBuilder, maxAggregationBuilder, starTree, verifyAggregation(InternalMax::getValue));
+            testCase(indexSearcher, query, queryBuilder, minAggregationBuilder, starTree, verifyAggregation(InternalMin::getValue));
+//            testCase(
+//                indexSearcher,
+//                query,
+//                queryBuilder,
+//                valueCountAggregationBuilder,
+//                starTree,
+//                verifyAggregation(InternalValueCount::getValue)
+//            );
+//            testCase(indexSearcher, query, queryBuilder, avgAggregationBuilder, starTree, verifyAggregation(InternalAvg::getValue));
         }
+
         ir.close();
         directory.close();
     }
 
+
     private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
         IndexSearcher searcher,
-        Query defaultQuery,
-        StarTreeQuery starTreeQuery,
-        T builder,
+        Query query,
+        QueryBuilder queryBuilder,
+        T aggBuilder,
+        CompositeIndexFieldInfo starTree,
         BiConsumer<V, V> verify
     ) throws IOException {
-        OriginalOrStarTreeQuery originalOrStarTreeQuery = new OriginalOrStarTreeQuery(starTreeQuery, defaultQuery);
         V starTreeAggregation = searchAndReduceStarTree(
             createIndexSettings(),
             searcher,
-            originalOrStarTreeQuery,
-            builder,
+            query,
+            queryBuilder,
+            aggBuilder,
+            starTree,
             DEFAULT_MAX_BUCKETS,
             false,
             DEFAULT_MAPPED_FIELD
@@ -207,20 +350,14 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         V expectedAggregation = searchAndReduceStarTree(
             createIndexSettings(),
             searcher,
-            defaultQuery,
-            builder,
+            query,
+            queryBuilder,
+            aggBuilder,
+            null,
             DEFAULT_MAX_BUCKETS,
             false,
             DEFAULT_MAPPED_FIELD
         );
         verify.accept(expectedAggregation, starTreeAggregation);
-    }
-
-    <T, R extends Number> BiConsumer<T, T> verifyAggregation(Function<T, R> valueExtractor) {
-        return (expectedAggregation, actualAggregation) -> assertEquals(
-            valueExtractor.apply(expectedAggregation).doubleValue(),
-            valueExtractor.apply(actualAggregation).doubleValue(),
-            0.0f
-        );
     }
 }

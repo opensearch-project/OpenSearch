@@ -100,7 +100,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         if (supportedStarTree != null) {
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
-        System.out.println("nopes nopes");
         return getDefaultLeafCollector(ctx, sub);
     }
 
