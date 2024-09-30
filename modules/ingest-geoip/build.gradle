@@ -41,7 +41,7 @@ opensearchplugin {
 dependencies {
   api('com.maxmind.geoip2:geoip2:4.2.1')
   // geoip2 dependencies:
-  api('com.maxmind.db:maxmind-db:3.1.0')
+  api('com.maxmind.db:maxmind-db:3.1.1')
   api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}")
 
