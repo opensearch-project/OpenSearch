@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.DiffableStringMap;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -78,104 +79,60 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         CountDownLatch latch = new CountDownLatch(COMPONENT_SIZE);
 
         executeChecksumTask((stream) -> {
-            try {
-                clusterState.routingTable().writeVerifiableTo(stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for routing table", e);
-            }
+            clusterState.routingTable().writeVerifiableTo(stream);
             return null;
-        }, checksum -> routingTableChecksum = checksum, executorService, latch);
+            }, checksum -> routingTableChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 clusterState.nodes().writeVerifiableTo(stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for discovery nodes", e);
-            }
             return null;
         }, checksum -> nodesChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 clusterState.coordinationMetadata().writeVerifiableTo(stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for coordination metadata", e);
-            }
             return null;
         }, checksum -> coordinationMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 Settings.writeSettingsToStream(clusterState.metadata().persistentSettings(), stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for settings metadata", e);
-            }
             return null;
         }, checksum -> settingMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 Settings.writeSettingsToStream(clusterState.metadata().transientSettings(), stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for transient settings metadata", e);
-            }
             return null;
         }, checksum -> transientSettingsMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 clusterState.metadata().templatesMetadata().writeVerifiableTo(stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for templates metadata", e);
-            }
             return null;
         }, checksum -> templatesMetadataChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 stream.writeStringCollection(clusterState.metadata().customs().keySet());
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for customs metadata", e);
-            }
             return null;
         }, checksum -> customMetadataMapChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for hashesOfConsistentSettings", e);
-            }
             return null;
         }, checksum -> hashesOfConsistentSettingsChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 stream.writeMapValues(
                     clusterState.metadata().indices(),
                     (checksumStream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) checksumStream)
                 );
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for indices metadata", e);
-            }
             return null;
         }, checksum -> indicesChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 clusterState.blocks().writeVerifiableTo(stream);
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for cluster state blocks", e);
-            }
             return null;
         }, checksum -> blocksChecksum = checksum, executorService, latch);
 
         executeChecksumTask((stream) -> {
-            try {
                 stream.writeStringCollection(clusterState.customs().keySet());
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to create checksum for cluster state customs", e);
-            }
             return null;
         }, checksum -> clusterStateCustomsChecksum = checksum, executorService, latch);
 
@@ -189,7 +146,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
     }
 
     private void executeChecksumTask(
-        Function<BufferedChecksumStreamOutput, Void> checksumTask,
+        CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> checksumTask,
         Consumer<Long> checksumConsumer,
         ExecutorService executorService,
         CountDownLatch latch
@@ -205,7 +162,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         });
     }
 
-    private long createChecksum(Function<BufferedChecksumStreamOutput, Void> o) throws IOException {
+    private long createChecksum(CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> o) throws IOException {
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out)
