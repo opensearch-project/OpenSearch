@@ -161,12 +161,12 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         });
     }
 
-    private long createChecksum(CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> o) throws IOException {
+    private long createChecksum(CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> task) throws IOException {
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out)
         ) {
-            o.apply(checksumOut);
+            task.apply(checksumOut);
             return checksumOut.getChecksum();
         }
     }
