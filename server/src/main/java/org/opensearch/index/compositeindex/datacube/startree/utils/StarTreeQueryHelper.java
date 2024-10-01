@@ -211,7 +211,7 @@ public class StarTreeQueryHelper {
             // Iterate over the FixedBitSet
             for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = (bit + 1 < numBits) ? matchedDocIds.nextSetBit(bit + 1) : -1) {
                 // Advance to the entryId in the valuesIterator
-                if (!valuesIterator.advanceExact(bit)) {
+                if (valuesIterator.advanceExact(bit) == false) {
                     continue;  // Skip if no more entries
                 }
 

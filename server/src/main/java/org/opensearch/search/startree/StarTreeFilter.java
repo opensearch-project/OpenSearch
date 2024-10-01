@@ -62,7 +62,9 @@ public class StarTreeFilter {
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
-        StarTreeValuesIterator starTreeValuesIterator = new StarTreeValuesIterator(starTreeResult._matchedDocIds.build().iterator());
+        SortedNumericStarTreeValuesIterator starTreeValuesIterator = new SortedNumericStarTreeValuesIterator(
+            starTreeResult._matchedDocIds.build().iterator()
+        );
 
         // No matches, return an empty FixedBitSet
         if (starTreeResult.maxMatchedDoc == -1) {
