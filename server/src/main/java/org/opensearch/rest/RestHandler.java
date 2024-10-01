@@ -187,11 +187,6 @@ public interface RestHandler {
         }
 
         @Override
-        public boolean isActionPaginated() {
-            return delegate.isActionPaginated();
-        }
-
-        @Override
         public boolean supportsStreaming() {
             return delegate.supportsStreaming();
         }
