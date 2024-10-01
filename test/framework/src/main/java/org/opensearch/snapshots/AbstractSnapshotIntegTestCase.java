@@ -508,10 +508,14 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return snapshotInfo;
     }
 
-    protected void restoreSnapshot(String repositoryName, String snapshotName, String indexName,
-                                   String restoredIndexName, Settings indexSettings) {
-        logger.info("--> restoring snapshot [{}] of {} in [{}] to [{}]",
-            snapshotName, indexName, repositoryName, restoredIndexName);
+    protected void restoreSnapshot(
+        String repositoryName,
+        String snapshotName,
+        String indexName,
+        String restoredIndexName,
+        Settings indexSettings
+    ) {
+        logger.info("--> restoring snapshot [{}] of {} in [{}] to [{}]", snapshotName, indexName, repositoryName, restoredIndexName);
         RestoreSnapshotRequestBuilder builder = client().admin()
             .cluster()
             .prepareRestoreSnapshot(repositoryName, snapshotName)

@@ -107,7 +107,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -405,11 +404,7 @@ public class RestoreService implements ClusterStateApplier {
                                     ignoreSettingsInternal
                                 );
 
-                                validateReplicationTypeRestoreSettings(
-                                    metadata.index(index).getSettings().get(SETTING_REPLICATION_TYPE),
-                                    snapshotIndexMetadata.getSettings().get(SETTING_REPLICATION_TYPE),
-                                    snapshotIndexMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
-                                );
+                                validateReplicationTypeRestoreSettings(metadata.index(index), snapshotIndexMetadata);
 
                                 if (isRemoteSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
@@ -661,17 +656,27 @@ public class RestoreService implements ClusterStateApplier {
                         return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
                     }
 
-                    private void validateReplicationTypeRestoreSettings(String snapshotReplicationType,
-                                                                        String restoreReplicationType,
-                                                                        int restoreNumberOfSearchReplicas) {
-                        if(Objects.equals(restoreReplicationType, ReplicationType.DOCUMENT.toString())) {
-                            if(restoreNumberOfSearchReplicas > 0) {
+                    private void validateReplicationTypeRestoreSettings(IndexMetadata snapshottedMetadata, IndexMetadata updatedMetadata) {
+                        String restoreReplicationType = updatedMetadata.getSettings().get(SETTING_REPLICATION_TYPE);
+                        int restoreNumberOfSearchReplicas = updatedMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
+
+                        if (ReplicationType.DOCUMENT.toString().equals(restoreReplicationType)) {
+                            if (restoreNumberOfSearchReplicas > 0) {
                                 throw new SnapshotRestoreException(
                                     snapshot,
-                                    "snapshot was created with [" + SETTING_REPLICATION_TYPE + "]"
-                                        + " as ["+ snapshotReplicationType + "]."
-                                        + " To restore with [" + SETTING_REPLICATION_TYPE + "]" + " as ["
-                                        + ReplicationType.DOCUMENT + "], [" + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                                    "snapshot was created with ["
+                                        + SETTING_REPLICATION_TYPE
+                                        + "]"
+                                        + " as ["
+                                        + snapshottedMetadata.getSettings().get(SETTING_REPLICATION_TYPE)
+                                        + "]."
+                                        + " To restore with ["
+                                        + SETTING_REPLICATION_TYPE
+                                        + "]"
+                                        + " as ["
+                                        + ReplicationType.DOCUMENT
+                                        + "], ["
+                                        + SETTING_NUMBER_OF_SEARCH_REPLICAS
                                         + "] must be set to [0]"
                                 );
                             }

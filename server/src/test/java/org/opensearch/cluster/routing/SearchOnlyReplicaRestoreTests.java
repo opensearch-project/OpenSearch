@@ -21,8 +21,6 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class SearchOnlyReplicaRestoreTests extends OpenSearchTestCase {
 
@@ -45,20 +43,17 @@ public class SearchOnlyReplicaRestoreTests extends OpenSearchTestCase {
             new IndexId("test", UUIDs.randomBase64UUID(random()))
         );
 
-        RoutingTable routingTable = RoutingTable.builder()
-            .addAsNewRestore(indexMetadata, snapshotRecoverySource, new HashSet<>())
-            .build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNewRestore(indexMetadata, snapshotRecoverySource, new HashSet<>()).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
             .build();
 
-        List<ShardRouting> shardRoutings = clusterState.routingTable().index("test").shard(0).getShards();
-        List<ShardRouting> searchOnlyShards = shardRoutings.stream().filter(ShardRouting::isSearchOnly).collect(Collectors.toList());
+        IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable().index("test").shard(0);
 
         assertEquals(1, clusterState.routingTable().index("test").shards().size());
-        assertEquals(3, shardRoutings.size());
-        assertEquals(1, searchOnlyShards.size());
+        assertEquals(3, indexShardRoutingTable.getShards().size());
+        assertEquals(1, indexShardRoutingTable.searchOnlyReplicas().size());
     }
 }
