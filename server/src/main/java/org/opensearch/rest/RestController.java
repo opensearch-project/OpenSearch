@@ -709,7 +709,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
             }
 
-            Mono.ignoreElements(this).then(Mono.just(response)).subscribe(delegate::sendResponse);
+            Mono.from(this).ignoreElement().then(Mono.just(response)).subscribe(delegate::sendResponse);
         }
 
         @Override
