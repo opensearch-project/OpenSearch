@@ -43,6 +43,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  */
 public class ClusterStateChecksum implements ToXContentFragment, Writeable {
 
+    public static final int COMPONENT_SIZE = 11;
     static final String ROUTING_TABLE_CS = "routing_table";
     static final String NODES_CS = "discovery_nodes";
     static final String BLOCKS_CS = "blocks";
@@ -56,7 +57,6 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
     static final String INDICES_CS = "indices_md";
     private static final String CLUSTER_STATE_CS = "cluster_state";
     private static final int CHECKSUM_SIZE = 8;
-    private static final int COMPONENT_SIZE = 11;
     private static final Logger logger = LogManager.getLogger(ClusterStateChecksum.class);
 
     long routingTableChecksum;
