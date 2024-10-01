@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import org.junit.Assert;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -19,6 +18,7 @@ import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -130,8 +130,13 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
     }
 
     public void testServiceInitialized_WhenNodeAttributesPresent() {
-        internalCluster().startClusterManagerOnlyNode(buildRemoteStateNodeAttributes(REPOSITORY_NAME, segmentRepoPath, ReloadableFsRepository.TYPE));
-        internalCluster().startDataOnlyNodes(2, buildRemoteStateNodeAttributes(REPOSITORY_NAME, segmentRepoPath, ReloadableFsRepository.TYPE));
+        internalCluster().startClusterManagerOnlyNode(
+            buildRemoteStateNodeAttributes(REPOSITORY_NAME, segmentRepoPath, ReloadableFsRepository.TYPE)
+        );
+        internalCluster().startDataOnlyNodes(
+            2,
+            buildRemoteStateNodeAttributes(REPOSITORY_NAME, segmentRepoPath, ReloadableFsRepository.TYPE)
+        );
 
         ensureStableCluster(3);
         ensureGreen();

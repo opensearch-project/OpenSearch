@@ -2795,11 +2795,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         );
     }
 
-    public static Settings buildRemoteStateNodeAttributes(
-        String stateRepoName,
-        Path stateRepoPath,
-        String stateRepoType
-    ) {
+    public static Settings buildRemoteStateNodeAttributes(String stateRepoName, Path stateRepoPath, String stateRepoType) {
         String stateRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
             "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
