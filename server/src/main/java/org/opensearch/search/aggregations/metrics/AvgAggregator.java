@@ -108,7 +108,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         }
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
-             return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
+            return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
     }
@@ -163,7 +163,6 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             fieldName,
             MetricStat.VALUE_COUNT.getTypeName()
         );
-
 
         final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
         SortedNumericStarTreeValuesIterator sumValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues

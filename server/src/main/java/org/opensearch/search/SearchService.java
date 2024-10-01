@@ -1545,7 +1545,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (this.indicesService.getCompositeIndexSettings() != null
             && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
-            && StarTreeQueryHelper.isStarTreeSupported(context, source.trackTotalHitsUpTo() != null)) {
+            && StarTreeQueryHelper.isStarTreeSupported(context)) {
             try {
                 StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(context, source);
                 if (starTreeQueryContext != null) {
