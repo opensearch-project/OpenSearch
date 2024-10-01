@@ -46,7 +46,6 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -177,8 +176,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             // Iterate over the FixedBitSet
             for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = bit + 1 < numBits ? matchedDocIds.nextSetBit(bit + 1) : -1) {
                 // Advance to the bit (entryId) in the valuesIterator
-                if (sumValuesIterator.advance(bit) == StarTreeValuesIterator.NO_MORE_ENTRIES
-                    || countValueIterator.advance(bit) == StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                if ((sumValuesIterator.advanceExact(bit) && countValueIterator.advanceExact(bit)) == false) {
                     continue;  // Skip if no more entries
                 }
 
