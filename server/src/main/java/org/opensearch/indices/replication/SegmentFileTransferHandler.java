@@ -98,7 +98,7 @@ public final class SegmentFileTransferHandler {
         return new MultiChunkTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
             final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
-            InputStreamIndexInput currentInput = null;
+            volatile InputStreamIndexInput currentInput = null;
             long offset = 0;
 
             @Override
@@ -153,10 +153,14 @@ public final class SegmentFileTransferHandler {
                 // if we don't have a currentInput by now open once to create the chunk.
                 if (currentInput == null) {
                     try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
-                        return new InputStreamIndexInput(indexInput, md.length()).read(buffer);
+                        try (InputStreamIndexInput in = new InputStreamIndexInput(indexInput, md.length())) {
+                            in.skip(offset);
+                            return in.read(buffer);
+                        }
                     }
+                } else {
+                    return currentInput.read(buffer);
                 }
-                return currentInput.read(buffer);
             }
 
             @Override
