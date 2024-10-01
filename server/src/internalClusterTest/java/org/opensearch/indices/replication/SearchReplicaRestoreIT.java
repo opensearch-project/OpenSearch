@@ -35,83 +35,56 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, true)
-            .build();
-    }
-
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoredWithSameSettings() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.SEGMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME, null);
-
-        ensureGreen(RESTORED_INDEX_NAME);
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
-    }
-
-    public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoredWithSameSettings() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.DOCUMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME, null);
-
-        ensureGreen(RESTORED_INDEX_NAME);
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
-    }
-
-    public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnDocRep() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.DOCUMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                .build()
-        );
-        ensureGreen(RESTORED_INDEX_NAME);
-
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, true).build();
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnDocRepWithSearchReplica() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.DOCUMENT);
+        bootstrapIndexWithOutSearchReplicas(ReplicationType.DOCUMENT);
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        SnapshotRestoreException exception = expectThrows(SnapshotRestoreException.class,
-            () ->  restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
+        SnapshotRestoreException exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> restoreSnapshot(
+                REPOSITORY_NAME,
+                SNAPSHOT_NAME,
+                INDEX_NAME,
+                RESTORED_INDEX_NAME,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
                     .build()
-        ));
+            )
+        );
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.DOCUMENT, ReplicationType.DOCUMENT)));
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnSegRep() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.DOCUMENT);
+        bootstrapIndexWithOutSearchReplicas(ReplicationType.DOCUMENT);
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .build()
+        restoreSnapshot(
+            REPOSITORY_NAME,
+            SNAPSHOT_NAME,
+            INDEX_NAME,
+            RESTORED_INDEX_NAME,
+            Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
         );
         ensureGreen(RESTORED_INDEX_NAME);
+        assertEquals(0, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnSegRepWithSearchReplica() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.DOCUMENT);
+        bootstrapIndexWithOutSearchReplicas(ReplicationType.DOCUMENT);
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
+        restoreSnapshot(
+            REPOSITORY_NAME,
+            SNAPSHOT_NAME,
+            INDEX_NAME,
+            RESTORED_INDEX_NAME,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
@@ -120,130 +93,137 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
         internalCluster().startDataOnlyNode();
         ensureGreen(RESTORED_INDEX_NAME);
+        assertEquals(1, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoreOnDocRep() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.SEGMENT);
+        bootstrapIndexWithOutSearchReplicas(ReplicationType.SEGMENT);
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                .build()
+        restoreSnapshot(
+            REPOSITORY_NAME,
+            SNAPSHOT_NAME,
+            INDEX_NAME,
+            RESTORED_INDEX_NAME,
+            Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build()
         );
         ensureGreen(RESTORED_INDEX_NAME);
+        assertEquals(0, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoreOnDocRepWithSearchReplica() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.SEGMENT);
+        bootstrapIndexWithOutSearchReplicas(ReplicationType.SEGMENT);
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        SnapshotRestoreException exception = expectThrows(SnapshotRestoreException.class,
-            () ->  restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
+        SnapshotRestoreException exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> restoreSnapshot(
+                REPOSITORY_NAME,
+                SNAPSHOT_NAME,
+                INDEX_NAME,
+                RESTORED_INDEX_NAME,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
                     .build()
-            ));
+            )
+        );
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.SEGMENT, ReplicationType.DOCUMENT)));
     }
 
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoreOnSegRep() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.SEGMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .build()
-        );
-        ensureGreen(RESTORED_INDEX_NAME);
-
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
-    }
-
     public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoreOnSegRepWithSearchReplica() throws Exception {
-        bootstrapIndexWithOutSearchNodes(ReplicationType.SEGMENT);
+        bootstrapIndexWithOutSearchReplicas(ReplicationType.SEGMENT);
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
-                .build()
+        restoreSnapshot(
+            REPOSITORY_NAME,
+            SNAPSHOT_NAME,
+            INDEX_NAME,
+            RESTORED_INDEX_NAME,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
         internalCluster().startDataOnlyNode();
         ensureGreen(RESTORED_INDEX_NAME);
+        assertEquals(1, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() throws Exception {
-        bootstrapIndexWithSearchNodes(ReplicationType.SEGMENT);
+        bootstrapIndexWithSearchReplicas();
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        SnapshotRestoreException exception = expectThrows(SnapshotRestoreException.class,
-            () ->  restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                    .build()
-            ));
+        SnapshotRestoreException exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> restoreSnapshot(
+                REPOSITORY_NAME,
+                SNAPSHOT_NAME,
+                INDEX_NAME,
+                RESTORED_INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build()
+            )
+        );
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.SEGMENT, ReplicationType.DOCUMENT)));
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRepWithNoSearchReplica() throws Exception {
-        bootstrapIndexWithSearchNodes(ReplicationType.SEGMENT);
+        bootstrapIndexWithSearchReplicas();
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
+        restoreSnapshot(
+            REPOSITORY_NAME,
+            SNAPSHOT_NAME,
+            INDEX_NAME,
+            RESTORED_INDEX_NAME,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
                 .build()
         );
         ensureGreen(RESTORED_INDEX_NAME);
+        assertEquals(0, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
     }
 
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnSegRep() throws Exception {
-        bootstrapIndexWithSearchNodes(ReplicationType.SEGMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, INDEX_NAME, RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .build()
-        );
-        ensureGreen(RESTORED_INDEX_NAME);
-
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
-    }
-
-    private void bootstrapIndexWithOutSearchNodes(ReplicationType replicationType) throws InterruptedException {
+    private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {
         startCluster(2);
-        createIndex(INDEX_NAME, getIndexSettings(1, 1, 0,
-            replicationType));
+
+        Settings settings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
+            .build();
+
+        createIndex(INDEX_NAME, settings);
         indexRandomDocs(INDEX_NAME, DOC_COUNT);
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
     }
 
-    private void bootstrapIndexWithSearchNodes(ReplicationType replicationType) throws InterruptedException {
+    private void bootstrapIndexWithSearchReplicas() throws InterruptedException {
         startCluster(3);
-        createIndex(INDEX_NAME, getIndexSettings(1, 1, 1,
-            replicationType));
+
+        Settings settings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+
+        createIndex(INDEX_NAME, settings);
         indexRandomDocs(INDEX_NAME, DOC_COUNT);
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -251,33 +231,23 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
 
     private void startCluster(int numOfNodes) {
         internalCluster().startClusterManagerOnlyNode();
-        for(int i = 0; i< numOfNodes; i++) {
-            internalCluster().startDataOnlyNode();
-        }
+        internalCluster().startDataOnlyNodes(numOfNodes);
     }
 
-    private void createRepoAndSnapshot(String repositoryName, String repositoryType,
-                                       String snapshotName, String indexName) {
+    private void createRepoAndSnapshot(String repositoryName, String repositoryType, String snapshotName, String indexName) {
         createRepository(repositoryName, repositoryType, randomRepoPath().toAbsolutePath());
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
         assertFalse("index [" + INDEX_NAME + "] should have been deleted", indexExists(INDEX_NAME));
     }
 
-    private Settings getIndexSettings(int numOfShards, int numOfReplicas, int numOfSearchReplicas,
-                                      ReplicationType replicationType) {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numOfSearchReplicas)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
-            .build();
-    }
-
     private String getSnapshotExceptionMessage(ReplicationType snapshotReplicationType, ReplicationType restoreReplicationType) {
-        return "snapshot was created with [index.replication.type] as [" + snapshotReplicationType + "]. " +
-            "To restore with [index.replication.type] as [" + restoreReplicationType + "], " +
-            "[index.number_of_search_only_replicas] must be set to [0]";
+        return "snapshot was created with [index.replication.type] as ["
+            + snapshotReplicationType
+            + "]. "
+            + "To restore with [index.replication.type] as ["
+            + restoreReplicationType
+            + "], "
+            + "[index.number_of_search_only_replicas] must be set to [0]";
     }
 }
