@@ -31,7 +31,6 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
 
     public static final Set<Setting<?>> BUILT_IN_FEATURE_FLAGS = Set.of(
         FeatureFlags.EXTENSIONS_SETTING,
-        FeatureFlags.IDENTITY_SETTING,
         FeatureFlags.TELEMETRY_SETTING,
         FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING,
         FeatureFlags.TIERED_REMOTE_INDEX_SETTING,
