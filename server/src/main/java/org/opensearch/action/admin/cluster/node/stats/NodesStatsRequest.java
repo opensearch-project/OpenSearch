@@ -251,7 +251,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SEGMENT_REPLICATION_BACKPRESSURE("segment_replication_backpressure"),
         REPOSITORIES("repositories"),
         ADMISSION_CONTROL("admission_control"),
-        CACHE_STATS("caches");
+        CACHE_STATS("caches"),
+        REMOTE_STORE("remote_store");
 
         private String metricName;
 
