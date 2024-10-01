@@ -1923,11 +1923,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
                         }
-
-                        @Override
-                        protected void connectToNodesAndWait(ClusterState newClusterState) {
-                            // don't do anything, and don't block
-                        }
                     }
                 );
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
@@ -2094,7 +2089,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     rerouteService,
                     threadPool
                 );
-                nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
+                nodeConnectionsService = createTestNodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -2434,7 +2429,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             nodeEnv,
                             indicesService,
                             namedXContentRegistry
-                        )
+                        ),
+                        new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                     )
                 );
                 actions.put(
@@ -2490,6 +2486,24 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         random()
                     );
                 }
+            }
+
+            public NodeConnectionsService createTestNodeConnectionsService(
+                Settings settings,
+                ThreadPool threadPool,
+                TransportService transportService
+            ) {
+                return new NodeConnectionsService(settings, threadPool, transportService) {
+                    @Override
+                    public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                        // just update targetsByNode to ensure disconnect runs for these nodes
+                        // we rely on disconnect to run for keeping track of pendingDisconnects and ensuring node-joins can happen
+                        for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                            this.targetsByNode.put(discoveryNode, createConnectionTarget(discoveryNode));
+                        }
+                        onCompletion.run();
+                    }
+                };
             }
 
             public ClusterInfoService getMockClusterInfoService() {
@@ -2563,10 +2577,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
                     null
                 );
+                coordinator.setNodeConnectionsService(nodeConnectionsService);
                 clusterManagerService.setClusterStatePublisher(coordinator);
-                coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();
+                coordinator.start();
                 clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();

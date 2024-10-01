@@ -57,6 +57,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
+    protected static final String ROUTING_TABLE_REPO_NAME = "remote-routing-repo";
+
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
 
     protected Path segmentRepoPath;
@@ -72,7 +74,7 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         randomAlphaOfLength(5)
     );
 
-    void setAddRemote(boolean addRemote) {
+    public void setAddRemote(boolean addRemote) {
         this.addRemote = addRemote;
     }
 

@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway;
 
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -19,6 +20,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 import org.opensearch.indices.store.ShardAttributes;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,7 +54,8 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
             GatewayStartedShard.class,
             new GatewayStartedShard(null, false, null, null),
             GatewayStartedShard::isEmpty,
-            new ShardBatchResponseFactory<>(true)
+            new ShardBatchResponseFactory<>(true),
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
     }
 
