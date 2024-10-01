@@ -31,8 +31,8 @@ public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
      */
     private final long lastSuccessfulFetchOfPinnedTimestamps;
 
-    public RemoteStoreNodeStats(final long lastSuccessfulFetchOfPinnedTimestamps) {
-        this.lastSuccessfulFetchOfPinnedTimestamps = lastSuccessfulFetchOfPinnedTimestamps;
+    public RemoteStoreNodeStats() {
+        this.lastSuccessfulFetchOfPinnedTimestamps = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
     }
 
     public long getLastSuccessfulFetchOfPinnedTimestamps() {

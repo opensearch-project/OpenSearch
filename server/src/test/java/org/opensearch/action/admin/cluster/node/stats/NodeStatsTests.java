@@ -1007,8 +1007,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         RemoteStoreNodeStats remoteStoreNodeStats = null;
         if (frequently()) {
-            long lastSuccessfulFetchOfPinnedTimestamps = randomNonNegativeLong();
-            remoteStoreNodeStats = new RemoteStoreNodeStats(lastSuccessfulFetchOfPinnedTimestamps);
+            remoteStoreNodeStats = new RemoteStoreNodeStats() {
+                @Override
+                public long getLastSuccessfulFetchOfPinnedTimestamps() {
+                    return 123456L;
+                }
+            };
         }
 
         // TODO: Only remote_store based aspects of NodeIndicesStats are being tested here.

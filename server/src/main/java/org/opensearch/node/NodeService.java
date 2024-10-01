@@ -55,7 +55,6 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
-import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -278,7 +277,7 @@ public class NodeService implements Closeable {
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
-            remoteStoreNodeStats ? new RemoteStoreNodeStats(RemoteStorePinnedTimestampService.getPinnedTimestamps().v1()) : null
+            remoteStoreNodeStats ? new RemoteStoreNodeStats() : null
         );
     }
 
