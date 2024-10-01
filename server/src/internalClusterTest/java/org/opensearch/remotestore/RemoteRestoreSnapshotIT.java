@@ -796,6 +796,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
             RemoteStorePinnedTimestampService.class,
             internalCluster().getClusterManagerName()
         );
+        forceSyncPinnedTimestamps();
+
         long pinnedTimestamp = System.currentTimeMillis();
         final CountDownLatch latch = new CountDownLatch(1);
         LatchedActionListener<Void> latchedActionListener = new LatchedActionListener<>(new ActionListener<>() {
@@ -819,7 +821,6 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
 
-        forceSyncPinnedTimestamps();
         waitUntil(() -> 1 == RemoteStorePinnedTimestampService.getPinnedEntities().size());
     }
 
@@ -1106,7 +1107,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
             .get()
             .status();
         assertEquals(RestStatus.ACCEPTED, createSnapshotResponseStatus);
-
+        forceSyncPinnedTimestamps();
         assertEquals(2, RemoteStorePinnedTimestampService.getPinnedEntities().size());
     }
 

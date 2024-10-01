@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
     private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
-    private static HashMap<String, List<Long>> pinnedEntityToTimestampsMap = new HashMap<>();
+    private static Map<String, List<Long>> pinnedEntityToTimestampsMap = new HashMap<>();
     public static final String PINNED_TIMESTAMPS_PATH_TOKEN = "pinned_timestamps";
     public static final String PINNED_TIMESTAMPS_FILENAME_SEPARATOR = "__";
 
@@ -276,7 +276,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         return pinnedTimestampsSet;
     }
 
-    public static HashMap<String, List<Long>> getPinnedEntities() {
+    public static Map<String, List<Long>> getPinnedEntities() {
         return pinnedEntityToTimestampsMap;
     }
 
@@ -311,20 +311,16 @@ public class RemoteStorePinnedTimestampService implements Closeable {
 
                 logger.debug("Fetched pinned timestamps from remote store: {} - {}", triggerTimestamp, pinnedTimestamps);
                 pinnedTimestampsSet = new Tuple<>(triggerTimestamp, pinnedTimestamps);
-
-                pinnedEntityToTimestampsMap = new HashMap<>();
-                pinnedEntityToTimestampsMap.putAll(
-                    pinnedTimestampList.keySet()
-                        .stream()
-                        .collect(Collectors.toMap(RemoteStorePinnedTimestampService.this::getEntityFromBlobName, blobName -> {
-                            long timestamp = RemoteStorePinnedTimestampService.this.getTimestampFromBlobName(blobName);
-                            return Collections.singletonList(timestamp);
-                        }, (existingList, newList) -> {
-                            List<Long> mergedList = new ArrayList<>(existingList);
-                            mergedList.addAll(newList);
-                            return mergedList;
-                        }))
-                );
+                pinnedEntityToTimestampsMap = pinnedTimestampList.keySet()
+                    .stream()
+                    .collect(Collectors.toMap(RemoteStorePinnedTimestampService.this::getEntityFromBlobName, blobName -> {
+                        long timestamp = RemoteStorePinnedTimestampService.this.getTimestampFromBlobName(blobName);
+                        return Collections.singletonList(timestamp);
+                    }, (existingList, newList) -> {
+                        List<Long> mergedList = new ArrayList<>(existingList);
+                        mergedList.addAll(newList);
+                        return mergedList;
+                    }));
             } catch (Throwable t) {
                 logger.error("Exception while fetching pinned timestamp details", t);
             }

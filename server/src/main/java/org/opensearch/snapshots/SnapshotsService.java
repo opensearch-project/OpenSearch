@@ -654,10 +654,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void cleanOrphanTimestamp(String repoName, RepositoryData repositoryData) {
-        Collection<String> snapshotUUIDs = repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
-        remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
-
-        HashMap<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
+        Collection<String> snapshotUUIDs = repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+        Map<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
 
         List<String> orphanPinnedEntities = pinnedEntities.keySet()
             .stream()
@@ -682,15 +680,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return Objects.equals(tokens.v1(), repoName) && snapshotUUIDs.contains(tokens.v2()) == false;
     }
 
-    private void deleteOrphanTimestamps(HashMap<String, List<Long>> pinnedEntities, List<String> orphanPinnedEntities) {
+    private void deleteOrphanTimestamps(Map<String, List<Long>> pinnedEntities, List<String> orphanPinnedEntities) {
         final CountDownLatch latch = new CountDownLatch(orphanPinnedEntities.size());
         for (String pinnedEntity : orphanPinnedEntities) {
             assert pinnedEntities.get(pinnedEntity).size() == 1 : "Multiple timestamps for same repo-snapshot uuid found";
             long orphanTimestamp = pinnedEntities.get(pinnedEntity).get(0);
-            String pinningEntity = getPinningEntity(pinnedEntity);
             remoteStorePinnedTimestampService.unpinTimestamp(
                 orphanTimestamp,
-                pinningEntity,
+                pinnedEntity,
                 new LatchedActionListener<>(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {}
@@ -761,11 +758,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static String getPinningEntity(String repositoryName, String snapshotUUID) {
         return repositoryName + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotUUID;
-    }
-
-    public static String getPinningEntity(String blobname) {
-        String[] tokens = blobname.split(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER);
-        return tokens[0] + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + tokens[1];
     }
 
     public static Tuple<String, String> getRepoSnapshotUUIDTuple(String pinningEntity) {
