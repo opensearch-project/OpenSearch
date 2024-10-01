@@ -332,7 +332,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousClusterUUID,
             clusterStateDiffManifest,
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             false,
             codecVersion
         );
@@ -539,7 +541,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             clusterStateDiffManifest,
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             false,
             previousManifest.getCodecVersion()
         );
@@ -1010,7 +1014,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             true,
             previousManifest.getCodecVersion()
         );
@@ -1631,7 +1637,7 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean isFullStateDownload
     ) {
-        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
+        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState, threadpool);
         List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(manifest.getClusterStateChecksum());
         if (failedValidation.isEmpty()) {
             return;
