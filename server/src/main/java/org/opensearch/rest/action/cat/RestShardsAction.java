@@ -35,11 +35,12 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.action.admin.cluster.shards.CatShardsAction;
 import org.opensearch.action.admin.cluster.shards.CatShardsRequest;
 import org.opensearch.action.admin.cluster.shards.CatShardsResponse;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Table;
@@ -64,7 +65,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.list.AbstractListAction;
-import org.opensearch.rest.pagination.PageToken;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
@@ -120,12 +120,12 @@ public class RestShardsAction extends AbstractListAction {
         return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
             public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {
-                ClusterStateResponse clusterStateResponse = catShardsResponse.getClusterStateResponse();
+                DiscoveryNodes nodes = catShardsResponse.getNodes();
                 IndicesStatsResponse indicesStatsResponse = catShardsResponse.getIndicesStatsResponse();
                 return RestTable.buildResponse(
                     buildTable(
                         request,
-                        clusterStateResponse,
+                        nodes,
                         indicesStatsResponse,
                         catShardsResponse.getResponseShards(),
                         catShardsResponse.getPageToken()
@@ -313,7 +313,7 @@ public class RestShardsAction extends AbstractListAction {
     // package private for testing
     Table buildTable(
         RestRequest request,
-        ClusterStateResponse state,
+        DiscoveryNodes nodes,
         IndicesStatsResponse stats,
         List<ShardRouting> responseShards,
         PageToken pageToken
@@ -347,13 +347,13 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
             table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
             if (shard.assignedToNode()) {
-                String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
+                String ip = nodes.get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
                 StringBuilder name = new StringBuilder();
-                name.append(state.getState().nodes().get(shard.currentNodeId()).getName());
+                name.append(nodes.get(shard.currentNodeId()).getName());
                 if (shard.relocating()) {
-                    String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
-                    String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).getName();
+                    String reloIp = nodes.get(shard.relocatingNodeId()).getHostAddress();
+                    String reloNme = nodes.get(shard.relocatingNodeId()).getName();
                     String reloNodeId = shard.relocatingNodeId();
                     name.append(" -> ");
                     name.append(reloIp);

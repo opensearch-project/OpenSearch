@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;

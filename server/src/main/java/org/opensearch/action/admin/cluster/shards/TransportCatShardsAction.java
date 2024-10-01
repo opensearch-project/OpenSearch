@@ -12,6 +12,8 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.pagination.PageParams;
+import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
@@ -19,8 +21,6 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.NotifyOnceListener;
-import org.opensearch.rest.pagination.PageParams;
-import org.opensearch.rest.pagination.ShardPaginationStrategy;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -89,7 +89,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                         String[] indices = Objects.isNull(paginationStrategy)
                             ? shardsRequest.getIndices()
                             : paginationStrategy.getRequestedIndices().toArray(new String[0]);
-                        catShardsResponse.setClusterStateResponse(clusterStateResponse);
+                        catShardsResponse.setNodes(clusterStateResponse.getState().getNodes());
                         catShardsResponse.setResponseShards(
                             Objects.isNull(paginationStrategy)
                                 ? clusterStateResponse.getState().routingTable().allShards()

@@ -9,13 +9,13 @@
 package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.pagination.PageToken;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.rest.pagination.PageToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,45 +28,44 @@ import java.util.List;
  */
 public class CatShardsResponse extends ActionResponse {
 
-    private ClusterStateResponse clusterStateResponse = null;
-
-    private IndicesStatsResponse indicesStatsResponse = null;
+    private IndicesStatsResponse indicesStatsResponse;
+    private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
     private List<ShardRouting> responseShards = new ArrayList<>();
-    private PageToken pageToken = null;
+    private PageToken pageToken;
 
     public CatShardsResponse() {}
 
     public CatShardsResponse(StreamInput in) throws IOException {
         super(in);
-        clusterStateResponse = new ClusterStateResponse(in);
         indicesStatsResponse = new IndicesStatsResponse(in);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            nodes = DiscoveryNodes.readFrom(in, null);
             responseShards = in.readList(ShardRouting::new);
             if (in.readBoolean()) {
-                pageToken = PageToken.readPageToken(in);
+                pageToken = new PageToken(in);
             }
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        clusterStateResponse.writeTo(out);
         indicesStatsResponse.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            nodes.writeToWithAttribute(out);
             out.writeList(responseShards);
             out.writeBoolean(pageToken != null);
             if (pageToken != null) {
-                pageToken.writePageToken(out);
+                pageToken.writeTo(out);
             }
         }
     }
 
-    public void setClusterStateResponse(ClusterStateResponse clusterStateResponse) {
-        this.clusterStateResponse = clusterStateResponse;
+    public void setNodes(DiscoveryNodes nodes) {
+        this.nodes = nodes;
     }
 
-    public ClusterStateResponse getClusterStateResponse() {
-        return this.clusterStateResponse;
+    public DiscoveryNodes getNodes() {
+        return this.nodes;
     }
 
     public void setIndicesStatsResponse(IndicesStatsResponse indicesStatsResponse) {

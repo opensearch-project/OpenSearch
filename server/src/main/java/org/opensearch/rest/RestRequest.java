@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
@@ -51,7 +52,6 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
-import org.opensearch.rest.pagination.PageParams;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,11 +66,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.opensearch.action.pagination.PageParams.PARAM_NEXT_TOKEN;
+import static org.opensearch.action.pagination.PageParams.PARAM_SIZE;
+import static org.opensearch.action.pagination.PageParams.PARAM_SORT;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
-import static org.opensearch.rest.pagination.PageParams.PARAM_NEXT_TOKEN;
-import static org.opensearch.rest.pagination.PageParams.PARAM_SIZE;
-import static org.opensearch.rest.pagination.PageParams.PARAM_SORT;
 
 /**
  * REST Request

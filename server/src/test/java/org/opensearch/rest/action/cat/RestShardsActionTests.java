@@ -38,6 +38,7 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -48,7 +49,6 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.rest.pagination.PageToken;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.junit.Before;
@@ -120,7 +120,13 @@ public class RestShardsActionTests extends OpenSearchTestCase {
 
     public void testBuildTable() {
         final RestShardsAction action = new RestShardsAction();
-        final Table table = action.buildTable(new FakeRestRequest(), state, stats, state.getState().routingTable().allShards(), null);
+        final Table table = action.buildTable(
+            new FakeRestRequest(),
+            state.getState().nodes(),
+            stats,
+            state.getState().routingTable().allShards(),
+            null
+        );
         assertTable(table);
     }
 
@@ -128,7 +134,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         final RestShardsAction action = new RestShardsAction();
         final Table table = action.buildTable(
             new FakeRestRequest(),
-            state,
+            state.getState().nodes(),
             stats,
             state.getState().routingTable().allShards(),
             new PageToken("foo", "test")

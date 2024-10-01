@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;
@@ -20,8 +20,6 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
-
 /**
  * This strategy can be used by the Rest APIs wanting to paginate the responses based on Indices.
  * The strategy considers create timestamps of indices as the keys to iterate over pages.
@@ -31,13 +29,13 @@ import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
 public class IndexPaginationStrategy implements PaginationStrategy<String> {
     private static final String DEFAULT_INDICES_PAGINATED_ENTITY = "indices";
 
-    private static final Comparator<IndexMetadata> ASC_COMPARATOR = (metadata1, metadata2) -> {
+    protected static final Comparator<IndexMetadata> ASC_COMPARATOR = (metadata1, metadata2) -> {
         if (metadata1.getCreationDate() == metadata2.getCreationDate()) {
             return metadata1.getIndex().getName().compareTo(metadata2.getIndex().getName());
         }
         return Long.compare(metadata1.getCreationDate(), metadata2.getCreationDate());
     };
-    private static final Comparator<IndexMetadata> DESC_COMPARATOR = (metadata1, metadata2) -> {
+    protected static final Comparator<IndexMetadata> DESC_COMPARATOR = (metadata1, metadata2) -> {
         if (metadata1.getCreationDate() == metadata2.getCreationDate()) {
             return metadata2.getIndex().getName().compareTo(metadata1.getIndex().getName());
         }
@@ -48,11 +46,20 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
     private final List<String> requestedIndices;
 
     public IndexPaginationStrategy(PageParams pageParams, ClusterState clusterState) {
+
+        IndexStrategyToken requestedToken = Objects.isNull(pageParams.getRequestedToken()) || pageParams.getRequestedToken().isEmpty()
+            ? null
+            : new IndexStrategyToken(pageParams.getRequestedToken());
         // Get list of indices metadata sorted by their creation time and filtered by the last sent index
         List<IndexMetadata> sortedIndices = PaginationStrategy.getSortedIndexMetadata(
             clusterState,
-            getMetadataFilter(pageParams.getRequestedToken(), pageParams.getSort()),
-            PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) ? ASC_COMPARATOR : DESC_COMPARATOR
+            getMetadataFilter(
+                pageParams.getSort(),
+                Objects.isNull(requestedToken) ? null : requestedToken.lastIndexName,
+                Objects.isNull(requestedToken) ? null : requestedToken.lastIndexCreationTime,
+                false
+            ),
+            PageParams.PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) ? ASC_COMPARATOR : DESC_COMPARATOR
         );
         // Trim sortedIndicesList to get the list of indices metadata to be sent as response
         List<IndexMetadata> metadataSublist = getMetadataSubList(sortedIndices, pageParams.getSize());
@@ -65,25 +72,27 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
         );
     }
 
-    private static Predicate<IndexMetadata> getMetadataFilter(String requestedTokenStr, String sortOrder) {
-        boolean isAscendingSort = sortOrder.equals(PARAM_ASC_SORT_VALUE);
-        IndexStrategyToken requestedToken = Objects.isNull(requestedTokenStr) || requestedTokenStr.isEmpty()
-            ? null
-            : new IndexStrategyToken(requestedTokenStr);
-        if (Objects.isNull(requestedToken)) {
+    protected static Predicate<IndexMetadata> getMetadataFilter(
+        String sortOrder,
+        String lastIndexName,
+        Long lastIndexCreationTime,
+        boolean includeLastIndex
+    ) {
+        if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
             return indexMetadata -> true;
         }
+        boolean isAscendingSort = sortOrder.equals(PageParams.PARAM_ASC_SORT_VALUE);
         return metadata -> {
-            if (metadata.getIndex().getName().equals(requestedToken.lastIndexName)) {
-                return false;
-            } else if (metadata.getCreationDate() == requestedToken.lastIndexCreationTime) {
+            if (metadata.getIndex().getName().equals(lastIndexName)) {
+                return includeLastIndex;
+            } else if (metadata.getCreationDate() == lastIndexCreationTime) {
                 return isAscendingSort
-                    ? metadata.getIndex().getName().compareTo(requestedToken.lastIndexName) > 0
-                    : metadata.getIndex().getName().compareTo(requestedToken.lastIndexName) < 0;
+                    ? metadata.getIndex().getName().compareTo(lastIndexName) > 0
+                    : metadata.getIndex().getName().compareTo(lastIndexName) < 0;
             }
             return isAscendingSort
-                ? metadata.getCreationDate() > requestedToken.lastIndexCreationTime
-                : metadata.getCreationDate() < requestedToken.lastIndexCreationTime;
+                ? metadata.getCreationDate() > lastIndexCreationTime
+                : metadata.getCreationDate() < lastIndexCreationTime;
         };
     }
 

@@ -6,11 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -19,7 +20,7 @@ import java.io.IOException;
  * Class specific to paginated queries, which will contain common query params required by a paginated API.
  */
 @PublicApi(since = "3.0.0")
-public class PageParams {
+public class PageParams implements Writeable {
 
     public static final String PARAM_SORT = "sort";
     public static final String PARAM_NEXT_TOKEN = "next_token";
@@ -30,6 +31,12 @@ public class PageParams {
     private final String requestedTokenStr;
     private final String sort;
     private final int size;
+
+    public PageParams(StreamInput in) throws IOException {
+        this.requestedTokenStr = in.readOptionalString();
+        this.sort = in.readOptionalString();
+        this.size = in.readInt();
+    }
 
     public PageParams(String requestedToken, String sort, int size) {
         this.requestedTokenStr = requestedToken;
@@ -49,17 +56,10 @@ public class PageParams {
         return size;
     }
 
-    public void writePageParams(StreamOutput out) throws IOException {
-        out.writeString(requestedTokenStr);
-        out.writeString(sort);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(requestedTokenStr);
+        out.writeOptionalString(sort);
         out.writeInt(size);
     }
-
-    public static PageParams readPageParams(StreamInput in) throws IOException {
-        String requestedToken = in.readString();
-        String sort = in.readString();
-        int size = in.readInt();
-        return new PageParams(requestedToken, sort, size);
-    }
-
 }

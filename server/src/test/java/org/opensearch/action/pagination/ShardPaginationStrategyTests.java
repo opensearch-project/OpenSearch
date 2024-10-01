@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -28,10 +28,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
+import static org.opensearch.action.pagination.PageParams.PARAM_DESC_SORT_VALUE;
+import static org.opensearch.action.pagination.PaginationStrategy.INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
-import static org.opensearch.rest.pagination.PageParams.PARAM_DESC_SORT_VALUE;
-import static org.opensearch.rest.pagination.PaginationStrategy.INCORRECT_TAINTED_NEXT_TOKEN_ERROR_MESSAGE;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 
 public class ShardPaginationStrategyTests extends OpenSearchTestCase {

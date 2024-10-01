@@ -8,10 +8,10 @@
 
 package org.opensearch.rest.action.list;
 
+import org.opensearch.action.pagination.PageParams;
+import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestShardsAction;
-import org.opensearch.rest.pagination.PageParams;
-import org.opensearch.rest.pagination.ShardPaginationStrategy;
 
 import java.util.List;
 import java.util.Objects;

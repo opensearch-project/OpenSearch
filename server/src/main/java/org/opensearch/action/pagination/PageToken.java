@@ -6,10 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Pagination response metadata for a paginated query.
  * @opensearch.internal
  */
-public class PageToken {
+public class PageToken implements Writeable {
 
     public static final String PAGINATED_RESPONSE_NEXT_TOKEN_KEY = "next_token";
 
@@ -37,6 +38,11 @@ public class PageToken {
         this.paginatedEntity = paginatedElement;
     }
 
+    public PageToken(StreamInput in) throws IOException {
+        this.nextToken = in.readOptionalString();
+        this.paginatedEntity = in.readString();
+    }
+
     public String getNextToken() {
         return nextToken;
     }
@@ -45,15 +51,9 @@ public class PageToken {
         return paginatedEntity;
     }
 
-    public void writePageToken(StreamOutput out) throws IOException {
-        out.writeString(nextToken);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(nextToken);
         out.writeString(paginatedEntity);
     }
-
-    public static PageToken readPageToken(StreamInput in) throws IOException {
-        String nextToken = in.readString();
-        String paginatedEntity = in.readString();
-        return new PageToken(nextToken, paginatedEntity);
-    }
-
 }

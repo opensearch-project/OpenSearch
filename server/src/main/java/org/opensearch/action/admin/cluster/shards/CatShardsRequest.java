@@ -10,13 +10,13 @@ package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.rest.action.admin.cluster.ClusterAdminTask;
-import org.opensearch.rest.pagination.PageParams;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,9 +38,9 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
         super(in);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             indices = in.readStringArray();
-            cancelAfterTimeInterval = in.readTimeValue();
+            cancelAfterTimeInterval = in.readOptionalTimeValue();
             if (in.readBoolean()) {
-                pageParams = PageParams.readPageParams(in);
+                pageParams = new PageParams(in);
             }
         }
     }
@@ -49,11 +49,15 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeStringArray(indices);
-            out.writeTimeValue(cancelAfterTimeInterval);
+            if (indices == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeStringArray(indices);
+            }
+            out.writeOptionalTimeValue(cancelAfterTimeInterval);
             out.writeBoolean(pageParams != null);
             if (pageParams != null) {
-                pageParams.writePageParams(out);
+                pageParams.writeTo(out);
             }
         }
     }
