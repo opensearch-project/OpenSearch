@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 /**
  * Identity and access control for OpenSearch
  *
- * @opensearch.api
+ * @opensearch.internal
  * */
 public class IdentityService {
     private static final Logger log = LogManager.getLogger(IdentityService.class);
