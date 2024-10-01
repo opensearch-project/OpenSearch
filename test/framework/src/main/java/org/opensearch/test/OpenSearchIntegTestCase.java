@@ -215,6 +215,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
@@ -2264,7 +2265,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         assertThat(metadata.hasIndex(index), equalTo(true));
         int numShards = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
         int numReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
-        return new NumShards(numShards, numReplicas);
+        int numSearchReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SEARCH_REPLICAS));
+        return new NumShards(numShards, numReplicas, numSearchReplicas);
     }
 
     /**
@@ -2305,13 +2307,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     protected static class NumShards {
         public final int numPrimaries;
         public final int numReplicas;
+        public final int numSearchReplicas;
         public final int totalNumShards;
         public final int dataCopies;
 
-        private NumShards(int numPrimaries, int numReplicas) {
+        private NumShards(int numPrimaries, int numReplicas, int numSearchReplicas) {
             this.numPrimaries = numPrimaries;
             this.numReplicas = numReplicas;
-            this.dataCopies = numReplicas + 1;
+            this.numSearchReplicas = numSearchReplicas;
+            this.dataCopies = numReplicas + numSearchReplicas + 1;
             this.totalNumShards = numPrimaries * dataCopies;
         }
     }
