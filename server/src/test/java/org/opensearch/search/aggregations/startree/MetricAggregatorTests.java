@@ -32,6 +32,8 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.codec.composite99.datacube.startree.StarTreeDocValuesFormatTests;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -55,6 +57,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.BiConsumer;
@@ -149,21 +152,58 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder valueCountAggregationBuilder = count("_name").field(FIELD_NAME);
         AvgAggregationBuilder avgAggregationBuilder = avg("_name").field(FIELD_NAME);
 
+        List<Dimension> supportedDimensions = new LinkedList<>();
+        supportedDimensions.add(new NumericDimension(SNDV));
+        supportedDimensions.add(new NumericDimension(DV));
+
         Query query = new MatchAllDocsQuery();
         // match-all query
         QueryBuilder queryBuilder = null; // no predicates
-        testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, verifyAggregation(InternalSum::getValue));
-        testCase(indexSearcher, query, queryBuilder, maxAggregationBuilder, starTree, verifyAggregation(InternalMax::getValue));
-        testCase(indexSearcher, query, queryBuilder, minAggregationBuilder, starTree, verifyAggregation(InternalMin::getValue));
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            verifyAggregation(InternalSum::getValue)
+        );
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            maxAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            verifyAggregation(InternalMax::getValue)
+        );
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            minAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            verifyAggregation(InternalMin::getValue)
+        );
         testCase(
             indexSearcher,
             query,
             queryBuilder,
             valueCountAggregationBuilder,
             starTree,
+            supportedDimensions,
             verifyAggregation(InternalValueCount::getValue)
         );
-        testCase(indexSearcher, query, queryBuilder, avgAggregationBuilder, starTree, verifyAggregation(InternalAvg::getValue));
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            avgAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            verifyAggregation(InternalAvg::getValue)
+        );
 
         // Numeric-terms query
         for (int cases = 0; cases < 100; cases++) {
@@ -180,18 +220,51 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
             queryBuilder = new TermQueryBuilder(queryField, queryValue);
 
-            testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, verifyAggregation(InternalSum::getValue));
-            testCase(indexSearcher, query, queryBuilder, maxAggregationBuilder, starTree, verifyAggregation(InternalMax::getValue));
-            testCase(indexSearcher, query, queryBuilder, minAggregationBuilder, starTree, verifyAggregation(InternalMin::getValue));
+            testCase(
+                indexSearcher,
+                query,
+                queryBuilder,
+                sumAggregationBuilder,
+                starTree,
+                supportedDimensions,
+                verifyAggregation(InternalSum::getValue)
+            );
+            testCase(
+                indexSearcher,
+                query,
+                queryBuilder,
+                maxAggregationBuilder,
+                starTree,
+                supportedDimensions,
+                verifyAggregation(InternalMax::getValue)
+            );
+            testCase(
+                indexSearcher,
+                query,
+                queryBuilder,
+                minAggregationBuilder,
+                starTree,
+                supportedDimensions,
+                verifyAggregation(InternalMin::getValue)
+            );
             testCase(
                 indexSearcher,
                 query,
                 queryBuilder,
                 valueCountAggregationBuilder,
                 starTree,
+                supportedDimensions,
                 verifyAggregation(InternalValueCount::getValue)
             );
-            testCase(indexSearcher, query, queryBuilder, avgAggregationBuilder, starTree, verifyAggregation(InternalAvg::getValue));
+            testCase(
+                indexSearcher,
+                query,
+                queryBuilder,
+                avgAggregationBuilder,
+                starTree,
+                supportedDimensions,
+                verifyAggregation(InternalAvg::getValue)
+            );
         }
 
         ir.close();
@@ -212,6 +285,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         QueryBuilder queryBuilder,
         T aggBuilder,
         CompositeIndexFieldInfo starTree,
+        List<Dimension> supportedDimensions,
         BiConsumer<V, V> verify
     ) throws IOException {
         V starTreeAggregation = searchAndReduceStarTree(
@@ -221,6 +295,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             queryBuilder,
             aggBuilder,
             starTree,
+            supportedDimensions,
             DEFAULT_MAX_BUCKETS,
             false,
             DEFAULT_MAPPED_FIELD
@@ -231,6 +306,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             query,
             queryBuilder,
             aggBuilder,
+            null,
             null,
             DEFAULT_MAX_BUCKETS,
             false,
