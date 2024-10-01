@@ -166,7 +166,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(indexSearcher, query, queryBuilder, avgAggregationBuilder, starTree, verifyAggregation(InternalAvg::getValue));
 
         // Numeric-terms query
-        for (int cases = 0; cases < 1; cases++) {
+        for (int cases = 0; cases < 100; cases++) {
             String queryField;
             long queryValue;
             if (randomBoolean()) {
@@ -181,8 +181,8 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             queryBuilder = new TermQueryBuilder(queryField, queryValue);
 
             testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, verifyAggregation(InternalSum::getValue));
-            // testCase(indexSearcher, query, queryBuilder, maxAggregationBuilder, starTree, verifyAggregation(InternalMax::getValue));
-            // testCase(indexSearcher, query, queryBuilder, minAggregationBuilder, starTree, verifyAggregation(InternalMin::getValue));
+            testCase(indexSearcher, query, queryBuilder, maxAggregationBuilder, starTree, verifyAggregation(InternalMax::getValue));
+            testCase(indexSearcher, query, queryBuilder, minAggregationBuilder, starTree, verifyAggregation(InternalMin::getValue));
             testCase(
                 indexSearcher,
                 query,
