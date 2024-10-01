@@ -33,4 +33,8 @@ public class SortedNumericStarTreeValuesIterator extends StarTreeValuesIterator 
     public int valuesCount() throws IOException {
         return ((SortedNumericDocValues) docIdSetIterator).docValueCount();
     }
+
+    public boolean advanceExact(int target) throws IOException {
+        return ((SortedNumericDocValues) docIdSetIterator).advanceExact(target);
+    }
 }
