@@ -54,24 +54,19 @@ public class StarTreeQueryHelper {
     /**
      * Checks if the search context can be supported by star-tree
      */
-    public static boolean isStarTreeSupported(SearchContext context, boolean trackTotalHits) {
-        boolean canUseStarTree = context.aggregations() != null
-            && context.size() == 0
+    public static boolean isStarTreeSupported(SearchContext context) {
+        return context.aggregations() != null
             && context.mapperService().isCompositeIndexPresent()
             && context.parsedPostFilter() == null
             && context.innerHits().getInnerHits().isEmpty()
             && context.sort() == null
-            && (!trackTotalHits || context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_DISABLED)
             && context.trackScores() == false
-            && context.minimumScore() == null
-            && context.terminateAfter() == 0;
-        return canUseStarTree;
+            && context.minimumScore() == null;
     }
 
-
     /**
-     * Gets a parsed OriginalOrStarTreeQuery from the search context and source builder.
-     * Returns null if the query cannot be supported.
+     * Gets StarTreeQueryContext from the search context and source builder.
+     * Returns null if the query & aggregation cannot be supported.
      */
     public static StarTreeQueryContext getStarTreeQueryContext(SearchContext context, SearchSourceBuilder source) throws IOException {
         // Current implementation assumes only single star-tree is supported
@@ -93,7 +88,6 @@ public class StarTreeQueryHelper {
             return null;
         }
 
-
         for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
             MetricStat metricStat = validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory);
             if (metricStat == null) {
@@ -104,20 +98,22 @@ public class StarTreeQueryHelper {
         if (context.aggregations().factories().getFactories().length > 1) {
             context.initializeStarTreeValuesMap();
         }
-
         return starTreeQueryContext;
     }
 
+    /**
+     * Uses query builder & composite index info to form star-tree query context
+     */
     private static StarTreeQueryContext toStarTreeQueryContext(
-        CompositeIndexFieldInfo starTree,
-        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        CompositeIndexFieldInfo compositeIndexFieldInfo,
+        CompositeDataCubeFieldType compositeFieldType,
         QueryBuilder queryBuilder
     ) {
         Map<String, Long> queryMap;
         if (queryBuilder == null || queryBuilder instanceof MatchAllQueryBuilder) {
             queryMap = null;
         } else if (queryBuilder instanceof TermQueryBuilder) {
-            List<String> supportedDimensions = compositeIndexFieldInfo.getDimensions()
+            List<String> supportedDimensions = compositeFieldType.getDimensions()
                 .stream()
                 .map(Dimension::getField)
                 .collect(Collectors.toList());
@@ -128,13 +124,12 @@ public class StarTreeQueryHelper {
         } else {
             return null;
         }
-
-        return new StarTreeQueryContext(starTree, queryMap);
+        return new StarTreeQueryContext(compositeIndexFieldInfo, queryMap);
     }
 
     /**
      * Parse query body to star-tree predicates
-     * @param queryBuilder to match supported query shape
+     * @param queryBuilder to match star-tree supported query shape
      * @return predicates to match
      */
     private static Map<String, Long> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
@@ -185,6 +180,10 @@ public class StarTreeQueryHelper {
         return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
     }
 
+    /**
+     * Get the star-tree leaf collector
+     * This collector computes the aggregation prematurely and invokes an early termination collector
+     */
     public static LeafBucketCollector getStarTreeLeafCollector(
         SearchContext context,
         ValuesSource.Numeric valuesSource,
@@ -225,7 +224,6 @@ public class StarTreeQueryHelper {
             }
         }
 
-
         // Call the final consumer after processing all entries
         finalConsumer.run();
 
@@ -238,7 +236,11 @@ public class StarTreeQueryHelper {
         };
     }
 
-    public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues) throws IOException {
+    /**
+     * Get the filtered values for the star-tree query
+     */
+    public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
+        throws IOException {
         if (context.getStarTreeValuesMap() != null && context.getStarTreeValuesMap().containsKey(ctx)) {
             return context.getStarTreeValuesMap().get(ctx);
         }
