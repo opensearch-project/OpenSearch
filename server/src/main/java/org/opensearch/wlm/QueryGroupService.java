@@ -132,7 +132,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
     }
 
     private QueryGroupState getQueryGroupState(final String queryGroupId) {
-        return queryGroupStateMap.get(queryGroupId);
+        return queryGroupStateMap.getOrDefault(queryGroupId, queryGroupStateMap.get(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get()));
     }
 
     /**

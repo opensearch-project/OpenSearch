@@ -23,8 +23,10 @@ import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -88,18 +90,28 @@ public class QueryGroupTaskCancellationService {
         // if the node is in duress, cancel tasks accordingly.
         handleNodeDuress(isNodeInDuress, activeQueryGroups, deletedQueryGroups);
 
-        updateResourceUsageInQueryGroupState();
+        updateResourceUsageInQueryGroupState(activeQueryGroups);
     }
 
-    private void updateResourceUsageInQueryGroupState() {
+    private void updateResourceUsageInQueryGroupState(Collection<QueryGroup> activeQueryGroups) {
+        Set<String> isSearchWorkloadRunning = new HashSet<>();
         for (Map.Entry<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViewEntry : queryGroupLevelResourceUsageViews
             .entrySet()) {
+            isSearchWorkloadRunning.add(queryGroupLevelResourceUsageViewEntry.getKey());
             QueryGroupState queryGroupState = getQueryGroupState(queryGroupLevelResourceUsageViewEntry.getKey());
             TRACKED_RESOURCES.forEach(resourceType -> {
                 final double currentUsage = queryGroupLevelResourceUsageViewEntry.getValue().getResourceUsageData().get(resourceType);
                 queryGroupState.getResourceState().get(resourceType).setLastRecordedUsage(currentUsage);
             });
         }
+
+        activeQueryGroups.forEach(queryGroup -> {
+            if (!isSearchWorkloadRunning.contains(queryGroup.get_id())) {
+                TRACKED_RESOURCES.forEach(
+                    resourceType -> getQueryGroupState(queryGroup.get_id()).getResourceState().get(resourceType).setLastRecordedUsage(0.0)
+                );
+            }
+        });
     }
 
     private void handleNodeDuress(
