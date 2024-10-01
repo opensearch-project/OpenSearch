@@ -23,7 +23,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -58,16 +57,20 @@ public class ResponseLimitSettingsTests extends OpenSearchTestCase {
         assertFalse(breached);
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testIsResponseLimitBreachedForNullLimitEntityWithRoutingTableExpectException() {
         final ClusterState clusterState = buildClusterState("test-index-1", "test-index-2", "test-index-3");
-        ResponseLimitSettings.isResponseLimitBreached(clusterState.getRoutingTable(), null, 4);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ResponseLimitSettings.isResponseLimitBreached(clusterState.getRoutingTable(), null, 4)
+        );
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testIsResponseLimitBreachedForNullLimitEntityWithMetadataExpectException() {
         final ClusterState clusterState = buildClusterState("test-index-1", "test-index-2", "test-index-3");
-        ResponseLimitSettings.isResponseLimitBreached(clusterState.getMetadata(), null, 4);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ResponseLimitSettings.isResponseLimitBreached(clusterState.getMetadata(), null, 4)
+        );
     }
 
     public void testIsResponseLimitBreachedForCatIndicesWithNoSettingPassedExpectNotBreached() {
