@@ -311,6 +311,9 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             && IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings) == false) {
             throw new IllegalArgumentException("Can't disable [index.soft_deletes.enabled] setting on resize");
         }
+        if (IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.exists(targetIndexSettings)) {
+            throw new IllegalArgumentException("cannot provide [index.replication.type] setting on resize");
+        }
         String cause = resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT) + "_index";
         targetIndex.cause(cause);
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);

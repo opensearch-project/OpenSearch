@@ -1708,7 +1708,8 @@ public class MetadataCreateIndexService {
             .put(builder.build())
             .put(IndexMetadata.SETTING_ROUTING_PARTITION_SIZE, sourceMetadata.getRoutingPartitionSize())
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
-            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID())
+            .put(INDEX_REPLICATION_TYPE_SETTING.getKey(), INDEX_REPLICATION_TYPE_SETTING.get(sourceMetadata.getSettings()));
     }
 
     /**

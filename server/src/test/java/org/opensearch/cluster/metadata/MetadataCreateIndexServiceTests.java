@@ -611,6 +611,20 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
+    public void testPrepareResizeIndexSettingsReplicationType() {
+        runPrepareResizeIndexSettingsTest(
+            Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString()).build(),
+            Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT.toString()).build(),
+            emptyList(),
+            true,
+            settings -> assertThat(
+                "Segment Replication must be equal to source type",
+                settings.get(SETTING_REPLICATION_TYPE),
+                equalTo(ReplicationType.SEGMENT.toString())
+            )
+        );
+    }
+
     public void testPrepareResizeIndexSettingsAnalysisSettings() {
         // analysis settings from the request are not overwritten
         runPrepareResizeIndexSettingsTest(
