@@ -21,9 +21,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.REMOTE_STORE_NODE_STATS;
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.REMOTE_STORE;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase {
@@ -195,26 +194,31 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.getKey(), "1m")
             .build();
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampEnabledSettings);
-        internalCluster().startDataOnlyNodes(2, pinnedTimestampEnabledSettings);
-        ensureStableCluster(3);
+        String remoteNodeName = internalCluster().startDataOnlyNodes(1, pinnedTimestampEnabledSettings).get(0);
+        ensureStableCluster(2);
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            remoteNodeName
+        );
 
-        logger.info("Sleeping for 70 seconds to wait for fetching of pinned timestamps");
-        Thread.sleep(70000);
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
 
-        long lastSuccessfulFetchOfPinnedTimestamps = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
-        assertTrue(lastSuccessfulFetchOfPinnedTimestamps > 0L);
         assertBusy(() -> {
+            long lastSuccessfulFetchOfPinnedTimestamps = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
+            assertTrue(lastSuccessfulFetchOfPinnedTimestamps > 0L);
             NodesStatsResponse nodesStatsResponse = internalCluster().client()
                 .admin()
                 .cluster()
                 .prepareNodesStats()
-                .addMetric(REMOTE_STORE_NODE_STATS.metricName())
+                .addMetric(REMOTE_STORE.metricName())
                 .execute()
                 .actionGet();
             for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
                 long lastRecordedFetch = nodeStats.getRemoteStoreNodeStats().getLastSuccessfulFetchOfPinnedTimestamps();
                 assertTrue(lastRecordedFetch >= lastSuccessfulFetchOfPinnedTimestamps);
             }
-        }, 1, TimeUnit.MINUTES);
+        });
+
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
     }
 }

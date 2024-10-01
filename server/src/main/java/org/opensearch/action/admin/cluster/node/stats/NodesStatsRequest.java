@@ -221,7 +221,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         REPOSITORIES("repositories"),
         ADMISSION_CONTROL("admission_control"),
         CACHE_STATS("caches"),
-        REMOTE_STORE_NODE_STATS("remote_store_node_stats");
+        REMOTE_STORE("remote_store");
 
         private String metricName;
 

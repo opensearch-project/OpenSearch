@@ -18,7 +18,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryException;
@@ -249,13 +248,5 @@ public class RemoteStoreNodeService {
         boolean isRemoteStoreMigrationDirection = MIGRATION_DIRECTION_SETTING.get(metadata.settings()).equals(Direction.REMOTE_STORE);
 
         return (isMixedMode && isRemoteStoreMigrationDirection);
-    }
-
-    public RemoteStoreNodeStats getRemoteStoreNodeStats() {
-        long lastSuccessfulFetchOfPinnedTimestamps = 0;
-        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
-            lastSuccessfulFetchOfPinnedTimestamps = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
-        }
-        return new RemoteStoreNodeStats(lastSuccessfulFetchOfPinnedTimestamps);
     }
 }

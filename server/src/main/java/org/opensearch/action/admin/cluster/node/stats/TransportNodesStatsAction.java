@@ -130,7 +130,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.REPOSITORIES.containedIn(metrics),
             NodesStatsRequest.Metric.ADMISSION_CONTROL.containedIn(metrics),
             NodesStatsRequest.Metric.CACHE_STATS.containedIn(metrics),
-            NodesStatsRequest.Metric.REMOTE_STORE_NODE_STATS.containedIn(metrics)
+            NodesStatsRequest.Metric.REMOTE_STORE.containedIn(metrics)
         );
     }
 

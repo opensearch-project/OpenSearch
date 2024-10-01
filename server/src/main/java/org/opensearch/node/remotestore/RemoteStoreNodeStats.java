@@ -8,15 +8,14 @@
 
 package org.opensearch.node.remotestore;
 
-import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.indices.RemoteStoreSettings;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Node level remote store stats
@@ -24,13 +23,13 @@ import java.io.IOException;
  */
 public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
 
-    public static final String STATS_NAME = "remote_store_node_stats";
+    public static final String STATS_NAME = "remote_store";
     public static final String LAST_SUCCESSFUL_FETCH_OF_PINNED_TIMESTAMPS = "last_successful_fetch_of_pinned_timestamps";
 
     /**
      * Time stamp for the last successful fetch of pinned timestamps by the {@linkplain  RemoteStorePinnedTimestampService}
      */
-    private long lastSuccessfulFetchOfPinnedTimestamps;
+    private final long lastSuccessfulFetchOfPinnedTimestamps;
 
     public RemoteStoreNodeStats(final long lastSuccessfulFetchOfPinnedTimestamps) {
         this.lastSuccessfulFetchOfPinnedTimestamps = lastSuccessfulFetchOfPinnedTimestamps;
@@ -41,18 +40,12 @@ public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
     }
 
     public RemoteStoreNodeStats(StreamInput in) throws IOException {
-        // TODO: change version to V_2_18_0
-        if (in.getVersion().onOrAfter(Version.CURRENT) && RemoteStoreSettings.isPinnedTimestampsEnabled()) {
-            this.lastSuccessfulFetchOfPinnedTimestamps = in.readOptionalLong();
-        }
+        this.lastSuccessfulFetchOfPinnedTimestamps = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: change version to V_2_18_0
-        if (out.getVersion().onOrAfter(Version.CURRENT) && RemoteStoreSettings.isPinnedTimestampsEnabled()) {
-            out.writeOptionalLong(this.lastSuccessfulFetchOfPinnedTimestamps);
-        }
+        out.writeLong(this.lastSuccessfulFetchOfPinnedTimestamps);
     }
 
     @Override
@@ -65,5 +58,22 @@ public class RemoteStoreNodeStats implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         return "RemoteStoreNodeStats{ lastSuccessfulFetchOfPinnedTimestamps=" + lastSuccessfulFetchOfPinnedTimestamps + "}";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null) {
+            return false;
+        }
+        if (o.getClass() != RemoteStoreNodeStats.class) {
+            return false;
+        }
+        RemoteStoreNodeStats other = (RemoteStoreNodeStats) o;
+        return this.lastSuccessfulFetchOfPinnedTimestamps == other.lastSuccessfulFetchOfPinnedTimestamps;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(lastSuccessfulFetchOfPinnedTimestamps);
     }
 }
