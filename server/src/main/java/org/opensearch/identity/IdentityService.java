@@ -8,6 +8,7 @@ package org.opensearch.identity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  * */
+@InternalApi
 public class IdentityService {
     private static final Logger log = LogManager.getLogger(IdentityService.class);
 
