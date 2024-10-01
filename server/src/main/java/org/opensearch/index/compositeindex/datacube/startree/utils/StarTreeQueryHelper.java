@@ -20,7 +20,6 @@ import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -66,7 +65,7 @@ public class StarTreeQueryHelper {
 
     /**
      * Gets StarTreeQueryContext from the search context and source builder.
-     * Returns null if the query & aggregation cannot be supported.
+     * Returns null if the query and aggregation cannot be supported.
      */
     public static StarTreeQueryContext getStarTreeQueryContext(SearchContext context, SearchSourceBuilder source) throws IOException {
         // Current implementation assumes only single star-tree is supported
@@ -102,7 +101,7 @@ public class StarTreeQueryHelper {
     }
 
     /**
-     * Uses query builder & composite index info to form star-tree query context
+     * Uses query builder and composite index info to form star-tree query context
      */
     private static StarTreeQueryContext toStarTreeQueryContext(
         CompositeIndexFieldInfo compositeIndexFieldInfo,
@@ -211,8 +210,8 @@ public class StarTreeQueryHelper {
         if (numBits > 0) {
             // Iterate over the FixedBitSet
             for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = (bit + 1 < numBits) ? matchedDocIds.nextSetBit(bit + 1) : -1) {
-                // Advance to the bit (entryId) in the valuesIterator
-                if (valuesIterator.advance(bit) == StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                // Advance to the entryId in the valuesIterator
+                if (!valuesIterator.advanceExact(bit)) {
                     continue;  // Skip if no more entries
                 }
 
@@ -238,6 +237,8 @@ public class StarTreeQueryHelper {
 
     /**
      * Get the filtered values for the star-tree query
+     * Cache the results in case of multiple aggregations (if cache is initialized)
+     * @return FixedBitSet of matched document IDs
      */
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
@@ -248,7 +249,10 @@ public class StarTreeQueryHelper {
         StarTreeFilter filter = new StarTreeFilter(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
         FixedBitSet result = filter.getStarTreeResult();
 
-        context.getStarTreeValuesMap().put(ctx, result);
+        if (context.getStarTreeValuesMap() != null) {
+            context.getStarTreeValuesMap().put(ctx, result);
+        }
         return result;
+
     }
 }

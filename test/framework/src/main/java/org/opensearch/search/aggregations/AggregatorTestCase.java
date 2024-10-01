@@ -60,7 +60,6 @@ import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -95,7 +94,6 @@ import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
-import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -103,7 +101,6 @@ import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.*;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
 import org.opensearch.index.mapper.ObjectMapper.Nested;
-import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
@@ -130,7 +127,6 @@ import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
@@ -143,7 +139,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -371,7 +366,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     ) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
 
-// Mock SearchContextAggregations
+        // Mock SearchContextAggregations
         SearchContextAggregations searchContextAggregations = mock(SearchContextAggregations.class);
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
         when(searchContext.aggregations()).thenReturn(searchContextAggregations);
