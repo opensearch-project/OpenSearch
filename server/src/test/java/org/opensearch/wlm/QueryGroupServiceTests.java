@@ -28,6 +28,7 @@ import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -40,7 +41,6 @@ import org.mockito.Mockito;
 import static org.opensearch.wlm.tracker.ResourceUsageCalculatorTests.createMockTaskWithResourceStats;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -140,16 +140,14 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     public void testDoRun_WhenModeEnabled() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(true);
-        doNothing().when(mockCancellationService).refreshQueryGroups(any(), any());
         // Call the method
         queryGroupService.doRun();
 
         // Verify that refreshQueryGroups was called
-        Mockito.verify(mockCancellationService).refreshQueryGroups(any(), any());
 
         // Verify that cancelTasks was called with a BooleanSupplier
         ArgumentCaptor<BooleanSupplier> booleanSupplierCaptor = ArgumentCaptor.forClass(BooleanSupplier.class);
-        Mockito.verify(mockCancellationService).cancelTasks(booleanSupplierCaptor.capture());
+        Mockito.verify(mockCancellationService).cancelTasks(booleanSupplierCaptor.capture(), any(), any());
 
         // Assert the behavior of the BooleanSupplier
         BooleanSupplier capturedSupplier = booleanSupplierCaptor.getValue();
@@ -162,9 +160,8 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(false);
         queryGroupService.doRun();
         // Verify that refreshQueryGroups was called
-        Mockito.verify(mockCancellationService, never()).refreshQueryGroups(any(), any());
 
-        Mockito.verify(mockCancellationService, never()).cancelTasks(any());
+        Mockito.verify(mockCancellationService, never()).cancelTasks(any(), any(), any());
 
     }
 
@@ -404,6 +401,56 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.shutdown();
     }
 
+    public void testShouldSBPHandle() {
+        QueryGroupTask task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
+        QueryGroupState queryGroupState = new QueryGroupState();
+        Set<QueryGroup> activeQueryGroups = new HashSet<>();
+        mockQueryGroupStateMap.put("testId", queryGroupState);
+        queryGroupService = new QueryGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockQueryGroupStateMap,
+            activeQueryGroups,
+            Collections.emptySet()
+        );
+
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+
+        // Default queryGroupId
+        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        mockThreadPool.getThreadContext()
+            .putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
+        task.setQueryGroupId(mockThreadPool.getThreadContext());
+        assertTrue(queryGroupService.shouldSBPHandle(task));
+
+        mockThreadPool.shutdownNow();
+
+        // invalid queryGroup task
+        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
+        task.setQueryGroupId(mockThreadPool.getThreadContext());
+        assertTrue(queryGroupService.shouldSBPHandle(task));
+
+        // Valid query group task but wlm not enabled
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
+        activeQueryGroups.add(
+            new QueryGroup(
+                "testQueryGroup",
+                "testId",
+                new MutableQueryGroupFragment(
+                    MutableQueryGroupFragment.ResiliencyMode.ENFORCED,
+                    Map.of(ResourceType.CPU, 0.10, ResourceType.MEMORY, 0.10)
+                ),
+                1L
+            )
+        );
+        assertTrue(queryGroupService.shouldSBPHandle(task));
+
+    }
+
     // This is needed to test the behavior of QueryGroupService#doRun method
     static class TestQueryGroupCancellationService extends QueryGroupTaskCancellationService {
         public TestQueryGroupCancellationService(
@@ -413,11 +460,15 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             Collection<QueryGroup> activeQueryGroups,
             Collection<QueryGroup> deletedQueryGroups
         ) {
-            super(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, activeQueryGroups, deletedQueryGroups);
+            super(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService);
         }
 
         @Override
-        public void cancelTasks(BooleanSupplier isNodeInDuress) {
+        public void cancelTasks(
+            BooleanSupplier isNodeInDuress,
+            Collection<QueryGroup> activeQueryGroups,
+            Collection<QueryGroup> deletedQueryGroups
+        ) {
 
         }
     }

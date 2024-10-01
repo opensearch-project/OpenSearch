@@ -83,7 +83,10 @@ public class QueryGroupTask extends CancellableTask {
      */
     public final void setQueryGroupId(final ThreadContext threadContext) {
         this.queryGroupId = Optional.ofNullable(threadContext)
-            .map(threadContext1 -> threadContext1.getHeader(QUERY_GROUP_ID_HEADER))
+            .map(
+                threadContext1 -> Optional.ofNullable(threadContext1.getHeader(QUERY_GROUP_ID_HEADER))
+                    .orElse(DEFAULT_QUERY_GROUP_ID_SUPPLIER.get())
+            )
             .orElse(DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
     }
 

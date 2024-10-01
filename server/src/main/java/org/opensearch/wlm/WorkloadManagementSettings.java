@@ -184,7 +184,7 @@ public class WorkloadManagementSettings {
      * node duress streak setter
      * @param duressStreak new value
      */
-    public void setDuressStreak(int duressStreak) {
+    private void setDuressStreak(int duressStreak) {
         this.duressStreak = duressStreak;
     }
 
@@ -192,7 +192,7 @@ public class WorkloadManagementSettings {
      * queryGroupServiceRunInterval setter
      * @param newIntervalInMillis new value
      */
-    public void setQueryGroupServiceRunInterval(long newIntervalInMillis) {
+    private void setQueryGroupServiceRunInterval(long newIntervalInMillis) {
         this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(newIntervalInMillis);
     }
 
@@ -208,7 +208,7 @@ public class WorkloadManagementSettings {
      * WlmMode setter
      * @param mode new mode value
      */
-    public void setWlmMode(final WlmMode mode) {
+    private void setWlmMode(final WlmMode mode) {
         this.wlmMode = mode;
     }
 

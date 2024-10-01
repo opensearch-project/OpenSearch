@@ -66,9 +66,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService,
-            activeQueryGroups,
-            deletedQueryGroups
+            resourceUsageTrackerService
         );
         taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
     }
@@ -143,7 +141,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         activeQueryGroups.add(queryGroup1);
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -191,12 +189,10 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService,
-            activeQueryGroups,
-            deletedQueryGroups
+            resourceUsageTrackerService
         );
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT, activeQueryGroups);
         assertEquals(0, cancellableTasksFrom.size());
     }
 
@@ -223,22 +219,20 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService,
-            activeQueryGroups,
-            deletedQueryGroups
+            resourceUsageTrackerService
         );
         taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
 
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        taskCancellation.cancelTasks(() -> false);
+        taskCancellation.cancelTasks(() -> false, activeQueryGroups, deletedQueryGroups);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
     }
@@ -287,14 +281,12 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService,
-            activeQueryGroups,
-            deletedQueryGroups
+            resourceUsageTrackerService
         );
         taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -306,7 +298,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        taskCancellation.cancelTasks(() -> true);
+        taskCancellation.cancelTasks(() -> true, activeQueryGroups, deletedQueryGroups);
 
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
@@ -359,14 +351,12 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService,
-            activeQueryGroups,
-            deletedQueryGroups
+            resourceUsageTrackerService
         );
         taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -378,7 +368,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        taskCancellation.cancelTasks(() -> false);
+        taskCancellation.cancelTasks(() -> false, activeQueryGroups, deletedQueryGroups);
 
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
@@ -420,27 +410,25 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService,
-            activeQueryGroups,
-            deletedQueryGroups
+            resourceUsageTrackerService
         );
         taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
 
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
-        List<TaskCancellation> cancellableTasksFrom1 = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT);
+        List<TaskCancellation> cancellableTasksFrom1 = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT, activeQueryGroups);
         assertEquals(2, cancellableTasksFrom1.size());
         assertEquals(5678, cancellableTasksFrom1.get(0).getTask().getId());
         assertEquals(8765, cancellableTasksFrom1.get(1).getTask().getId());
 
         when(resourceUsageTrackerService.constructQueryGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        taskCancellation.cancelTasks(() -> true);
+        taskCancellation.cancelTasks(() -> true, activeQueryGroups, deletedQueryGroups);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
         assertTrue(cancellableTasksFrom1.get(0).getTask().isCancelled());
@@ -468,7 +456,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         activeQueryGroups.add(queryGroup1);
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
+        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         assertTrue(allCancellableTasks.isEmpty());
     }
 
@@ -491,7 +479,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         activeQueryGroups.add(queryGroup1);
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED);
+        List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         assertEquals(2, allCancellableTasks.size());
         assertEquals(1234, allCancellableTasks.get(0).getTask().getId());
         assertEquals(4321, allCancellableTasks.get(1).getTask().getId());
@@ -555,14 +543,12 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService,
-            activeQueryGroups,
-            deletedQueryGroups
+            resourceUsageTrackerService
         );
         taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
-        taskCancellation.pruneDeletedQueryGroups();
+        taskCancellation.pruneDeletedQueryGroups(deletedQueryGroups);
 
         assertEquals(1, deletedQueryGroups.size());
         assertEquals(queryGroupId1, deletedQueryGroups.get(0).get_id());

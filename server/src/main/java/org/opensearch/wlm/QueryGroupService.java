@@ -127,9 +127,8 @@ public class QueryGroupService extends AbstractLifecycleComponent
         if (workloadManagementSettings.getWlmMode() == WlmMode.DISABLED) {
             return;
         }
-        taskCancellationService.refreshQueryGroups(activeQueryGroups, deletedQueryGroups);
-        taskCancellationService.cancelTasks(nodeDuressTrackers::isNodeInDuress);
-        taskCancellationService.pruneDeletedQueryGroups();
+        taskCancellationService.cancelTasks(nodeDuressTrackers::isNodeInDuress, activeQueryGroups, deletedQueryGroups);
+        taskCancellationService.pruneDeletedQueryGroups(deletedQueryGroups);
     }
 
     private QueryGroupState getQueryGroupState(final String queryGroupId) {
@@ -294,6 +293,21 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
     public Set<QueryGroup> getDeletedQueryGroups() {
         return deletedQueryGroups;
+    }
+
+    /**
+     * This method determines whether the task should be accounted by SBP if both features co-exist
+     * @param t QueryGroupTask
+     * @return whether or not SBP handle it
+     */
+    public boolean shouldSBPHandle(Task t) {
+        QueryGroupTask task = (QueryGroupTask) t;
+        boolean isInvalidQueryGroupTask = true;
+        if (!task.getQueryGroupId().equals(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get())) {
+            isInvalidQueryGroupTask = activeQueryGroups.stream()
+                .noneMatch(queryGroup -> queryGroup.get_id().equals(task.getQueryGroupId()));
+        }
+        return workloadManagementSettings.getWlmMode() != WlmMode.ENABLED || isInvalidQueryGroupTask;
     }
 
     @Override

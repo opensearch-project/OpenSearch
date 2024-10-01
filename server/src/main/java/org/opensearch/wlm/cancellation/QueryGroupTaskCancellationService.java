@@ -23,7 +23,6 @@ import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
@@ -59,8 +58,6 @@ public class QueryGroupTaskCancellationService {
     private final QueryGroupResourceUsageTrackerService resourceUsageTrackerService;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
-    private Collection<QueryGroup> activeQueryGroups;
-    private Collection<QueryGroup> deletedQueryGroups;
     private Function<String, QueryGroupState> queryGroupStateAccessor;
 
     public QueryGroupTaskCancellationService(
@@ -68,21 +65,9 @@ public class QueryGroupTaskCancellationService {
         TaskSelectionStrategy taskSelectionStrategy,
         QueryGroupResourceUsageTrackerService resourceUsageTrackerService
     ) {
-        this(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, new HashSet<>(), new HashSet<>());
-    }
-
-    public QueryGroupTaskCancellationService(
-        WorkloadManagementSettings workloadManagementSettings,
-        TaskSelectionStrategy taskSelectionStrategy,
-        QueryGroupResourceUsageTrackerService resourceUsageTrackerService,
-        Collection<QueryGroup> activeQueryGroups,
-        Collection<QueryGroup> deletedQueryGroups
-    ) {
         this.workloadManagementSettings = workloadManagementSettings;
         this.taskSelectionStrategy = taskSelectionStrategy;
         this.resourceUsageTrackerService = resourceUsageTrackerService;
-        this.activeQueryGroups = activeQueryGroups;
-        this.deletedQueryGroups = deletedQueryGroups;
     }
 
     public void setQueryGroupStateMapAccessor(final Function<String, QueryGroupState> queryGroupStateAccessor) {
@@ -92,12 +77,16 @@ public class QueryGroupTaskCancellationService {
     /**
      * Cancel tasks based on the implemented strategy.
      */
-    public void cancelTasks(BooleanSupplier isNodeInDuress) {
+    public void cancelTasks(
+        BooleanSupplier isNodeInDuress,
+        Collection<QueryGroup> activeQueryGroups,
+        Collection<QueryGroup> deletedQueryGroups
+    ) {
         queryGroupLevelResourceUsageViews = resourceUsageTrackerService.constructQueryGroupLevelUsageViews();
         // cancel tasks from QueryGroups that are in Enforced mode that are breaching their resource limits
-        cancelTasks(ResiliencyMode.ENFORCED);
+        cancelTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
         // if the node is in duress, cancel tasks accordingly.
-        handleNodeDuress(isNodeInDuress);
+        handleNodeDuress(isNodeInDuress, activeQueryGroups, deletedQueryGroups);
 
         updateResourceUsageInQueryGroupState();
     }
@@ -113,12 +102,19 @@ public class QueryGroupTaskCancellationService {
         }
     }
 
-    private void handleNodeDuress(BooleanSupplier isNodeInDuress) {
+    private void handleNodeDuress(
+        BooleanSupplier isNodeInDuress,
+        Collection<QueryGroup> activeQueryGroups,
+        Collection<QueryGroup> deletedQueryGroups
+    ) {
         if (!isNodeInDuress.getAsBoolean()) {
             return;
         }
         // List of tasks to be executed in order if the node is in duress
-        List<Consumer<Void>> duressActions = List.of(v -> cancelTasksFromDeletedQueryGroups(), v -> cancelTasks(ResiliencyMode.SOFT));
+        List<Consumer<Void>> duressActions = List.of(
+            v -> cancelTasksFromDeletedQueryGroups(deletedQueryGroups),
+            v -> cancelTasks(ResiliencyMode.SOFT, activeQueryGroups)
+        );
 
         for (Consumer<Void> duressAction : duressActions) {
             if (!isNodeInDuress.getAsBoolean()) {
@@ -128,8 +124,8 @@ public class QueryGroupTaskCancellationService {
         }
     }
 
-    private void cancelTasksFromDeletedQueryGroups() {
-        cancelTasks(getAllCancellableTasks(this.deletedQueryGroups));
+    private void cancelTasksFromDeletedQueryGroups(Collection<QueryGroup> deletedQueryGroups) {
+        cancelTasks(getAllCancellableTasks(deletedQueryGroups));
     }
 
     /**
@@ -137,9 +133,9 @@ public class QueryGroupTaskCancellationService {
      *
      * @return List of tasks that can be cancelled
      */
-    List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode) {
+    List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode, Collection<QueryGroup> queryGroups) {
         return getAllCancellableTasks(
-            activeQueryGroups.stream().filter(queryGroup -> queryGroup.getResiliencyMode() == resiliencyMode).collect(Collectors.toList())
+            queryGroups.stream().filter(queryGroup -> queryGroup.getResiliencyMode() == resiliencyMode).collect(Collectors.toList())
         );
     }
 
@@ -160,7 +156,6 @@ public class QueryGroupTaskCancellationService {
                     .calculateResourceUsage(selectedTasks);
                 if (excessUsage > MIN_VALUE) {
                     reasons.add(new TaskCancellation.Reason(generateReasonString(queryGroup, resourceType), 1));
-                    // TODO: We will need to add the cancellation callback for these resources for the queryGroup to reflect stats
                     onCancelCallbacks.add(this.getResourceTypeOnCancelCallback(queryGroup.get_id(), resourceType));
                     // Only add tasks not already added to avoid double cancellations
                     selectedTasks.addAll(
@@ -198,8 +193,8 @@ public class QueryGroupTaskCancellationService {
         return queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks();
     }
 
-    private void cancelTasks(ResiliencyMode resiliencyMode) {
-        cancelTasks(getAllCancellableTasks(resiliencyMode));
+    private void cancelTasks(ResiliencyMode resiliencyMode, Collection<QueryGroup> queryGroups) {
+        cancelTasks(getAllCancellableTasks(resiliencyMode, queryGroups));
     }
 
     private void cancelTasks(List<TaskCancellation> cancellableTasks) {
@@ -256,19 +251,9 @@ public class QueryGroupTaskCancellationService {
     }
 
     /**
-     * sets the current active and deleted query groups
-     * @param activeQueryGroups
-     * @param deletedQueryGroups
-     */
-    public void refreshQueryGroups(Collection<QueryGroup> activeQueryGroups, Collection<QueryGroup> deletedQueryGroups) {
-        this.activeQueryGroups = activeQueryGroups;
-        this.deletedQueryGroups = deletedQueryGroups;
-    }
-
-    /**
      * Removes the queryGroups from deleted list if it doesn't have any tasks running
      */
-    public void pruneDeletedQueryGroups() {
+    public void pruneDeletedQueryGroups(Collection<QueryGroup> deletedQueryGroups) {
         List<QueryGroup> currentDeletedQueryGroups = new ArrayList<>(deletedQueryGroups);
         for (QueryGroup queryGroup : currentDeletedQueryGroups) {
             if (queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks().isEmpty()) {
