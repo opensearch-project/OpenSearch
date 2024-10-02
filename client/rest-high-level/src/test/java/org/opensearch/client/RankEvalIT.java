@@ -158,7 +158,7 @@ public class RankEvalIT extends OpenSearchRestHighLevelClientTestCase {
 
             RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, new String[] { "index", "index2" });
             RankEvalResponse response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
-            assertEquals(expectedScores[i], response.getMetricScore(), DOUBLE_DELTA); 
+            assertEquals(expectedScores[i], response.getMetricScore(), DOUBLE_DELTA);
             i++;
         }
     }
