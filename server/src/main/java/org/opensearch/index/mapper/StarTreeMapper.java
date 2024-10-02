@@ -516,7 +516,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
      * @opensearch.experimental
      */
     @ExperimentalApi
-    public static class StarTreeFieldType extends CompositeDataCubeFieldType {
+    public static final class StarTreeFieldType extends CompositeDataCubeFieldType {
 
         private final StarTreeFieldConfiguration starTreeConfig;
 
