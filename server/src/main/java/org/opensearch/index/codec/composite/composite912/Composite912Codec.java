@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite;
+package org.opensearch.index.codec.composite.composite912;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
