@@ -54,6 +54,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -241,7 +242,8 @@ public class NodeService implements Closeable {
         boolean segmentReplicationTrackerStats,
         boolean repositoriesStats,
         boolean admissionControl,
-        boolean cacheService
+        boolean cacheService,
+        boolean remoteStoreNodeStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -274,7 +276,8 @@ public class NodeService implements Closeable {
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
             admissionControl ? this.admissionControlService.stats() : null,
-            cacheService ? this.cacheService.stats(indices) : null
+            cacheService ? this.cacheService.stats(indices) : null,
+            remoteStoreNodeStats ? new RemoteStoreNodeStats() : null
         );
     }
 

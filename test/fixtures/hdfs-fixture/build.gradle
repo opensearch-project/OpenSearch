@@ -55,7 +55,7 @@ dependencies {
     exclude group: 'com.nimbusds'
     exclude module: "commons-configuration2"
   }
-  api "dnsjava:dnsjava:3.6.1"
+  api "dnsjava:dnsjava:3.6.2"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -77,9 +77,9 @@ dependencies {
   api "ch.qos.logback:logback-core:1.5.8"
   api "ch.qos.logback:logback-classic:1.2.13"
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
-  api 'org.jline:jline:3.26.3'
+  api 'org.jline:jline:3.27.0'
   api 'org.apache.commons:commons-configuration2:2.11.0'
-  api 'com.nimbusds:nimbus-jose-jwt:9.40'
+  api 'com.nimbusds:nimbus-jose-jwt:9.41.1'
   api ('org.apache.kerby:kerb-admin:2.1.0') {
     exclude group: "org.jboss.xnio"
     exclude group: "org.jline"
