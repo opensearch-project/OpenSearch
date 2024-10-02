@@ -46,10 +46,11 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     /**
      * @param resourceId the resource on which access is to be checked
      * @param systemIndexName where the resource exists
+     * @param scope the type of access being requested
      * @return true
      */
     @Override
-    public boolean hasPermission(String resourceId, String systemIndexName) {
+    public boolean hasPermission(String resourceId, String systemIndexName, String scope) {
         return true;
     }
 

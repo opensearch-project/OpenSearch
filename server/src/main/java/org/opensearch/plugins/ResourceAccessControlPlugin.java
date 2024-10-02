@@ -45,9 +45,10 @@ public interface ResourceAccessControlPlugin {
      *
      * @param resourceId the resource on which access is to be checked
      * @param systemIndexName where the resource exists
+     * @param scope the scope being requested
      * @return true if current user has access, false otherwise
      */
-    boolean hasPermission(String resourceId, String systemIndexName);
+    boolean hasPermission(String resourceId, String systemIndexName, String scope);
 
     /**
      * Adds an entity to the share-with. Resource needs to be in restricted mode.
