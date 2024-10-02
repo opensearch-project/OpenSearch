@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
@@ -20,6 +21,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -51,7 +53,7 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
                 RESTORED_INDEX_NAME,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                    .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
                     .build()
             )
         );
@@ -70,7 +72,7 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
         );
         ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(0, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
+        assertEquals(0, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
@@ -87,13 +89,13 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             RESTORED_INDEX_NAME,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
                 .build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
         internalCluster().startDataOnlyNode();
         ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(1, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
+        assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
@@ -111,7 +113,7 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build()
         );
         ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(0, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
+        assertEquals(0, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
@@ -130,7 +132,7 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
                 RESTORED_INDEX_NAME,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                    .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
                     .build()
             )
         );
@@ -146,12 +148,12 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             SNAPSHOT_NAME,
             INDEX_NAME,
             RESTORED_INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
+            Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
         internalCluster().startDataOnlyNode();
         ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(1, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
+        assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
@@ -185,11 +187,11 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             RESTORED_INDEX_NAME,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
+                .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
                 .build()
         );
         ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(0, getNumShards(RESTORED_INDEX_NAME).numSearchReplicas);
+        assertEquals(0, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
@@ -202,7 +204,7 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
             .build();
 
@@ -219,7 +221,7 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
 
@@ -249,5 +251,10 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             + restoreReplicationType
             + "], "
             + "[index.number_of_search_only_replicas] must be set to [0]";
+    }
+
+    private int getNumberOfSearchReplicas(String index) {
+        Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
+        return Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SEARCH_REPLICAS));
     }
 }
