@@ -502,6 +502,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 applyChanges(task, previousClusterState, newClusterState, stopWatch);
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
+                // At this point, cluster state appliers and listeners are completed
                 logger.debug(
                     "processing [{}]: took [{}] done applying updated cluster state (version: {}, uuid: {})",
                     task.source,
@@ -510,6 +511,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     newClusterState.stateUUID()
                 );
                 warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
+                // Then we call the ClusterApplyListener of the task
                 task.listener.onSuccess(task.source);
             } catch (Exception e) {
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
@@ -578,6 +580,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
         logger.debug("apply cluster state with version {}", newClusterState.version());
         callClusterStateAppliers(clusterChangedEvent, stopWatch);
+        logger.debug("completed calling appliers of cluster state for version {}", newClusterState.version());
 
         nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
 
@@ -594,6 +597,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         state.set(newClusterState);
 
         callClusterStateListeners(clusterChangedEvent, stopWatch);
+        logger.debug("completed calling listeners of cluster state for version {}", newClusterState.version());
     }
 
     protected void connectToNodesAndWait(ClusterState newClusterState) {
