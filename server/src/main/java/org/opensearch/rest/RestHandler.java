@@ -125,6 +125,13 @@ public interface RestHandler {
         return false;
     }
 
+    /**
+     * Denotes whether the RestHandler will output paginated responses or not.
+     */
+    default boolean isActionPaginated() {
+        return false;
+    }
+
     static RestHandler wrapper(RestHandler delegate) {
         return new Wrapper(delegate);
     }
@@ -184,6 +191,16 @@ public interface RestHandler {
         @Override
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
+        }
+
+        @Override
+        public boolean isActionPaginated() {
+            return delegate.isActionPaginated();
+        }
+
+        @Override
+        public boolean supportsStreaming() {
+            return delegate.supportsStreaming();
         }
     }
 

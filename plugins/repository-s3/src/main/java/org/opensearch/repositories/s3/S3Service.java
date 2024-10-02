@@ -42,6 +42,7 @@ import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.SystemPropertyTlsKeyManagersProvider;
@@ -330,6 +331,8 @@ class S3Service implements Closeable {
         );
         if (!clientSettings.throttleRetries) {
             retryPolicy.throttlingBackoffStrategy(BackoffStrategy.none());
+        } else {
+            retryPolicy.throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD));
         }
         return clientOverrideConfiguration.retryPolicy(retryPolicy.build()).build();
     }

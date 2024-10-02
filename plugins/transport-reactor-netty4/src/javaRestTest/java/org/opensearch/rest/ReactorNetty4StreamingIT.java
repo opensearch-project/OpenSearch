@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -291,6 +292,33 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
             .then(() -> scheduler.advanceTimeBy(delay))
             .expectNextMatches(s -> s.contains("\"type\":\"illegal_argument_exception\""))
             .then(() -> scheduler.advanceTimeBy(delay))
+            .expectComplete()
+            .verify();
+
+        assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(streamingResponse.getWarnings(), empty());
+    }
+
+    public void testStreamingLargeDocument() throws IOException {
+        final Stream<String> stream = Stream.of(
+            String.format(
+                Locale.getDefault(),
+                "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"1\" } }\n{ \"name\": \"%s\"  }\n",
+                randomAlphaOfLength(5000)
+            )
+        );
+
+        final Duration delay = Duration.ofMillis(1);
+        final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
+            "POST",
+            "/_bulk/stream",
+            Flux.fromStream(stream).map(s -> ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        final StreamingResponse<ByteBuffer> streamingResponse = client().streamRequest(streamingRequest);
+
+        StepVerifier.create(Flux.from(streamingResponse.getBody()).map(b -> new String(b.array(), StandardCharsets.UTF_8)))
+            .expectNextMatches(s -> s.contains("\"type\":\"illegal_argument_exception\""))
             .expectComplete()
             .verify();
 
