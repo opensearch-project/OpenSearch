@@ -33,6 +33,7 @@ import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.ClusterSettings;
@@ -117,6 +118,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
  *
  * @opensearch.internal
  */
+@InternalApi
 public class RemoteClusterStateService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
@@ -233,6 +235,7 @@ public class RemoteClusterStateService implements Closeable {
     private final boolean isPublicationEnabled;
     private final String remotePathPrefix;
 
+    private final RemoteClusterStateCache remoteClusterStateCache;
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
     public static final ToXContent.Params FORMAT_PARAMS;
@@ -282,6 +285,7 @@ public class RemoteClusterStateService implements Closeable {
             ClusterName.CLUSTER_NAME_SETTING.get(settings).value()
         );
         remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService, remoteRoutingTableService);
+        remoteClusterStateCache = new RemoteClusterStateCache();
     }
 
     /**
@@ -328,7 +332,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousClusterUUID,
             clusterStateDiffManifest,
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             false,
             codecVersion
         );
@@ -535,7 +541,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             clusterStateDiffManifest,
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             false,
             previousManifest.getCodecVersion()
         );
@@ -1006,7 +1014,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             true,
             previousManifest.getCodecVersion()
         );
@@ -1030,6 +1040,15 @@ public class RemoteClusterStateService implements Closeable {
 
     public ClusterMetadataManifest getClusterMetadataManifestByFileName(String clusterUUID, String fileName) {
         return remoteManifestManager.getRemoteClusterMetadataManifestByFileName(clusterUUID, fileName);
+    }
+
+    public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
+        String clusterName,
+        String clusterUUID,
+        long term,
+        long version
+    ) {
+        return remoteManifestManager.getClusterMetadataManifestByTermVersion(clusterName, clusterUUID, term, version);
     }
 
     @Override
@@ -1442,6 +1461,11 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean includeEphemeral
     ) throws IOException {
+        ClusterState stateFromCache = remoteClusterStateCache.getState(clusterName, manifest);
+        if (stateFromCache != null) {
+            return stateFromCache;
+        }
+
         final ClusterState clusterState;
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
@@ -1498,7 +1522,10 @@ public class RemoteClusterStateService implements Closeable {
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         remoteStateStats.stateFullDownloadSucceeded();
         remoteStateStats.stateFullDownloadTook(durationMillis);
-
+        if (includeEphemeral) {
+            // cache only if the entire cluster-state is present
+            remoteClusterStateCache.putState(clusterState);
+        }
         return clusterState;
     }
 
@@ -1506,6 +1533,8 @@ public class RemoteClusterStateService implements Closeable {
         assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         ClusterStateDiffManifest diff = manifest.getDiffManifest();
+        boolean includeEphemeral = true;
+
         List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
             Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
                 .stream()
@@ -1554,7 +1583,7 @@ public class RemoteClusterStateService implements Closeable {
             manifest.getDiffManifest() != null
                 && manifest.getDiffManifest().getIndicesRoutingDiffPath() != null
                 && !manifest.getDiffManifest().getIndicesRoutingDiffPath().isEmpty(),
-            true
+            includeEphemeral
         );
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(updatedClusterState);
         Metadata.Builder metadataBuilder = Metadata.builder(updatedClusterState.metadata());
@@ -1588,7 +1617,6 @@ public class RemoteClusterStateService implements Closeable {
             .metadata(metadataBuilder)
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
-
         if (!remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) && manifest.getClusterStateChecksum() != null) {
             validateClusterStateFromChecksum(manifest, clusterState, previousState.getClusterName().value(), localNodeId, false);
         }
@@ -1596,6 +1624,9 @@ public class RemoteClusterStateService implements Closeable {
         remoteStateStats.stateDiffDownloadSucceeded();
         remoteStateStats.stateDiffDownloadTook(durationMillis);
 
+        assert includeEphemeral == true;
+        // newState includes all the fields of cluster-state (includeEphemeral=true always)
+        remoteClusterStateCache.putState(clusterState);
         return clusterState;
     }
 
@@ -1606,7 +1637,7 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean isFullStateDownload
     ) {
-        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
+        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState, threadpool);
         List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(manifest.getClusterStateChecksum());
         if (failedValidation.isEmpty()) {
             return;
@@ -1619,6 +1650,12 @@ public class RemoteClusterStateService implements Closeable {
                 failedValidation
             )
         );
+        if (isFullStateDownload) {
+            remoteStateStats.stateFullDownloadValidationFailed();
+        } else {
+            remoteStateStats.stateDiffDownloadValidationFailed();
+        }
+
         if (isFullStateDownload && remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.FAILURE)) {
             throw new IllegalStateException(
                 "Cluster state checksums do not match during full state read. Validation failed for " + failedValidation
@@ -1989,4 +2026,9 @@ public class RemoteClusterStateService implements Closeable {
     public void diffDownloadFailed() {
         remoteStateStats.stateDiffDownloadFailed();
     }
+
+    RemoteClusterStateCache getRemoteClusterStateCache() {
+        return remoteClusterStateCache;
+    }
+
 }

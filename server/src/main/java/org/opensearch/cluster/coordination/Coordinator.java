@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
+import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -187,6 +188,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
     private final RemoteStoreNodeService remoteStoreNodeService;
+    private NodeConnectionsService nodeConnectionsService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -386,6 +388,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.get().handleCommit(applyCommitRequest);
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(committedState) : committedState;
+            clusterApplier.setPreCommitState(applierState);
+
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // cluster-manager node applies the committed state at the end of the publication process, not here.
                 applyListener.onResponse(null);
@@ -416,7 +420,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getClusterManagerNode();
-            logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
+            logger.debug(
+                "handlePublishRequest: handling version [{}] from [{}]",
+                publishRequest.getAcceptedState().getVersion(),
+                sourceNode
+            );
 
             if (sourceNode.equals(getLocalNode()) && mode != Mode.LEADER) {
                 // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
@@ -628,7 +636,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
             final ClusterState stateForJoinValidation = getStateForClusterManagerService();
-
             if (stateForJoinValidation.nodes().isLocalNodeElectedClusterManager()) {
                 onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
                 if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
@@ -812,6 +819,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                 if (currentState.nodes().isLocalNodeElectedClusterManager() == false) {
                     allocationService.cleanCaches();
+                    // This set only needs to be maintained on active cluster-manager
+                    // This is cleaned up to avoid stale entries which would block future reconnections
+                    logger.trace("Removing all pending disconnections as part of cluster-manager cleanup");
+                    nodeConnectionsService.clearPendingDisconnections();
                 }
                 return unchanged();
             }
@@ -912,9 +923,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     public void startInitialJoin() {
         synchronized (mutex) {
+            logger.trace("Starting initial join, becoming candidate");
             becomeCandidate("startInitialJoin");
         }
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
+    }
+
+    @Override
+    public void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
+        assert this.nodeConnectionsService == null : "nodeConnectionsService is already set";
+        this.nodeConnectionsService = nodeConnectionsService;
     }
 
     @Override
@@ -1354,6 +1372,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 currentPublication = Optional.of(publication);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
+                // marking pending disconnects before publish
+                // if a nodes tries to send a joinRequest while it is pending disconnect, it should fail
+                nodeConnectionsService.setPendingDisconnections(new HashSet<>(clusterChangedEvent.nodesDelta().removedNodes()));
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
@@ -1861,5 +1882,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
         return Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false"));
+    }
+
+    public boolean isRemotePublicationEnabled() {
+        if (coordinationState.get() != null) {
+            return coordinationState.get().isRemotePublicationEnabled();
+        }
+        return false;
     }
 }
