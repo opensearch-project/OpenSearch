@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package org.opensearch.proto.search;
+
+option java_outer_classname = "SearchHitsProtoDef";
+
+// Generic java Object
+// Ideally we are able to remove all usages of this message type
+message GenericObjectProto {
+  bytes value = 1;
+}
+
+message SearchHitsProto {
+  float max_score = 1;
+  optional string collapse_field = 2;
+  optional TotalHitsProto total_hits = 5;
+  repeated SortValueProto collapse_values = 4;
+  repeated SortFieldProto sort_fields = 3;
+  repeated SearchHitProto hits = 6;
+}
+
+message TotalHitsProto {
+  int64 value = 1;
+  int64 relation = 2;
+}
+
+message SortValueProto {
+  oneof value {
+    string string_value = 1;
+    int32 int_value = 2;
+    int64 long_value = 3;
+    float float_value = 4;
+    double double_value = 5;
+    int32 byte_value = 6;
+    int32 short_value = 7;
+    bool bool_value = 8;
+    bytes bytes_value = 9;
+    string big_integer_value = 10;
+    bool is_null = 11;
+  }
+}
+
+message SortFieldProto {
+  bool reverse = 1;
+  SortTypeProto type = 2;
+  optional string field = 3;
+  optional MissingValueProto missing_value = 4;
+}
+
+message MissingValueProto {
+  oneof value {
+    int32 int_val = 1;
+    GenericObjectProto obj_val = 2;
+  }
+}
+
+enum SortTypeProto {
+  SCORE = 0;
+  DOC = 1;
+  STRING = 2;
+  INT = 3;
+  FLOAT = 4;
+  LONG = 5;
+  DOUBLE = 6;
+  CUSTOM = 7;
+  STRING_VAL = 8;
+  REWRITEABLE = 9;
+}
+
+message SearchHitProto {
+  float score = 1;
+  int64 version = 2;
+  int64 seq_no = 3;
+  int64 primary_term = 4;
+  SearchSortValuesProto sort_values = 5;
+  map<string, DocumentFieldProto> document_fields = 6;
+  map<string, DocumentFieldProto> meta_fields = 7;
+  map<string, HighlightFieldProto> highlight_fields = 8;
+  map<string, float> matched_queries = 9;
+  map<string, SearchHitsProto> inner_hits = 10;
+  optional bytes source = 11; // compressible map
+  optional string id = 12;
+  optional NestedIdentityProto nested_identity = 13;
+  optional SearchShardTargetProto shard = 14;
+  optional ExplanationProto explanation = 15;
+}
+
+message NestedIdentityProto {
+  string field = 1;
+  int32 offset = 2;
+  NestedIdentityProto child = 3;
+}
+
+message DocumentFieldProto {
+  string name = 1;
+  repeated GenericObjectProto values = 2;
+}
+
+message HighlightFieldProto {
+  string name = 1;
+  bool frags_null = 2; // fragments can be null OR empty
+  repeated string fragments = 3;
+}
+
+message SearchSortValuesProto {
+  repeated SortValueProto formatted_sort_values = 1;
+  repeated SortValueProto raw_sort_values = 2;
+}
+
+message ExplanationProto {
+  bool match = 1;
+  oneof value {
+    int32 int_value = 2;
+    int64 long_value = 3;
+    float float_value = 4;
+    double double_value = 5;
+  }
+  string description = 6;
+  repeated ExplanationProto details = 7;
+}
+
+message SearchShardTargetProto {
+  string node_id = 1;
+  ShardIdProto shard_id = 2;
+  optional string cluster_alias = 3;
+}
+
+message ShardIdProto {
+  IndexProto index = 1;
+  int32 shard_id = 2;
+  int32 hash_code = 3;
+}
+
+message IndexProto {
+  string name = 1;
+  string uuid = 2;
+}

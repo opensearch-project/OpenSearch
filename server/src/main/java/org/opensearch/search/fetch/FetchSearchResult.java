@@ -50,11 +50,11 @@ import java.io.IOException;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class FetchSearchResult extends SearchPhaseResult {
+public class FetchSearchResult extends SearchPhaseResult {
 
-    private SearchHits hits;
+    protected SearchHits hits;
     // client side counter
-    private transient int counter;
+    protected transient int counter;
 
     public FetchSearchResult() {}
 

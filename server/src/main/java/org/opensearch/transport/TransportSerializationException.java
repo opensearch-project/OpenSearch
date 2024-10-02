@@ -47,6 +47,10 @@ public class TransportSerializationException extends TransportException {
         super(in);
     }
 
+    public TransportSerializationException(String msg) {
+        super(msg);
+    }
+
     public TransportSerializationException(String msg, Throwable cause) {
         super(msg, cause);
     }

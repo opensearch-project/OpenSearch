@@ -103,7 +103,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
-    private static SortField[] createSortFields(int size) {
+    public static SortField[] createSortFields(int size) {
         SortField[] sortFields = new SortField[size];
         for (int i = 0; i < sortFields.length; i++) {
             // sort fields are simplified before serialization, we write directly the simplified version
@@ -113,7 +113,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         return sortFields;
     }
 
-    private static Object[] createCollapseValues(int size) {
+    public static Object[] createCollapseValues(int size) {
         Object[] collapseValues = new Object[size];
         for (int i = 0; i < collapseValues.length; i++) {
             collapseValues[i] = LuceneTests.randomSortValue();
@@ -123,6 +123,10 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     @Override
     protected SearchHits mutateInstance(SearchHits instance) {
+        return mutate(instance);
+    }
+
+    public static SearchHits mutate(SearchHits instance) {
         switch (randomIntBetween(0, 5)) {
             case 0:
                 return new SearchHits(

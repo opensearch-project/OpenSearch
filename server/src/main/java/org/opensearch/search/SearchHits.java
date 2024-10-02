@@ -61,7 +61,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
+public class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
     public static SearchHits empty() {
         return empty(true);
     }
@@ -72,15 +72,25 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
 
-    private final SearchHit[] hits;
-    private final TotalHits totalHits;
-    private final float maxScore;
+    protected SearchHit[] hits;
+    protected float maxScore;
     @Nullable
-    private final SortField[] sortFields;
+    protected TotalHits totalHits;
     @Nullable
-    private final String collapseField;
+    protected SortField[] sortFields;
     @Nullable
-    private final Object[] collapseValues;
+    protected String collapseField;
+    @Nullable
+    protected Object[] collapseValues;
+
+    public SearchHits(SearchHits sHits) {
+        this.hits = sHits.hits;
+        this.totalHits = sHits.totalHits;
+        this.maxScore = sHits.maxScore;
+        this.sortFields = sHits.sortFields;
+        this.collapseField = sHits.collapseField;
+        this.collapseValues = sHits.collapseValues;
+    }
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
@@ -123,6 +133,8 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         collapseField = in.readOptionalString();
         collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
     }
+
+    protected SearchHits() {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -288,7 +300,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
+        if (!(obj instanceof SearchHits)) {
             return false;
         }
         SearchHits other = (SearchHits) obj;

@@ -67,6 +67,11 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.rawSortValues = EMPTY_ARRAY;
     }
 
+    public SearchSortValues(Object[] formattedSortValues, Object[] rawSortValues) {
+        this.formattedSortValues = formattedSortValues;
+        this.rawSortValues = rawSortValues;
+    }
+
     public SearchSortValues(Object[] rawSortValues, DocValueFormat[] sortValueFormats) {
         Objects.requireNonNull(rawSortValues);
         Objects.requireNonNull(sortValueFormats);
@@ -89,7 +94,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         }
     }
 
-    SearchSortValues(StreamInput in) throws IOException {
+    public SearchSortValues(StreamInput in) throws IOException {
         this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
         this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
     }

@@ -58,6 +58,8 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
     // original indices are only needed in the coordinating node throughout the search request execution.
     // no need to serialize them as part of SearchShardTarget.
     private final transient OriginalIndices originalIndices;
+
+    @Nullable
     private final String clusterAlias;
 
     public SearchShardTarget(StreamInput in) throws IOException {
@@ -69,6 +71,13 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         shardId = new ShardId(in);
         this.originalIndices = null;
         clusterAlias = in.readOptionalString();
+    }
+
+    public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias) {
+        this.nodeId = new Text(nodeId);
+        this.shardId = shardId;
+        this.originalIndices = null;
+        this.clusterAlias = clusterAlias;
     }
 
     public SearchShardTarget(String nodeId, ShardId shardId, @Nullable String clusterAlias, OriginalIndices originalIndices) {
