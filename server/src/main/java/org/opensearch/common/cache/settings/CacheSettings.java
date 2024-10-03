@@ -29,7 +29,7 @@ public class CacheSettings {
     /**
      * Exception message for invalid segment number.
      */
-    public static final String INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE = "Cache: %s segment count should be " + "power of two up-to 256";
+    public static final String INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE = "Cache: %s segment count should be power of two up-to 256";
 
     /**
      * Used to store cache store name for desired cache types within OpenSearch.

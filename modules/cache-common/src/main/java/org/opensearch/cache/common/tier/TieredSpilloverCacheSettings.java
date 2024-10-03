@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_COUNT_VALUES;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
@@ -63,7 +63,7 @@ public class TieredSpilloverCacheSettings {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
-                        INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE,
+                        INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE,
                         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
                     )
                 );

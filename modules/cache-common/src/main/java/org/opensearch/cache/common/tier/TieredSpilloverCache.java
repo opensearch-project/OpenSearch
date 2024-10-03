@@ -53,7 +53,7 @@ import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
-import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_COUNT_VALUES;
 
 /**
@@ -801,7 +801,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
             if (!VALID_SEGMENT_COUNT_VALUES.contains(numberOfSegments)) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE, TIERED_SPILLOVER_CACHE_NAME)
+                    String.format(Locale.ROOT, INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE, TIERED_SPILLOVER_CACHE_NAME)
                 );
             }
 

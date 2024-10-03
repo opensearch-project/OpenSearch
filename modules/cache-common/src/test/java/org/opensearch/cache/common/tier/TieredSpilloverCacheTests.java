@@ -63,7 +63,7 @@ import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
-import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -1952,7 +1952,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .build();
         String storagePath = getStoragePath(settings);
         assertThrows(
-            INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE,
+            INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE,
             IllegalArgumentException.class,
             () -> new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
                 new CacheConfig.Builder<String, String>().setKeyType(String.class)

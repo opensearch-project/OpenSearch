@@ -38,7 +38,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.ToLongBiFunction;
 
-import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_COUNT_VALUES;
 
 /**
@@ -62,7 +62,7 @@ public class CacheBuilder<K, V> {
 
     public CacheBuilder<K, V> setNumberOfSegments(int numberOfSegments) {
         if (!VALID_SEGMENT_COUNT_VALUES.contains(numberOfSegments)) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE, "Cache"));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE, "Cache"));
         }
         this.numberOfSegments = numberOfSegments;
         return this;

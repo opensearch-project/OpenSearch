@@ -47,7 +47,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -612,7 +612,7 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         assertThrows(
             String.format(
                 Locale.ROOT,
-                INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE,
+                INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE,
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             ),
             IllegalArgumentException.class,
