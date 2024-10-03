@@ -54,8 +54,7 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
             clusterState,
             pageParams.getSort(),
             Objects.isNull(requestedToken) ? null : requestedToken.lastIndexName,
-            Objects.isNull(requestedToken) ? null : requestedToken.lastIndexCreationTime,
-            false
+            Objects.isNull(requestedToken) ? null : requestedToken.lastIndexCreationTime
         );
 
         // Trim sortedIndicesList to get the list of indices metadata to be sent as response
@@ -69,40 +68,37 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
         );
     }
 
-    protected static List<IndexMetadata> getEligibleIndices(
+    private static List<IndexMetadata> getEligibleIndices(
         ClusterState clusterState,
         String sortOrder,
         String lastIndexName,
-        Long lastIndexCreationTime,
-        boolean includeLastIndex
+        Long lastIndexCreationTime
     ) {
         if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
             return PaginationStrategy.getSortedIndexMetadata(
                 clusterState,
                 PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
             );
+        } else {
+            return PaginationStrategy.getSortedIndexMetadata(
+                clusterState,
+                getMetadataFilter(sortOrder, lastIndexName, lastIndexCreationTime),
+                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
+            );
         }
-        return PaginationStrategy.getSortedIndexMetadata(
-            clusterState,
-            getMetadataFilter(sortOrder, lastIndexName, lastIndexCreationTime, includeLastIndex),
-            PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
-        );
     }
 
-    protected static Predicate<IndexMetadata> getMetadataFilter(
-        String sortOrder,
-        String lastIndexName,
-        Long lastIndexCreationTime,
-        boolean includeLastIndex
-    ) {
+    private static Predicate<IndexMetadata> getMetadataFilter(String sortOrder, String lastIndexName, Long lastIndexCreationTime) {
         if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
             return indexMetadata -> true;
         }
+        return getIndexCreateTimeFilter(sortOrder, lastIndexName, lastIndexCreationTime);
+    }
+
+    protected static Predicate<IndexMetadata> getIndexCreateTimeFilter(String sortOrder, String lastIndexName, Long lastIndexCreationTime) {
         boolean isAscendingSort = sortOrder.equals(PageParams.PARAM_ASC_SORT_VALUE);
         return metadata -> {
-            if (metadata.getIndex().getName().equals(lastIndexName)) {
-                return includeLastIndex;
-            } else if (metadata.getCreationDate() == lastIndexCreationTime) {
+            if (metadata.getCreationDate() == lastIndexCreationTime) {
                 return isAscendingSort
                     ? metadata.getIndex().getName().compareTo(lastIndexName) > 0
                     : metadata.getIndex().getName().compareTo(lastIndexName) < 0;

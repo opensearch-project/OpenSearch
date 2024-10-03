@@ -19,6 +19,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
+
+import static org.opensearch.action.pagination.IndexPaginationStrategy.ASC_COMPARATOR;
+import static org.opensearch.action.pagination.IndexPaginationStrategy.DESC_COMPARATOR;
 
 /**
  * This strategy can be used by the Rest APIs wanting to paginate the responses based on Shards.
@@ -35,12 +39,11 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
     public ShardPaginationStrategy(PageParams pageParams, ClusterState clusterState) {
         ShardStrategyToken shardStrategyToken = getShardStrategyToken(pageParams.getRequestedToken());
         // Get list of indices metadata sorted by their creation time and filtered by the last sent index
-        List<IndexMetadata> filteredIndices = IndexPaginationStrategy.getEligibleIndices(
+        List<IndexMetadata> filteredIndices = getEligibleIndices(
             clusterState,
             pageParams.getSort(),
             Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexName,
-            Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexCreationTime,
-            true
+            Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexCreationTime
         );
         // Get the list of shards and indices belonging to current page.
         this.pageData = getPageData(
@@ -49,6 +52,39 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
             shardStrategyToken,
             pageParams.getSize()
         );
+    }
+
+    private static List<IndexMetadata> getEligibleIndices(
+        ClusterState clusterState,
+        String sortOrder,
+        String lastIndexName,
+        Long lastIndexCreationTime
+    ) {
+        if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
+            return PaginationStrategy.getSortedIndexMetadata(
+                clusterState,
+                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
+            );
+        } else {
+            return PaginationStrategy.getSortedIndexMetadata(
+                clusterState,
+                getMetadataFilter(sortOrder, lastIndexName, lastIndexCreationTime),
+                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
+            );
+        }
+    }
+
+    private static Predicate<IndexMetadata> getMetadataFilter(String sortOrder, String lastIndexName, Long lastIndexCreationTime) {
+        if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
+            return indexMetadata -> true;
+        }
+        return indexNameFilter(lastIndexName).or(
+            IndexPaginationStrategy.getIndexCreateTimeFilter(sortOrder, lastIndexName, lastIndexCreationTime)
+        );
+    }
+
+    private static Predicate<IndexMetadata> indexNameFilter(String lastIndexName) {
+        return metadata -> metadata.getIndex().getName().equals(lastIndexName);
     }
 
     /**
