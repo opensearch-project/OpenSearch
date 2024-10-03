@@ -93,10 +93,7 @@ public class CatShardsResponseTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(version);
                 CatShardsResponse deserialized = new CatShardsResponse(in);
-
-                assertNotNull(deserialized.getPageToken());
-                assertEquals(response.getPageToken().getNextToken(), deserialized.getPageToken().getNextToken());
-                assertEquals(response.getPageToken().getPaginatedEntity(), deserialized.getPageToken().getPaginatedEntity());
+                assertEquals(response.getPageToken(), deserialized.getPageToken());
                 assertNotNull(deserialized.getNodes());
                 assertEquals(1, deserialized.getNodes().getNodes().size());
                 assertNotNull(deserialized.getNodes().getNodes().get(TEST_NODE_ID));
@@ -121,8 +118,7 @@ public class CatShardsResponseTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(version);
                 CatShardsResponse deserialized = new CatShardsResponse(in);
-
-                assertNull(deserialized.getPageToken());
+                assertEquals(response.getPageToken(), deserialized.getPageToken());
                 assertNotNull(deserialized.getNodes());
                 assertEquals(1, deserialized.getNodes().getNodes().size());
                 assertNotNull(deserialized.getNodes().getNodes().get(TEST_NODE_ID));

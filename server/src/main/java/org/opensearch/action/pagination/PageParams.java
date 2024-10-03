@@ -14,6 +14,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  *
@@ -61,5 +62,21 @@ public class PageParams implements Writeable {
         out.writeOptionalString(requestedTokenStr);
         out.writeOptionalString(sort);
         out.writeInt(size);
+    }
+
+    // Overriding equals and hashcode for tests
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PageParams that = (PageParams) o;
+        return this.size == that.size
+            && Objects.equals(this.requestedTokenStr, that.requestedTokenStr)
+            && Objects.equals(this.sort, that.sort);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(requestedTokenStr, sort, size);
     }
 }

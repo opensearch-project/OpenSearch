@@ -20,8 +20,7 @@ public class PageTokenTests extends OpenSearchTestCase {
             pageToken.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 PageToken deserialized = new PageToken(in);
-                assertEquals(pageToken.getNextToken(), deserialized.getNextToken());
-                assertEquals(pageToken.getPaginatedEntity(), deserialized.getPaginatedEntity());
+                assertEquals(pageToken, deserialized);
             }
         }
     }
@@ -32,8 +31,7 @@ public class PageTokenTests extends OpenSearchTestCase {
             pageToken.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 PageToken deserialized = new PageToken(in);
-                assertNull(deserialized.getNextToken());
-                assertEquals(pageToken.getPaginatedEntity(), deserialized.getPaginatedEntity());
+                assertEquals(pageToken, deserialized);
             }
         }
     }

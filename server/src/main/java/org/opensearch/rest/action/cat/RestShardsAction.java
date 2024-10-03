@@ -120,13 +120,11 @@ public class RestShardsAction extends AbstractListAction {
         return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
             public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {
-                DiscoveryNodes nodes = catShardsResponse.getNodes();
-                IndicesStatsResponse indicesStatsResponse = catShardsResponse.getIndicesStatsResponse();
                 return RestTable.buildResponse(
                     buildTable(
                         request,
-                        nodes,
-                        indicesStatsResponse,
+                        catShardsResponse.getNodes(),
+                        catShardsResponse.getIndicesStatsResponse(),
                         catShardsResponse.getResponseShards(),
                         catShardsResponse.getPageToken()
                     ),

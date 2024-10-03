@@ -13,6 +13,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Pagination response metadata for a paginated query.
@@ -55,5 +56,19 @@ public class PageToken implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nextToken);
         out.writeString(paginatedEntity);
+    }
+
+    // Overriding equals and hashcode for testing
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PageToken that = (PageToken) o;
+        return Objects.equals(this.nextToken, that.nextToken) && Objects.equals(this.paginatedEntity, that.paginatedEntity);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nextToken, paginatedEntity);
     }
 }

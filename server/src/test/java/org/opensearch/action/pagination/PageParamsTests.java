@@ -19,7 +19,7 @@ public class PageParamsTests extends OpenSearchTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             pageParams.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertDeserializedPageParams(pageParams, new PageParams(in));
+                assertEquals(pageParams, new PageParams(in));
             }
         }
     }
@@ -29,14 +29,9 @@ public class PageParamsTests extends OpenSearchTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             pageParams.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertDeserializedPageParams(pageParams, new PageParams(in));
+                assertEquals(pageParams, new PageParams(in));
             }
         }
     }
 
-    private void assertDeserializedPageParams(PageParams pageParams, PageParams deserialized) {
-        assertEquals(pageParams.getSort(), deserialized.getSort());
-        assertEquals(pageParams.getSize(), deserialized.getSize());
-        assertEquals(pageParams.getRequestedToken(), deserialized.getRequestedToken());
-    }
 }

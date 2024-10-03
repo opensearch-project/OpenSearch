@@ -11,7 +11,6 @@ package org.opensearch.action.pagination;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -51,16 +50,14 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
             ? null
             : new IndexStrategyToken(pageParams.getRequestedToken());
         // Get list of indices metadata sorted by their creation time and filtered by the last sent index
-        List<IndexMetadata> sortedIndices = PaginationStrategy.getSortedIndexMetadata(
+        List<IndexMetadata> sortedIndices = getEligibleIndices(
             clusterState,
-            getMetadataFilter(
-                pageParams.getSort(),
-                Objects.isNull(requestedToken) ? null : requestedToken.lastIndexName,
-                Objects.isNull(requestedToken) ? null : requestedToken.lastIndexCreationTime,
-                false
-            ),
-            PageParams.PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) ? ASC_COMPARATOR : DESC_COMPARATOR
+            pageParams.getSort(),
+            Objects.isNull(requestedToken) ? null : requestedToken.lastIndexName,
+            Objects.isNull(requestedToken) ? null : requestedToken.lastIndexCreationTime,
+            false
         );
+
         // Trim sortedIndicesList to get the list of indices metadata to be sent as response
         List<IndexMetadata> metadataSublist = getMetadataSubList(sortedIndices, pageParams.getSize());
         // Get list of index names from the trimmed metadataSublist
@@ -69,6 +66,26 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
             pageParams.getSize(),
             sortedIndices.size(),
             metadataSublist.isEmpty() ? null : metadataSublist.get(metadataSublist.size() - 1)
+        );
+    }
+
+    protected static List<IndexMetadata> getEligibleIndices(
+        ClusterState clusterState,
+        String sortOrder,
+        String lastIndexName,
+        Long lastIndexCreationTime,
+        boolean includeLastIndex
+    ) {
+        if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
+            return PaginationStrategy.getSortedIndexMetadata(
+                clusterState,
+                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
+            );
+        }
+        return PaginationStrategy.getSortedIndexMetadata(
+            clusterState,
+            getMetadataFilter(sortOrder, lastIndexName, lastIndexCreationTime, includeLastIndex),
+            PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
         );
     }
 
@@ -114,7 +131,6 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
     }
 
     @Override
-    @Nullable
     public PageToken getResponseToken() {
         return pageToken;
     }

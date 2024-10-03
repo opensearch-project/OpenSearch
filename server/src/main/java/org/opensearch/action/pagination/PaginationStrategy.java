@@ -55,6 +55,14 @@ public interface PaginationStrategy<T> {
         return clusterState.metadata().indices().values().stream().filter(filterPredicate).sorted(comparator).collect(Collectors.toList());
     }
 
+    /**
+     *
+     * Utility method to get list of indices sorted as per {@param comparator}.
+     */
+    static List<IndexMetadata> getSortedIndexMetadata(final ClusterState clusterState, Comparator<IndexMetadata> comparator) {
+        return clusterState.metadata().indices().values().stream().sorted(comparator).collect(Collectors.toList());
+    }
+
     static String encryptStringToken(String tokenString) {
         if (Objects.isNull(tokenString)) {
             return null;

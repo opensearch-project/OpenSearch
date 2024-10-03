@@ -20,11 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.opensearch.action.pagination.IndexPaginationStrategy.ASC_COMPARATOR;
-import static org.opensearch.action.pagination.IndexPaginationStrategy.DESC_COMPARATOR;
-import static org.opensearch.action.pagination.IndexPaginationStrategy.getMetadataFilter;
-import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
-
 /**
  * This strategy can be used by the Rest APIs wanting to paginate the responses based on Shards.
  * The strategy considers create timestamps of indices and shardID as the keys to iterate over pages.
@@ -35,33 +30,25 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
 
     private static final String DEFAULT_SHARDS_PAGINATED_ENTITY = "shards";
 
-    private PageToken pageToken;
-    private List<ShardRouting> pageShardRoutings = new ArrayList<>();
-    private List<String> pageIndices = new ArrayList<>();
+    private PageData pageData;
 
     public ShardPaginationStrategy(PageParams pageParams, ClusterState clusterState) {
         ShardStrategyToken shardStrategyToken = getShardStrategyToken(pageParams.getRequestedToken());
         // Get list of indices metadata sorted by their creation time and filtered by the last sent index
-        List<IndexMetadata> filteredIndices = PaginationStrategy.getSortedIndexMetadata(
+        List<IndexMetadata> filteredIndices = IndexPaginationStrategy.getEligibleIndices(
             clusterState,
-            getMetadataFilter(
-                pageParams.getSort(),
-                Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexName,
-                Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexCreationTime,
-                true
-            ),
-            PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) ? ASC_COMPARATOR : DESC_COMPARATOR
+            pageParams.getSort(),
+            Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexName,
+            Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexCreationTime,
+            true
         );
         // Get the list of shards and indices belonging to current page.
-        PageData pageData = getPageData(
+        this.pageData = getPageData(
             filteredIndices,
             clusterState.getRoutingTable().getIndicesRouting(),
             shardStrategyToken,
             pageParams.getSize()
         );
-        this.pageToken = pageData.pageToken;
-        this.pageShardRoutings = pageData.shardRoutings;
-        this.pageIndices = pageData.indices;
     }
 
     /**
@@ -123,15 +110,15 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
         );
     }
 
-    private PageToken getResponseToken(IndexMetadata pageEndIndex, final String lastFilteredIndexName, final int pageEndShardId) {
+    private PageToken getResponseToken(IndexMetadata pageEndIndexMetadata, final String lastFilteredIndexName, final int pageEndShardId) {
         // If all the shards of filtered indices list have been included in pageShardRoutings, then no more
         // shards are remaining to be fetched, and the next_token should thus be null.
-        String pageEndIndexName = pageEndIndex.getIndex().getName();
-        if (pageEndIndexName.equals(lastFilteredIndexName) && pageEndIndex.getNumberOfShards() == pageEndShardId + 1) {
+        String pageEndIndexName = pageEndIndexMetadata.getIndex().getName();
+        if (pageEndIndexName.equals(lastFilteredIndexName) && pageEndIndexMetadata.getNumberOfShards() == pageEndShardId + 1) {
             return new PageToken(null, DEFAULT_SHARDS_PAGINATED_ENTITY);
         }
         return new PageToken(
-            new ShardStrategyToken(pageEndIndexName, pageEndShardId, pageEndIndex.getCreationDate()).generateEncryptedToken(),
+            new ShardStrategyToken(pageEndIndexName, pageEndShardId, pageEndIndexMetadata.getCreationDate()).generateEncryptedToken(),
             DEFAULT_SHARDS_PAGINATED_ENTITY
         );
     }
@@ -152,16 +139,16 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
 
     @Override
     public PageToken getResponseToken() {
-        return pageToken;
+        return pageData.pageToken;
     }
 
     @Override
     public List<ShardRouting> getRequestedEntities() {
-        return pageShardRoutings;
+        return pageData.shardRoutings;
     }
 
     public List<String> getRequestedIndices() {
-        return pageIndices;
+        return pageData.indices;
     }
 
     /**

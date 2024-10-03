@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
 import static org.opensearch.action.pagination.PageParams.PARAM_DESC_SORT_VALUE;
@@ -98,6 +99,9 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
                 }
                 assertEquals(totalShards, shardRoutings.size());
                 assertEquals(totalIndices, indices.size());
+
+                // verifying the order of shards in the response.
+                verifyOrderForAllShards(clusterState, shardRoutings, sortOrder);
             }
         }
     }
@@ -112,6 +116,7 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
     public void testRetrieveAllShardsInAscOrderWhileIndicesGetCreatedAndDeleted() {
         List<Integer> indexNumberList = new ArrayList<>();
         List<Integer> deletedIndices = new ArrayList<>();
+        List<String> newIndices = new ArrayList<>();
         final int totalIndices = 100;
         final int numIndicesToDelete = 10;
         final int numIndicesToCreate = 5;
@@ -140,17 +145,28 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
             // indices would have been completely fetched. 11th call, would fetch first 3 shardsIDs for test-index-7 and
             // if it gets deleted, rest 2 shardIDs for it should not appear.
             if (numPages == 11) {
-                clusterState = deleteIndexFromClusterState(clusterState, fixedIndexNumToDelete);
+                // asserting last elements of current response list, which should be the last shard of test-index-6
+                assertEquals(TEST_INDEX_PREFIX + 6, shardRoutings.get(shardRoutings.size() - 1).getIndexName());
+                assertEquals(DEFAULT_NUMBER_OF_SHARDS - 1, shardRoutings.get(shardRoutings.size() - 1).getId());
 
+                // asserting the result of 11th query, which should only contain 3 shardIDs belonging to test-index-7
+                assertEquals(3 * (DEFAULT_NUMBER_OF_REPLICAS + 1), paginationStrategy.getRequestedEntities().size());
+                assertEquals(1, paginationStrategy.getRequestedIndices().size());
+                assertEquals(TEST_INDEX_PREFIX + 7, paginationStrategy.getRequestedIndices().get(0));
+                assertEquals(2, paginationStrategy.getRequestedEntities().get(8).id());
+
+                clusterState = deleteIndexFromClusterState(clusterState, fixedIndexNumToDelete);
                 deletedIndices = indexNumberList.subList(20, indexNumberList.size());
                 Collections.shuffle(deletedIndices, getRandom());
-                for (int pos = 0; pos < numIndicesToDelete; pos++) {
-                    clusterState = deleteIndexFromClusterState(clusterState, deletedIndices.get(pos));
+                deletedIndices = deletedIndices.subList(0, numIndicesToDelete);
+                for (Integer index : deletedIndices) {
+                    clusterState = deleteIndexFromClusterState(clusterState, index);
                 }
             }
             // creating 5 indices after 5th call
             if (numPages == 5) {
                 for (int indexNumber = totalIndices + 1; indexNumber <= totalIndices + numIndicesToCreate; indexNumber++) {
+                    newIndices.add(TEST_INDEX_PREFIX + indexNumber);
                     clusterState = addIndexToClusterState(clusterState, indexNumber, numShardsForNewIndices, numReplicasForNewIndices);
                 }
             }
@@ -160,7 +176,6 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         } while (Objects.nonNull(requestedToken));
 
         assertEquals(totalIndices + numIndicesToCreate - numIndicesToDelete, indicesFetched.size());
-
         // finalTotalShards = InitialTotal - 2ShardIdsForIndex7 - ShardsFor10RandomlyDeletedIndices + ShardsForNewlyCreatedIndices
         final int totalShards = totalInitialShards - 2 * (DEFAULT_NUMBER_OF_REPLICAS + 1) - numIndicesToDelete * DEFAULT_NUMBER_OF_SHARDS
             * (DEFAULT_NUMBER_OF_REPLICAS + 1) + numIndicesToCreate * numShardsForNewIndices * (numReplicasForNewIndices + 1);
@@ -172,15 +187,20 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
             shardRoutings.stream().filter(shard -> shard.getIndexName().equals(TEST_INDEX_PREFIX + 7)).count(),
             3 * (DEFAULT_NUMBER_OF_REPLICAS + 1)
         );
+
         // none of the randomly deleted index should appear in the list of fetched indices
-        for (int deletedIndexPos = 0; deletedIndexPos < numIndicesToDelete; deletedIndexPos++) {
-            String indexName = TEST_INDEX_PREFIX + deletedIndices.get(deletedIndexPos);
+        for (Integer index : deletedIndices) {
+            String indexName = TEST_INDEX_PREFIX + index;
             assertFalse(indicesFetched.contains(indexName));
             assertEquals(shardRoutings.stream().filter(shard -> shard.getIndexName().equals(indexName)).count(), 0);
-
         }
 
         // all the newly created indices should be present in the list of fetched indices
+        verifyOrderForAllShards(
+            clusterState,
+            shardRoutings.stream().filter(shard -> newIndices.contains(shard.getIndexName())).collect(Collectors.toList()),
+            PARAM_ASC_SORT_VALUE
+        );
         for (int indexNumber = totalIndices + 1; indexNumber <= totalIndices + numIndicesToCreate; indexNumber++) {
             String indexName = TEST_INDEX_PREFIX + indexNumber;
             assertTrue(indicesFetched.contains(indexName));
@@ -229,12 +249,22 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
             // indices would have been completely fetched. 11th call, would fetch first 3 shardsIDs for test-index-94 and
             // if it gets deleted, rest 2 shardIDs for it should not appear.
             if (numPages == 11) {
-                clusterState = deleteIndexFromClusterState(clusterState, fixedIndexNumToDelete);
+                // asserting last elements of current response list, which should be the last shard of test-index-95
+                assertEquals(TEST_INDEX_PREFIX + 95, shardRoutings.get(shardRoutings.size() - 1).getIndexName());
+                assertEquals(DEFAULT_NUMBER_OF_SHARDS - 1, shardRoutings.get(shardRoutings.size() - 1).getId());
 
+                // asserting the result of 11th query, which should only contain 3 shardIDs belonging to test-index-7
+                assertEquals(3 * (DEFAULT_NUMBER_OF_REPLICAS + 1), paginationStrategy.getRequestedEntities().size());
+                assertEquals(1, paginationStrategy.getRequestedIndices().size());
+                assertEquals(TEST_INDEX_PREFIX + 94, paginationStrategy.getRequestedIndices().get(0));
+                assertEquals(2, paginationStrategy.getRequestedEntities().get(8).id());
+
+                clusterState = deleteIndexFromClusterState(clusterState, fixedIndexNumToDelete);
                 deletedIndices = indexNumberList.subList(0, 80);
                 Collections.shuffle(deletedIndices, getRandom());
-                for (int pos = 0; pos < numIndicesToDelete; pos++) {
-                    clusterState = deleteIndexFromClusterState(clusterState, deletedIndices.get(pos));
+                deletedIndices = deletedIndices.subList(0, numIndicesToDelete);
+                for (Integer index : deletedIndices) {
+                    clusterState = deleteIndexFromClusterState(clusterState, index);
                 }
             }
             // creating 5 indices after 5th call
@@ -261,8 +291,8 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         );
 
         // none of the randomly deleted index should appear in the list of fetched indices
-        for (int deletedIndexPos = 0; deletedIndexPos < numIndicesToDelete; deletedIndexPos++) {
-            String indexName = TEST_INDEX_PREFIX + deletedIndices.get(deletedIndexPos);
+        for (int deletedIndex : deletedIndices) {
+            String indexName = TEST_INDEX_PREFIX + deletedIndex;
             assertFalse(indicesFetched.contains(indexName));
             assertEquals(shardRoutings.stream().filter(shard -> shard.getIndexName().equals(indexName)).count(), 0);
         }
@@ -302,6 +332,65 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("size value should be greater than the replica count of all indices"));
         }
+    }
+
+    public void testRetrieveShardsWhenLastIndexGetsDeletedAndReCreated() {
+        final int totalIndices = 3;
+        final int numShards = 3;
+        final int numReplicas = 3;
+        final int pageSize = (numReplicas + 1) * 2;
+        final int totalPages = (int) Math.ceil((totalIndices * numShards * (numReplicas + 1) * 1.0) / pageSize);
+        ClusterState clusterState = getRandomClusterState(Collections.emptyList());
+        for (int indexNum = 1; indexNum <= totalIndices; indexNum++) {
+            clusterState = addIndexToClusterState(clusterState, indexNum, numShards, numReplicas);
+        }
+
+        String requestedToken = null;
+        ShardPaginationStrategy strategy = null;
+        for (int page = 1; page < totalPages; page++) {
+            PageParams pageParams = new PageParams(requestedToken, PARAM_ASC_SORT_VALUE, pageSize);
+            strategy = new ShardPaginationStrategy(pageParams, clusterState);
+            requestedToken = strategy.getResponseToken().getNextToken();
+        }
+        // The last page was supposed to fetch the remaining two indices for test-index-3
+        assertEquals(8, strategy.getRequestedEntities().size());
+        assertEquals(1, strategy.getRequestedIndices().size());
+        assertEquals(TEST_INDEX_PREFIX + 3, strategy.getRequestedIndices().get(0));
+
+        // Delete the index and re-create
+        clusterState = deleteIndexFromClusterState(clusterState, 3);
+        clusterState = addIndexToClusterState(
+            clusterState,
+            3,
+            numShards,
+            numReplicas,
+            Instant.now().plus(4, ChronoUnit.SECONDS).toEpochMilli()
+        );
+
+        // since test-index-3 should now be considered a new index, all shards for it should appear
+        PageParams pageParams = new PageParams(requestedToken, PARAM_ASC_SORT_VALUE, pageSize);
+        strategy = new ShardPaginationStrategy(pageParams, clusterState);
+        assertEquals(8, strategy.getRequestedEntities().size());
+        for (ShardRouting shardRouting : strategy.getRequestedEntities()) {
+            assertTrue(
+                (shardRouting.getId() == 0 || shardRouting.getId() == 1)
+                    && Objects.equals(shardRouting.getIndexName(), TEST_INDEX_PREFIX + 3)
+            );
+        }
+        assertEquals(1, strategy.getRequestedIndices().size());
+        assertEquals(TEST_INDEX_PREFIX + 3, strategy.getRequestedIndices().get(0));
+        assertNotNull(strategy.getResponseToken().getNextToken());
+
+        requestedToken = strategy.getResponseToken().getNextToken();
+        pageParams = new PageParams(requestedToken, PARAM_ASC_SORT_VALUE, pageSize);
+        strategy = new ShardPaginationStrategy(pageParams, clusterState);
+        assertEquals(4, strategy.getRequestedEntities().size());
+        for (ShardRouting shardRouting : strategy.getRequestedEntities()) {
+            assertTrue(shardRouting.getId() == 2 && Objects.equals(shardRouting.getIndexName(), TEST_INDEX_PREFIX + 3));
+        }
+        assertEquals(1, strategy.getRequestedIndices().size());
+        assertEquals(TEST_INDEX_PREFIX + 3, strategy.getRequestedIndices().get(0));
+        assertNull(strategy.getResponseToken().getNextToken());
     }
 
     public void testCreatingShardStrategyPageTokenWithRequestedTokenNull() {
@@ -374,10 +463,24 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         final int numShards,
         final int numReplicas
     ) {
+        return addIndexToClusterState(
+            clusterState,
+            indexNumber,
+            numShards,
+            numReplicas,
+            Instant.now().plus(indexNumber, ChronoUnit.SECONDS).toEpochMilli()
+        );
+    }
+
+    private ClusterState addIndexToClusterState(
+        ClusterState clusterState,
+        final int indexNumber,
+        final int numShards,
+        final int numReplicas,
+        final long creationTime
+    ) {
         IndexMetadata indexMetadata = IndexMetadata.builder(TEST_INDEX_PREFIX + indexNumber)
-            .settings(
-                settings(Version.CURRENT).put(SETTING_CREATION_DATE, Instant.now().plus(indexNumber, ChronoUnit.SECONDS).toEpochMilli())
-            )
+            .settings(settings(Version.CURRENT).put(SETTING_CREATION_DATE, creationTime))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas)
             .build();
@@ -395,6 +498,30 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
             .metadata(Metadata.builder(clusterState.metadata()).remove(TEST_INDEX_PREFIX + indexNumber))
             .routingTable(RoutingTable.builder(clusterState.routingTable()).remove(TEST_INDEX_PREFIX + indexNumber).build())
             .build();
+    }
+
+    private void verifyOrderForAllShards(ClusterState clusterState, List<ShardRouting> shardRoutings, String sortOrder) {
+        ShardRouting prevShard = shardRoutings.get(0);
+        for (ShardRouting shard : shardRoutings.subList(1, shardRoutings.size())) {
+            if (Objects.equals(shard.getIndexName(), prevShard.getIndexName())) {
+                assertTrue(shard.getId() >= prevShard.getId());
+            } else {
+                if (sortOrder.equals(PARAM_ASC_SORT_VALUE)) {
+                    assertTrue(
+                        clusterState.metadata().index(shard.getIndexName()).getCreationDate() > clusterState.metadata()
+                            .index(prevShard.getIndexName())
+                            .getCreationDate()
+                    );
+                } else {
+                    assertTrue(
+                        clusterState.metadata().index(shard.getIndexName()).getCreationDate() < clusterState.metadata()
+                            .index(prevShard.getIndexName())
+                            .getCreationDate()
+                    );
+                }
+                prevShard = shard;
+            }
+        }
     }
 
 }

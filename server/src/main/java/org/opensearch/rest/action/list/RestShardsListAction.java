@@ -67,6 +67,7 @@ public class RestShardsListAction extends RestShardsAction {
         return pageParams;
     }
 
+    @Override
     protected int defaultPageSize() {
         return MIN_SUPPORTED_LIST_SHARDS_PAGE_SIZE;
     }

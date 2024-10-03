@@ -52,16 +52,10 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(version);
                 CatShardsRequest deserialized = new CatShardsRequest(in);
-
                 // asserting pageParams of deserialized request
-                assertNotNull(deserialized.getPageParams());
-                assertNull(deserialized.getPageParams().getRequestedToken());
-                assertNull(deserialized.getPageParams().getSort());
-                assertEquals(catShardsRequest.getPageParams().getSize(), deserialized.getPageParams().getSize());
-
+                assertEquals(catShardsRequest.getPageParams(), deserialized.getPageParams());
                 // assert indices
                 assertArrayEquals(catShardsRequest.getIndices(), deserialized.getIndices());
-
                 // assert timeout
                 assertEquals(catShardsRequest.getCancelAfterTimeInterval(), deserialized.getCancelAfterTimeInterval());
             }
@@ -82,11 +76,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
                 CatShardsRequest deserialized = new CatShardsRequest(in);
 
                 // asserting pageParams of deserialized request
-                assertNotNull(deserialized.getPageParams());
-                assertEquals(catShardsRequest.getPageParams().getRequestedToken(), deserialized.getPageParams().getRequestedToken());
-                assertEquals(catShardsRequest.getPageParams().getSort(), deserialized.getPageParams().getSort());
-                assertEquals(catShardsRequest.getPageParams().getSize(), deserialized.getPageParams().getSize());
-
+                assertEquals(catShardsRequest.getPageParams(), deserialized.getPageParams());
                 assertEquals(0, deserialized.getIndices().length);
                 assertNull(deserialized.getCancelAfterTimeInterval());
             }
@@ -108,8 +98,6 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(version);
                 CatShardsRequest deserialized = new CatShardsRequest(in);
-
-                // asserting pageParams of deserialized request
                 assertNull(deserialized.getPageParams());
                 assertNull(deserialized.getIndices());
                 assertNull(deserialized.getCancelAfterTimeInterval());
