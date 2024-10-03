@@ -247,8 +247,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             nodeCacheStats = null;
         }
-        // TODO: change version to V_2_18_0
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             remoteStoreNodeStats = in.readOptionalWriteable(RemoteStoreNodeStats::new);
         } else {
             remoteStoreNodeStats = null;
@@ -542,8 +541,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
             out.writeOptionalWriteable(nodeCacheStats);
         }
-        // TODO: change version to V_2_18_0
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
         }
     }
