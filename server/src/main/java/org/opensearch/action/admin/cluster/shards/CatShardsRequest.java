@@ -27,11 +27,13 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     private String[] indices;
     private TimeValue cancelAfterTimeInterval;
+    private boolean requestLimitCheckSupported;
 
     public CatShardsRequest() {}
 
     public CatShardsRequest(StreamInput in) throws IOException {
         super(in);
+        this.requestLimitCheckSupported = false;
     }
 
     @Override
@@ -53,6 +55,14 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     public TimeValue getCancelAfterTimeInterval() {
         return this.cancelAfterTimeInterval;
+    }
+
+    public void setRequestLimitCheckSupported(final boolean requestLimitCheckSupported) {
+        this.requestLimitCheckSupported = requestLimitCheckSupported;
+    }
+
+    public boolean isRequestLimitCheckSupported() {
+        return this.requestLimitCheckSupported;
     }
 
     @Override

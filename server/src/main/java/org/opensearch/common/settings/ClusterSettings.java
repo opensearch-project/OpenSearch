@@ -84,6 +84,7 @@ import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
@@ -796,7 +797,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
-                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD
+                WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
+
+                // Settings to be used for limiting rest requests
+                ResponseLimitSettings.CAT_INDICES_RESPONSE_LIMIT_SETTING,
+                ResponseLimitSettings.CAT_SHARDS_RESPONSE_LIMIT_SETTING,
+                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING
             )
         )
     );
