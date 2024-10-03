@@ -50,6 +50,8 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Table;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
@@ -86,6 +88,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.INDICES;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -101,6 +104,12 @@ public class RestIndicesAction extends AbstractListAction {
         "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+
+    private final ResponseLimitSettings responseLimitSettings;
+
+    public RestIndicesAction(ResponseLimitSettings responseLimitSettings) {
+        this.responseLimitSettings = responseLimitSettings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -121,6 +130,11 @@ public class RestIndicesAction extends AbstractListAction {
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/indices\n");
         sb.append("/_cat/indices/{index}\n");
+    }
+
+    @Override
+    public boolean isRequestLimitCheckSupported() {
+        return true;
     }
 
     @Override
@@ -162,7 +176,6 @@ public class RestIndicesAction extends AbstractListAction {
                         // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
                         // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
                         final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
-
                         // Indices that were successfully resolved during the get settings request might be deleted when the
                         // subsequent cluster state, cluster health and indices stats requests execute. We have to distinguish two cases:
                         // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we
@@ -181,6 +194,7 @@ public class RestIndicesAction extends AbstractListAction {
                             new ActionListener<ClusterStateResponse>() {
                                 @Override
                                 public void onResponse(ClusterStateResponse clusterStateResponse) {
+                                    validateRequestLimit(clusterStateResponse, listener);
                                     IndexPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
                                     // For non-paginated queries, indicesToBeQueried would be same as indices retrieved from
                                     // rest request and unresolved, while for paginated queries, it would be a list of indices
@@ -232,6 +246,15 @@ public class RestIndicesAction extends AbstractListAction {
             );
         };
 
+    }
+
+    private void validateRequestLimit(final ClusterStateResponse clusterStateResponse, final ActionListener<Table> listener) {
+        if (isRequestLimitCheckSupported() && Objects.nonNull(clusterStateResponse) && Objects.nonNull(clusterStateResponse.getState())) {
+            int limit = responseLimitSettings.getCatIndicesResponseLimit();
+            if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getMetadata(), INDICES, limit)) {
+                listener.onFailure(new ResponseLimitBreachedException("Too many indices requested.", limit, INDICES));
+            }
+        }
     }
 
     /**
