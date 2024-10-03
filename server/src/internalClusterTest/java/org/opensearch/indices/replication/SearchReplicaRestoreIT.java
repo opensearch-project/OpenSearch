@@ -24,6 +24,7 @@ import java.util.List;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
@@ -226,9 +227,11 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             .build();
 
         createIndex(INDEX_NAME, settings);
-        indexRandomDocs(INDEX_NAME, DOC_COUNT);
-        refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
+        for (int i = 0; i < DOC_COUNT; i++) {
+            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
+        }
+        flushAndRefresh(INDEX_NAME);
     }
 
     private void startCluster(int numOfNodes) {
