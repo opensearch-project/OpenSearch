@@ -72,7 +72,7 @@ public class CacheConfig<K, V> {
 
     private final String storagePath;
 
-    private final int numberOfSegments;
+    private final int segmentCount;
 
     private final int segmentNumber;
 
@@ -91,7 +91,7 @@ public class CacheConfig<K, V> {
         this.clusterSettings = builder.clusterSettings;
         this.statsTrackingEnabled = builder.statsTrackingEnabled;
         this.storagePath = builder.storagePath;
-        this.numberOfSegments = builder.numberOfSegments;
+        this.segmentCount = builder.segmentCount;
         this.segmentNumber = builder.segmentNumber;
     }
 
@@ -151,8 +151,8 @@ public class CacheConfig<K, V> {
         return storagePath;
     }
 
-    public int getNumberOfSegments() {
-        return numberOfSegments;
+    public int getSegmentCount() {
+        return segmentCount;
     }
 
     public int getSegmentNumber() {
@@ -185,7 +185,7 @@ public class CacheConfig<K, V> {
         private ClusterSettings clusterSettings;
         private boolean statsTrackingEnabled = true;
         private String storagePath;
-        private int numberOfSegments;
+        private int segmentCount;
 
         private int segmentNumber;
 
@@ -261,8 +261,8 @@ public class CacheConfig<K, V> {
             return this;
         }
 
-        public Builder<K, V> setNumberOfSegments(int numberOfSegments) {
-            this.numberOfSegments = numberOfSegments;
+        public Builder<K, V> setSegmentCount(int segmentCount) {
+            this.segmentCount = segmentCount;
             return this;
         }
 

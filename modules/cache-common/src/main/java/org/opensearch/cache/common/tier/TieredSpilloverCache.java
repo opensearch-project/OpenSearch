@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -49,11 +50,11 @@ import java.util.function.Predicate;
 import java.util.function.ToLongBiFunction;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
-import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_NUMBER_LIST;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_COUNT_VALUES;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -72,15 +73,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private static final List<RemovalReason> SPILLOVER_REMOVAL_REASONS = List.of(RemovalReason.EVICTED, RemovalReason.CAPACITY);
     private static final Logger logger = LogManager.getLogger(TieredSpilloverCache.class);
 
-    static final String NUMBER_OF_SEGMENTS_ZERO_EXCEPTION_MESSAGE = "Number of segments cannot be less than or equal " + "to zero";
+    static final String ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE = "Segment count cannot be less than one for tiered cache";
 
     // In future we want to just read the stats from the individual tiers' statsHolder objects, but this isn't
     // possible right now because of the way computeIfAbsent is implemented.
     private final TieredSpilloverCacheStatsHolder statsHolder;
-    private ToLongBiFunction<ICacheKey<K>, V> weigher;
     private final List<String> dimensionNames;
-
-    private final List<Predicate<V>> policies;
 
     private final int numberOfSegments;
 
@@ -97,7 +95,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         Objects.requireNonNull(builder.cacheConfig, "cache config can't be null");
         Objects.requireNonNull(builder.cacheConfig.getSettings(), "settings can't be null");
         if (builder.numberOfSegments <= 0) {
-            throw new IllegalArgumentException(NUMBER_OF_SEGMENTS_ZERO_EXCEPTION_MESSAGE);
+            throw new IllegalArgumentException(ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE);
         }
         this.numberOfSegments = builder.numberOfSegments;
         Boolean isDiskCacheEnabled = DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType).get(builder.cacheConfig.getSettings());
@@ -108,7 +106,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         for (int i = 0; i < numberOfSegments; i++) {
             tieredSpilloverCacheSegments[i] = new TieredSpilloverCacheSegment<K, V>(builder, statsHolder, i + 1, this.numberOfSegments);
         }
-        this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
         builder.cacheConfig.getClusterSettings()
             .addSettingsUpdateConsumer(DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType), this::enableDisableDiskCache);
     }
@@ -170,7 +167,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     .setMaxSizeInBytes(builder.cacheConfig.getMaxSizeInBytes())
                     .setExpireAfterAccess(builder.cacheConfig.getExpireAfterAccess())
                     .setClusterSettings(builder.cacheConfig.getClusterSettings())
-                    .setNumberOfSegments(numberOfSegments)
+                    .setSegmentCount(numberOfSegments)
                     .setSegmentNumber(segmentNumber)
                     .setStatsTrackingEnabled(false)
                     .build(),
@@ -187,7 +184,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     .setKeySerializer(builder.cacheConfig.getKeySerializer())
                     .setValueSerializer(builder.cacheConfig.getValueSerializer())
                     .setDimensionNames(builder.cacheConfig.getDimensionNames())
-                    .setNumberOfSegments(numberOfSegments)
+                    .setSegmentCount(numberOfSegments)
                     .setSegmentNumber(segmentNumber)
                     .setStatsTrackingEnabled(false)
                     .setStoragePath(builder.cacheConfig.getStoragePath() + "/" + segmentNumber)
@@ -223,7 +220,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
         @Override
         public V get(ICacheKey<K> key) {
-            Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true, false).apply(key);
+            Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true).apply(key);
             if (cacheValueTuple == null) {
                 return null;
             }
@@ -233,7 +230,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         @Override
         public void put(ICacheKey<K> key, V value) {
             // First check in case the key is already present in either of tiers.
-            Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true, false).apply(key);
+            Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true).apply(key);
             if (cacheValueTuple == null) {
                 // In case it is not present in any tier, put it inside onHeap cache by default.
                 try (ReleasableLock ignore = writeLock.acquire()) {
@@ -262,7 +259,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             Tuple<V, String> cacheValueTuple;
             CompletableFuture<Tuple<ICacheKey<K>, V>> future = null;
             try (ReleasableLock ignore = readLock.acquire()) {
-                cacheValueTuple = getValueFromTieredCache(false, false).apply(key);
+                cacheValueTuple = getValueFromTieredCache(false).apply(key);
                 if (cacheValueTuple == null) {
                     // Only one of the threads will succeed putting a future into map for the same key.
                     // Rest will fetch existing future and wait on that to complete.
@@ -460,11 +457,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
          * @param captureStats Whether to record hits/misses for this call of the function
          * @return A tuple of the value and the name of the tier it was found in.
          */
-        private Function<ICacheKey<K>, Tuple<V, String>> getValueFromTieredCache(boolean captureStats, boolean forceCheck) {
+        private Function<ICacheKey<K>, Tuple<V, String>> getValueFromTieredCache(boolean captureStats) {
             return key -> {
                 try (ReleasableLock ignore = readLock.acquire()) {
                     for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
-                        if (cacheEntry.getValue().isEnabled() || forceCheck) {
+                        if (cacheEntry.getValue().isEnabled()) {
                             V value = cacheEntry.getKey().get(key);
                             // Get the tier value corresponding to this cache
                             String tierValue = cacheEntry.getValue().tierName;
@@ -802,8 +799,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
             int numberOfSegments = TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(cacheType.getSettingPrefix()).get(settings);
 
-            if (!VALID_SEGMENT_NUMBER_LIST.contains(numberOfSegments)) {
-                throw new IllegalArgumentException(INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE);
+            if (!VALID_SEGMENT_COUNT_VALUES.contains(numberOfSegments)) {
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE, TIERED_SPILLOVER_CACHE_NAME)
+                );
             }
 
             return new Builder<K, V>().setDiskCacheFactory(diskCacheFactory)

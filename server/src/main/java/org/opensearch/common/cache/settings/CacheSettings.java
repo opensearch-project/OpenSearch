@@ -12,7 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
 
-import java.util.List;
+import java.util.Set;
 
 /**
  * Settings related to cache.
@@ -20,7 +20,16 @@ import java.util.List;
 @ExperimentalApi
 public class CacheSettings {
 
-    public static final List<Integer> VALID_SEGMENT_NUMBER_LIST = List.of(1, 2, 4, 8, 16, 32, 64, 128, 256);
+    /**
+     * Only includes values which is power of 2 as we use bitwise logic: (key AND (segmentCount -1)) to calculate
+     * segmentNumber which works well only with such values.
+     */
+    public static final Set<Integer> VALID_SEGMENT_COUNT_VALUES = Set.of(1, 2, 4, 8, 16, 32, 64, 128, 256);
+
+    /**
+     * Exception message for invalid segment number.
+     */
+    public static final String INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE = "Cache: %s segment count should be " + "power of two up-to 256";
 
     /**
      * Used to store cache store name for desired cache types within OpenSearch.

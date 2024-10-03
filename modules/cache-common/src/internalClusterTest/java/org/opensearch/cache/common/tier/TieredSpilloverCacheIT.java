@@ -39,6 +39,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +47,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
 import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -609,7 +610,11 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         // that all items are
         // cached onto disk.
         assertThrows(
-            INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE,
+            String.format(
+                Locale.ROOT,
+                INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE,
+                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+            ),
             IllegalArgumentException.class,
             () -> internalCluster().startNode(
                 Settings.builder()

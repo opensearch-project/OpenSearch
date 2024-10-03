@@ -155,19 +155,12 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
                 .setDeliberateDelay(delay)
                 .setRemovalListener(config.getRemovalListener())
                 .setStatsTrackingEnabled(config.getStatsTrackingEnabled());
-            if (config.getSegmentNumber() > 0 && config.getNumberOfSegments() > 0) {
-                int perSegmentSize = maxSize / config.getNumberOfSegments();
+            if (config.getSegmentCount() > 0) {
+                int perSegmentSize = maxSize / config.getSegmentCount();
                 if (perSegmentSize <= 0) {
                     throw new IllegalArgumentException("Per segment size for mock disk cache should be " + "greater than 0");
                 }
                 builder.setMaxSize(perSegmentSize);
-                // In case this is the last segment, assign the remainder of bytes accordingly
-                if (config.getSegmentNumber() == config.getNumberOfSegments()) {
-                    if (maxSize % config.getNumberOfSegments() != 0) {
-                        builder.setMaxSize(perSegmentSize + maxSize % config.getNumberOfSegments());
-                    }
-                }
-
             } else {
                 builder.setMaxSize(maxSize);
             }

@@ -56,14 +56,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.opensearch.cache.common.tier.TieredSpilloverCache.NUMBER_OF_SEGMENTS_ZERO_EXCEPTION_MESSAGE;
+import static org.opensearch.cache.common.tier.TieredSpilloverCache.ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -292,7 +292,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 // 20_000_000 ns = 20 ms to compute
                 .setClusterSettings(clusterSettings)
                 .setStoragePath(storagePath)
-                .setNumberOfSegments(numberOfSegments)
+                .setSegmentCount(numberOfSegments)
                 .build(),
             CacheType.INDICES_REQUEST_CACHE,
             Map.of(
@@ -1898,7 +1898,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int keyValueSize = 1;
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
         assertThrows(
-            NUMBER_OF_SEGMENTS_ZERO_EXCEPTION_MESSAGE,
+            ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE,
             IllegalArgumentException.class,
             () -> initializeTieredSpilloverCache(
                 keyValueSize,
@@ -2183,7 +2183,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             )
             .setClusterSettings(clusterSettings)
             .setStoragePath(storagePath)
-            .setNumberOfSegments(numberOfSegments)
+            .setSegmentCount(numberOfSegments)
             .build();
     }
 
@@ -2306,13 +2306,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             int perSegmentOnHeapCacheSizeBytes = onHeapCacheSizeInBytes / numberOfSegments;
             int perSegmentOnHeapCacheEntries = perSegmentOnHeapCacheSizeBytes / keyValueSize;
             expectedSegmentOnHeapCacheSize.put(i, perSegmentOnHeapCacheEntries);
-            if (i == (numberOfSegments - 1)) {
-                if (onHeapCacheSizeInBytes % numberOfSegments != 0) {
-                    // 400
-                    int lastSegmentOnHeapCacheSizeBytes = perSegmentOnHeapCacheSizeBytes + onHeapCacheSizeInBytes % numberOfSegments;
-                    expectedSegmentOnHeapCacheSize.put(i, lastSegmentOnHeapCacheSizeBytes / keyValueSize);
-                }
-            }
         }
         return expectedSegmentOnHeapCacheSize;
     }
@@ -2322,12 +2315,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         for (int i = 0; i < numberOfSegments; i++) {
             int perSegmentDiskCacheEntries = diskCacheSize / numberOfSegments;
             expectedSegmentDiskCacheSize.put(i, perSegmentDiskCacheEntries);
-            if (i == (numberOfSegments - 1)) {
-                if (diskCacheSize % numberOfSegments != 0) {
-                    int lastSegmentDiskCacheEntries = perSegmentDiskCacheEntries + diskCacheSize % numberOfSegments;
-                    expectedSegmentDiskCacheSize.put(i, lastSegmentDiskCacheEntries);
-                }
-            }
         }
         return expectedSegmentDiskCacheSize;
     }

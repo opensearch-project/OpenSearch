@@ -736,18 +736,12 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                 .setSettings(settings);
             // If this is suppose to be a segmented cache, then accordingly set max size
             long maxSizeInBytes = (Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings);
-            if (config.getSegmentNumber() > 0 && config.getNumberOfSegments() > 0) {
-                long perSegmentSizeInBytes = maxSizeInBytes / config.getNumberOfSegments();
+            if (config.getSegmentCount() > 0) {
+                long perSegmentSizeInBytes = maxSizeInBytes / config.getSegmentCount();
                 if (perSegmentSizeInBytes <= 0) {
                     throw new IllegalArgumentException("Per segment size for ehcache disk cache should be greater than 0");
                 }
                 builder.setMaximumWeightInBytes(perSegmentSizeInBytes);
-                // In case this is the last segment, assign the remainder of bytes accordingly
-                if (config.getSegmentNumber() == config.getNumberOfSegments()) {
-                    if (config.getMaxSizeInBytes() % config.getNumberOfSegments() != 0) {
-                        builder.setMaximumWeightInBytes(config.getMaxSizeInBytes() % config.getNumberOfSegments());
-                    }
-                }
             } else {
                 builder.setMaximumWeightInBytes(maxSizeInBytes);
             }

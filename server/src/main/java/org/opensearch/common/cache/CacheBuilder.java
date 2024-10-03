@@ -34,10 +34,12 @@ package org.opensearch.common.cache;
 
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.ToLongBiFunction;
 
-import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_NUMBER_LIST;
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_COUNT_VALUES;
 
 /**
  * The cache builder.
@@ -59,8 +61,8 @@ public class CacheBuilder<K, V> {
     private CacheBuilder() {}
 
     public CacheBuilder<K, V> setNumberOfSegments(int numberOfSegments) {
-        if (!VALID_SEGMENT_NUMBER_LIST.contains(numberOfSegments)) {
-            throw new IllegalArgumentException("Number of segments for cache should be a power of two up-to 256");
+        if (!VALID_SEGMENT_COUNT_VALUES.contains(numberOfSegments)) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, INVALID_SEGMENT_NUMBER_EXCEPTION_MESSAGE, "Cache"));
         }
         this.numberOfSegments = numberOfSegments;
         return this;

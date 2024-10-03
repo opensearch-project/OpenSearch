@@ -186,18 +186,12 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             );
             long maxSizeInBytes = ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes();
             // Check if this is a segmented cache.
-            if (config.getSegmentNumber() > 0 && config.getNumberOfSegments() > 0) {
-                long perSegmentSizeInBytes = maxSizeInBytes / config.getNumberOfSegments();
+            if (config.getSegmentCount() > 0) {
+                long perSegmentSizeInBytes = maxSizeInBytes / config.getSegmentCount();
                 if (perSegmentSizeInBytes <= 0) {
                     throw new IllegalArgumentException("Per segment size for opensearch onHeap cache should be greater than 0");
                 }
                 builder.setMaximumWeightInBytes(perSegmentSizeInBytes);
-                // In case this is the last segment, assign the remainder of bytes accordingly
-                if (config.getSegmentNumber() == config.getNumberOfSegments()) {
-                    if (maxSizeInBytes % config.getNumberOfSegments() != 0) {
-                        builder.setMaximumWeightInBytes(perSegmentSizeInBytes + maxSizeInBytes % config.getNumberOfSegments());
-                    }
-                }
             } else {
                 builder.setMaximumWeightInBytes(maxSizeInBytes);
             }
