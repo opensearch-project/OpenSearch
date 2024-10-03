@@ -30,6 +30,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
                 assertNull(deserialized.getPageParams());
                 assertNull(deserialized.getCancelAfterTimeInterval());
                 assertEquals(0, deserialized.getIndices().length);
+                assertFalse(deserialized.isRequestLimitCheckSupported());
             }
         }
     }
@@ -44,6 +45,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
         }
         catShardsRequest.setIndices(indices);
         catShardsRequest.setCancelAfterTimeInterval(TimeValue.timeValueMillis(randomIntBetween(1, 5)));
+        catShardsRequest.setRequestLimitCheckSupported(true);
 
         Version version = Version.CURRENT;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -58,6 +60,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
                 assertArrayEquals(catShardsRequest.getIndices(), deserialized.getIndices());
                 // assert timeout
                 assertEquals(catShardsRequest.getCancelAfterTimeInterval(), deserialized.getCancelAfterTimeInterval());
+                assertTrue(deserialized.isRequestLimitCheckSupported());
             }
         }
     }
@@ -79,6 +82,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
                 assertEquals(catShardsRequest.getPageParams(), deserialized.getPageParams());
                 assertEquals(0, deserialized.getIndices().length);
                 assertNull(deserialized.getCancelAfterTimeInterval());
+                assertFalse(deserialized.isRequestLimitCheckSupported());
             }
         }
     }
@@ -101,6 +105,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
                 assertNull(deserialized.getPageParams());
                 assertNull(deserialized.getIndices());
                 assertNull(deserialized.getCancelAfterTimeInterval());
+                assertFalse(deserialized.isRequestLimitCheckSupported());
             }
         }
     }

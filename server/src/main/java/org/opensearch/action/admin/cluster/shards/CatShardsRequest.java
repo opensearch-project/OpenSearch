@@ -43,6 +43,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
             if (in.readBoolean()) {
                 pageParams = new PageParams(in);
             }
+            requestLimitCheckSupported = in.readBoolean();
         }
     }
 
@@ -60,8 +61,8 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
             if (pageParams != null) {
                 pageParams.writeTo(out);
             }
+            out.writeBoolean(requestLimitCheckSupported);
         }
-        this.requestLimitCheckSupported = false;
     }
 
     @Override

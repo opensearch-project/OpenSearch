@@ -91,36 +91,26 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
                 lastAddedIndex = indexMetadata;
                 indices.add(indexName);
             }
-            if (shardCount >= numShardsRequired) {
-                break;
+
+            if (shardCount > numShardsRequired) {
+                return new PageData(
+                    shardRoutings,
+                    indices,
+                    new PageToken(
+                        new ShardStrategyToken(
+                            lastAddedIndex.getIndex().getName(),
+                            shardRoutings.get(shardRoutings.size() - 1).id(),
+                            lastAddedIndex.getCreationDate()
+                        ).generateEncryptedToken(),
+                        DEFAULT_SHARDS_PAGINATED_ENTITY
+                    )
+                );
             }
         }
 
-        if (filteredIndices.isEmpty() || shardRoutings.isEmpty()) {
-            return new PageData(shardRoutings, indices, new PageToken(null, DEFAULT_SHARDS_PAGINATED_ENTITY));
-        }
-        return new PageData(
-            shardRoutings,
-            indices,
-            getResponseToken(
-                lastAddedIndex,
-                filteredIndices.get(filteredIndices.size() - 1).getIndex().getName(),
-                shardRoutings.get(shardRoutings.size() - 1).id()
-            )
-        );
-    }
-
-    private PageToken getResponseToken(IndexMetadata pageEndIndexMetadata, final String lastFilteredIndexName, final int pageEndShardId) {
         // If all the shards of filtered indices list have been included in pageShardRoutings, then no more
         // shards are remaining to be fetched, and the next_token should thus be null.
-        String pageEndIndexName = pageEndIndexMetadata.getIndex().getName();
-        if (pageEndIndexName.equals(lastFilteredIndexName) && pageEndIndexMetadata.getNumberOfShards() == pageEndShardId + 1) {
-            return new PageToken(null, DEFAULT_SHARDS_PAGINATED_ENTITY);
-        }
-        return new PageToken(
-            new ShardStrategyToken(pageEndIndexName, pageEndShardId, pageEndIndexMetadata.getCreationDate()).generateEncryptedToken(),
-            DEFAULT_SHARDS_PAGINATED_ENTITY
-        );
+        return new PageData(shardRoutings, indices, new PageToken(null, DEFAULT_SHARDS_PAGINATED_ENTITY));
     }
 
     private ShardStrategyToken getShardStrategyToken(String requestedToken) {
