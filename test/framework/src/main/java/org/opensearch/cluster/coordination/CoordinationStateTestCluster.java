@@ -150,7 +150,7 @@ public class CoordinationStateTestCluster {
             persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, persistedState);
 
             this.electionStrategy = electionStrategy;
-            state = new CoordinationState(localNode, persistedStateRegistry, electionStrategy, Settings.EMPTY, null);
+            state = new CoordinationState(localNode, persistedStateRegistry, electionStrategy, Settings.EMPTY);
         }
 
         void reboot() {
@@ -189,7 +189,7 @@ public class CoordinationStateTestCluster {
                 localNode.getVersion()
             );
 
-            state = new CoordinationState(localNode, persistedStateRegistry, electionStrategy, Settings.EMPTY, null);
+            state = new CoordinationState(localNode, persistedStateRegistry, electionStrategy, Settings.EMPTY);
         }
 
         void setInitialState(CoordinationMetadata.VotingConfiguration initialConfig, long initialValue) {

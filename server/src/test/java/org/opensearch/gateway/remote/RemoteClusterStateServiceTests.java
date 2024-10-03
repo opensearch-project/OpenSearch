@@ -370,6 +370,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // TODO Make the publication flag parameterized
         publicationEnabled = true;
         settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -388,6 +390,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             ),
             writableRegistry()
         );
+        assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager())
             .customs(
                 Map.of(
@@ -747,6 +750,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void testWriteIncrementalMetadataSuccessWhenPublicationEnabled() throws IOException {
         publicationEnabled = true;
         settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, true).build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -765,6 +770,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             ),
             writableRegistry()
         );
+        assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();

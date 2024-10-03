@@ -94,13 +94,7 @@ public class PublicationTests extends OpenSearchTestCase {
             );
             PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
             persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, initialState));
-            coordinationState = new CoordinationState(
-                localNode,
-                persistedStateRegistry,
-                ElectionStrategy.DEFAULT_INSTANCE,
-                Settings.EMPTY,
-                null
-            );
+            coordinationState = new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, Settings.EMPTY);
         }
 
         final DiscoveryNode localNode;

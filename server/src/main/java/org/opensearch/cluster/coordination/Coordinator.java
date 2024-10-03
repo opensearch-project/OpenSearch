@@ -872,9 +872,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     protected void doStart() {
         synchronized (mutex) {
-            coordinationState.set(
-                new CoordinationState(getLocalNode(), persistedStateRegistry, electionStrategy, settings, clusterSettings)
-            );
+            coordinationState.set(new CoordinationState(getLocalNode(), persistedStateRegistry, electionStrategy, settings));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
@@ -1363,7 +1361,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final PublicationTransportHandler.PublicationContext publicationContext = publicationHandler.newPublicationContext(
                     clusterChangedEvent,
-                    coordinationState.get().isRemotePublicationEnabled(),
+                    this.isRemotePublicationEnabled(),
                     persistedStateRegistry
                 );
                 logger.debug("initialized PublicationContext using class: {}", publicationContext.getClass().toString());
@@ -1892,8 +1890,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     public boolean isRemotePublicationEnabled() {
-        if (coordinationState.get() != null) {
-            return coordinationState.get().isRemotePublicationEnabled();
+        if (remoteClusterStateService != null) {
+            return remoteClusterStateService.isRemotePublicationEnabled();
         }
         return false;
     }

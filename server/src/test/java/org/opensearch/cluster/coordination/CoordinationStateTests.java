@@ -68,7 +68,6 @@ import org.mockito.Mockito;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -1268,22 +1267,12 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         verifyNoInteractions(remoteClusterStateService);
     }
 
-    public void testIsRemotePublicationEnabled_WithInconsistentSettings() {
-        // create settings with remote state disabled but publication enabled
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), false)
-            .put(REMOTE_PUBLICATION_SETTING_KEY, true)
-            .build();
-        CoordinationState coordinationState = createCoordinationState(psr1, node1, settings);
-        assertFalse(coordinationState.isRemotePublicationEnabled());
-    }
-
     public static CoordinationState createCoordinationState(
         PersistedStateRegistry persistedStateRegistry,
         DiscoveryNode localNode,
         Settings settings
     ) {
-        return new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, settings, null);
+        return new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, settings);
     }
 
     public static ClusterState clusterState(

@@ -83,6 +83,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -234,7 +235,7 @@ public class RemoteClusterStateService implements Closeable {
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
-    private boolean isPublicationEnabled;
+    private AtomicBoolean isPublicationEnabled;
     private final String remotePathPrefix;
 
     private final RemoteClusterStateCache remoteClusterStateCache;
@@ -275,9 +276,11 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-        this.isPublicationEnabled = clusterSettings.get(REMOTE_PUBLICATION_SETTING)
-            && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
-            && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
+        this.isPublicationEnabled = new AtomicBoolean(
+            clusterSettings.get(REMOTE_PUBLICATION_SETTING)
+                && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
+                && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings)
+        );
         clusterSettings.addSettingsUpdateConsumer(REMOTE_PUBLICATION_SETTING, this::setRemotePublicationSetting);
         this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
@@ -306,19 +309,20 @@ public class RemoteClusterStateService implements Closeable {
             return null;
         }
 
+        boolean publicationEnabled = isPublicationEnabled.get();
         UploadedMetadataResults uploadedMetadataResults = writeMetadataInParallel(
             clusterState,
             new ArrayList<>(clusterState.metadata().indices().values()),
             emptyMap(),
-            RemoteGlobalMetadataManager.filterCustoms(clusterState.metadata().customs(), isPublicationEnabled),
+            RemoteGlobalMetadataManager.filterCustoms(clusterState.metadata().customs(), publicationEnabled),
             true,
             true,
             true,
-            isPublicationEnabled,
-            isPublicationEnabled,
-            isPublicationEnabled,
-            isPublicationEnabled ? clusterState.customs() : Collections.emptyMap(),
-            isPublicationEnabled,
+            publicationEnabled,
+            publicationEnabled,
+            publicationEnabled,
+            publicationEnabled ? clusterState.customs() : Collections.emptyMap(),
+            publicationEnabled,
             remoteRoutingTableService.getIndicesRouting(clusterState.getRoutingTable()),
             null
         );
@@ -397,9 +401,9 @@ public class RemoteClusterStateService implements Closeable {
         boolean firstUploadForSplitGlobalMetadata = !previousManifest.hasMetadataAttributesFiles();
 
         final DiffableUtils.MapDiff<String, Metadata.Custom, Map<String, Metadata.Custom>> customsDiff = remoteGlobalMetadataManager
-            .getCustomsDiff(clusterState, previousClusterState, firstUploadForSplitGlobalMetadata, isPublicationEnabled);
+            .getCustomsDiff(clusterState, previousClusterState, firstUploadForSplitGlobalMetadata, isPublicationEnabled.get());
         final DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> clusterStateCustomsDiff =
-            remoteClusterStateAttributesManager.getUpdatedCustoms(clusterState, previousClusterState, isPublicationEnabled, false);
+            remoteClusterStateAttributesManager.getUpdatedCustoms(clusterState, previousClusterState, isPublicationEnabled.get(), false);
         final Map<String, UploadedMetadataAttribute> allUploadedCustomMap = new HashMap<>(previousManifest.getCustomMetadataMap());
         final Map<String, UploadedMetadataAttribute> allUploadedClusterStateCustomsMap = new HashMap<>(
             previousManifest.getClusterStateCustomMap()
@@ -464,10 +468,10 @@ public class RemoteClusterStateService implements Closeable {
         boolean updateTemplatesMetadata = firstUploadForSplitGlobalMetadata
             || Metadata.isTemplatesMetadataEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
 
-        final boolean updateDiscoveryNodes = isPublicationEnabled
+        final boolean updateDiscoveryNodes = isPublicationEnabled.get()
             && clusterState.getNodes().delta(previousClusterState.getNodes()).hasChanges();
-        final boolean updateClusterBlocks = isPublicationEnabled && !clusterState.blocks().equals(previousClusterState.blocks());
-        final boolean updateHashesOfConsistentSettings = isPublicationEnabled
+        final boolean updateClusterBlocks = isPublicationEnabled.get() && !clusterState.blocks().equals(previousClusterState.blocks());
+        final boolean updateHashesOfConsistentSettings = isPublicationEnabled.get()
             && Metadata.isHashesOfConsistentSettingsEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
 
         uploadedMetadataResults = writeMetadataInParallel(
@@ -1120,9 +1124,9 @@ public class RemoteClusterStateService implements Closeable {
 
     private void setRemotePublicationSetting(boolean remotePublicationSetting) {
         if (remotePublicationSetting == false) {
-            this.isPublicationEnabled = false;
+            this.isPublicationEnabled.set(false);
         } else {
-            this.isPublicationEnabled = isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableEnabled(settings);
+            this.isPublicationEnabled.set(isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableEnabled(settings));
         }
     }
 
@@ -1841,7 +1845,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public boolean isRemotePublicationEnabled() {
-        return this.isPublicationEnabled;
+        return this.isPublicationEnabled.get();
     }
 
     public void setRemoteStateReadTimeout(TimeValue remoteStateReadTimeout) {
