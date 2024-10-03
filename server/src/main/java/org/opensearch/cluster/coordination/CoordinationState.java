@@ -38,7 +38,6 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigurat
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
@@ -54,7 +53,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -82,14 +80,12 @@ public class CoordinationState {
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
     private final boolean isRemoteStateEnabled;
-    private boolean isRemotePublicationEnabled;
 
     public CoordinationState(
         DiscoveryNode localNode,
         PersistedStateRegistry persistedStateRegistry,
         ElectionStrategy electionStrategy,
-        Settings settings,
-        ClusterSettings clusterSettings
+        Settings settings
     ) {
         this.localNode = localNode;
 
@@ -107,14 +103,6 @@ public class CoordinationState {
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
         this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
-        this.isRemotePublicationEnabled = isRemoteStateEnabled
-            && REMOTE_PUBLICATION_SETTING.get(settings)
-            && localNode.isRemoteStatePublicationEnabled();
-        clusterSettings.addSettingsUpdateConsumer(REMOTE_PUBLICATION_SETTING, this::setRemotePublicationSetting);
-    }
-
-    public boolean isRemotePublicationEnabled() {
-        return isRemotePublicationEnabled;
     }
 
     public long getCurrentTerm() {
@@ -651,15 +639,6 @@ public class CoordinationState {
                 .isLocalNodeElectedClusterManager() == false
             && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState() != null
             && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest() != null;
-    }
-
-    private void setRemotePublicationSetting(boolean remotePublicationSetting) {
-        if (remotePublicationSetting == false) {
-            this.isRemotePublicationEnabled = false;
-        } else {
-            this.isRemotePublicationEnabled = isRemoteStateEnabled && localNode.isRemoteStatePublicationConfigured();
-        }
-
     }
 
     /**
