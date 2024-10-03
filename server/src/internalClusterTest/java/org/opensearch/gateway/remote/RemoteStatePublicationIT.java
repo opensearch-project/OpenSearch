@@ -201,7 +201,11 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         ensureStableCluster(5);
         ensureGreen(INDEX_NAME);
 
-        assertNull(internalCluster().getCurrentClusterManagerNodeInstance(RemoteClusterStateService.class));
+        RemoteClusterStateService remoteClusterStateService = internalCluster().getCurrentClusterManagerNodeInstance(
+            RemoteClusterStateService.class
+        );
+
+        assertFalse(remoteClusterStateService.isRemotePublicationEnabled());
     }
 
     public void testRemotePublicationDownloadStats() {
