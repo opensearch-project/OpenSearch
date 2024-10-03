@@ -85,6 +85,7 @@ import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
@@ -804,7 +805,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
                 // Composite index settings
-                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING
+                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
+
+                // Settings to be used for limiting rest requests
+                ResponseLimitSettings.CAT_INDICES_RESPONSE_LIMIT_SETTING,
+                ResponseLimitSettings.CAT_SHARDS_RESPONSE_LIMIT_SETTING,
+                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING
             )
         )
     );
