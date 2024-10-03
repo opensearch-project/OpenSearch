@@ -1162,6 +1162,15 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         assertEquals(0, implicitLockedFiles.size());
         assertEquals(3, metadataFilePinnedTimestampCache.size());
 
+        assertThrows(
+            AssertionError.class,
+            () -> testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+                List.of(2000L, 2200L, 3001L, 4200L, 4600L, 5010L),
+                Set.of(3000L, 4000L, 5000L, 6000L),
+                metadataFilePinnedTimestampCache
+            )
+        );
+
         metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
             List.of(2000L, 2200L, 2500L, 3001L, 4200L, 4600L, 5010L),
             Set.of(),
