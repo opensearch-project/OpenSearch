@@ -180,7 +180,7 @@ public class RemoteStoreNodeAttribute {
             || settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY).isEmpty() == false;
     }
 
-    public static boolean isRemoteClusterStateAttributePresent(Settings settings) {
+    public static boolean isRemoteClusterStateConfigured(Settings settings) {
         return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)
             .isEmpty() == false;
     }
@@ -194,8 +194,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isRemoteStoreClusterStateEnabled(Settings settings) {
-        return RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings)
-            && isRemoteClusterStateAttributePresent(settings);
+        return RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) && isRemoteClusterStateConfigured(settings);
     }
 
     private static boolean isRemoteRoutingTableAttributePresent(Settings settings) {
