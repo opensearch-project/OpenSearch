@@ -301,6 +301,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 Map<String, BlobMetadata> pinnedTimestampList = blobContainer.listBlobs();
                 if (pinnedTimestampList.isEmpty()) {
                     pinnedTimestampsSet = new Tuple<>(triggerTimestamp, Set.of());
+                    pinnedEntityToTimestampsMap = new HashMap<>();
                     return;
                 }
                 Set<Long> pinnedTimestamps = pinnedTimestampList.keySet()

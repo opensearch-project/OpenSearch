@@ -893,8 +893,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
         assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+        forceSyncPinnedTimestamps();
         assertEquals(RemoteStorePinnedTimestampService.getPinnedEntities().size(), 1);
-
     }
 
     public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
@@ -970,6 +970,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
         assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
+        forceSyncPinnedTimestamps();
         assertEquals(RemoteStorePinnedTimestampService.getPinnedEntities().size(), repositoryData.getSnapshotIds().size());
     }
 
@@ -1044,12 +1045,11 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
         }, 30, TimeUnit.SECONDS);
         thread.join();
-        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
-            RemoteStorePinnedTimestampService.class,
-            internalCluster().getClusterManagerName()
-        );
         forceSyncPinnedTimestamps();
-        assertEquals(RemoteStorePinnedTimestampService.getPinnedEntities().size(), totalSnaps.intValue());
+        waitUntil(() -> {
+            this.forceSyncPinnedTimestamps();
+            return RemoteStorePinnedTimestampService.getPinnedEntities().size() == totalSnaps.intValue();
+        });
     }
 
     public void testCreateSnapshotV2() throws Exception {
