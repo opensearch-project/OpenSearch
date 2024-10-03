@@ -31,6 +31,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
     private String[] indices;
     private TimeValue cancelAfterTimeInterval;
     private PageParams pageParams = null;
+    private boolean requestLimitCheckSupported;
 
     public CatShardsRequest() {}
 
@@ -60,6 +61,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
                 pageParams.writeTo(out);
             }
         }
+        this.requestLimitCheckSupported = false;
     }
 
     @Override
@@ -89,6 +91,14 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     public PageParams getPageParams() {
         return pageParams;
+    }
+
+    public void setRequestLimitCheckSupported(final boolean requestLimitCheckSupported) {
+        this.requestLimitCheckSupported = requestLimitCheckSupported;
+    }
+
+    public boolean isRequestLimitCheckSupported() {
+        return this.requestLimitCheckSupported;
     }
 
     @Override

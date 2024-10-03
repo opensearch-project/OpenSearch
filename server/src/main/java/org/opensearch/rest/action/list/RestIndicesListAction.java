@@ -11,6 +11,7 @@ package org.opensearch.rest.action.list;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.pagination.IndexPaginationStrategy;
 import org.opensearch.action.pagination.PageParams;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestRequest;
@@ -35,6 +36,10 @@ public class RestIndicesListAction extends RestIndicesAction {
     private static final int MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE = 5000;
     private static final int DEFAULT_LIST_INDICES_PAGE_SIZE = 500;
 
+    public RestIndicesListAction(final ResponseLimitSettings responseLimitSettings) {
+        super(responseLimitSettings);
+    }
+
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/_list/indices"), new Route(GET, "/_list/indices/{index}")));
@@ -45,7 +50,6 @@ public class RestIndicesListAction extends RestIndicesAction {
         return "list_indices_action";
     }
 
-    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_list/indices\n");
         sb.append("/_list/indices/{index}\n");
@@ -68,6 +72,11 @@ public class RestIndicesListAction extends RestIndicesAction {
             IndexPaginationStrategy.IndexStrategyToken.validateIndexStrategyToken(pageParams.getRequestedToken());
         }
         return pageParams;
+    }
+
+    @Override
+    public boolean isRequestLimitCheckSupported() {
+        return false;
     }
 
     protected int defaultPageSize() {
