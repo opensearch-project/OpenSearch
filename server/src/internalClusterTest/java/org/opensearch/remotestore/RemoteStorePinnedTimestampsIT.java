@@ -19,6 +19,9 @@ import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
@@ -76,6 +79,11 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
             Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp_2 = RemoteStorePinnedTimestampService.getPinnedTimestamps();
             long lastFetchTimestamp_2 = pinnedTimestampWithFetchTimestamp_2.v1();
             assertTrue(lastFetchTimestamp_2 != -1);
+            Map<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
+            assertEquals(3, pinnedEntities.size());
+            assertEquals(Set.of("ss2", "ss3", "ss4"), pinnedEntities.keySet());
+            assertEquals(pinnedEntities.get("ss2").size(), 1);
+            assertEquals(Optional.of(timestamp1).get(), pinnedEntities.get("ss2").get(0));
             assertEquals(Set.of(timestamp1, timestamp2, timestamp3), pinnedTimestampWithFetchTimestamp_2.v2());
         });
 
@@ -103,10 +111,14 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         // Adding different entity to already pinned timestamp
         remoteStorePinnedTimestampService.pinTimestamp(timestamp3, "ss5", noOpActionListener);
 
-        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+        remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
 
         assertBusy(() -> {
             Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp_3 = RemoteStorePinnedTimestampService.getPinnedTimestamps();
+            Map<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
+            assertEquals(3, pinnedEntities.size());
+            assertEquals(pinnedEntities.get("ss5").size(), 1);
+            assertEquals(Optional.of(timestamp3).get(), pinnedEntities.get("ss5").get(0));
             long lastFetchTimestamp_3 = pinnedTimestampWithFetchTimestamp_3.v1();
             assertTrue(lastFetchTimestamp_3 != -1);
             assertEquals(Set.of(timestamp1, timestamp3), pinnedTimestampWithFetchTimestamp_3.v2());
