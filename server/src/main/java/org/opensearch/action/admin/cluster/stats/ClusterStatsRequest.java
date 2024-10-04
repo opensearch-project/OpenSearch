@@ -189,6 +189,8 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     /**
      * An enumeration of the "core" sections of indices metrics that may be requested
      * from the cluster stats endpoint.
+     *
+     * When no value is provided for param index_metric, default filter is set to _all.
      */
     @PublicApi(since = "3.0.0")
     public enum IndexMetric {
