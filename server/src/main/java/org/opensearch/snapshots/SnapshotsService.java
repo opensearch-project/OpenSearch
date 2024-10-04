@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -621,6 +622,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     return;
                                 }
                                 listener.onResponse(snapshotInfo);
+                                cleanOrphanTimestamp(repositoryName, repositoryData);
                             }
 
                             @Override
@@ -649,6 +651,57 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    private void cleanOrphanTimestamp(String repoName, RepositoryData repositoryData) {
+        Collection<String> snapshotUUIDs = repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+        Map<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
+
+        List<String> orphanPinnedEntities = pinnedEntities.keySet()
+            .stream()
+            .filter(pinnedEntity -> isOrphanPinnedEntity(repoName, snapshotUUIDs, pinnedEntity))
+            .collect(Collectors.toList());
+
+        if (orphanPinnedEntities.isEmpty()) {
+            return;
+        }
+
+        logger.info("Found {} orphan timestamps. Cleaning it up now", orphanPinnedEntities.size());
+        if (tryEnterRepoLoop(repoName)) {
+            deleteOrphanTimestamps(pinnedEntities, orphanPinnedEntities);
+            leaveRepoLoop(repoName);
+        } else {
+            logger.info("Concurrent snapshot create/delete is happening. Skipping clean up of orphan timestamps");
+        }
+    }
+
+    private boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
+        Tuple<String, String> tokens = getRepoSnapshotUUIDTuple(pinnedEntity);
+        return Objects.equals(tokens.v1(), repoName) && snapshotUUIDs.contains(tokens.v2()) == false;
+    }
+
+    private void deleteOrphanTimestamps(Map<String, List<Long>> pinnedEntities, List<String> orphanPinnedEntities) {
+        final CountDownLatch latch = new CountDownLatch(orphanPinnedEntities.size());
+        for (String pinnedEntity : orphanPinnedEntities) {
+            assert pinnedEntities.get(pinnedEntity).size() == 1 : "Multiple timestamps for same repo-snapshot uuid found";
+            long orphanTimestamp = pinnedEntities.get(pinnedEntity).get(0);
+            remoteStorePinnedTimestampService.unpinTimestamp(
+                orphanTimestamp,
+                pinnedEntity,
+                new LatchedActionListener<>(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception e) {}
+                }, latch)
+            );
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void createSnapshotPreValidations(
@@ -705,6 +758,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static String getPinningEntity(String repositoryName, String snapshotUUID) {
         return repositoryName + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotUUID;
+    }
+
+    public static Tuple<String, String> getRepoSnapshotUUIDTuple(String pinningEntity) {
+        String[] tokens = pinningEntity.split(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER);
+        return new Tuple<>(tokens[0], tokens[1]);
     }
 
     private void cloneSnapshotPinnedTimestamp(

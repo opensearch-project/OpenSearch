@@ -114,4 +114,15 @@ public class StringsTests extends OpenSearchTestCase {
             containsString("\"color_from_param\":\"blue\"")
         );
     }
+
+    public void testIsDigits() {
+        assertTrue(Strings.isDigits("1"));
+        assertTrue(Strings.isDigits("123"));
+        assertFalse(Strings.isDigits(""));
+        assertFalse(Strings.isDigits("abc"));
+        assertFalse(Strings.isDigits("123a"));
+        assertFalse(Strings.isDigits("0x123"));
+        assertFalse(Strings.isDigits("123.4"));
+        assertFalse(Strings.isDigits("123f"));
+    }
 }

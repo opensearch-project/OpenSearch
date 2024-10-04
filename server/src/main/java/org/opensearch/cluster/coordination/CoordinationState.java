@@ -108,7 +108,7 @@ public class CoordinationState {
         // ToDo: revisit this check while making the setting dynamic
         this.isRemotePublicationEnabled = isRemoteStateEnabled
             && REMOTE_PUBLICATION_SETTING.get(settings)
-            && localNode.isRemoteStatePublicationEnabled();
+            && localNode.isRemoteStatePublicationConfigured();
     }
 
     public boolean isRemotePublicationEnabled() {
