@@ -26,7 +26,7 @@ on:
       architecture:
         description: '[ "x64", "arm64" ]'
         type: string
-        default: '[ "x64" ]'
+        default: '[ "x64", "arm64"  ]'
       checksum:
         description: "Checksum ?"
         type: boolean
@@ -56,7 +56,7 @@ on:
       architecture:
         description: '[ "x64", "arm64" ]'
         type: string
-        default: '[ "x64" ]'
+        default: '[ "x64", "arm64"  ]'
       checksum:
         description: "Checksum ?"
         type: boolean
@@ -88,7 +88,7 @@ on:
 jobs:
   matrix:
     name: Set up matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       matrix: ${{ steps.setup.outputs.matrix }}
     steps:
@@ -103,7 +103,7 @@ jobs:
 
   build:
     needs: [matrix]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-22.04' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
