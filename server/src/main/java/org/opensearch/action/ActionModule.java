@@ -370,7 +370,6 @@ import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
-import org.opensearch.rest.action.admin.cluster.RestQueryGroupStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestRemoteStoreStatsAction;
@@ -626,11 +625,8 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
         actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
-<<<<<<< HEAD
         actions.register(WlmStatsAction.INSTANCE, TransportWlmStatsAction.class);
-=======
-        actions.register(QueryGroupStatsAction.INSTANCE, TransportQueryGroupStatsAction.class);
->>>>>>> 986882eb641 (changelog)
+        actions.register(WlmStatsAction.INSTANCE, TransportWlmStatsAction.class);
         actions.register(RemoteStoreStatsAction.INSTANCE, TransportRemoteStoreStatsAction.class);
         actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
@@ -837,11 +833,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
         registerHandler.accept(new RestMainAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
-<<<<<<< HEAD
         registerHandler.accept(new RestWlmStatsAction());
-=======
-        registerHandler.accept(new RestQueryGroupStatsAction());
->>>>>>> 986882eb641 (changelog)
+        registerHandler.accept(new RestWlmStatsAction());
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesStatsAction());
         registerHandler.accept(new RestNodesUsageAction());
