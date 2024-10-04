@@ -13,6 +13,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -37,7 +38,9 @@ import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportInfo;
@@ -72,7 +75,7 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
             List.of(),
             ClusterState.EMPTY_STATE,
             Set.of(ClusterStatsRequest.Metric.INDICES),
-            Set.of(ClusterStatsRequest.IndexMetric.MAPPINGS, ClusterStatsRequest.IndexMetric.ANALYSIS)
+            Set.of(IndexMetric.MAPPINGS, IndexMetric.ANALYSIS)
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterStatsResponse.writeTo(output);
@@ -107,8 +110,15 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
             defaultClusterStatsNodeResponses,
             List.of(),
             ClusterState.EMPTY_STATE,
-            Set.of(),
-            Set.of()
+            Set.of(ClusterStatsRequest.Metric.INDICES, ClusterStatsRequest.Metric.PROCESS, ClusterStatsRequest.Metric.JVM),
+            Set.of(
+                IndexMetric.DOCS,
+                IndexMetric.STORE,
+                IndexMetric.SEGMENTS,
+                IndexMetric.QUERY_CACHE,
+                IndexMetric.FIELDDATA,
+                IndexMetric.COMPLETION
+            )
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterStatsResponse.writeTo(output);
@@ -118,10 +128,28 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
         assertEquals(clusterStatsResponse.timestamp, deserializedClusterStatsResponse.timestamp);
         assertEquals(clusterStatsResponse.status, deserializedClusterStatsResponse.status);
         assertEquals(clusterStatsResponse.clusterUUID, deserializedClusterStatsResponse.clusterUUID);
-        assertNull(clusterStatsResponse.indicesStats);
+        assertNotNull(deserializedClusterStatsResponse.nodesStats);
+        assertNotNull(deserializedClusterStatsResponse.nodesStats.getProcess());
+        assertNotNull(deserializedClusterStatsResponse.nodesStats.getJvm());
+        assertNotNull(deserializedClusterStatsResponse.indicesStats);
+        assertNotNull(deserializedClusterStatsResponse.indicesStats.getDocs());
+        assertNotNull(deserializedClusterStatsResponse.indicesStats.getStore());
+        assertNotNull(deserializedClusterStatsResponse.indicesStats.getSegments());
+        assertNotNull(deserializedClusterStatsResponse.indicesStats.getQueryCache());
+        assertNotNull(deserializedClusterStatsResponse.indicesStats.getFieldData());
+        assertNotNull(deserializedClusterStatsResponse.indicesStats.getCompletion());
+        assertNull(deserializedClusterStatsResponse.indicesStats.getMappings());
+        assertNull(deserializedClusterStatsResponse.indicesStats.getAnalysis());
     }
 
     private ClusterStatsNodeResponse createClusterStatsNodeResponse(DiscoveryNode node, ShardStats[] shardStats) throws IOException {
+        JvmStats.GarbageCollector[] garbageCollectorsArray = new JvmStats.GarbageCollector[1];
+        garbageCollectorsArray[0] = new JvmStats.GarbageCollector(
+            randomAlphaOfLengthBetween(3, 10),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+        JvmStats.GarbageCollectors garbageCollectors = new JvmStats.GarbageCollectors(garbageCollectorsArray);
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
             Build.CURRENT,
@@ -148,8 +176,29 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
             randomNonNegativeLong(),
             null,
             null,
-            null,
-            null,
+            new ProcessStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new ProcessStats.Cpu(randomShort(), randomNonNegativeLong()),
+                new ProcessStats.Mem(randomNonNegativeLong())
+            ),
+            new JvmStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new JvmStats.Mem(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    Collections.emptyList()
+                ),
+                new JvmStats.Threads(randomIntBetween(1, 1000), randomIntBetween(1, 1000)),
+                garbageCollectors,
+                Collections.emptyList(),
+                new JvmStats.Classes(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            ),
             null,
             null,
             null,

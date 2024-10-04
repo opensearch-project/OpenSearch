@@ -52,7 +52,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     private final Set<Metric> requestedMetrics = new HashSet<>();
     private final Set<IndexMetric> indexMetricsRequested = new HashSet<>();
-    private Boolean computeAllMetric = true;
+    private Boolean computeAllMetrics = true;
 
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,7 +60,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
             useAggregatedNodeLevelResponses = in.readOptionalBoolean();
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            computeAllMetric = in.readOptionalBoolean();
+            computeAllMetrics = in.readOptionalBoolean();
             final long longMetricsFlags = in.readLong();
             for (Metric metric : Metric.values()) {
                 if ((longMetricsFlags & (1 << metric.getIndex())) != 0) {
@@ -95,11 +95,11 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     }
 
     public boolean computeAllMetrics() {
-        return computeAllMetric;
+        return computeAllMetrics;
     }
 
     public void computeAllMetrics(boolean computeAllMetrics) {
-        this.computeAllMetric = computeAllMetrics;
+        this.computeAllMetrics = computeAllMetrics;
     }
 
     /**
@@ -136,7 +136,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
             out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(computeAllMetric);
+            out.writeOptionalBoolean(computeAllMetrics);
             long longMetricFlags = 0;
             for (Metric metric : requestedMetrics) {
                 longMetricFlags |= (1 << metric.getIndex());
