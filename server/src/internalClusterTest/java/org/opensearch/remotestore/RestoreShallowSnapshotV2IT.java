@@ -10,6 +10,8 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
@@ -19,6 +21,7 @@ import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobPath;
@@ -64,6 +67,7 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -104,6 +108,18 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
                 .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
         }
         return settingsBuilder;
+    }
+
+    protected Settings.Builder getRepositorySettings(String sourceRepository, boolean readOnly) throws ExecutionException,
+        InterruptedException {
+        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { sourceRepository });
+        GetRepositoriesResponse res = client().admin().cluster().getRepositories(gr).get();
+        RepositoryMetadata rmd = res.repositories().get(0);
+        return Settings.builder()
+            .put(rmd.settings())
+            .put(BlobStoreRepository.READONLY_SETTING.getKey(), readOnly)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false)
+            .put(SYSTEM_REPOSITORY_SETTING.getKey(), false);
     }
 
     private Settings.Builder getIndexSettings(int numOfShards, int numOfReplicas) {
@@ -801,5 +817,72 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
                 .get()
         );
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.segment.repository]" + " on restore"));
+    }
+
+    public void testRestoreOperationsUsingDifferentRepos() throws Exception {
+        disableRepoConsistencyCheck("Remote store repo");
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        String primary = internalCluster().startDataOnlyNode();
+        String indexName1 = "testindex1";
+        String snapshotRepoName = "test-snapshot-repo";
+        String snapshotName1 = "test-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        // Create repo
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        // Create index
+        Client client = client();
+        Settings indexSettings = getIndexSettings(1, 0).build();
+        createIndex(indexName1, indexSettings);
+        ensureGreen(indexName1);
+
+        // Index 5 documents, refresh, index 5 documents
+        final int numDocsInIndex1 = 5;
+        indexDocuments(client, indexName1, 0, numDocsInIndex1);
+        refresh(indexName1);
+        indexDocuments(client, indexName1, numDocsInIndex1, 2 * numDocsInIndex1);
+
+        // Take V2 snapshot
+        logger.info("--> snapshot");
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>());
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+
+        // Create new snapshot, segment and translog repositories
+        String newSnapshotRepo = "backup-snapshot";
+        String newSegmentRepo = "backup-segment";
+        String newTranslogRepo = "backup-translog";
+        createRepository(newSnapshotRepo, "fs", getRepositorySettings(snapshotRepoName, true));
+        createRepository(newSegmentRepo, "fs", getRepositorySettings(BASE_REMOTE_REPO, true));
+        createRepository(newTranslogRepo, "fs", getRepositorySettings(BASE_REMOTE_REPO, true));
+
+        // Delete index
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName1)).get());
+        assertFalse(indexExists(indexName1));
+
+        // Restore using new repos
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(newSnapshotRepo, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIndices(indexName1)
+            .setSourceRemoteStoreRepository(newSegmentRepo)
+            .setSourceRemoteTranslogRepository(newTranslogRepo)
+            .get();
+
+        assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
+
+        // Verify restored index's stats
+        ensureYellowAndNoInitializingShards(indexName1);
+        ensureGreen(indexName1);
+        assertDocsPresentInIndex(client(), indexName1, 2 * numDocsInIndex1);
+
+        // indexing some new docs and validating
+        indexDocuments(client, indexName1, 2 * numDocsInIndex1, 3 * numDocsInIndex1);
+        ensureGreen(indexName1);
+        assertDocsPresentInIndex(client, indexName1, 3 * numDocsInIndex1);
     }
 }
