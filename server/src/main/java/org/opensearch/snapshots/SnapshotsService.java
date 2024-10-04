@@ -382,7 +382,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 );
                 if (request.partial() == false) {
                     Set<String> missing = new HashSet<>();
-                    for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards.entrySet()) {
+                    for (final Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                         if (entry.getValue().state() == ShardState.MISSING) {
                             missing.add(entry.getKey().getIndex().getName());
                         }
@@ -606,8 +606,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         new ActionListener<RepositoryData>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {
-                                leaveRepoLoop(repositoryName);
                                 if (clusterService.state().nodes().isLocalNodeElectedClusterManager() == false) {
+                                    leaveRepoLoop(repositoryName);
                                     failSnapshotCompletionListeners(
                                         snapshot,
                                         new SnapshotException(snapshot, "Aborting snapshot-v2, no longer cluster manager")
@@ -622,6 +622,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     return;
                                 }
                                 listener.onResponse(snapshotInfo);
+                                // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
+                                // can get queued . This is triggering them.
+                                runNextQueuedOperation(repositoryData, repositoryName, true);
                                 cleanOrphanTimestamp(repositoryName, repositoryData);
                             }
 
@@ -1010,8 +1013,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             new ActionListener<RepositoryData>() {
                                 @Override
                                 public void onResponse(RepositoryData repositoryData) {
-                                    leaveRepoLoop(repositoryName);
                                     if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                                        leaveRepoLoop(repositoryName);
                                         failSnapshotCompletionListeners(
                                             snapshot,
                                             new SnapshotException(snapshot, "Aborting Snapshot-v2 clone, no longer cluster manager")
@@ -1027,6 +1030,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     }
                                     logger.info("snapshot-v2 clone [{}] completed successfully", snapshot);
                                     listener.onResponse(null);
+                                    // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
+                                    // can get queued . This is triggering them.
+                                    runNextQueuedOperation(repositoryData, repositoryName, true);
                                 }
 
                                 @Override
@@ -1740,7 +1746,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Updates the state of in-progress snapshots in reaction to a change in the configuration of the cluster nodes (cluster-manager fail-over or
      * disconnect of a data node that was executing a snapshot) or a routing change that started shards whose snapshot state is
-     * {@link SnapshotsInProgress.ShardState#WAITING}.
+     * {@link ShardState#WAITING}.
      *
      * @param changedNodes true iff either a cluster-manager fail-over occurred or a data node that was doing snapshot work got removed from the
      *                     cluster
@@ -2645,7 +2651,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }
-        return Collections.unmodifiableList(new ArrayList<>(foundSnapshots));
+        return unmodifiableList(new ArrayList<>(foundSnapshots));
     }
 
     // Return in-progress snapshot entries by name and repository in the given cluster state or null if none is found
@@ -2795,7 +2801,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         reusedExistingDelete = true;
                         return currentState;
                     }
-                    final List<SnapshotId> toDelete = Collections.unmodifiableList(new ArrayList<>(snapshotIdsRequiringCleanup));
+                    final List<SnapshotId> toDelete = unmodifiableList(new ArrayList<>(snapshotIdsRequiringCleanup));
                     ensureBelowConcurrencyLimit(repoName, toDelete.get(0).getName(), snapshots, deletionsInProgress);
                     newDelete = new SnapshotDeletionsInProgress.Entry(
                         toDelete,
@@ -3353,7 +3359,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param indices             Indices to snapshot
      * @return list of shard to be included into current snapshot
      */
-    private static Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
+    private static Map<ShardId, ShardSnapshotStatus> shards(
         SnapshotsInProgress snapshotsInProgress,
         @Nullable SnapshotDeletionsInProgress deletionsInProgress,
         Metadata metadata,
@@ -3362,7 +3368,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         RepositoryData repositoryData,
         String repoName
     ) {
-        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = new HashMap<>();
+        final Map<ShardId, ShardSnapshotStatus> builder = new HashMap<>();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
         final InFlightShardSnapshotStates inFlightShardStates = InFlightShardSnapshotStates.forRepo(
             repoName,
@@ -3396,7 +3402,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     final ShardSnapshotStatus shardSnapshotStatus;
                     if (indexRoutingTable == null) {
-                        shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                        shardSnapshotStatus = new ShardSnapshotStatus(
                             null,
                             ShardState.MISSING,
                             "missing routing table",
