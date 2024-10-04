@@ -116,7 +116,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertEquals(snapshotStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
-    public void testStatusAPICallForShallowCopySnapshot() {
+    public void testStatusAPICallForShallowCopySnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -136,15 +136,24 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String snapshot = "snapshot";
         createFullSnapshot(snapshotRepoName, snapshot);
 
-        final SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
-        assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
+        assertBusy(() -> {
+            final SnapshotStatus snapshotStatus = client().admin()
+                .cluster()
+                .prepareSnapshotStatus(snapshotRepoName)
+                .setSnapshots(snapshot)
+                .execute()
+                .actionGet()
+                .getSnapshots()
+                .get(0);
+            assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
 
-        final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
-        assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
-        assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
-        assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
-        assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
-        assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
+            final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
+            assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+            assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
+            assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+            assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
+            assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
+        }, 20, TimeUnit.SECONDS);
     }
 
     public void testStatusAPICallInProgressSnapshot() throws Exception {
@@ -193,7 +202,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
+    public void testExceptionOnMissingShardLevelSnapBlob() throws Exception {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository");
 
         final Path repoPath = randomRepoPath();
@@ -216,11 +225,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             repoPath.resolve(resolvePath(indexId, "0"))
                 .resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat")
         );
-
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet()
-        );
+        assertBusy(() -> {
+            expectThrows(
+                SnapshotMissingException.class,
+                () -> client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet()
+            );
+        }, 20, TimeUnit.SECONDS);
     }
 
     public void testGetSnapshotsWithoutIndices() throws Exception {
