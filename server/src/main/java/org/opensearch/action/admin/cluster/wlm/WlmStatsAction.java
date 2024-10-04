@@ -22,8 +22,12 @@ public class QueryGroupStatsAction extends ActionType<QueryGroupStatsResponse> {
 =======
 public class WlmStatsAction extends ActionType<WlmStatsResponse> {
     public static final WlmStatsAction INSTANCE = new WlmStatsAction();
+<<<<<<< HEAD
     public static final String NAME = "cluster:monitor/query_group_stats";
 >>>>>>> bb4288b3eba (modify based on comments):server/src/main/java/org/opensearch/action/admin/cluster/wlm/WlmStatsAction.java
+=======
+    public static final String NAME = "cluster:monitor/wlm/stats";
+>>>>>>> fb30e9af3d4 (revise)
 
     private WlmStatsAction() {
         super(NAME, WlmStatsResponse::new);

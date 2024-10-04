@@ -29,6 +29,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.transport.TransportService;
 
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;

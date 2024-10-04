@@ -57,8 +57,12 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
 >>>>>>> 3a7ac33beb6 (modify based on comments)
     QueryGroupStats> {
 
+<<<<<<< HEAD
     QueryGroupService queryGroupService;
 >>>>>>> b5cbfa4de9e (changelog)
+=======
+    final QueryGroupService queryGroupService;
+>>>>>>> fb30e9af3d4 (revise)
 
     @Inject
     public TransportWlmStatsAction(
