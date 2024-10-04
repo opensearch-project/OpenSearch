@@ -48,6 +48,11 @@ public class SharedWithScope implements ToXContentFragment {
         return "SharedWithScope {" + scope + ": " + sharedWithPerScope + '}';
     }
 
+    /**
+     * This class defines who a resource is shared_with for a particular scope
+     *
+     * @opensearch.experimental
+     */
     public static class SharedWithPerScope implements ToXContentFragment {
         private List<String> users;
 
