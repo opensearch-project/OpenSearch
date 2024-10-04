@@ -113,6 +113,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
   mapping from: /netty-.*/, to: 'netty'
+  mapping from: /log4j-.*/, to: 'log4j'
 }
 
 bundlePlugin {
@@ -512,9 +513,7 @@ thirdPartyAudit {
     'org.jboss.marshalling.MarshallingConfiguration',
     'org.jboss.marshalling.Unmarshaller',
 
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
+    'org.slf4j.ext.EventData',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
 
