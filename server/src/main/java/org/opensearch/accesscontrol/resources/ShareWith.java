@@ -15,56 +15,37 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * This class contains information about whom a resource is shared with.
- * It could be a user-name, a role or a backend_role.
+ * This class contains information about whom a resource is shared with and at what scope.
+ * Here is a sample of what this would look like:
+ * "share_with": {
+ *       "read_only": {
+ *          "users": [],
+ *          "roles": [],
+ *          "backend_roles": []
+ *       },
+ *       "read_write": {
+ *          "users": [],
+ *          "roles": [],
+ *          "backend_roles": []
+ *       }
+ *    }
  *
  * @opensearch.experimental
  */
 public class ShareWith implements ToXContentFragment {
 
-    private List<String> users;
+    private final List<SharedWithScope> sharedWithScopes;
 
-    private List<String> roles;
-
-    private List<String> backendRoles;
-
-    public ShareWith(List<String> users, List<String> roles, List<String> backendRoles) {
-        this.users = users;
-        this.roles = roles;
-        this.backendRoles = backendRoles;
+    public ShareWith(List<SharedWithScope> sharedWithScopes) {
+        this.sharedWithScopes = sharedWithScopes;
     }
 
-    public List<String> getUsers() {
-        return users;
-    }
-
-    public void setUsers(List<String> users) {
-        this.users = users;
-    }
-
-    public List<String> getRoles() {
-        return roles;
-    }
-
-    public void setRoles(List<String> roles) {
-        this.roles = roles;
-    }
-
-    public List<String> getBackendRoles() {
-        return backendRoles;
-    }
-
-    public void setBackendRoles(List<String> backendRoles) {
-        this.backendRoles = backendRoles;
-    }
-
-    @Override
-    public String toString() {
-        return "ShareWith {" + "users=" + users + ", roles=" + roles + ", backendRoles=" + backendRoles + '}';
+    public List<SharedWithScope> getSharedWithScopes() {
+        return sharedWithScopes;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("users", users).field("roles", roles).field("backend_roles", backendRoles).endObject();
+        return builder.startObject("share_with").value(sharedWithScopes).endObject();
     }
 }
