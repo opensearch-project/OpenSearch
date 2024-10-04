@@ -8,6 +8,8 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -19,7 +21,7 @@ import java.util.List;
  *
  * @opensearch.experimental
  */
-public class SharedWithScope implements ToXContentFragment {
+public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
     private final String scope;
 
@@ -48,12 +50,23 @@ public class SharedWithScope implements ToXContentFragment {
         return "SharedWithScope {" + scope + ": " + sharedWithPerScope + '}';
     }
 
+    @Override
+    public String getWriteableName() {
+        return "shared_with_scope";
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(scope);
+        out.writeNamedWriteable(sharedWithPerScope);
+    }
+
     /**
      * This class defines who a resource is shared_with for a particular scope
      *
      * @opensearch.experimental
      */
-    public static class SharedWithPerScope implements ToXContentFragment {
+    public static class SharedWithPerScope implements ToXContentFragment, NamedWriteable {
         private List<String> users;
 
         private List<String> roles;
@@ -98,6 +111,18 @@ public class SharedWithScope implements ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().field("users", users).field("roles", roles).field("backend_roles", backendRoles).endObject();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "shared_with_per_scope";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringArray(users.toArray(new String[0]));
+            out.writeStringArray(roles.toArray(new String[0]));
+            out.writeStringArray(backendRoles.toArray(new String[0]));
         }
     }
 }

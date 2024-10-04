@@ -27,18 +27,13 @@ import java.util.Map;
  * @opensearch.experimental
  */
 public interface ResourceAccessControlPlugin {
-    /**
-     * Returns all accessible resources for current user.
-     * @return a map of resources accessible by user separated by system index names
-     */
-    Map<String, List<String>> listAccessibleResources();
 
     /**
      * Returns all accessible resources for current user for a given system .
      *
      * @return list of {@link ResourceSharing} items accessible by current user.
      */
-    List<String> listAccessibleResourcesForPlugin(String systemIndex);
+    List<String> listAccessibleResourcesInPlugin(String systemIndex);
 
     /**
      * Checks whether current user has permission to given resource.

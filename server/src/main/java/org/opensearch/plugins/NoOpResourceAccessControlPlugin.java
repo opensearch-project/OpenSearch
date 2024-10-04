@@ -23,22 +23,13 @@ import java.util.Map;
 public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlugin {
 
     /**
-     *
-     * @return an empty map of resource names accessible by this user.
-     */
-    @Override
-    public Map<String, List<String>> listAccessibleResources() {
-        return Map.of();
-    }
-
-    /**
      * Returns an empty list since security plugin is not defined.
      * This method alone doesn't determine permissions.
      *
      * @return empty list
      */
     @Override
-    public List<String> listAccessibleResourcesForPlugin(String systemIndexName) {
+    public List<String> listAccessibleResourcesInPlugin(String systemIndexName) {
         // returns an empty list since security plugin is disabled
         return List.of();
     }

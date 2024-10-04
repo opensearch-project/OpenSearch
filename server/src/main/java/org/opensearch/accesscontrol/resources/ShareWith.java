@@ -8,6 +8,8 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -32,7 +34,7 @@ import java.util.List;
  *
  * @opensearch.experimental
  */
-public class ShareWith implements ToXContentFragment {
+public class ShareWith implements ToXContentFragment, NamedWriteable {
 
     private final List<SharedWithScope> sharedWithScopes;
 
@@ -47,5 +49,15 @@ public class ShareWith implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject("share_with").value(sharedWithScopes).endObject();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "share_with";
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeList(sharedWithScopes);
     }
 }

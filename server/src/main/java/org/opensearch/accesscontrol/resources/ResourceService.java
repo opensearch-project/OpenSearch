@@ -56,7 +56,7 @@ public class ResourceService {
     /**
      * List active plugins that define resources
      */
-    public List<ResourcePlugin> listResourcePlugins() {
+    List<ResourcePlugin> listResourcePlugins() {
         return resourcePlugins;
     }
 }
