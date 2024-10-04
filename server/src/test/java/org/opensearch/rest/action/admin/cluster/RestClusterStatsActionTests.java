@@ -38,7 +38,7 @@ public class RestClusterStatsActionTests extends OpenSearchTestCase {
         ClusterStatsRequest clusterStatsRequest = RestClusterStatsAction.fromRequest(request);
         assertNotNull(clusterStatsRequest);
         assertTrue(clusterStatsRequest.useAggregatedNodeLevelResponses());
-        assertTrue(clusterStatsRequest.computeAllMetrics());
+        assertFalse(clusterStatsRequest.computeAllMetrics());
         assertNotNull(clusterStatsRequest.requestedMetrics());
         assertFalse(clusterStatsRequest.requestedMetrics().isEmpty());
         for (ClusterStatsRequest.Metric metric : ClusterStatsRequest.Metric.values()) {
@@ -60,12 +60,10 @@ public class RestClusterStatsActionTests extends OpenSearchTestCase {
         ClusterStatsRequest clusterStatsRequest = RestClusterStatsAction.fromRequest(request);
         assertNotNull(clusterStatsRequest);
         assertTrue(clusterStatsRequest.useAggregatedNodeLevelResponses());
-        assertTrue(clusterStatsRequest.computeAllMetrics());
+        assertFalse(clusterStatsRequest.computeAllMetrics());
         assertFalse(clusterStatsRequest.requestedMetrics().isEmpty());
         assertEquals(2, clusterStatsRequest.requestedMetrics().size());
-        for (ClusterStatsRequest.Metric metric : metricsRequested) {
-            assertTrue(clusterStatsRequest.requestedMetrics().contains(metric));
-        }
+        assertEquals(metricsRequested, clusterStatsRequest.requestedMetrics());
         assertTrue(clusterStatsRequest.indicesMetrics().isEmpty());
     }
 
@@ -90,17 +88,13 @@ public class RestClusterStatsActionTests extends OpenSearchTestCase {
         ClusterStatsRequest clusterStatsRequest = RestClusterStatsAction.fromRequest(request);
         assertNotNull(clusterStatsRequest);
         assertTrue(clusterStatsRequest.useAggregatedNodeLevelResponses());
-        assertTrue(clusterStatsRequest.computeAllMetrics());
+        assertFalse(clusterStatsRequest.computeAllMetrics());
         assertFalse(clusterStatsRequest.requestedMetrics().isEmpty());
         assertEquals(3, clusterStatsRequest.requestedMetrics().size());
-        for (ClusterStatsRequest.Metric metric : metricsRequested) {
-            assertTrue(clusterStatsRequest.requestedMetrics().contains(metric));
-        }
+        assertEquals(metricsRequested, clusterStatsRequest.requestedMetrics());
         assertFalse(clusterStatsRequest.indicesMetrics().isEmpty());
         assertEquals(2, clusterStatsRequest.indicesMetrics().size());
-        for (ClusterStatsRequest.IndexMetric indexMetric : indicesMetricsRequested) {
-            assertTrue(clusterStatsRequest.indicesMetrics().contains(indexMetric));
-        }
+        assertEquals(indicesMetricsRequested, clusterStatsRequest.indicesMetrics());
     }
 
     public void testUnrecognizedMetric() {
