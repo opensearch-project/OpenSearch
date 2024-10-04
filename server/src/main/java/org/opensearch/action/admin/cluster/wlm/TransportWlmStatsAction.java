@@ -37,6 +37,7 @@ import java.util.List;
  *
  * @opensearch.experimental
  */
+<<<<<<< HEAD:server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportQueryGroupStatsAction.java
 public class TransportQueryGroupStatsAction extends TransportNodesAction<
     QueryGroupStatsRequest,
     QueryGroupStatsResponse,
@@ -44,6 +45,9 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
 <<<<<<< HEAD
     QueryGroupStatsRequest,
     QueryGroupStats> {
+=======
+public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsRequest, WlmStatsResponse, WlmStatsRequest, QueryGroupStats> {
+>>>>>>> bb4288b3eba (modify based on comments):server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportWlmStatsAction.java
 
     final QueryGroupService queryGroupService;
 =======
@@ -57,7 +61,7 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
 >>>>>>> b5cbfa4de9e (changelog)
 
     @Inject
-    public TransportQueryGroupStatsAction(
+    public TransportWlmStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -65,11 +69,12 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            QueryGroupStatsAction.NAME,
+            WlmStatsAction.NAME,
             threadPool,
             clusterService,
             transportService,
             actionFilters,
+<<<<<<< HEAD:server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportQueryGroupStatsAction.java
             QueryGroupStatsRequest::new,
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -80,6 +85,10 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
 =======
             QueryGroupStatsRequest::new,
 >>>>>>> 3a7ac33beb6 (modify based on comments)
+=======
+            WlmStatsRequest::new,
+            WlmStatsRequest::new,
+>>>>>>> bb4288b3eba (modify based on comments):server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportWlmStatsAction.java
             ThreadPool.Names.MANAGEMENT,
             QueryGroupStats.class
         );
@@ -87,18 +96,22 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected QueryGroupStatsResponse newResponse(
-        QueryGroupStatsRequest request,
+    protected WlmStatsResponse newResponse(
+        WlmStatsRequest request,
         List<QueryGroupStats> queryGroupStats,
         List<FailedNodeException> failures
     ) {
-        return new QueryGroupStatsResponse(clusterService.getClusterName(), queryGroupStats, failures);
+        return new WlmStatsResponse(clusterService.getClusterName(), queryGroupStats, failures);
     }
 
     @Override
+<<<<<<< HEAD:server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportQueryGroupStatsAction.java
 <<<<<<< HEAD
 <<<<<<< HEAD
     protected QueryGroupStatsRequest newNodeRequest(QueryGroupStatsRequest request) {
+=======
+    protected WlmStatsRequest newNodeRequest(WlmStatsRequest request) {
+>>>>>>> bb4288b3eba (modify based on comments):server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportWlmStatsAction.java
         return request;
 =======
     protected NodeQueryGroupStatsRequest newNodeRequest(QueryGroupStatsRequest request) {
@@ -116,6 +129,7 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
     }
 
     @Override
+<<<<<<< HEAD:server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportQueryGroupStatsAction.java
 <<<<<<< HEAD
 <<<<<<< HEAD
     protected QueryGroupStats nodeOperation(QueryGroupStatsRequest queryGroupStatsRequest) {
@@ -161,5 +175,9 @@ public class TransportQueryGroupStatsAction extends TransportNodesAction<
     protected QueryGroupStats nodeOperation(QueryGroupStatsRequest queryGroupStatsRequest) {
         return queryGroupService.nodeStats(queryGroupStatsRequest.getQueryGroupIds(), queryGroupStatsRequest.isBreach());
 >>>>>>> 3a7ac33beb6 (modify based on comments)
+=======
+    protected QueryGroupStats nodeOperation(WlmStatsRequest wlmStatsRequest) {
+        return queryGroupService.nodeStats(wlmStatsRequest.getQueryGroupIds(), wlmStatsRequest.isBreach());
+>>>>>>> bb4288b3eba (modify based on comments):server/src/main/java/org/opensearch/action/admin/cluster/wlm/TransportWlmStatsAction.java
     }
 }

@@ -179,9 +179,9 @@ import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.opensearch.action.admin.cluster.wlm.QueryGroupStatsAction;
-import org.opensearch.action.admin.cluster.wlm.QueryGroupStatsRequest;
-import org.opensearch.action.admin.cluster.wlm.QueryGroupStatsResponse;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsAction;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -922,8 +922,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void queryGroupStats(final QueryGroupStatsRequest request, final ActionListener<QueryGroupStatsResponse> listener) {
-            execute(QueryGroupStatsAction.INSTANCE, request, listener);
+        public void wlmStats(final WlmStatsRequest request, final ActionListener<WlmStatsResponse> listener) {
+            execute(WlmStatsAction.INSTANCE, request, listener);
         }
 
         @Override

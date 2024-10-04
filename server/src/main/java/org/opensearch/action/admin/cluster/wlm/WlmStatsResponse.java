@@ -23,16 +23,16 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A response for obtaining QueryGroupStats
+ * A response for obtaining Workload Management Stats
  */
 @ExperimentalApi
-public class QueryGroupStatsResponse extends BaseNodesResponse<QueryGroupStats> implements ToXContentFragment {
+public class WlmStatsResponse extends BaseNodesResponse<QueryGroupStats> implements ToXContentFragment {
 
-    QueryGroupStatsResponse(StreamInput in) throws IOException {
+    WlmStatsResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    QueryGroupStatsResponse(ClusterName clusterName, List<QueryGroupStats> nodes, List<FailedNodeException> failures) {
+    WlmStatsResponse(ClusterName clusterName, List<QueryGroupStats> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 

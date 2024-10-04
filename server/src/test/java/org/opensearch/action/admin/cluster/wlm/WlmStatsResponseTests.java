@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class QueryGroupStatsResponseTests extends OpenSearchTestCase {
+public class WlmStatsResponseTests extends OpenSearchTestCase {
     ClusterName clusterName = new ClusterName("test-cluster");
     String testQueryGroupId = "safjgagnaeekg-3r3fads";
     DiscoveryNode node = new DiscoveryNode(
@@ -59,25 +59,17 @@ public class QueryGroupStatsResponseTests extends OpenSearchTestCase {
     List<FailedNodeException> failedNodeExceptionList = new ArrayList<>();
 
     public void testSerializationAndDeserialization() throws IOException {
-        QueryGroupStatsResponse queryGroupStatsResponse = new QueryGroupStatsResponse(
-            clusterName,
-            queryGroupStatsList,
-            failedNodeExceptionList
-        );
+        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, queryGroupStatsList, failedNodeExceptionList);
         BytesStreamOutput out = new BytesStreamOutput();
         queryGroupStatsResponse.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        QueryGroupStatsResponse deserializedResponse = new QueryGroupStatsResponse(in);
+        WlmStatsResponse deserializedResponse = new WlmStatsResponse(in);
         assertEquals(queryGroupStatsResponse.getClusterName(), deserializedResponse.getClusterName());
         assertEquals(queryGroupStatsResponse.getNodes().size(), deserializedResponse.getNodes().size());
     }
 
     public void testToString() {
-        QueryGroupStatsResponse queryGroupStatsResponse = new QueryGroupStatsResponse(
-            clusterName,
-            queryGroupStatsList,
-            failedNodeExceptionList
-        );
+        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, queryGroupStatsList, failedNodeExceptionList);
         String responseString = queryGroupStatsResponse.toString();
         assertEquals(
             "{\n"

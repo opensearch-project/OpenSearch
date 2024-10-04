@@ -18,14 +18,15 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A request to get QueryGroupStats
+ * A request to get Workload Management Stats
  */
 @ExperimentalApi
-public class QueryGroupStatsRequest extends BaseNodesRequest<QueryGroupStatsRequest> {
+public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
 
     private final Set<String> queryGroupIds;
     private final Boolean breach;
 
+<<<<<<< HEAD:server/src/main/java/org/opensearch/action/admin/cluster/wlm/QueryGroupStatsRequest.java
 <<<<<<< HEAD
 <<<<<<< HEAD
     public QueryGroupStatsRequest(StreamInput in) throws IOException {
@@ -35,6 +36,9 @@ public class QueryGroupStatsRequest extends BaseNodesRequest<QueryGroupStatsRequ
 =======
     public QueryGroupStatsRequest(StreamInput in) throws IOException {
 >>>>>>> 3a7ac33beb6 (modify based on comments)
+=======
+    public WlmStatsRequest(StreamInput in) throws IOException {
+>>>>>>> bb4288b3eba (modify based on comments):server/src/main/java/org/opensearch/action/admin/cluster/wlm/WlmStatsRequest.java
         super(in);
         this.queryGroupIds = new HashSet<>(Set.of(in.readStringArray()));
         this.breach = in.readOptionalBoolean();
@@ -44,13 +48,13 @@ public class QueryGroupStatsRequest extends BaseNodesRequest<QueryGroupStatsRequ
      * Get QueryGroup stats from nodes based on the nodes ids specified. If none are passed, stats
      * for all nodes will be returned.
      */
-    public QueryGroupStatsRequest(String[] nodesIds, Set<String> queryGroupIds, boolean breach) {
+    public WlmStatsRequest(String[] nodesIds, Set<String> queryGroupIds, boolean breach) {
         super(false, nodesIds);
         this.queryGroupIds = queryGroupIds;
         this.breach = breach;
     }
 
-    public QueryGroupStatsRequest() {
+    public WlmStatsRequest() {
         super(false, (String[]) null);
         queryGroupIds = new HashSet<>();
         this.breach = false;

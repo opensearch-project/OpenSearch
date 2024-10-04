@@ -8,8 +8,8 @@
 
 package org.opensearch.action.support.nodes;
 
-import org.opensearch.action.admin.cluster.wlm.QueryGroupStatsRequest;
-import org.opensearch.action.admin.cluster.wlm.TransportQueryGroupStatsAction;
+import org.opensearch.action.admin.cluster.wlm.TransportWlmStatsAction;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 <<<<<<< HEAD
@@ -34,12 +34,13 @@ import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
-public class TransportQueryGroupStatsActionTests extends TransportNodesActionTests {
+public class TransportWlmStatsActionTests extends TransportNodesActionTests {
 
     /**
      * We don't want to send discovery nodes list to each request that is sent across from the coordinator node.
      * This behavior is asserted in this test.
      */
+<<<<<<< HEAD:server/src/test/java/org/opensearch/action/support/nodes/TransportQueryGroupStatsActionTests.java
     public void testQueryGroupStatsActionWithRetentionOfDiscoveryNodesList() {
         QueryGroupStatsRequest request = new QueryGroupStatsRequest();
 <<<<<<< HEAD
@@ -55,6 +56,11 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
 =======
         Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
 >>>>>>> 3a7ac33beb6 (modify based on comments)
+=======
+    public void testWlmStatsActionWithRetentionOfDiscoveryNodesList() {
+        WlmStatsRequest request = new WlmStatsRequest();
+        Map<String, List<WlmStatsRequest>> combinedSentRequest = performWlmStatsAction(request);
+>>>>>>> bb4288b3eba (modify based on comments):server/src/test/java/org/opensearch/action/support/nodes/TransportWlmStatsActionTests.java
 
         assertNotNull(combinedSentRequest);
         combinedSentRequest.forEach((node, capturedRequestList) -> {
@@ -65,20 +71,21 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
         });
     }
 
-    private Map<String, List<QueryGroupStatsRequest>> performQueryGroupStatsAction(QueryGroupStatsRequest request) {
-        TransportNodesAction action = new TransportQueryGroupStatsAction(
+    private Map<String, List<WlmStatsRequest>> performWlmStatsAction(WlmStatsRequest request) {
+        TransportNodesAction action = new TransportWlmStatsAction(
             THREAD_POOL,
             clusterService,
             transportService,
             mock(QueryGroupService.class),
             new ActionFilters(Collections.emptySet())
         );
-        PlainActionFuture<QueryGroupStatsRequest> listener = new PlainActionFuture<>();
+        PlainActionFuture<WlmStatsRequest> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = new HashMap<>();
+        Map<String, List<WlmStatsRequest>> combinedSentRequest = new HashMap<>();
 
         capturedRequests.forEach((node, capturedRequestList) -> {
+<<<<<<< HEAD:server/src/test/java/org/opensearch/action/support/nodes/TransportQueryGroupStatsActionTests.java
             List<QueryGroupStatsRequest> sentRequestList = new ArrayList<>();
 =======
             capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.getDiscoveryNodes()); });
@@ -112,10 +119,14 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
 =======
             List<QueryGroupStatsRequest> sentRequestList = new ArrayList<>();
 >>>>>>> 3a7ac33beb6 (modify based on comments)
+=======
+            List<WlmStatsRequest> sentRequestList = new ArrayList<>();
+>>>>>>> bb4288b3eba (modify based on comments):server/src/test/java/org/opensearch/action/support/nodes/TransportWlmStatsActionTests.java
 
             capturedRequestList.forEach(preSentRequest -> {
                 BytesStreamOutput out = new BytesStreamOutput();
                 try {
+<<<<<<< HEAD:server/src/test/java/org/opensearch/action/support/nodes/TransportQueryGroupStatsActionTests.java
 <<<<<<< HEAD
 <<<<<<< HEAD
                     QueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator = (QueryGroupStatsRequest) preSentRequest.request;
@@ -140,6 +151,13 @@ public class TransportQueryGroupStatsActionTests extends TransportNodesActionTes
                     QueryGroupStatsRequest QueryGroupStatsRequest = new QueryGroupStatsRequest(in);
 >>>>>>> 3a7ac33beb6 (modify based on comments)
                     sentRequestList.add(QueryGroupStatsRequest);
+=======
+                    WlmStatsRequest wlmStatsRequestFromCoordinator = (WlmStatsRequest) preSentRequest.request;
+                    wlmStatsRequestFromCoordinator.writeTo(out);
+                    StreamInput in = out.bytes().streamInput();
+                    WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(in);
+                    sentRequestList.add(wlmStatsRequest);
+>>>>>>> bb4288b3eba (modify based on comments):server/src/test/java/org/opensearch/action/support/nodes/TransportWlmStatsActionTests.java
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

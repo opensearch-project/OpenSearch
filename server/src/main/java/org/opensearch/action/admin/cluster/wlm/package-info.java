@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** QueryGroupStats transport handlers. */
+/** WlmStats transport handlers. */
 package org.opensearch.action.admin.cluster.wlm;

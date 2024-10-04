@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.admin.cluster.wlm.QueryGroupStatsRequest;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
@@ -24,11 +24,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
- * Transport action to get QueryGroup stats
+ * Transport action to get Workload Management stats
  *
  * @opensearch.experimental
  */
-public class RestQueryGroupStatsAction extends BaseRestHandler {
+public class RestWlmStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
@@ -65,9 +65,7 @@ public class RestQueryGroupStatsAction extends BaseRestHandler {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> queryGroupIds = Strings.tokenizeByCommaToSet(request.param("queryGroupId", "_all"));
         Boolean breach = request.hasParam("breach") ? Boolean.parseBoolean(request.param("boolean")) : null;
-        QueryGroupStatsRequest queryGroupStatsRequest = new QueryGroupStatsRequest(nodesIds, queryGroupIds, breach);
-        return channel -> client.admin()
-            .cluster()
-            .queryGroupStats(queryGroupStatsRequest, new RestActions.NodesResponseRestListener<>(channel));
+        WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(nodesIds, queryGroupIds, breach);
+        return channel -> client.admin().cluster().wlmStats(wlmStatsRequest, new RestActions.NodesResponseRestListener<>(channel));
     }
 }
