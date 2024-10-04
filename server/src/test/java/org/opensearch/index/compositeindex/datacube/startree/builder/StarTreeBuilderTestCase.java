@@ -16,6 +16,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
@@ -60,6 +61,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,6 +89,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
     protected String dataFileName;
     protected String metaFileName;
     protected List<Dimension> dimensionsOrder;
+    protected MergeState mergeState;
 
     public StarTreeBuilderTestCase(StarTreeFieldConfiguration.StarTreeBuildMode buildMode) {
         this.buildMode = buildMode;
@@ -154,6 +157,8 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
             fieldProducerMap.put(fields.get(i), docValuesProducer);
         }
         writeState = getWriteState(5, UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8));
+
+        mergeState = new MergeState(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
 
         dataFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,
@@ -240,7 +245,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return BuilderTestsUtils.getWriteState(numDocs, id, fieldsInfo, directory);
     }
 
-    SegmentReadState getReadState(int numDocs, List<String> dimensionFields, List<Metric> metrics) {
+    SegmentReadState getReadState(int numDocs, Map<String, DocValuesType> dimensionFields, List<Metric> metrics) {
         return BuilderTestsUtils.getReadState(numDocs, dimensionFields, metrics, compositeField, writeState, directory);
     }
 
@@ -248,10 +253,12 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return Map.of(CompositeIndexConstants.SEGMENT_DOCS_COUNT, String.valueOf(numSegmentDocs));
     }
 
-    protected List<String> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
-        List<String> dimensionNames = new ArrayList<>();
+    protected LinkedHashMap<String, DocValuesType> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
+        LinkedHashMap<String, DocValuesType> dimensionNames = new LinkedHashMap<>();
         for (Dimension dimension : dimensionsOrder) {
-            dimensionNames.addAll(dimension.getSubDimensionNames());
+            for (String dimensionName : dimension.getSubDimensionNames()) {
+                dimensionNames.put(dimensionName, dimension.getDocValuesType());
+            }
         }
         return dimensionNames;
     }
@@ -320,7 +327,12 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return NumericUtils.doubleToSortableLong(value);
     }
 
-    protected StarTreeMetadata getStarTreeMetadata(List<String> fields, int segmentAggregatedDocCount, int maxLeafDocs, int dataLength) {
+    protected StarTreeMetadata getStarTreeMetadata(
+        LinkedHashMap<String, DocValuesType> fields,
+        int segmentAggregatedDocCount,
+        int maxLeafDocs,
+        int dataLength
+    ) {
         return new StarTreeMetadata(
             "sf",
             STAR_TREE,

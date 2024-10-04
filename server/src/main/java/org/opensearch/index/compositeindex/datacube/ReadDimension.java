@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
@@ -24,9 +25,16 @@ import java.util.function.Consumer;
 public class ReadDimension implements Dimension {
     public static final String READ = "read";
     private final String field;
+    private final DocValuesType docValuesType;
 
     public ReadDimension(String field) {
         this.field = field;
+        this.docValuesType = DocValuesType.SORTED_NUMERIC;
+    }
+
+    public ReadDimension(String field, DocValuesType docValuesType) {
+        this.field = field;
+        this.docValuesType = docValuesType;
     }
 
     public String getField() {
@@ -46,6 +54,11 @@ public class ReadDimension implements Dimension {
     @Override
     public List<String> getSubDimensionNames() {
         return List.of(field);
+    }
+
+    @Override
+    public DocValuesType getDocValuesType() {
+        return docValuesType;
     }
 
     @Override
@@ -69,4 +82,5 @@ public class ReadDimension implements Dimension {
     public int hashCode() {
         return Objects.hash(field);
     }
+
 }

@@ -73,6 +73,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     private final AtomicInteger fieldNumberAcrossCompositeFields;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
+    private final Map<String, SortedSetDocValues> fieldDocIdSetIteratorMap = new HashMap<>();
 
     public Composite99DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService)
         throws IOException {
@@ -190,6 +191,11 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         // Perform this only during flush flow
         if (mergeState.get() == null && segmentHasCompositeFields) {
             createCompositeIndicesIfPossible(valuesProducer, field);
+        }
+        if (mergeState.get() != null) {
+            if (compositeFieldSet.contains(field.name)) {
+                fieldDocIdSetIteratorMap.put(field.name, valuesProducer.getSortedSet(field));
+            }
         }
     }
 
@@ -339,7 +345,14 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             }
         }
         try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-            starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, composite99DocValuesConsumer);
+            starTreesBuilder.buildDuringMerge(
+                metaOut,
+                dataOut,
+                starTreeSubsPerField,
+                composite99DocValuesConsumer,
+                mergeState,
+                fieldDocIdSetIteratorMap
+            );
         }
     }
 
