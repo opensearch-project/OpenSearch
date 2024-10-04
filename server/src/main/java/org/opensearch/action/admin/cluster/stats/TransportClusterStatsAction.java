@@ -266,7 +266,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     }
 
     /**
-     * A metric is required when: all cluster stats are required (OR) if the metric was requested
+     * A metric is required when: all cluster stats are required (OR) if the metric is requested
      * @param metric
      * @param clusterStatsRequest
      * @return

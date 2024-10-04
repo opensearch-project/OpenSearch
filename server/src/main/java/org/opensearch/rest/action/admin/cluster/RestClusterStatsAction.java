@@ -33,6 +33,8 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
@@ -79,7 +81,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     static {
         Map<String, Consumer<ClusterStatsRequest>> metricRequestConsumerMap = new HashMap<>();
-        for (ClusterStatsRequest.Metric metric : ClusterStatsRequest.Metric.values()) {
+        for (Metric metric : Metric.values()) {
             metricRequestConsumerMap.put(metric.metricName(), request -> request.addMetric(metric));
         }
         METRIC_REQUEST_CONSUMER_MAP = Collections.unmodifiableMap(metricRequestConsumerMap);
@@ -87,7 +89,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     static {
         Map<String, Consumer<ClusterStatsRequest>> metricMap = new HashMap<>();
-        for (ClusterStatsRequest.IndexMetric indexMetric : ClusterStatsRequest.IndexMetric.values()) {
+        for (IndexMetric indexMetric : IndexMetric.values()) {
             metricMap.put(indexMetric.metricName(), request -> request.addIndexMetric(indexMetric));
         }
         INDEX_METRIC_TO_REQUEST_CONSUMER_MAP = Collections.unmodifiableMap(metricMap);
@@ -106,6 +108,8 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     public static ClusterStatsRequest fromRequest(final RestRequest request) {
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
+        String indicesMetricsDefaultValue = metrics.contains(Metric.INDICES.metricName()) || metrics.contains("_all") ? "_all" : null;
+        Set<String> indexMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", indicesMetricsDefaultValue));
         String[] nodeIds = request.paramAsStringArray("nodeId", null);
 
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(nodeIds);
@@ -113,82 +117,25 @@ public class RestClusterStatsAction extends BaseRestHandler {
         clusterStatsRequest.useAggregatedNodeLevelResponses(true);
 
         if (!metrics.isEmpty()) {
-            if (metrics.size() > 1 && metrics.contains("_all")) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "request [%s] contains _all and individual metrics [%s]",
-                        request.path(),
-                        request.param("metric")
-                    )
-                );
-            }
-
-            final Set<String> metricsRequested = new HashSet<>();
-            if (metrics.contains("_all")) {
-                metricsRequested.addAll(METRIC_REQUEST_CONSUMER_MAP.keySet());
-            } else {
-                metricsRequested.addAll(metrics);
-            }
-
-            Set<String> indexMetrics = Strings.tokenizeByCommaToSet(
-                request.param("index_metric", metricsRequested.contains(ClusterStatsRequest.Metric.INDICES.metricName()) ? "_all" : null)
-            );
-
-            if (indexMetrics.size() > 1 && indexMetrics.contains("_all")) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "request [%s] contains _all and individual index metrics [%s]",
-                        request.path(),
-                        request.param("index_metric")
-                    )
-                );
-            }
-
-            final Set<String> invalidMetrics = new TreeSet<>();
-            for (String metric : metricsRequested) {
-                Consumer<ClusterStatsRequest> clusterStatsRequestConsumer = METRIC_REQUEST_CONSUMER_MAP.get(metric);
-                if (clusterStatsRequestConsumer != null) {
-                    clusterStatsRequestConsumer.accept(clusterStatsRequest);
-                } else {
-                    invalidMetrics.add(metric);
-                }
-            }
+            paramValidations(metrics, indexMetrics, request);
+            final Set<String> metricsRequested = metrics.contains("_all")
+                ? new HashSet<>(METRIC_REQUEST_CONSUMER_MAP.keySet())
+                : new HashSet<>(metrics);
+            Set<String> invalidMetrics = validateAndSetRequestedMetrics(metricsRequested, METRIC_REQUEST_CONSUMER_MAP, clusterStatsRequest);
             if (!invalidMetrics.isEmpty()) {
                 throw new IllegalArgumentException(
                     unrecognizedStrings(request, invalidMetrics, METRIC_REQUEST_CONSUMER_MAP.keySet(), "metric")
                 );
             }
-
-            if (!metricsRequested.contains(ClusterStatsRequest.Metric.INDICES.metricName()) && !indexMetrics.isEmpty()) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "request [%s] contains index metrics [%s] but indices stats not requested",
-                        request.path(),
-                        request.param("index_metric")
-                    )
+            if (metricsRequested.contains(Metric.INDICES.metricName())) {
+                final Set<String> indexMetricsRequested = indexMetrics.contains("_all")
+                    ? INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet()
+                    : new HashSet<>(indexMetrics);
+                Set<String> invalidIndexMetrics = validateAndSetRequestedMetrics(
+                    indexMetricsRequested,
+                    INDEX_METRIC_TO_REQUEST_CONSUMER_MAP,
+                    clusterStatsRequest
                 );
-            }
-
-            if (metricsRequested.contains(ClusterStatsRequest.Metric.INDICES.metricName())) {
-                final Set<String> indexMetricsRequested = new HashSet<>();
-                if (indexMetrics.contains("_all")) {
-                    indexMetricsRequested.addAll(INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet());
-                } else {
-                    indexMetricsRequested.addAll(indexMetrics);
-                }
-                final Set<String> invalidIndexMetrics = new TreeSet<>();
-                for (String indexMetric : indexMetricsRequested) {
-                    Consumer<ClusterStatsRequest> clusterStatsRequestConsumer = INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.get(indexMetric);
-                    if (clusterStatsRequestConsumer != null) {
-                        clusterStatsRequestConsumer.accept(clusterStatsRequest);
-                    } else {
-                        invalidIndexMetrics.add(indexMetric);
-                    }
-                }
-
                 if (!invalidIndexMetrics.isEmpty()) {
                     throw new IllegalArgumentException(
                         unrecognizedStrings(request, invalidIndexMetrics, INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet(), "index metric")
@@ -197,7 +144,60 @@ public class RestClusterStatsAction extends BaseRestHandler {
             }
             clusterStatsRequest.computeAllMetrics(false);
         }
+
         return clusterStatsRequest;
+    }
+
+    private static void paramValidations(Set<String> metrics, Set<String> indexMetrics, RestRequest request) {
+        if (metrics.size() > 1 && metrics.contains("_all")) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "request [%s] contains _all and individual metrics [%s]",
+                    request.path(),
+                    request.param("metric")
+                )
+            );
+        }
+
+        if (indexMetrics.size() > 1 && indexMetrics.contains("_all")) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "request [%s] contains _all and individual index metrics [%s]",
+                    request.path(),
+                    request.param("index_metric")
+                )
+            );
+        }
+
+        if (!metrics.contains(Metric.INDICES.metricName()) && !metrics.contains("_all") && !indexMetrics.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "request [%s] contains index metrics [%s] but indices stats not requested",
+                    request.path(),
+                    request.param("index_metric")
+                )
+            );
+        }
+    }
+
+    private static Set<String> validateAndSetRequestedMetrics(
+        Set<String> metrics,
+        Map<String, Consumer<ClusterStatsRequest>> metricConsumerMap,
+        ClusterStatsRequest clusterStatsRequest
+    ) {
+        final Set<String> invalidMetrics = new TreeSet<>();
+        for (String metric : metrics) {
+            Consumer<ClusterStatsRequest> clusterStatsRequestConsumer = metricConsumerMap.get(metric);
+            if (clusterStatsRequestConsumer != null) {
+                clusterStatsRequestConsumer.accept(clusterStatsRequest);
+            } else {
+                invalidMetrics.add(metric);
+            }
+        }
+        return invalidMetrics;
     }
 
     @Override

@@ -321,7 +321,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertEquals(msg, OsStats.calculatePercentage(free, total), response.nodesStats.getOs().getMem().getFreePercent());
     }
 
-    public void testValuesSmokeScreenWithMetricFilter() throws IOException, ExecutionException, InterruptedException {
+    public void testValuesSmokeScreenWithNodeStatsAndIndicesStatsMetricsFilter() throws IOException, ExecutionException,
+        InterruptedException {
         internalCluster().startNodes(randomIntBetween(1, 3));
         index("test1", "type", "1", "f", "f");
 
@@ -401,6 +402,40 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testFieldTypes() {
+        internalCluster().startNode();
+        ensureGreen();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        client().admin()
+            .indices()
+            .prepareCreate("test2")
+            .setMapping(
+                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"},"
+                    + "\"eggplant\":{\"type\":\"integer\"}}}}}"
+            )
+            .get();
+        response = client().admin().cluster().prepareClusterStats().useAggregatedNodeLevelResponses(randomBoolean()).get();
+        assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
+        Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (IndexFeatureStats stat : stats) {
+            if (stat.getName().equals("integer")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            } else if (stat.getName().equals("keyword")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(3));
+            } else if (stat.getName().equals("object")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            }
+        }
+    }
+
+    public void testFieldTypesWithMappingsFilter() {
         internalCluster().startNode();
         ensureGreen();
         ClusterStatsResponse response = client().admin()
@@ -558,67 +593,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertEquals(expectedNodesRoles, Set.of(getNodeRoles(client, 0), getNodeRoles(client, 1)));
     }
 
-    public void testClusterStatsApplyMetricFilterDisabled() throws IOException {
-        internalCluster().startNode();
-        ensureGreen();
-
-        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
-
-        ClusterStatsRequestBuilder clusterStatsRequestBuilder = client().admin()
-            .cluster()
-            .prepareClusterStats()
-            .useAggregatedNodeLevelResponses(randomBoolean());
-        assertTrue(clusterStatsRequestBuilder.request().computeAllMetrics());
-
-        ClusterStatsResponse response = clusterStatsRequestBuilder.get();
-        assertNotNull(response.getNodesStats());
-        assertNotNull(response.getIndicesStats());
-
-        ClusterStatsResponse statsResponseWithMetricFilterDisabled = client().admin()
-            .cluster()
-            .prepareClusterStats()
-            .useAggregatedNodeLevelResponses(randomBoolean())
-            .computeAllMetrics(true)
-            .requestMetrics(Set.of(Metric.FS, Metric.JVM, Metric.PLUGINS, Metric.OS))
-            .get();
-
-        assertNotNull(statsResponseWithMetricFilterDisabled.getNodesStats());
-        assertEquals(
-            response.getNodesStats().getCounts().getTotal(),
-            statsResponseWithMetricFilterDisabled.getNodesStats().getCounts().getTotal()
-        );
-        assertEquals(
-            response.getNodesStats().getCounts().getRoles(),
-            statsResponseWithMetricFilterDisabled.getNodesStats().getCounts().getRoles()
-        );
-        assertEquals(response.getNodesStats().getVersions(), statsResponseWithMetricFilterDisabled.getNodesStats().getVersions());
-        assertEquals(response.getNodesStats().getPlugins(), statsResponseWithMetricFilterDisabled.getNodesStats().getPlugins());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getNodesStats().getOs());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getNodesStats().getJvm());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getNodesStats().getProcess());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getNodesStats().getFs());
-
-        assertNotNull(statsResponseWithMetricFilterDisabled.getIndicesStats());
-        assertEquals(response.getIndicesStats().getFieldData(), statsResponseWithMetricFilterDisabled.getIndicesStats().getFieldData());
-        assertEquals(response.getIndicesStats().getAnalysis(), statsResponseWithMetricFilterDisabled.getIndicesStats().getAnalysis());
-        assertEquals(response.getIndicesStats().getMappings(), statsResponseWithMetricFilterDisabled.getIndicesStats().getMappings());
-        assertEquals(response.getIndicesStats().getIndexCount(), statsResponseWithMetricFilterDisabled.getIndicesStats().getIndexCount());
-        assertEquals(
-            response.getIndicesStats().getShards().getTotal(),
-            statsResponseWithMetricFilterDisabled.getIndicesStats().getShards().getTotal()
-        );
-        assertEquals(
-            response.getIndicesStats().getShards().getPrimaries(),
-            statsResponseWithMetricFilterDisabled.getIndicesStats().getShards().getPrimaries()
-        );
-        assertNotNull(statsResponseWithMetricFilterDisabled.getIndicesStats().getSegments());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getIndicesStats().getDocs());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getIndicesStats().getQueryCache());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getIndicesStats().getCompletion());
-        assertNotNull(statsResponseWithMetricFilterDisabled.getIndicesStats().getStore());
-    }
-
-    public void testClusterStatsWithMetricsFilter() {
+    public void testClusterStatsWithNodeMetricsFilter() {
         internalCluster().startNode();
         ensureGreen();
 
@@ -645,6 +620,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertNotNull(statsResponseWithAllNodeStatsMetrics);
         assertNotNull(statsResponseWithAllNodeStatsMetrics.getNodesStats());
         assertNull(statsResponseWithAllNodeStatsMetrics.getIndicesStats());
+        validateNodeStatsOutput(ClusterStatsNodes.NODE_STATS_METRICS, statsResponseWithAllNodeStatsMetrics);
         assertEquals(
             response.getNodesStats().getCounts().getTotal(),
             statsResponseWithAllNodeStatsMetrics.getNodesStats().getCounts().getTotal()
@@ -655,35 +631,92 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         );
         assertEquals(response.getNodesStats().getVersions(), statsResponseWithAllNodeStatsMetrics.getNodesStats().getVersions());
         assertEquals(response.getNodesStats().getPlugins(), statsResponseWithAllNodeStatsMetrics.getNodesStats().getPlugins());
-        assertNotNull(statsResponseWithAllNodeStatsMetrics.getNodesStats().getOs());
-        assertNotNull(statsResponseWithAllNodeStatsMetrics.getNodesStats().getJvm());
-        assertNotNull(statsResponseWithAllNodeStatsMetrics.getNodesStats().getProcess());
-        assertNotNull(statsResponseWithAllNodeStatsMetrics.getNodesStats().getFs());
+    }
+
+    public void testClusterStatsWithIndicesOnlyMetricsFilter() {
+        internalCluster().startNode();
+        ensureGreen();
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+
+        ClusterStatsRequestBuilder clusterStatsRequestBuilder = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean());
+        assertTrue(clusterStatsRequestBuilder.request().computeAllMetrics());
+
+        ClusterStatsResponse response = clusterStatsRequestBuilder.get();
+        assertNotNull(response);
+        assertNotNull(response.getNodesStats());
+        assertNotNull(response.getIndicesStats());
 
         ClusterStatsResponse statsResponseWithIndicesRequestMetrics = client().admin()
             .cluster()
             .prepareClusterStats()
             .useAggregatedNodeLevelResponses(randomBoolean())
-            .requestMetrics(Set.of(Metric.PLUGINS, Metric.INDICES))
+            .requestMetrics(Set.of(Metric.INDICES))
+            .indexMetrics(Set.of(IndexMetric.values()))
             .computeAllMetrics(false)
             .get();
         assertNotNull(statsResponseWithIndicesRequestMetrics);
-        assertNotNull(statsResponseWithIndicesRequestMetrics.getNodesStats());
-        assertEquals(response.getNodesStats().getPlugins(), statsResponseWithAllNodeStatsMetrics.getNodesStats().getPlugins());
-        assertNull(statsResponseWithIndicesRequestMetrics.getNodesStats().getOs());
-        assertNull(statsResponseWithIndicesRequestMetrics.getNodesStats().getFs());
-        assertNull(statsResponseWithIndicesRequestMetrics.getNodesStats().getProcess());
-        assertNull(statsResponseWithIndicesRequestMetrics.getNodesStats().getJvm());
+        assertNull(statsResponseWithIndicesRequestMetrics.getNodesStats());
         assertNotNull(statsResponseWithIndicesRequestMetrics.getIndicesStats());
-        assertEquals(response.getIndicesStats().getIndexCount(), statsResponseWithIndicesRequestMetrics.getIndicesStats().getIndexCount());
+        validateIndicesStatsOutput(Set.of(IndexMetric.values()), statsResponseWithIndicesRequestMetrics);
     }
 
-    public void testClusterStatsWithIndexMetricFilter() {
+    public void testClusterStatsWithSelectiveNodeMetricAndIndexMetricsFilter() {
         internalCluster().startNode();
         ensureGreen();
 
         client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
-        IndexRequest indexRequest = new IndexRequest("test1").id("doc_id").source("{\"test_type\" : \"metrics_filter\"}");
+        IndexRequest indexRequest = new IndexRequest("test1").id("doc_id").source(Map.of("test_type", "metrics_filter"));
+        client().index(indexRequest);
+
+        ClusterStatsRequestBuilder clusterStatsRequestBuilder = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean());
+        assertTrue(clusterStatsRequestBuilder.request().computeAllMetrics());
+
+        ClusterStatsResponse response = clusterStatsRequestBuilder.get();
+        assertNotNull(response);
+        assertNotNull(response.getNodesStats());
+        assertNotNull(response.getIndicesStats());
+
+        ClusterStatsResponse statsResponseWithAllIndicesMetrics = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.OS, Metric.FS, Metric.INDICES))
+            .indexMetrics(Set.of(IndexMetric.FIELDDATA, IndexMetric.SHARDS, IndexMetric.SEGMENTS, IndexMetric.DOCS, IndexMetric.STORE))
+            .computeAllMetrics(false)
+            .get();
+        assertNotNull(statsResponseWithAllIndicesMetrics);
+        assertNotNull(statsResponseWithAllIndicesMetrics.getNodesStats());
+        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats());
+        validateNodeStatsOutput(Set.of(Metric.FS, Metric.OS), statsResponseWithAllIndicesMetrics);
+        validateIndicesStatsOutput(
+            Set.of(IndexMetric.FIELDDATA, IndexMetric.SHARDS, IndexMetric.SEGMENTS, IndexMetric.DOCS, IndexMetric.STORE),
+            statsResponseWithAllIndicesMetrics
+        );
+        assertEquals(response.getIndicesStats().getFieldData(), statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData());
+        assertEquals(response.getIndicesStats().getIndexCount(), statsResponseWithAllIndicesMetrics.getIndicesStats().getIndexCount());
+        assertEquals(
+            response.getIndicesStats().getShards().getTotal(),
+            statsResponseWithAllIndicesMetrics.getIndicesStats().getShards().getTotal()
+        );
+        assertEquals(
+            response.getIndicesStats().getShards().getPrimaries(),
+            statsResponseWithAllIndicesMetrics.getIndicesStats().getShards().getPrimaries()
+        );
+    }
+
+    public void testClusterStatsWithMappingsAndAnalysisStatsIndexMetricsFilter() {
+        internalCluster().startNode();
+        ensureGreen();
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        IndexRequest indexRequest = new IndexRequest("test1").id("doc_id").source(Map.of("test_type", "metrics_filter"));
         client().index(indexRequest);
 
         ClusterStatsRequestBuilder clusterStatsRequestBuilder = client().admin()
@@ -708,38 +741,10 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertNotNull(statsResponseWithSpecificIndicesMetrics);
         assertNull(statsResponseWithSpecificIndicesMetrics.getNodesStats());
         assertNotNull(statsResponseWithSpecificIndicesMetrics.getIndicesStats());
+        validateIndicesStatsOutput(Set.of(IndexMetric.MAPPINGS, IndexMetric.ANALYSIS), statsResponseWithSpecificIndicesMetrics);
         assertEquals(response.getIndicesStats().getIndexCount(), statsResponseWithSpecificIndicesMetrics.getIndicesStats().getIndexCount());
         assertEquals(response.getIndicesStats().getMappings(), statsResponseWithSpecificIndicesMetrics.getIndicesStats().getMappings());
         assertEquals(response.getIndicesStats().getAnalysis(), statsResponseWithSpecificIndicesMetrics.getIndicesStats().getAnalysis());
-
-        ClusterStatsResponse statsResponseWithAllIndicesMetrics = client().admin()
-            .cluster()
-            .prepareClusterStats()
-            .useAggregatedNodeLevelResponses(randomBoolean())
-            .requestMetrics(Set.of(Metric.INDICES))
-            .indexMetrics(Set.of(IndexMetric.values()))
-            .computeAllMetrics(false)
-            .get();
-        assertNotNull(statsResponseWithAllIndicesMetrics);
-        assertNull(statsResponseWithAllIndicesMetrics.getNodesStats());
-        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats());
-        assertEquals(response.getIndicesStats().getFieldData(), statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData());
-        assertEquals(response.getIndicesStats().getAnalysis(), statsResponseWithAllIndicesMetrics.getIndicesStats().getAnalysis());
-        assertEquals(response.getIndicesStats().getMappings(), statsResponseWithAllIndicesMetrics.getIndicesStats().getMappings());
-        assertEquals(response.getIndicesStats().getIndexCount(), statsResponseWithAllIndicesMetrics.getIndicesStats().getIndexCount());
-        assertEquals(
-            response.getIndicesStats().getShards().getTotal(),
-            statsResponseWithAllIndicesMetrics.getIndicesStats().getShards().getTotal()
-        );
-        assertEquals(
-            response.getIndicesStats().getShards().getPrimaries(),
-            statsResponseWithAllIndicesMetrics.getIndicesStats().getShards().getPrimaries()
-        );
-        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments());
-        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs());
-        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getQueryCache());
-        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getCompletion());
-        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getStore());
     }
 
     public void testClusterStatsWithIndexMetricWithDocsFilter() throws IOException {
@@ -756,16 +761,88 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .useAggregatedNodeLevelResponses(randomBoolean())
             .requestMetrics(Set.of(Metric.INDICES))
             .indexMetrics(Set.of(IndexMetric.DOCS))
-            .computeAllMetrics(true)
+            .computeAllMetrics(false)
             .get();
         assertNotNull(statsResponseWithAllIndicesMetrics);
         assertNull(statsResponseWithAllIndicesMetrics.getNodesStats());
         assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats());
-        assertNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getShards());
-        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs());
+        validateIndicesStatsOutput(Set.of(IndexMetric.DOCS), statsResponseWithAllIndicesMetrics);
         assertEquals(2, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getCount());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getDeleted());
         assertTrue(statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getAverageSizeInBytes() > 0);
+    }
+
+    private void validateNodeStatsOutput(Set<ClusterStatsRequest.Metric> expectedMetrics, ClusterStatsResponse clusterStatsResponse) {
+        // Ingest, network types, discovery types and packaging types stats are not included here as they don't have a get method exposed.
+        Set<Metric> NodeMetrics = Set.of(Metric.OS, Metric.JVM, Metric.FS, Metric.PROCESS, Metric.PLUGINS);
+        for (Metric metric : NodeMetrics) {
+            Object object = null;
+            switch (metric) {
+                case OS:
+                    object = clusterStatsResponse.getNodesStats().getOs();
+                    break;
+                case JVM:
+                    object = clusterStatsResponse.getNodesStats().getJvm();
+                    break;
+                case FS:
+                    object = clusterStatsResponse.getNodesStats().getFs();
+                    break;
+                case PROCESS:
+                    object = clusterStatsResponse.getNodesStats().getProcess();
+                    break;
+                case PLUGINS:
+                    object = clusterStatsResponse.getNodesStats().getPlugins();
+                    break;
+            }
+            if (expectedMetrics.contains(metric)) {
+                assertNotNull(object);
+            } else {
+                assertNull(object);
+            }
+        }
+    }
+
+    private void validateIndicesStatsOutput(
+        Set<ClusterStatsRequest.IndexMetric> expectedMetrics,
+        ClusterStatsResponse clusterStatsResponse
+    ) {
+        for (IndexMetric indexMetric : IndexMetric.values()) {
+            Object object = null;
+            switch (indexMetric) {
+                case SHARDS:
+                    object = clusterStatsResponse.getIndicesStats().getShards();
+                    break;
+                case DOCS:
+                    object = clusterStatsResponse.getIndicesStats().getDocs();
+                    break;
+                case STORE:
+                    object = clusterStatsResponse.getIndicesStats().getStore();
+                    break;
+                case FIELDDATA:
+                    object = clusterStatsResponse.getIndicesStats().getFieldData();
+                    break;
+                case QUERY_CACHE:
+                    object = clusterStatsResponse.getIndicesStats().getQueryCache();
+                    break;
+                case COMPLETION:
+                    object = clusterStatsResponse.getIndicesStats().getCompletion();
+                    break;
+                case SEGMENTS:
+                    object = clusterStatsResponse.getIndicesStats().getSegments();
+                    break;
+                case ANALYSIS:
+                    object = clusterStatsResponse.getIndicesStats().getAnalysis();
+                    break;
+                case MAPPINGS:
+                    object = clusterStatsResponse.getIndicesStats().getMappings();
+                    break;
+            }
+            if (expectedMetrics.contains(indexMetric)) {
+                assertNotNull(object);
+            } else {
+                assertNull(object);
+            }
+        }
     }
 
     private Map<String, Integer> getExpectedCounts(
