@@ -108,6 +108,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     public static ClusterStatsRequest fromRequest(final RestRequest request) {
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
+        // Value for param index_metric defaults to _all when indices metric or all metrics are requested.
         String indicesMetricsDefaultValue = metrics.contains(Metric.INDICES.metricName()) || metrics.contains("_all") ? "_all" : null;
         Set<String> indexMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", indicesMetricsDefaultValue));
         String[] nodeIds = request.paramAsStringArray("nodeId", null);
@@ -115,34 +116,32 @@ public class RestClusterStatsAction extends BaseRestHandler {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(nodeIds);
         clusterStatsRequest.timeout(request.param("timeout"));
         clusterStatsRequest.useAggregatedNodeLevelResponses(true);
+        clusterStatsRequest.computeAllMetrics(false);
 
-        if (!metrics.isEmpty()) {
-            paramValidations(metrics, indexMetrics, request);
-            final Set<String> metricsRequested = metrics.contains("_all")
-                ? new HashSet<>(METRIC_REQUEST_CONSUMER_MAP.keySet())
-                : new HashSet<>(metrics);
-            Set<String> invalidMetrics = validateAndSetRequestedMetrics(metricsRequested, METRIC_REQUEST_CONSUMER_MAP, clusterStatsRequest);
-            if (!invalidMetrics.isEmpty()) {
+        paramValidations(metrics, indexMetrics, request);
+        final Set<String> metricsRequested = metrics.contains("_all")
+            ? new HashSet<>(METRIC_REQUEST_CONSUMER_MAP.keySet())
+            : new HashSet<>(metrics);
+        Set<String> invalidMetrics = validateAndSetRequestedMetrics(metricsRequested, METRIC_REQUEST_CONSUMER_MAP, clusterStatsRequest);
+        if (!invalidMetrics.isEmpty()) {
+            throw new IllegalArgumentException(
+                unrecognizedStrings(request, invalidMetrics, METRIC_REQUEST_CONSUMER_MAP.keySet(), "metric")
+            );
+        }
+        if (metricsRequested.contains(Metric.INDICES.metricName())) {
+            final Set<String> indexMetricsRequested = indexMetrics.contains("_all")
+                ? INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet()
+                : new HashSet<>(indexMetrics);
+            Set<String> invalidIndexMetrics = validateAndSetRequestedMetrics(
+                indexMetricsRequested,
+                INDEX_METRIC_TO_REQUEST_CONSUMER_MAP,
+                clusterStatsRequest
+            );
+            if (!invalidIndexMetrics.isEmpty()) {
                 throw new IllegalArgumentException(
-                    unrecognizedStrings(request, invalidMetrics, METRIC_REQUEST_CONSUMER_MAP.keySet(), "metric")
+                    unrecognizedStrings(request, invalidIndexMetrics, INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet(), "index metric")
                 );
             }
-            if (metricsRequested.contains(Metric.INDICES.metricName())) {
-                final Set<String> indexMetricsRequested = indexMetrics.contains("_all")
-                    ? INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet()
-                    : new HashSet<>(indexMetrics);
-                Set<String> invalidIndexMetrics = validateAndSetRequestedMetrics(
-                    indexMetricsRequested,
-                    INDEX_METRIC_TO_REQUEST_CONSUMER_MAP,
-                    clusterStatsRequest
-                );
-                if (!invalidIndexMetrics.isEmpty()) {
-                    throw new IllegalArgumentException(
-                        unrecognizedStrings(request, invalidIndexMetrics, INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet(), "index metric")
-                    );
-                }
-            }
-            clusterStatsRequest.computeAllMetrics(false);
         }
 
         return clusterStatsRequest;
