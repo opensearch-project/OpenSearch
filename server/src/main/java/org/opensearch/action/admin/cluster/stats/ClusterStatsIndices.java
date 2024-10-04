@@ -82,42 +82,44 @@ public class ClusterStatsIndices implements ToXContentFragment {
         AnalysisStats analysisStats
     ) {
         Map<String, ShardStats> countsPerIndex = new HashMap<>();
+        this.docs = indicesMetrics.contains(IndexMetric.DOCS) ? new DocsStats() : null;
         Consumer<DocsStats> docsStatsConsumer = (docs) -> {
-            if (indicesMetrics.contains(IndexMetric.DOCS)) {
-                if (this.docs == null) this.docs = new DocsStats();
+            if (this.docs != null) {
                 this.docs.add(docs);
             }
         };
+
+        this.store = indicesMetrics.contains(IndexMetric.STORE) ? new StoreStats() : null;
         Consumer<StoreStats> storeStatsConsumer = (store) -> {
-            if (indicesMetrics.contains(IndexMetric.STORE)) {
-                if (this.store == null) this.store = new StoreStats();
+            if (this.store != null) {
                 this.store.add(store);
             }
         };
+
+        this.fieldData = indicesMetrics.contains(IndexMetric.FIELDDATA) ? new FieldDataStats() : null;
         Consumer<FieldDataStats> fieldDataConsumer = (fieldDataStats) -> {
-            if (indicesMetrics.contains(IndexMetric.FIELDDATA)) {
-                if (this.fieldData == null) this.fieldData = new FieldDataStats();
+            if (this.fieldData != null) {
                 this.fieldData.add(fieldDataStats);
             }
         };
 
+        this.queryCache = indicesMetrics.contains(IndexMetric.QUERY_CACHE) ? new QueryCacheStats() : null;
         Consumer<QueryCacheStats> queryCacheStatsConsumer = (queryCacheStats) -> {
-            if (indicesMetrics.contains(IndexMetric.QUERY_CACHE)) {
-                if (this.queryCache == null) this.queryCache = new QueryCacheStats();
+            if (this.queryCache != null) {
                 this.queryCache.add(queryCacheStats);
             }
         };
 
+        this.completion = indicesMetrics.contains(IndexMetric.COMPLETION) ? new CompletionStats() : null;
         Consumer<CompletionStats> completionStatsConsumer = (completionStats) -> {
-            if (indicesMetrics.contains(IndexMetric.COMPLETION)) {
-                if (this.completion == null) this.completion = new CompletionStats();
+            if (this.completion != null) {
                 this.completion.add(completionStats);
             }
         };
 
+        this.segments = indicesMetrics.contains(IndexMetric.SEGMENTS) ? new SegmentsStats() : null;
         Consumer<SegmentsStats> segmentsStatsConsumer = (segmentsStats) -> {
-            if (indicesMetrics.contains(IndexMetric.SEGMENTS)) {
-                if (this.segments == null) this.segments = new SegmentsStats();
+            if (this.segments != null) {
                 this.segments.add(segmentsStats);
             }
         };
