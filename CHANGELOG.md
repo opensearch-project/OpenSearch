@@ -7,6 +7,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 ### Dependencies
 - Bump `icu4j` from 62.1 to 62.2 ([#15469](https://github.com/opensearch-project/OpenSearch/pull/15469))
+- Bump `netty` from 4.1.112.Final to 4.1.114.Final ([#16182](https://github.com/opensearch-project/OpenSearch/pull/16182))
 
 ### Changed
 ### Deprecated
