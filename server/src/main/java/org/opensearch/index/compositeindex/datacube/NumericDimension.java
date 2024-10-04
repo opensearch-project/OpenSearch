@@ -47,7 +47,6 @@ public class NumericDimension implements Dimension {
 
     @Override
     public List<String> getSubDimensionNames() {
-        // TODO : revisit this post file format changes
         return List.of(field);
     }
 

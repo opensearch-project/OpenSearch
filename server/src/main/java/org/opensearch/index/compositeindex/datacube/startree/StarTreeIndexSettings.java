@@ -10,8 +10,8 @@ package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;

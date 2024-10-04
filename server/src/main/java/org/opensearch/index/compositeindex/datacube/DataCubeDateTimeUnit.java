@@ -6,7 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.datacube.startree.utils.date;
+package org.opensearch.index.compositeindex.datacube;
+
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 
 import java.util.HashMap;
 import java.util.Map;

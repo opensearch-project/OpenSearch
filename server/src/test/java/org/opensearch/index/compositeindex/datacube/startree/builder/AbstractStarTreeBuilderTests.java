@@ -40,6 +40,7 @@ import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
 import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
 import org.opensearch.index.compositeindex.CompositeIndexConstants;
+import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -55,7 +56,6 @@ import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNo
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;

@@ -47,7 +47,6 @@ public class StarTreeField implements ToXContent {
         metricNames = new ArrayList<>();
         for (Metric metric : metrics) {
             for (MetricStat metricStat : metric.getMetrics()) {
-                // TODO : revisit this post file formats
                 metricNames.add(metric.getField() + "_" + metricStat.name());
             }
         }

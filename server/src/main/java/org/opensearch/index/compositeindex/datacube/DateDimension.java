@@ -12,7 +12,6 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -94,7 +93,6 @@ public class DateDimension implements Dimension {
     public List<String> getSubDimensionNames() {
         List<String> fields = new ArrayList<>(calendarIntervals.size());
         for (DateTimeUnitRounding interval : sortedCalendarIntervals) {
-            // TODO : revisit this post file format changes
             fields.add(field + "_" + interval.shortName());
         }
         return fields;

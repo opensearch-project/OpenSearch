@@ -9,8 +9,8 @@
 package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.opensearch.common.Rounding;
+import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
-import org.opensearch.index.compositeindex.datacube.startree.utils.date.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.mapper.DateFieldMapper;
