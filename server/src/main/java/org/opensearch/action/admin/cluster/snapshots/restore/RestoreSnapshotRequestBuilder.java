@@ -266,4 +266,12 @@ public class RestoreSnapshotRequestBuilder extends ClusterManagerNodeOperationRe
         request.setSourceRemoteStoreRepository(repositoryName);
         return this;
     }
+
+    /**
+     * Sets the source remote translog repository name
+     */
+    public RestoreSnapshotRequestBuilder setSourceRemoteTranslogRepository(String repositoryName) {
+        request.setSourceRemoteTranslogRepository(repositoryName);
+        return this;
+    }
 }
