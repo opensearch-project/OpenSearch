@@ -12,7 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -106,16 +108,19 @@ public class StarTreesBuilder implements Closeable {
     /**
      * Merges star tree fields from multiple segments
      *
-     * @param metaOut                      an IndexInput for star-tree metadata
-     * @param dataOut                      an IndexInput for star-tree data
-     * @param starTreeValuesSubsPerField   starTreeValuesSubs per field
-     * @param starTreeDocValuesConsumer    a consumer to write star-tree doc values
+     * @param metaOut                    an IndexInput for star-tree metadata
+     * @param dataOut                    an IndexInput for star-tree data
+     * @param starTreeValuesSubsPerField starTreeValuesSubs per field
+     * @param starTreeDocValuesConsumer  a consumer to write star-tree doc values
+     * @param fieldDocIdSetIteratorMap
      */
     public void buildDuringMerge(
         IndexOutput metaOut,
         IndexOutput dataOut,
         final Map<String, List<StarTreeValues>> starTreeValuesSubsPerField,
-        DocValuesConsumer starTreeDocValuesConsumer
+        DocValuesConsumer starTreeDocValuesConsumer,
+        MergeState mergeState,
+        Map<String, SortedSetDocValues> fieldDocIdSetIteratorMap
     ) throws IOException {
         logger.debug("Starting merge of {} star-trees with star-tree fields", starTreeValuesSubsPerField.size());
         long startTime = System.currentTimeMillis();
@@ -127,10 +132,16 @@ public class StarTreesBuilder implements Closeable {
             }
             StarTreeField starTreeField = starTreeValuesList.get(0).getStarTreeField();
             try (StarTreeBuilder builder = getStarTreeBuilder(metaOut, dataOut, starTreeField, state, mapperService)) {
-                builder.build(starTreeValuesList, fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
+                builder.build(
+                    starTreeValuesList,
+                    fieldNumberAcrossStarTrees,
+                    starTreeDocValuesConsumer,
+                    mergeState,
+                    fieldDocIdSetIteratorMap
+                );
             }
         }
-        logger.debug(
+        logger.info(
             "Took {} ms to merge {} star-trees with star-tree fields",
             System.currentTimeMillis() - startTime,
             starTreeValuesSubsPerField.size()

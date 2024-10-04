@@ -9,11 +9,14 @@
 package org.opensearch.index.compositeindex.datacube.startree.index;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.codec.composite.composite99.Composite99DocValuesReader;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -25,6 +28,7 @@ import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.St
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 
 import java.io.IOException;
@@ -128,8 +132,15 @@ public class StarTreeValues implements CompositeIndexValues {
 
         // build dimensions
         List<Dimension> readDimensions = new ArrayList<>();
-        for (String dimension : starTreeMetadata.getDimensionFields()) {
-            readDimensions.add(new ReadDimension(dimension));
+        for (String dimension : starTreeMetadata.getDimensionFields().keySet()) {
+            readDimensions.add(
+                new ReadDimension(
+                    dimension,
+                    readState.fieldInfos.fieldInfo(
+                        fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeMetadata.getCompositeFieldName(), dimension)
+                    ).getDocValuesType()
+                )
+            );
         }
 
         // star-tree field
@@ -151,19 +162,27 @@ public class StarTreeValues implements CompositeIndexValues {
         metricValuesIteratorMap = new LinkedHashMap<>();
 
         // get doc id set iterators for dimensions
-        for (String dimension : starTreeMetadata.getDimensionFields()) {
+        for (String dimension : starTreeMetadata.getDimensionFields().keySet()) {
             dimensionValuesIteratorMap.put(dimension, () -> {
                 try {
-                    SortedNumericDocValues dimensionSortedNumericDocValues = null;
+                    FieldInfo dimensionfieldInfo = null;
                     if (readState != null) {
-                        FieldInfo dimensionfieldInfo = readState.fieldInfos.fieldInfo(
+                        dimensionfieldInfo = readState.fieldInfos.fieldInfo(
                             fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeField.getName(), dimension)
                         );
-                        if (dimensionfieldInfo != null) {
-                            dimensionSortedNumericDocValues = compositeDocValuesProducer.getSortedNumeric(dimensionfieldInfo);
-                        }
                     }
-                    return new SortedNumericStarTreeValuesIterator(getSortedNumericDocValues(dimensionSortedNumericDocValues));
+                    assert dimensionfieldInfo != null;
+                    if (dimensionfieldInfo.getDocValuesType().equals(DocValuesType.SORTED_SET)) {
+                        SortedSetDocValues dimensionSortedSetDocValues = compositeDocValuesProducer.getSortedSet(dimensionfieldInfo);
+                        return new SortedSetStarTreeValuesIterator(
+                            Composite99DocValuesReader.getSortedSetDocValues(dimensionSortedSetDocValues)
+                        );
+                    } else {
+                        SortedNumericDocValues dimensionSortedNumericDocValues = compositeDocValuesProducer.getSortedNumeric(
+                            dimensionfieldInfo
+                        );
+                        return new SortedNumericStarTreeValuesIterator(getSortedNumericDocValues(dimensionSortedNumericDocValues));
+                    }
                 } catch (IOException e) {
                     throw new RuntimeException("Error loading dimension StarTreeValuesIterator", e);
                 }

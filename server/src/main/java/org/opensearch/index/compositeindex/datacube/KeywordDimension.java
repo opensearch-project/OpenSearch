@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -15,6 +16,7 @@ import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Composite index keyword dimension class
@@ -41,14 +43,18 @@ public class KeywordDimension implements Dimension {
     }
 
     @Override
-    public int setDimensionValues(Long value, Long[] dims, int index) {
-        dims[index++] = value;
-        return index;
+    public void setDimensionValues(Long value, Consumer<Long> dimSetter) {
+        dimSetter.accept(value);
     }
 
     @Override
-    public List<String> getDimensionFieldsNames() {
+    public List<String> getSubDimensionNames() {
         return List.of(field);
+    }
+
+    @Override
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_SET;
     }
 
     @Override

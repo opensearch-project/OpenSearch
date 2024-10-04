@@ -8,8 +8,12 @@
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
+import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.LongValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -20,8 +24,10 @@ import org.opensearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -99,9 +105,12 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     public void build(
         List<StarTreeValues> starTreeValuesSubs,
         AtomicInteger fieldNumberAcrossStarTrees,
-        DocValuesConsumer starTreeDocValuesConsumer
+        DocValuesConsumer starTreeDocValuesConsumer,
+        MergeState mergeState,
+        Map<String, SortedSetDocValues> sortedSetDocValuesMap
     ) throws IOException {
-        build(mergeStarTrees(starTreeValuesSubs), fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
+        setSortedSetDocValuesMap(sortedSetDocValuesMap);
+        build(mergeStarTrees(starTreeValuesSubs, mergeState), fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
     }
 
     /**
@@ -112,8 +121,8 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @return iterator of star tree documents
      */
     @Override
-    Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs) throws IOException {
-        return sortAndAggregateStarTreeDocuments(getSegmentsStarTreeDocuments(starTreeValuesSubs), true);
+    Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
+        return sortAndAggregateStarTreeDocuments(getSegmentsStarTreeDocuments(starTreeValuesSubs, mergeState), true);
     }
 
     /**
@@ -123,19 +132,26 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param starTreeValuesSubs StarTreeValues from multiple segments
      * @return array of star tree documents
      */
-    StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs) throws IOException {
+    StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
+        OrdinalMap ordinalMap = getOrdinalMap(starTreeValuesSubs, mergeState);
+        int seg = 0;
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
-
+            Map<Long, Long> segToGlobalOrdMap = new HashMap<>();
             SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
             AtomicInteger numSegmentDocs = new AtomicInteger();
             setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
             int currentDocId = 0;
+            LongValues longValues = null;
+            if (ordinalMap != null) {
+                longValues = ordinalMap.getGlobalOrds(seg);
+            }
             while (currentDocId < numSegmentDocs.get()) {
-                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders));
+                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, longValues));
                 currentDocId++;
             }
+            seg++;
         }
         StarTreeDocument[] starTreeDocumentsArr = new StarTreeDocument[starTreeDocuments.size()];
         return starTreeDocuments.toArray(starTreeDocumentsArr);

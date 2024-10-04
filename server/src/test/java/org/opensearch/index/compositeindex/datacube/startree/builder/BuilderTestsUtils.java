@@ -386,7 +386,7 @@ public class BuilderTestsUtils {
 
     public static SegmentReadState getReadState(
         int numDocs,
-        List<String> dimensionFields,
+        Map<String, DocValuesType> dimensionFields,
         List<Metric> metrics,
         StarTreeField compositeField,
         SegmentWriteState writeState,
@@ -401,7 +401,7 @@ public class BuilderTestsUtils {
         FieldInfo[] fields = new FieldInfo[dimensionFields.size() + numMetrics];
 
         int i = 0;
-        for (String dimension : dimensionFields) {
+        for (String dimension : dimensionFields.keySet()) {
             fields[i] = new FieldInfo(
                 fullyQualifiedFieldNameForStarTreeDimensionsDocValues(compositeField.getName(), dimension),
                 i,

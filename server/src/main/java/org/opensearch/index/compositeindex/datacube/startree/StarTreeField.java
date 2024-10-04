@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -33,6 +34,7 @@ public class StarTreeField implements ToXContent {
     private final List<Metric> metrics;
     private final StarTreeFieldConfiguration starTreeConfig;
     private final List<String> dimensionNames;
+    private final List<DocValuesType> dimensionDocValueTypes;
     private final List<String> metricNames;
 
     public StarTreeField(String name, List<Dimension> dimensions, List<Metric> metrics, StarTreeFieldConfiguration starTreeConfig) {
@@ -41,8 +43,12 @@ public class StarTreeField implements ToXContent {
         this.metrics = metrics;
         this.starTreeConfig = starTreeConfig;
         dimensionNames = new ArrayList<>();
+        dimensionDocValueTypes = new ArrayList<>();
         for (Dimension dimension : dimensions) {
-            dimensionNames.addAll(dimension.getSubDimensionNames());
+            for (String dimensionName : dimension.getSubDimensionNames()) {
+                dimensionNames.add(dimensionName);
+                dimensionDocValueTypes.add(dimension.getDocValuesType());
+            }
         }
         metricNames = new ArrayList<>();
         for (Metric metric : metrics) {
@@ -62,6 +68,10 @@ public class StarTreeField implements ToXContent {
 
     public List<String> getDimensionNames() {
         return dimensionNames;
+    }
+
+    public List<DocValuesType> getDimensionDocValueTypes() {
+        return dimensionDocValueTypes;
     }
 
     public List<String> getMetricNames() {

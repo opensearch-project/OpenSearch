@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -591,13 +592,19 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
         metaOut.close();
         dataOut.close();
 
+        LinkedHashMap<String, DocValuesType> fieldsMap = new LinkedHashMap<>();
+        fieldsMap.put("field1", DocValuesType.SORTED_NUMERIC);
+        fieldsMap.put("field3", DocValuesType.SORTED_NUMERIC);
+        fieldsMap.put("field5", DocValuesType.SORTED_NUMERIC);
+        fieldsMap.put("field8", DocValuesType.SORTED_NUMERIC);
+
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
             "test",
             STAR_TREE,
             mock(IndexInput.class),
             VERSION_CURRENT,
             builder.numStarTreeNodes,
-            List.of("field1", "field3", "field5", "field8"),
+            fieldsMap,
             List.of(
                 new Metric("field2", List.of(MetricStat.SUM)),
                 new Metric("field4", List.of(MetricStat.SUM)),
@@ -614,13 +621,18 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
             330
         );
 
+        LinkedHashMap<String, DocValuesType> fieldsMap1 = new LinkedHashMap<>();
+        fieldsMap1.put("fieldC", DocValuesType.SORTED_NUMERIC);
+        fieldsMap1.put("fieldB", DocValuesType.SORTED_NUMERIC);
+        fieldsMap1.put("fieldL", DocValuesType.SORTED_NUMERIC);
+
         StarTreeMetadata starTreeMetadata2 = new StarTreeMetadata(
             "test",
             STAR_TREE,
             mock(IndexInput.class),
             VERSION_CURRENT,
             builder.numStarTreeNodes,
-            List.of("fieldC", "fieldB", "fieldL"),
+            fieldsMap1,
             List.of(new Metric("fieldI", List.of(MetricStat.SUM))),
             7,
             27,
@@ -631,9 +643,8 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
             1287
         );
 
-        List<String> totalDimensionFields = new ArrayList<>();
-        totalDimensionFields.addAll(starTreeMetadata.getDimensionFields());
-        totalDimensionFields.addAll(starTreeMetadata2.getDimensionFields());
+        LinkedHashMap<String, DocValuesType> totalDimensionFields = new LinkedHashMap<>(starTreeMetadata.getDimensionFields());
+        totalDimensionFields.putAll(starTreeMetadata2.getDimensionFields());
 
         List<Metric> metrics = new ArrayList<>();
         metrics.addAll(starTreeMetadata.getMetrics());
