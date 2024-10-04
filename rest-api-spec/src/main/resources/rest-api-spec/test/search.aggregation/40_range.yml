@@ -535,8 +535,8 @@ setup:
 ---
 "Double range profiler shows filter rewrite info":
   - skip:
-      version: " - 2.99.99"
-      reason: debug info for filter rewrite added in 3.0.0 (to be backported to 2.15.0)
+      version: " - 2.15.99"
+      reason: debug info for filter rewrite was added in 2.16.0
 
   - do:
       indices.create:

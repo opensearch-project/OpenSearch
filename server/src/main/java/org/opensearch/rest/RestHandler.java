@@ -185,6 +185,11 @@ public interface RestHandler {
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
         }
+
+        @Override
+        public boolean supportsStreaming() {
+            return delegate.supportsStreaming();
+        }
     }
 
     /**
