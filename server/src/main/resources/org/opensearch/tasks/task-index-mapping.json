@@ -34,6 +34,9 @@
           "start_time_in_millis": {
             "type": "long"
           },
+          "cancellation_time_millis": {
+            "type": "long"
+          },
           "type": {
             "type": "keyword"
           },
