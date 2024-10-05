@@ -80,21 +80,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     TransportClusterStatsAction.ClusterStatsNodeRequest,
     ClusterStatsNodeResponse> {
 
-    private static final Map<ClusterStatsRequest.IndexMetric, CommonStatsFlags.Flag> INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP = Map.of(
-        ClusterStatsRequest.IndexMetric.DOCS,
-        CommonStatsFlags.Flag.Docs,
-        ClusterStatsRequest.IndexMetric.STORE,
-        CommonStatsFlags.Flag.Store,
-        ClusterStatsRequest.IndexMetric.FIELDDATA,
-        CommonStatsFlags.Flag.FieldData,
-        ClusterStatsRequest.IndexMetric.QUERY_CACHE,
-        CommonStatsFlags.Flag.QueryCache,
-        ClusterStatsRequest.IndexMetric.COMPLETION,
-        CommonStatsFlags.Flag.Completion,
-        ClusterStatsRequest.IndexMetric.SEGMENTS,
-        CommonStatsFlags.Flag.Segments
-    );
-
     private static final Map<CommonStatsFlags.Flag, ClusterStatsRequest.IndexMetric> SHARDS_STATS_FLAG_MAP_TO_INDEX_METRIC = Map.of(
         CommonStatsFlags.Flag.Docs,
         ClusterStatsRequest.IndexMetric.DOCS,
@@ -278,7 +263,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private static CommonStatsFlags getCommonStatsFlags(ClusterStatsNodeRequest nodeRequest) {
         Set<CommonStatsFlags.Flag> requestedCommonStatsFlags = new HashSet<>();
         if (nodeRequest.request.computeAllMetrics()) {
-            requestedCommonStatsFlags.addAll(INDEX_METRIC_TO_SHARDS_STATS_FLAG_MAP.values());
+            requestedCommonStatsFlags.addAll(SHARDS_STATS_FLAG_MAP_TO_INDEX_METRIC.keySet());
         } else {
             for (Map.Entry<CommonStatsFlags.Flag, ClusterStatsRequest.IndexMetric> entry : SHARDS_STATS_FLAG_MAP_TO_INDEX_METRIC
                 .entrySet()) {
