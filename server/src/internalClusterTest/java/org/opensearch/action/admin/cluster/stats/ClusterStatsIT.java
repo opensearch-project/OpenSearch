@@ -47,6 +47,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -770,6 +771,41 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertEquals(2, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getCount());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getDeleted());
         assertTrue(statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getAverageSizeInBytes() > 0);
+    }
+
+    public void testClusterStatsWithSelectiveMetricsFilterAndNoIndex() {
+        internalCluster().startNode();
+        ensureGreen();
+        ClusterStatsResponse statsResponseWithAllIndicesMetrics = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.OS, Metric.FS, Metric.INDICES))
+            .indexMetrics(Set.of(IndexMetric.FIELDDATA, IndexMetric.SHARDS, IndexMetric.SEGMENTS, IndexMetric.DOCS, IndexMetric.STORE))
+            .computeAllMetrics(false)
+            .get();
+        assertNotNull(statsResponseWithAllIndicesMetrics);
+        assertNotNull(statsResponseWithAllIndicesMetrics.getNodesStats());
+        assertNotNull(statsResponseWithAllIndicesMetrics.getIndicesStats());
+        validateNodeStatsOutput(Set.of(Metric.FS, Metric.OS), statsResponseWithAllIndicesMetrics);
+        validateIndicesStatsOutput(
+            Set.of(IndexMetric.FIELDDATA, IndexMetric.SHARDS, IndexMetric.SEGMENTS, IndexMetric.DOCS, IndexMetric.STORE),
+            statsResponseWithAllIndicesMetrics
+        );
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getShards().getIndices());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getShards().getTotal());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getShards().getPrimaries());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getCount());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getDeleted());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getDocs().getTotalSizeInBytes());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getStore().getSizeInBytes());
+        assertEquals(new ByteSizeValue(0), statsResponseWithAllIndicesMetrics.getIndicesStats().getStore().getReservedSize());
+        assertEquals(new ByteSizeValue(0), statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData().getMemorySize());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData().getEvictions());
+        assertNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData().getFields());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getCount());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getIndexWriterMemoryInBytes());
+        assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getVersionMapMemoryInBytes());
     }
 
     private void validateNodeStatsOutput(Set<ClusterStatsRequest.Metric> expectedMetrics, ClusterStatsResponse clusterStatsResponse) {

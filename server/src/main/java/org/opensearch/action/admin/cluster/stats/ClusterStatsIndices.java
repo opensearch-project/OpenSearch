@@ -49,7 +49,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * Cluster Stats per index
@@ -83,46 +82,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
     ) {
         Map<String, ShardStats> countsPerIndex = new HashMap<>();
         this.docs = indicesMetrics.contains(IndexMetric.DOCS) ? new DocsStats() : null;
-        Consumer<DocsStats> docsStatsConsumer = (docs) -> {
-            if (this.docs != null) {
-                this.docs.add(docs);
-            }
-        };
-
         this.store = indicesMetrics.contains(IndexMetric.STORE) ? new StoreStats() : null;
-        Consumer<StoreStats> storeStatsConsumer = (store) -> {
-            if (this.store != null) {
-                this.store.add(store);
-            }
-        };
-
         this.fieldData = indicesMetrics.contains(IndexMetric.FIELDDATA) ? new FieldDataStats() : null;
-        Consumer<FieldDataStats> fieldDataConsumer = (fieldDataStats) -> {
-            if (this.fieldData != null) {
-                this.fieldData.add(fieldDataStats);
-            }
-        };
-
         this.queryCache = indicesMetrics.contains(IndexMetric.QUERY_CACHE) ? new QueryCacheStats() : null;
-        Consumer<QueryCacheStats> queryCacheStatsConsumer = (queryCacheStats) -> {
-            if (this.queryCache != null) {
-                this.queryCache.add(queryCacheStats);
-            }
-        };
-
         this.completion = indicesMetrics.contains(IndexMetric.COMPLETION) ? new CompletionStats() : null;
-        Consumer<CompletionStats> completionStatsConsumer = (completionStats) -> {
-            if (this.completion != null) {
-                this.completion.add(completionStats);
-            }
-        };
-
         this.segments = indicesMetrics.contains(IndexMetric.SEGMENTS) ? new SegmentsStats() : null;
-        Consumer<SegmentsStats> segmentsStatsConsumer = (segmentsStats) -> {
-            if (this.segments != null) {
-                this.segments.add(segmentsStats);
-            }
-        };
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             // Aggregated response from the node
@@ -139,12 +103,24 @@ public class ClusterStatsIndices implements ToXContentFragment {
                     }
                 }
 
-                docsStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.docs);
-                storeStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.store);
-                fieldDataConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.fieldData);
-                queryCacheStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.queryCache);
-                completionStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.completion);
-                segmentsStatsConsumer.accept(r.getAggregatedNodeLevelStats().commonStats.segments);
+                if (docs != null) {
+                    docs.add(r.getAggregatedNodeLevelStats().commonStats.docs);
+                }
+                if (store != null) {
+                    store.add(r.getAggregatedNodeLevelStats().commonStats.store);
+                }
+                if (fieldData != null) {
+                    fieldData.add(r.getAggregatedNodeLevelStats().commonStats.fieldData);
+                }
+                if (queryCache != null) {
+                    queryCache.add(r.getAggregatedNodeLevelStats().commonStats.queryCache);
+                }
+                if (completion != null) {
+                    completion.add(r.getAggregatedNodeLevelStats().commonStats.completion);
+                }
+                if (segments != null) {
+                    segments.add(r.getAggregatedNodeLevelStats().commonStats.segments);
+                }
             } else {
                 // Default response from the node
                 for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -160,13 +136,25 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
                     if (shardStats.getShardRouting().primary()) {
                         indexShardStats.primaries++;
-                        docsStatsConsumer.accept(shardCommonStats.docs);
+                        if (docs != null) {
+                            docs.add(shardCommonStats.docs);
+                        }
                     }
-                    storeStatsConsumer.accept(shardCommonStats.store);
-                    fieldDataConsumer.accept(shardCommonStats.fieldData);
-                    queryCacheStatsConsumer.accept(shardCommonStats.queryCache);
-                    completionStatsConsumer.accept(shardCommonStats.completion);
-                    segmentsStatsConsumer.accept(shardCommonStats.segments);
+                    if (store != null) {
+                        store.add(shardCommonStats.store);
+                    }
+                    if (fieldData != null) {
+                        fieldData.add(shardCommonStats.fieldData);
+                    }
+                    if (queryCache != null) {
+                        queryCache.add(shardCommonStats.queryCache);
+                    }
+                    if (completion != null) {
+                        completion.add(shardCommonStats.completion);
+                    }
+                    if (segments != null) {
+                        segments.add(shardCommonStats.segments);
+                    }
                 }
             }
         }

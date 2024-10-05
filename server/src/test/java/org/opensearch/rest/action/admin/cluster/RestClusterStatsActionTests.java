@@ -150,4 +150,22 @@ public class RestClusterStatsActionTests extends OpenSearchTestCase {
         );
     }
 
+    public void testIndexMetricsRequestWithoutMetricIndices() {
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("metric", "os");
+        final String indexMetric = randomSubsetOf(1, RestClusterStatsAction.INDEX_METRIC_TO_REQUEST_CONSUMER_MAP.keySet()).get(0);
+        params.put("index_metric", indexMetric);
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_cluster/stats").withParams(params).build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(request, mock(NodeClient.class))
+        );
+        assertThat(
+            e,
+            hasToString(
+                containsString("request [/_cluster/stats] contains index metrics [" + indexMetric + "] but indices stats not requested")
+            )
+        );
+    }
+
 }
