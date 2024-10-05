@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -310,6 +311,107 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         // Delete is async. Give time for it
         // assertBusy(() -> assertEquals(translogPostSnapshot2.size() - translogPostSnapshot1.size(),
         // translogPostDeletionOfSnapshot1.size()), 60, TimeUnit.SECONDS);
+    }
+
+    public void testRemoteStoreCleanupMultiplePrimaryOnSnapshotDeletion() throws Exception {
+        disableRepoConsistencyCheck("Remote store repository is being used in the test");
+        final Path remoteStoreRepoPath = randomRepoPath();
+        Settings settings = remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath);
+        settings = Settings.builder()
+            .put(settings)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.FIXED.toString())
+            .build();
+        String clusterManagerName = internalCluster().startClusterManagerOnlyNode(settings);
+        internalCluster().startDataOnlyNodes(3, settings);
+        final Client clusterManagerClient = internalCluster().clusterManagerClient();
+        ensureStableCluster(4);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            clusterManagerName
+        );
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        final Path snapshotRepoPath = randomRepoPath();
+        createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowV2(snapshotRepoPath));
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = Settings.builder()
+            .put(getRemoteStoreBackedIndexSettings())
+            .put(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.getKey(), 2)
+            .build();
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        ensureGreen(remoteStoreEnabledIndexName);
+
+        // Create 2 snapshots for primary term 1
+        keepPinnedTimestampSchedulerUpdated();
+        indexRandomDocs(remoteStoreEnabledIndexName, 5);
+        createSnapshot(snapshotRepoName, "snap1");
+        keepPinnedTimestampSchedulerUpdated();
+        indexRandomDocs(remoteStoreEnabledIndexName, 5);
+        createSnapshot(snapshotRepoName, "snap2");
+
+        // Restart current primary to change the primary term
+        internalCluster().restartNode(primaryNodeName(remoteStoreEnabledIndexName));
+        ensureGreen(remoteStoreEnabledIndexName);
+
+        // Create 2 snapshots for primary term 2
+        keepPinnedTimestampSchedulerUpdated();
+        indexRandomDocs(remoteStoreEnabledIndexName, 5);
+        createSnapshot(snapshotRepoName, "snap3");
+        keepPinnedTimestampSchedulerUpdated();
+        indexRandomDocs(remoteStoreEnabledIndexName, 5);
+        createSnapshot(snapshotRepoName, "snap4");
+
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(remoteStoreEnabledIndexName)
+            .get()
+            .getSetting(remoteStoreEnabledIndexName, IndexMetadata.SETTING_INDEX_UUID);
+
+        Path indexPath = Path.of(String.valueOf(remoteStoreRepoPath), indexUUID);
+        Path shardPath = Path.of(String.valueOf(indexPath), "0");
+        Path translogPath = Path.of(String.valueOf(shardPath), "translog", "data", "1");
+
+        // Deleting snap1 will still keep files in primary term 1 due to snap2
+        deleteSnapshot(clusterManagerClient, snapshotRepoName, "snap1");
+        assertTrue(RemoteStoreBaseIntegTestCase.getFileCount(translogPath) > 0);
+
+        // Deleting snap2 will not remove primary term 1 as we need to trigger trimUnreferencedReaders once
+        deleteSnapshot(clusterManagerClient, snapshotRepoName, "snap2");
+        assertTrue(RemoteStoreBaseIntegTestCase.getFileCount(translogPath) > 0);
+
+        // Index a doc to trigger trimUnreferencedReaders
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        keepPinnedTimestampSchedulerUpdated();
+        indexRandomDocs(remoteStoreEnabledIndexName, 5);
+
+        assertBusy(() -> assertFalse(Files.exists(translogPath)), 30, TimeUnit.SECONDS);
+    }
+
+    private void createSnapshot(String repoName, String snapshotName) {
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName));
+    }
+
+    private void deleteSnapshot(Client clusterManagerClient, String repoName, String snapshotName) {
+        AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
+            .cluster()
+            .prepareDeleteSnapshot(repoName, snapshotName)
+            .get();
+        assertAcked(deleteSnapshotResponse);
     }
 
     private Settings snapshotV2Settings(Path remoteStoreRepoPath) {

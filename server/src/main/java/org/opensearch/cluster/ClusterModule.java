@@ -142,6 +142,7 @@ public class ClusterModule extends AbstractModule {
     // pkg private for tests
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     public ClusterModule(
         Settings settings,
@@ -166,6 +167,7 @@ public class ClusterModule extends AbstractModule {
             settings,
             clusterManagerMetrics
         );
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -456,6 +458,7 @@ public class ClusterModule extends AbstractModule {
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
+        bind(ClusterManagerMetrics.class).toInstance(clusterManagerMetrics);
     }
 
     public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator, ShardsBatchGatewayAllocator shardsBatchGatewayAllocator) {

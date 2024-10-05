@@ -111,7 +111,7 @@ import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetada
 import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
 
 /**
  * A Service which provides APIs to upload and download cluster metadata from remote store.
@@ -256,7 +256,7 @@ public class RemoteClusterStateService implements Closeable {
         List<IndexMetadataUploadListener> indexMetadataUploadListeners,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
+        assert isRemoteClusterStateConfigured(settings) : "Remote cluster state is not configured";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
@@ -332,7 +332,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousClusterUUID,
             clusterStateDiffManifest,
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             false,
             codecVersion
         );
@@ -539,7 +541,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             clusterStateDiffManifest,
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             false,
             previousManifest.getCodecVersion()
         );
@@ -1010,7 +1014,9 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
-            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE) ? new ClusterStateChecksum(clusterState) : null,
+            !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
+                ? new ClusterStateChecksum(clusterState, threadpool)
+                : null,
             true,
             previousManifest.getCodecVersion()
         );
@@ -1055,7 +1061,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public void start() {
-        assert isRemoteStoreClusterStateEnabled(settings) == true : "Remote cluster state is not enabled";
+        assert isRemoteClusterStateConfigured(settings) == true : "Remote cluster state is not enabled";
         final String remoteStoreRepo = settings.get(
             Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
@@ -1631,7 +1637,7 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean isFullStateDownload
     ) {
-        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
+        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState, threadpool);
         List<String> failedValidation = newClusterStateChecksum.getMismatchEntities(manifest.getClusterStateChecksum());
         if (failedValidation.isEmpty()) {
             return;

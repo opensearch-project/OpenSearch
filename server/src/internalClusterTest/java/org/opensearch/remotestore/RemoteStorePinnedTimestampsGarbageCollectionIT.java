@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTR
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreBaseIntegTestCase {
@@ -286,6 +288,79 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         });
+    }
+
+    public void testLiveIndexWithPinnedTimestampsMultiplePrimaryTerms() throws Exception {
+        prepareCluster(1, 2, Settings.EMPTY);
+        Settings indexSettings = Settings.builder()
+            .put(remoteStoreIndexSettings(1, 1))
+            .put(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.getKey(), 3)
+            .build();
+        createIndex(INDEX_NAME, indexSettings);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+
+        int numDocs = randomIntBetween(5, 10);
+        for (int i = 0; i < numDocs; i++) {
+            keepPinnedTimestampSchedulerUpdated();
+            indexSingleDoc(INDEX_NAME, true);
+            if (i == 2) {
+                RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.timeValueMinutes(1));
+                remoteStorePinnedTimestampService.pinTimestamp(System.currentTimeMillis(), "xyz", noOpActionListener);
+                RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+            }
+        }
+
+        ingestDocs();
+
+        internalCluster().restartNode(primaryNodeName(INDEX_NAME));
+        ensureGreen(INDEX_NAME);
+
+        ingestDocs();
+
+        String translogPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.get(getNodeSettings());
+        String shardDataPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            TRANSLOG,
+            DATA,
+            translogPathFixedPrefix
+        ).buildAsString();
+        Path translogDataPath = Path.of(translogRepoPath + "/" + shardDataPath + "/1");
+
+        assertBusy(() -> {
+            List<Path> dataFiles = Files.list(translogDataPath).collect(Collectors.toList());
+            assertFalse(dataFiles.isEmpty());
+        });
+    }
+
+    private void ingestDocs() {
+        int numDocs = randomIntBetween(15, 20);
+        for (int i = 0; i < numDocs; i++) {
+            indexSingleDoc(INDEX_NAME, false);
+        }
+
+        assertNoFailures(client().admin().indices().prepareRefresh(INDEX_NAME).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
+        flushAndRefresh(INDEX_NAME);
+
+        int numDocsPostFailover = randomIntBetween(15, 20);
+        for (int i = 0; i < numDocsPostFailover; i++) {
+            indexSingleDoc(INDEX_NAME, false);
+        }
+
+        flushAndRefresh(INDEX_NAME);
+        assertNoFailures(client().admin().indices().prepareRefresh(INDEX_NAME).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
     }
 
     public void testIndexDeletionNoPinnedTimestamps() throws Exception {

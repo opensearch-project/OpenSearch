@@ -477,6 +477,7 @@ public class RemoteStoreUtils {
         for (Long pinnedTimestamp : pinnedTimestampSet) {
             String cachedFile = metadataFilePinnedTimestampMap.get(pinnedTimestamp);
             if (cachedFile != null) {
+                assert metadataFiles.contains(cachedFile) : "Metadata files should contain [" + cachedFile + "]";
                 implicitLockedFiles.add(cachedFile);
             } else {
                 newPinnedTimestamps.add(pinnedTimestamp);

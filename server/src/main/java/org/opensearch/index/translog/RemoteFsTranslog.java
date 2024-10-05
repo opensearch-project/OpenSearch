@@ -556,8 +556,16 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public void trimUnreferencedReaders() throws IOException {
+        trimUnreferencedReaders(false);
+    }
+
+    protected void trimUnreferencedReaders(boolean onlyTrimLocal) throws IOException {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
+
+        if (onlyTrimLocal) {
+            return;
+        }
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.

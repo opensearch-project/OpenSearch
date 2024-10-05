@@ -35,6 +35,8 @@ package org.opensearch.rest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestHandler.ReplacedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
@@ -46,15 +48,22 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class BaseRestHandlerTests extends OpenSearchTestCase {
     private NodeClient mockClient;
@@ -286,6 +295,38 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             assertEquals(routes.get(i).getMethod(), replacedRoutes.get(i).getMethod());
             assertEquals("/deprecatedPrefix" + routes.get(i).getPath(), replacedRoutes.get(i).getDeprecatedPath());
         }
+    }
+
+    public void testRestHandlerWrapper() throws Exception {
+        RestHandler rh = new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+            }
+        };
+        RestHandler handlerSpy = spy(rh);
+        RestHandler.Wrapper rhWrapper = new RestHandler.Wrapper(handlerSpy);
+
+        List<java.lang.reflect.Method> overridableMethods = Arrays.stream(RestHandler.class.getMethods())
+            .filter(
+                m -> !(Modifier.isPrivate(m.getModifiers()) || Modifier.isStatic(m.getModifiers()) || Modifier.isFinal(m.getModifiers()))
+            )
+            .collect(Collectors.toList());
+
+        for (java.lang.reflect.Method method : overridableMethods) {
+            int argCount = method.getParameterCount();
+            Object[] args = new Object[argCount];
+            for (int i = 0; i < argCount; i++) {
+                args[i] = any();
+            }
+            if (args.length > 0) {
+                method.invoke(rhWrapper, args);
+            } else {
+                method.invoke(rhWrapper);
+            }
+            method.invoke(verify(handlerSpy, times(1)), args);
+        }
+        verifyNoMoreInteractions(handlerSpy);
     }
 
 }

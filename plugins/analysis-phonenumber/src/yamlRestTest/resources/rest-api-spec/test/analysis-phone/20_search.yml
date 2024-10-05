@@ -1,0 +1,56 @@
+# Integration tests for phone analysis components
+#
+---
+"Index phone number content":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              analysis:
+                analyzer:
+                  phone-ch:
+                    type: "phone"
+                    "phone-region": "CH"
+                  phone-search-ch:
+                    type: "phone-search"
+                    "phone-region": "CH"
+          mappings:
+            properties:
+              phone:
+                type: text
+                analyzer: "phone"
+                search_analyzer: "phone-search"
+              phone-ch:
+                type: text
+                analyzer: "phone-ch"
+                search_analyzer: "phone-search-ch"
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "phone": "+41 58 316 10 10", "phone-ch": "058 316 10 10" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "+41583161010"
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone-ch": "+41583161010"
+  - match: { hits.total: 1 }

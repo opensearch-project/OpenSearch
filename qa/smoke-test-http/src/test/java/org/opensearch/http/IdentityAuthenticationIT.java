@@ -38,7 +38,6 @@ public class IdentityAuthenticationIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(FeatureFlags.IDENTITY, "true")
             .build();
     }
 
