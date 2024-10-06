@@ -501,9 +501,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(342L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(271L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(287L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -513,7 +513,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(342L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -521,9 +521,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 builder.endObject();
                 assertEquals(
                     "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                        + 326
+                        + 342
                         + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                        + 271
+                        + 287
                         + ",\"earliest_last_modified_age\":"
                         + stats.getEarliestLastModifiedAge()
                         + ",\"remote_store\":{\"upload\":{"
@@ -540,7 +540,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(342L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
@@ -1754,8 +1754,10 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
             }
             writer.sync();
-            final Checkpoint writerCheckpoint = writer.getCheckpoint();
             TranslogReader reader = writer.closeIntoReader();
+            // We need to find checkpoint only after the reader has been closed.
+            // This is so that the added footer is taken care of.
+            final Checkpoint writerCheckpoint = writer.getCheckpoint();
             try {
                 if (randomBoolean()) {
                     reader.close();

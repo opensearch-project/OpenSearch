@@ -1663,8 +1663,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
             }
             writer.sync();
-            final Checkpoint writerCheckpoint = writer.getCheckpoint();
             TranslogReader reader = writer.closeIntoReader();
+            // We need to find checkpoint only after the reader has been closed.
+            // This is so that the added footer is taken care of.
+            final Checkpoint writerCheckpoint = writer.getCheckpoint();
             try {
                 if (randomBoolean()) {
                     reader.close();
@@ -1690,8 +1692,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         Path location = createTempDir();
         TranslogTransferMetadata translogTransferMetadata = new TranslogTransferMetadata(primaryTerm, generation, generation, 1);
         Map<String, String> generationToPrimaryTermMapper = new HashMap<>();
+        Map<String, String> generationToChecksumMapper = new HashMap<>();
         generationToPrimaryTermMapper.put(String.valueOf(generation), String.valueOf(primaryTerm));
         translogTransferMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+        translogTransferMetadata.setGenerationToChecksumMapper(generationToChecksumMapper);
 
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);

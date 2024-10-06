@@ -134,6 +134,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     public static final String CHECKPOINT_SUFFIX = ".ckp";
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
 
+    // STRICT_TLOG_OR_CKP_PATTERN is the strict pattern for Translog or Checkpoint file.
+    static final Pattern STRICT_TLOG_OR_CKP_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.ckp|\\.tlog)$");
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
     public static final int DEFAULT_HEADER_SIZE_IN_BYTES = TranslogHeader.headerSizeInBytes(UUIDs.randomBase64UUID());
 
@@ -320,14 +322,18 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         return parseIdFromFileName(fileName);
     }
 
-    public static long parseIdFromFileName(String fileName) {
-        final Matcher matcher = PARSE_STRICT_ID_PATTERN.matcher(fileName);
+    public static long parseIdFromFileName(String translogFile) {
+        return parseIdFromFileName(translogFile, PARSE_STRICT_ID_PATTERN);
+    }
+
+    public static long parseIdFromFileName(String fileName, Pattern pattern) {
+        final Matcher matcher = pattern.matcher(fileName);
         if (matcher.matches()) {
             try {
                 return Long.parseLong(matcher.group(1));
             } catch (NumberFormatException e) {
                 throw new IllegalStateException(
-                    "number formatting issue in a file that passed PARSE_STRICT_ID_PATTERN: " + fileName + "]",
+                    "number formatting issue in a file that passed " + pattern.pattern() + ": " + fileName + "]",
                     e
                 );
             }
