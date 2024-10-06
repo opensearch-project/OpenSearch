@@ -36,6 +36,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -58,6 +60,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -266,7 +269,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            InetAddress[] addresses = new InetAddress[values.size()];
+            List<InetAddress>addresses = new ArrayList<>();
+            BooleanQuery.Builder ranges = new BooleanQuery.Builder();
             int i = 0;
             for (Object value : values) {
                 InetAddress address;
@@ -279,13 +283,38 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                     if (value.toString().contains("/")) {
                         // the `terms` query contains some prefix queries, so we cannot create a set query
                         // and need to fall back to a disjunction of `term` queries
-                        return super.termsQuery(values, context);
+                        Query query = termQuery(value, context);
+                        // would be great to have union on ranges over bare points
+                        ranges.add(query, BooleanClause.Occur.SHOULD);
+                        continue;
                     }
                     address = InetAddresses.forString(value.toString());
                 }
-                addresses[i++] = address;
+                addresses.add(address);
             }
-            return InetAddressPoint.newSetQuery(name(), addresses);
+            if (!addresses.isEmpty()) {
+                Supplier<Query> pointsQuery;
+                if (addresses.size() == 1) {
+                    pointsQuery = () -> termQuery(addresses.get(0), context);
+                } else {
+                    pointsQuery = () -> InetAddressPoint.newSetQuery(name(), addresses.toArray(new InetAddress[0]));
+                    if (hasDocValues()) {
+                        List<BytesRef> set = new ArrayList<>(addresses.size());
+                        for(InetAddress ia : addresses) {
+                            set.add(new BytesRef(InetAddressPoint.encode(ia)));
+                        }
+                        Query dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), set);
+                        if (!isSearchable()) {
+                            pointsQuery = () -> dvQuery;
+                        } else {
+                            Supplier<Query> wrap = pointsQuery;
+                            pointsQuery = () -> new IndexOrDocValuesQuery(wrap.get(), dvQuery);
+                        }
+                    }
+                }
+                ranges.add(pointsQuery.get(), BooleanClause.Occur.SHOULD);
+            }
+            return ranges.build();
         }
 
         @Override
