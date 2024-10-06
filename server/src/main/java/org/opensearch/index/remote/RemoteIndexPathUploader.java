@@ -51,8 +51,8 @@ import static org.opensearch.index.remote.RemoteIndexPath.COMBINED_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
 import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStorePathStrategy;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * Uploads the remote store path for all possible combinations of {@link org.opensearch.index.remote.RemoteStoreEnums.DataCategory}
@@ -235,7 +235,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     }
 
     public void start() {
-        assert isRemoteStoreClusterStateEnabled(settings) == true : "Remote cluster state is not enabled";
+        assert isRemoteClusterStateConfigured(settings) == true : "Remote cluster state is not configured";
         if (isRemoteDataAttributePresent == false) {
             // If remote store data attributes are not present than we skip this.
             return;
