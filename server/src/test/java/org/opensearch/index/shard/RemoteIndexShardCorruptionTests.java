@@ -43,7 +43,7 @@ public class RemoteIndexShardCorruptionTests extends IndexShardTestCase {
             }
             boolean corrupted = randomBoolean();
             long checksum = 0;
-            try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
+            try (IndexInput indexInput = localDirectory.openInput(file, IOContext.READONCE)) {
                 checksum = CodecUtil.retrieveChecksum(indexInput);
             }
             if (corrupted) {

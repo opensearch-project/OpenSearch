@@ -70,6 +70,7 @@ public final class LegacyBM25Similarity extends Similarity {
      *     within the range {@code [0..1]}
      */
     public LegacyBM25Similarity(float k1, float b, boolean discountOverlaps) {
+        super(discountOverlaps);
         this.bm25Similarity = new BM25Similarity(k1, b, discountOverlaps);
     }
 
@@ -99,15 +100,6 @@ public final class LegacyBM25Similarity extends Similarity {
      */
     public final float getB() {
         return bm25Similarity.getB();
-    }
-
-    /**
-     * Returns true if overlap tokens are discounted from the document's length.
-     *
-     * @see #LegacyBM25Similarity(float, float, boolean)
-     */
-    public boolean getDiscountOverlaps() {
-        return bm25Similarity.getDiscountOverlaps();
     }
 
     @Override

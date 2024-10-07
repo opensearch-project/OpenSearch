@@ -303,7 +303,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
-    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    @Override
+    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
 
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {

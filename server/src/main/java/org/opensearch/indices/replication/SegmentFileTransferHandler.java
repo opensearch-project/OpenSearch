@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
@@ -97,20 +98,26 @@ public final class SegmentFileTransferHandler {
         return new MultiChunkTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
             final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
-            InputStreamIndexInput currentInput = null;
+            volatile InputStreamIndexInput currentInput = null;
             long offset = 0;
 
             @Override
             protected void onNewResource(StoreFileMetadata md) throws IOException {
                 offset = 0;
                 IOUtils.close(currentInput, () -> currentInput = null);
-                final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
-                currentInput = new InputStreamIndexInput(indexInput, md.length()) {
-                    @Override
-                    public void close() throws IOException {
-                        IOUtils.close(indexInput, super::close); // InputStreamIndexInput's close is a noop
-                    }
-                };
+                // Open all files other than Segments* using IOContext.READ.
+                // With Lucene9_12 a READONCE context will confine the underlying IndexInput (MemorySegmentIndexInput) to a single thread.
+                // Segments* files require IOContext.READONCE
+                // https://github.com/apache/lucene/blob/b2d3a2b37e00f19a74949097736be8fd64745f61/lucene/test-framework/src/java/org/apache/lucene/tests/store/MockDirectoryWrapper.java#L817
+                if (md.name().startsWith(IndexFileNames.SEGMENTS) == false) {
+                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READ);
+                    currentInput = new InputStreamIndexInput(indexInput, md.length()) {
+                        @Override
+                        public void close() throws IOException {
+                            IOUtils.close(indexInput, super::close); // InputStreamIndexInput's close is a noop
+                        }
+                    };
+                }
             }
 
             private byte[] acquireBuffer() {
@@ -126,7 +133,7 @@ public final class SegmentFileTransferHandler {
                 assert Transports.assertNotTransportThread("read file chunk");
                 cancellableThreads.checkForCancel();
                 final byte[] buffer = acquireBuffer();
-                final int bytesRead = currentInput.read(buffer);
+                final int bytesRead = readBytes(md, buffer);
                 if (bytesRead == -1) {
                     throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
                 }
@@ -140,6 +147,20 @@ public final class SegmentFileTransferHandler {
                 );
                 offset += bytesRead;
                 return chunk;
+            }
+
+            private int readBytes(StoreFileMetadata md, byte[] buffer) throws IOException {
+                // if we don't have a currentInput by now open once to create the chunk.
+                if (currentInput == null) {
+                    try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
+                        try (InputStreamIndexInput in = new InputStreamIndexInput(indexInput, md.length())) {
+                            in.skip(offset);
+                            return in.read(buffer);
+                        }
+                    }
+                } else {
+                    return currentInput.read(buffer);
+                }
             }
 
             @Override

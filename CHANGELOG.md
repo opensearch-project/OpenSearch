@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [S3 Repository] Change default retry mechanism of s3 clients to Standard Mode ([#15978](https://github.com/opensearch-project/OpenSearch/pull/15978))
 - Add changes to block calls in cat shards, indices and segments based on dynamic limit settings ([#15986](https://github.com/opensearch-project/OpenSearch/pull/15986))
 - New `phone` & `phone-search` analyzer + tokenizer ([#15915](https://github.com/opensearch-project/OpenSearch/pull/15915))
+- Add _list/shards API as paginated alternate to _cat/shards ([#14641](https://github.com/opensearch-project/OpenSearch/pull/14641))
 - Flat object field use IndexOrDocValuesQuery to optimize query ([#14383](https://github.com/opensearch-project/OpenSearch/issues/14383))
 
 ### Dependencies
@@ -35,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `dnsjava:dnsjava` from 3.6.1 to 3.6.2 ([#16041](https://github.com/opensearch-project/OpenSearch/pull/16041))
 - Bump `com.maxmind.geoip2:geoip2` from 4.2.0 to 4.2.1 ([#16042](https://github.com/opensearch-project/OpenSearch/pull/16042))
 - Bump `com.maxmind.db:maxmind-db` from 3.1.0 to 3.1.1 ([#16137](https://github.com/opensearch-project/OpenSearch/pull/16137))
+- Bump Apache lucene from 9.11.1 to 9.12.0 ([#15333](https://github.com/opensearch-project/OpenSearch/pull/15333))
 - Bump `com.azure:azure-core-http-netty` from 1.15.3 to 1.15.4 ([#16133](https://github.com/opensearch-project/OpenSearch/pull/16133))
 - Bump `org.jline:jline` from 3.26.3 to 3.27.0 ([#16135](https://github.com/opensearch-project/OpenSearch/pull/16135))
 - Bump `netty` from 4.1.112.Final to 4.1.114.Final ([#16182](https://github.com/opensearch-project/OpenSearch/pull/16182))
