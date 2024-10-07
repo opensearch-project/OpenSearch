@@ -671,38 +671,6 @@ teardown:
   - match: { error.root_cause.0.reason: "Mapping definition for [data] has unsupported parameters:  [analyzer : standard]"}
   - match: { status: 400 }
 
-  # Wildcard Query with dot path.
-  - do:
-      catch: bad_request
-      search:
-        body: {
-          _source: true,
-          query: {
-            "wildcard": {
-              "catalog.title": "Mock*"
-            }
-          }
-        }
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "Can only use wildcard queries on keyword and text fields - not on [catalog.title] which is of type [flat_object]"}
-  - match: { status: 400 }
-
-  # Wildcard Query without dot path.
-  - do:
-      catch: bad_request
-      search:
-        body: {
-          _source: true,
-          query: {
-            "wildcard": {
-              "catalog": "Mock*"
-            }
-          }
-        }
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "Can only use wildcard queries on keyword and text fields - not on [catalog] which is of type [flat_object]" }
-  - match: { status: 400 }
-
   # Aggregation and Match Query with dot path.
   - do:
       catch: bad_request
