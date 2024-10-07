@@ -990,7 +990,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         final String pluginId,
         final String name,
         final String url,
-        final String stagingHash,
         final boolean isSnapshot,
         final String shaExtension,
         final Function<byte[], String> shaCalculator,
@@ -1066,11 +1065,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             }
 
             @Override
-            String getStagingHash() {
-                return stagingHash;
-            }
-
-            @Override
             boolean isSnapshot() {
                 return isSnapshot;
             }
@@ -1084,19 +1078,13 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertPlugin(name, pluginDir, env.v2());
     }
 
-    public void assertInstallPluginFromUrl(
-        final String pluginId,
-        final String name,
-        final String url,
-        final String stagingHash,
-        boolean isSnapshot
-    ) throws Exception {
+    public void assertInstallPluginFromUrl(final String pluginId, final String name, final String url, boolean isSnapshot)
+        throws Exception {
         final MessageDigest digest = MessageDigest.getInstance("SHA-512");
         assertInstallPluginFromUrl(
             pluginId,
             name,
             url,
-            stagingHash,
             isSnapshot,
             ".sha512",
             checksumAndFilename(digest, url),
@@ -1111,42 +1099,17 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, false);
     }
 
     public void testOfficialPluginSnapshot() throws Exception {
         String url = String.format(
             Locale.ROOT,
-            "https://artifacts.opensearch.org/snapshots/plugins/analysis-icu/%s-abc123/analysis-icu-%s.zip",
+            "https://artifacts.opensearch.org/snapshots/plugins/analysis-icu/%s/analysis-icu-%s.zip",
             Version.CURRENT,
             Build.CURRENT.getQualifiedVersion()
         );
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
-    }
-
-    public void testInstallReleaseBuildOfPluginOnSnapshotBuild() {
-        String url = String.format(
-            Locale.ROOT,
-            "https://artifacts.opensearch.org/snapshots/plugins/analysis-icu/%s-abc123/analysis-icu-%s.zip",
-            Version.CURRENT,
-            Build.CURRENT.getQualifiedVersion()
-        );
-        // attemping to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
-        final UserException e = expectThrows(
-            UserException.class,
-            () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, true)
-        );
-        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
-        assertThat(e, hasToString(containsString("attempted to install release build of official plugin on snapshot build of OpenSearch")));
-    }
-
-    public void testOfficialPluginStaging() throws Exception {
-        String url = "https://artifacts.opensearch.org/snapshots/plugins/analysis-icu/"
-            + Version.CURRENT
-            + "-abc123/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
-            + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, true);
     }
 
     public void testOfficialPlatformPlugin() throws Exception {
@@ -1157,62 +1120,41 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             + "-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, false);
     }
 
     public void testOfficialPlatformPluginSnapshot() throws Exception {
         String url = String.format(
             Locale.ROOT,
-            "https://artifacts.opensearch.org/snapshots/plugins/analysis-icu/%s-abc123/analysis-icu-%s-%s.zip",
+            "https://artifacts.opensearch.org/snapshots/plugins/analysis-icu/%s/analysis-icu-%s-%s.zip",
             Version.CURRENT,
             Platforms.PLATFORM_NAME,
             Build.CURRENT.getQualifiedVersion()
         );
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
-    }
-
-    public void testOfficialPlatformPluginStaging() throws Exception {
-        String url = "https://artifacts.opensearch.org/snapshots/plugins/analysis-icu/"
-            + Version.CURRENT
-            + "-abc123/analysis-icu-"
-            + Platforms.PLATFORM_NAME
-            + "-"
-            + Build.CURRENT.getQualifiedVersion()
-            + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, true);
     }
 
     public void testMavenPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, false);
     }
 
     public void testMavenPlatformPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-" + Platforms.PLATFORM_NAME + "-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, false);
     }
 
     public void testMavenSha1Backcompat() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha1", checksum(digest), null, (b, p) -> null);
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, false, ".sha1", checksum(digest), null, (b, p) -> null);
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("sha512 not found, falling back to sha1"));
     }
 
     public void testMavenChecksumWithoutFilename() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
-        assertInstallPluginFromUrl(
-            "mygroup:myplugin:1.0.0",
-            "myplugin",
-            url,
-            null,
-            false,
-            ".sha512",
-            checksum(digest),
-            null,
-            (b, p) -> null
-        );
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, false, ".sha512", checksum(digest), null, (b, p) -> null);
     }
 
     public void testOfficialChecksumWithoutFilename() throws Exception {
@@ -1224,17 +1166,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl(
-                "analysis-icu",
-                "analysis-icu",
-                url,
-                null,
-                false,
-                ".sha512",
-                checksum(digest),
-                null,
-                (b, p) -> null
-            )
+            () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, false, ".sha512", checksum(digest), null, (b, p) -> null)
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertThat(e.getMessage(), startsWith("Invalid checksum file"));
@@ -1249,17 +1181,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl(
-                "analysis-icu",
-                "analysis-icu",
-                url,
-                null,
-                false,
-                ".sha1",
-                checksum(digest),
-                null,
-                (b, p) -> null
-            )
+            () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, false, ".sha1", checksum(digest), null, (b, p) -> null)
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha512", e.getMessage());
@@ -1269,17 +1191,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl(
-                "mygroup:myplugin:1.0.0",
-                "myplugin",
-                url,
-                null,
-                false,
-                ".dne",
-                bytes -> null,
-                null,
-                (b, p) -> null
-            )
+            () -> assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, false, ".dne", bytes -> null, null, (b, p) -> null)
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha1", e.getMessage());
@@ -1294,17 +1206,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl(
-                "analysis-icu",
-                "analysis-icu",
-                url,
-                null,
-                false,
-                ".sha512",
-                checksum(digest),
-                null,
-                (b, p) -> null
-            )
+            () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, false, ".sha512", checksum(digest), null, (b, p) -> null)
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
@@ -1323,7 +1225,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "analysis-icu",
                 "analysis-icu",
                 url,
-                null,
                 false,
                 ".sha512",
                 checksumAndString(digest, "  repository-s3-" + Build.CURRENT.getQualifiedVersion() + ".zip"),
@@ -1348,7 +1249,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "analysis-icu",
                 "analysis-icu",
                 url,
-                null,
                 false,
                 ".sha512",
                 checksumAndString(digest, "  analysis-icu-" + Build.CURRENT.getQualifiedVersion() + ".zip\nfoobar"),
@@ -1372,7 +1272,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "analysis-icu",
                 "analysis-icu",
                 url,
-                null,
                 false,
                 ".sha512",
                 bytes -> "foobar  analysis-icu-" + Build.CURRENT.getQualifiedVersion() + ".zip",
@@ -1392,7 +1291,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "mygroup:myplugin:1.0.0",
                 "myplugin",
                 url,
-                null,
                 false,
                 ".sha1",
                 bytes -> "foobar",
@@ -1426,17 +1324,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         final String expectedID = Long.toHexString(verifyingKey.getKeyID()).toUpperCase(Locale.ROOT);
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> assertInstallPluginFromUrl(
-                icu,
-                icu,
-                url,
-                null,
-                false,
-                ".sha512",
-                checksumAndFilename(digest, url),
-                verifyingKey,
-                signature
-            )
+            () -> assertInstallPluginFromUrl(icu, icu, url, false, ".sha512", checksumAndFilename(digest, url), verifyingKey, signature)
         );
         assertThat(e, hasToString(containsString("key id [" + actualID + "] does not match expected key id [" + expectedID + "]")));
     }
@@ -1463,17 +1351,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         };
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> assertInstallPluginFromUrl(
-                icu,
-                icu,
-                url,
-                null,
-                false,
-                ".sha512",
-                checksumAndFilename(digest, url),
-                newSecretKey(),
-                signature
-            )
+            () -> assertInstallPluginFromUrl(icu, icu, url, false, ".sha512", checksumAndFilename(digest, url), newSecretKey(), signature)
         );
         assertThat(e, hasToString(equalTo("java.lang.IllegalStateException: signature verification for [" + url + "] failed")));
     }
