@@ -65,6 +65,7 @@ import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.T
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
 import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_COUNT_VALUES;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -2049,6 +2050,66 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 )
             )
         );
+    }
+
+    public void testTieredCacheDefaultSegmentCount() {
+        int onHeapCacheSize = 500;
+        int keyValueSize = 1;
+
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                MockDiskCache.MockDiskCacheFactory.NAME
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+            )
+            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
+            .build();
+        String storagePath = getStoragePath(settings);
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = (TieredSpilloverCache<
+            String,
+            String>) new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
+                new CacheConfig.Builder<String, String>().setKeyType(String.class)
+                    .setKeyType(String.class)
+                    .setWeigher((k, v) -> keyValueSize)
+                    .setRemovalListener(removalListener)
+                    .setKeySerializer(new StringSerializer())
+                    .setValueSerializer(new StringSerializer())
+                    .setSettings(settings)
+                    .setDimensionNames(dimensionNames)
+                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
+                    // 20_000_000 ns = 20 ms to compute
+                    .setClusterSettings(clusterSettings)
+                    .setStoragePath(storagePath)
+                    .build(),
+                CacheType.INDICES_REQUEST_CACHE,
+                Map.of(
+                    OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+                    new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+                    MockDiskCache.MockDiskCacheFactory.NAME,
+                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300), false, keyValueSize)
+                )
+            );
+        assertEquals(TieredSpilloverCacheSettings.defaultSegments(), tieredSpilloverCache.getNumberOfSegments());
+        assertTrue(VALID_SEGMENT_COUNT_VALUES.contains(tieredSpilloverCache.getNumberOfSegments()));
     }
 
     private List<String> getMockDimensions() {
