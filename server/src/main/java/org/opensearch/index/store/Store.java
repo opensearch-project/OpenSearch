@@ -175,6 +175,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Specific {@link IOContext} used to verify Lucene files footer checksums.
      * See {@link MetadataSnapshot#checksumFromLuceneFile(Directory, String, Map, Logger, Version, boolean)}
      */
+    @Deprecated(forRemoval = true)
     public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE.context);
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -1209,7 +1210,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         ) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
-            try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
+            try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 final long length;
                 try {
                     length = in.length();

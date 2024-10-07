@@ -34,8 +34,8 @@ package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec.Mode;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.IndexSettings;
@@ -70,10 +70,10 @@ public class CodecService {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene99Codec());
-            codecs.put(LZ4, new Lucene99Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene99Codec(Mode.BEST_COMPRESSION));
-            codecs.put(ZLIB, new Lucene99Codec(Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene912Codec());
+            codecs.put(LZ4, new Lucene912Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene912Codec(Mode.BEST_COMPRESSION));
+            codecs.put(ZLIB, new Lucene912Codec(Mode.BEST_COMPRESSION));
         } else {
             // CompositeCodec still delegates to PerFieldMappingPostingFormatCodec
             // We can still support all the compression codecs when composite index is present
@@ -97,8 +97,8 @@ public class CodecService {
     public CodecService(@Nullable MapperService mapperService, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene99Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene99Codec(Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene912Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene912Codec(Mode.BEST_COMPRESSION));
         } else {
             IndexSettings indexSettings = mapperService.getIndexSettings();
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
