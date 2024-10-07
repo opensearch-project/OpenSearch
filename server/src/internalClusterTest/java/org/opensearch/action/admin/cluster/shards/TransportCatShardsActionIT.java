@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -51,9 +50,9 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
             @Override
             public void onResponse(CatShardsResponse catShardsResponse) {
-                ClusterStateResponse clusterStateResponse = catShardsResponse.getClusterStateResponse();
+                List<ShardRouting> shardRoutings = catShardsResponse.getResponseShards();
                 IndicesStatsResponse indicesStatsResponse = catShardsResponse.getIndicesStatsResponse();
-                for (ShardRouting shard : clusterStateResponse.getState().routingTable().allShards()) {
+                for (ShardRouting shard : shardRoutings) {
                     assertEquals("test", shard.getIndexName());
                     assertNotNull(indicesStatsResponse.asMap().get(shard));
                 }
