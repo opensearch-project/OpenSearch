@@ -1,0 +1,8 @@
+"Test that the plugin is loaded in OpenSearch":
+  - do:
+      cat.plugins:
+        local: true
+        h: component
+
+  - match:
+      $body: /^analysis-phonenumber\n$/
