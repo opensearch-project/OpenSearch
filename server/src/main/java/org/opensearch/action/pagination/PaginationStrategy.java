@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;
@@ -53,6 +53,14 @@ public interface PaginationStrategy<T> {
         Comparator<IndexMetadata> comparator
     ) {
         return clusterState.metadata().indices().values().stream().filter(filterPredicate).sorted(comparator).collect(Collectors.toList());
+    }
+
+    /**
+     *
+     * Utility method to get list of indices sorted as per {@param comparator}.
+     */
+    static List<IndexMetadata> getSortedIndexMetadata(final ClusterState clusterState, Comparator<IndexMetadata> comparator) {
+        return clusterState.metadata().indices().values().stream().sorted(comparator).collect(Collectors.toList());
     }
 
     static String encryptStringToken(String tokenString) {
