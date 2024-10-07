@@ -199,6 +199,12 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         // Creating the cache requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<Cache<ICacheKey, ByteArrayWrapper>>) () -> {
             try {
+                int segmentCount = (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                    .get(DISK_SEGMENT_KEY)
+                    .get(settings);
+                if (builder.getNumberOfSegments() > 0) {
+                    segmentCount = builder.getNumberOfSegments();
+                }
                 return this.cacheManager.createCache(
                     this.diskCacheAlias,
                     CacheConfigurationBuilder.newCacheConfigurationBuilder(
@@ -232,7 +238,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                                 (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
                                     .get(DISK_WRITE_CONCURRENCY_KEY)
                                     .get(settings),
-                                (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
+                                segmentCount
                             )
                         )
                         .withKeySerializer(new KeySerializerWrapper(keySerializer))
@@ -711,14 +717,14 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
 
             String storagePath = (String) settingList.get(DISK_STORAGE_PATH_KEY).get(settings);
             // If we read the storage path directly from the setting, we have to add the segment number at the end.
-            if (storagePath.isBlank() || storagePath == null) {
+            if (storagePath == null || storagePath.isBlank()) {
                 // In case storage path is not explicitly set by user, use default path.
                 // Since this comes from the TSC, it already has the segment number at the end.
                 storagePath = config.getStoragePath();
             }
             String diskCacheAlias = (String) settingList.get(DISK_CACHE_ALIAS_KEY).get(settings);
-            if (diskCacheAlias.isBlank() || diskCacheAlias == null) {
-                diskCacheAlias = "disk_cache" + config.getSegmentNumber();
+            if (config.getCacheAlias() != null && !config.getCacheAlias().isBlank()) {
+                diskCacheAlias = config.getCacheAlias();
             }
             EhcacheDiskCache.Builder<K, V> builder = (Builder<K, V>) new Builder<K, V>().setStoragePath(storagePath)
                 .setDiskCacheAlias(diskCacheAlias)
@@ -732,18 +738,19 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener())
                 .setExpireAfterAccess((TimeValue) settingList.get(DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY).get(settings))
-                .setMaximumWeightInBytes((Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings))
                 .setSettings(settings);
-            // If this is suppose to be a segmented cache, then accordingly set max size
             long maxSizeInBytes = (Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings);
-            if (config.getSegmentCount() > 0) {
-                long perSegmentSizeInBytes = maxSizeInBytes / config.getSegmentCount();
-                if (perSegmentSizeInBytes <= 0) {
-                    throw new IllegalArgumentException("Per segment size for ehcache disk cache should be greater than 0");
-                }
-                builder.setMaximumWeightInBytes(perSegmentSizeInBytes);
+            // If config value is set, use this instead.
+            if (config.getMaxSizeInBytes() > 0) {
+                builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
             } else {
                 builder.setMaximumWeightInBytes(maxSizeInBytes);
+            }
+            int segmentCount = (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings);
+            if (config.getSegmentCount() > 0) {
+                builder.setNumberOfSegments(config.getSegmentCount());
+            } else {
+                builder.setNumberOfSegments(segmentCount);
             }
             return builder.build();
         }

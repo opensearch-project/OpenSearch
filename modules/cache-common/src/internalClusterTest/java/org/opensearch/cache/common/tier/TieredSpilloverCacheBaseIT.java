@@ -11,12 +11,9 @@ package org.opensearch.cache.common.tier;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
-import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
-import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 
 public class TieredSpilloverCacheBaseIT extends OpenSearchIntegTestCase {
 
@@ -46,9 +43,9 @@ public class TieredSpilloverCacheBaseIT extends OpenSearchIntegTestCase {
                 numberOfSegments
             )
             .put(
-                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
-                    .getKey(),
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
                 onHeapCacheSizeInBytesOrPercentage
             )
             .build();

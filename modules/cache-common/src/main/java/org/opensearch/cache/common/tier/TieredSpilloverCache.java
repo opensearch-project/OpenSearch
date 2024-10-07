@@ -50,6 +50,8 @@ import java.util.function.Predicate;
 import java.util.function.ToLongBiFunction;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_SIZE;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
@@ -102,9 +104,24 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         this.dimensionNames = builder.cacheConfig.getDimensionNames();
         // Pass "tier" as the innermost dimension name, in addition to whatever dimensions are specified for the cache as a whole
         this.statsHolder = new TieredSpilloverCacheStatsHolder(dimensionNames, isDiskCacheEnabled);
+        long onHeapCachePerSegmentSizeInBytes = builder.onHeapCacheSizeInBytes / this.numberOfSegments;
+        long diskCachePerSegmentSizeInBytes = builder.diskCacheSizeInBytes / this.numberOfSegments;
+        if (onHeapCachePerSegmentSizeInBytes <= 0) {
+            throw new IllegalArgumentException("Per segment size for onHeap cache within Tiered cache should be " + "greater than 0");
+        }
+        if (diskCachePerSegmentSizeInBytes <= 0) {
+            throw new IllegalArgumentException("Per segment size for disk cache within Tiered cache should be " + "greater than 0");
+        }
         this.tieredSpilloverCacheSegments = new TieredSpilloverCacheSegment[this.numberOfSegments];
         for (int i = 0; i < numberOfSegments; i++) {
-            tieredSpilloverCacheSegments[i] = new TieredSpilloverCacheSegment<K, V>(builder, statsHolder, i + 1, this.numberOfSegments);
+            tieredSpilloverCacheSegments[i] = new TieredSpilloverCacheSegment<K, V>(
+                builder,
+                statsHolder,
+                i + 1,
+                this.numberOfSegments,
+                onHeapCachePerSegmentSizeInBytes,
+                diskCachePerSegmentSizeInBytes
+            );
         }
         builder.cacheConfig.getClusterSettings()
             .addSettingsUpdateConsumer(DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType), this::enableDisableDiskCache);
@@ -143,7 +160,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             Builder<K, V> builder,
             TieredSpilloverCacheStatsHolder statsHolder,
             int segmentNumber,
-            int numberOfSegments
+            int numberOfSegments,
+            long onHeapCacheSizeInBytes,
+            long diskCacheSizeInBytes
         ) {
             Objects.requireNonNull(builder.onHeapCacheFactory, "onHeap cache builder can't be null");
             Objects.requireNonNull(builder.diskCacheFactory, "disk cache builder can't be null");
@@ -156,7 +175,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             this.onHeapRemovalListener = new HeapTierRemovalListener(this);
             this.onDiskRemovalListener = new DiskTierRemovalListener(this);
             this.weigher = Objects.requireNonNull(builder.cacheConfig.getWeigher(), "Weigher can't be null");
-
             this.onHeapCache = builder.onHeapCacheFactory.create(
                 new CacheConfig.Builder<K, V>().setRemovalListener(onHeapRemovalListener)
                     .setKeyType(builder.cacheConfig.getKeyType())
@@ -164,12 +182,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     .setSettings(builder.cacheConfig.getSettings())
                     .setWeigher(builder.cacheConfig.getWeigher())
                     .setDimensionNames(builder.cacheConfig.getDimensionNames())
-                    .setMaxSizeInBytes(builder.cacheConfig.getMaxSizeInBytes())
+                    .setMaxSizeInBytes(onHeapCacheSizeInBytes)
                     .setExpireAfterAccess(builder.cacheConfig.getExpireAfterAccess())
                     .setClusterSettings(builder.cacheConfig.getClusterSettings())
-                    .setSegmentCount(numberOfSegments)
-                    .setSegmentNumber(segmentNumber)
+                    .setSegmentCount(1) // We don't need to make underlying caches multi-segmented
                     .setStatsTrackingEnabled(false)
+                    .setCacheAlias("tiered_on_heap#" + segmentNumber)
                     .build(),
                 builder.cacheType,
                 builder.cacheFactories
@@ -184,10 +202,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     .setKeySerializer(builder.cacheConfig.getKeySerializer())
                     .setValueSerializer(builder.cacheConfig.getValueSerializer())
                     .setDimensionNames(builder.cacheConfig.getDimensionNames())
-                    .setSegmentCount(numberOfSegments)
-                    .setSegmentNumber(segmentNumber)
+                    .setSegmentCount(1) // We don't need to make underlying caches multi-segmented
                     .setStatsTrackingEnabled(false)
+                    .setMaxSizeInBytes(diskCacheSizeInBytes)
                     .setStoragePath(builder.cacheConfig.getStoragePath() + "/" + segmentNumber)
+                    .setCacheAlias("tiered_disk_cache#" + segmentNumber)
                     .build(),
                 builder.cacheType,
                 builder.cacheFactories
@@ -805,6 +824,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 );
             }
 
+            long onHeapCacheSize = TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+                .get(settings)
+                .getBytes();
+            long diskCacheSize = TIERED_SPILLOVER_DISK_STORE_SIZE.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+                .get(settings);
+
             return new Builder<K, V>().setDiskCacheFactory(diskCacheFactory)
                 .setOnHeapCacheFactory(onHeapCacheFactory)
                 .setRemovalListener(config.getRemovalListener())
@@ -812,6 +837,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setCacheType(cacheType)
                 .setNumberOfSegments(numberOfSegments)
                 .addPolicy(new TookTimePolicy<V>(diskPolicyThreshold, cachedResultParser, config.getClusterSettings(), cacheType))
+                .setOnHeapCacheSizeInBytes(onHeapCacheSize)
+                .setDiskCacheSize(diskCacheSize)
                 .build();
         }
 
@@ -836,6 +863,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         private final ArrayList<Predicate<V>> policies = new ArrayList<>();
 
         private int numberOfSegments;
+        private long onHeapCacheSizeInBytes;
+        private long diskCacheSizeInBytes;
 
         /**
          * Default constructor
@@ -929,6 +958,26 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
          */
         public Builder<K, V> setNumberOfSegments(int numberOfSegments) {
             this.numberOfSegments = numberOfSegments;
+            return this;
+        }
+
+        /**
+         * Sets onHeap cache size
+         * @param onHeapCacheSizeInBytes size of onHeap cache in bytes
+         * @return builder
+         */
+        public Builder<K, V> setOnHeapCacheSizeInBytes(long onHeapCacheSizeInBytes) {
+            this.onHeapCacheSizeInBytes = onHeapCacheSizeInBytes;
+            return this;
+        }
+
+        /**
+         * Sets disk cache siz
+         * @param diskCacheSizeInBytes size of diskCache in bytes
+         * @return buider
+         */
+        public Builder<K, V> setDiskCacheSize(long diskCacheSizeInBytes) {
+            this.diskCacheSizeInBytes = diskCacheSizeInBytes;
             return this;
         }
 

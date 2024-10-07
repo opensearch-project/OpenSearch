@@ -74,7 +74,7 @@ public class CacheConfig<K, V> {
 
     private final int segmentCount;
 
-    private final int segmentNumber;
+    private final String cacheAlias;
 
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
@@ -92,7 +92,7 @@ public class CacheConfig<K, V> {
         this.statsTrackingEnabled = builder.statsTrackingEnabled;
         this.storagePath = builder.storagePath;
         this.segmentCount = builder.segmentCount;
-        this.segmentNumber = builder.segmentNumber;
+        this.cacheAlias = builder.cacheAlias;
     }
 
     public Class<K> getKeyType() {
@@ -155,8 +155,8 @@ public class CacheConfig<K, V> {
         return segmentCount;
     }
 
-    public int getSegmentNumber() {
-        return segmentNumber;
+    public String getCacheAlias() {
+        return cacheAlias;
     }
 
     /**
@@ -186,8 +186,7 @@ public class CacheConfig<K, V> {
         private boolean statsTrackingEnabled = true;
         private String storagePath;
         private int segmentCount;
-
-        private int segmentNumber;
+        private String cacheAlias;
 
         public Builder() {}
 
@@ -266,8 +265,8 @@ public class CacheConfig<K, V> {
             return this;
         }
 
-        public Builder<K, V> setSegmentNumber(int segmentNumber) {
-            this.segmentNumber = segmentNumber;
+        public Builder<K, V> setCacheAlias(String cacheAlias) {
+            this.cacheAlias = cacheAlias;
             return this;
         }
 

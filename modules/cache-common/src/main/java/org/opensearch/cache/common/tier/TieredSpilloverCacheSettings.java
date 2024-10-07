@@ -11,6 +11,7 @@ package org.opensearch.cache.common.tier;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -25,6 +26,16 @@ import static org.opensearch.common.settings.Setting.Property.NodeScope;
  * Settings related to TieredSpilloverCache.
  */
 public class TieredSpilloverCacheSettings {
+
+    /**
+     * Default cache size in bytes ie 1gb.
+     */
+    public static final long DEFAULT_DISK_CACHE_SIZE_IN_BYTES = 1073741824L;
+
+    /**
+     * Minimum disk cache size ie 10mb. May not make such sense to keep a value smaller than this.
+     */
+    public static final long MIN_DISK_CACHE_SIZE_IN_BYTES = 10485760L;
 
     /**
      * Setting which defines the onHeap cache store to be used in TieredSpilloverCache.
@@ -69,6 +80,25 @@ public class TieredSpilloverCacheSettings {
                 );
             }
         }, NodeScope)
+    );
+
+    /**
+     * Setting which defines the onHeap cache size to be used within tiered cache.
+     *
+     * Pattern: {cache_type}.tiered_spillover.onheap.store.size
+     * Example: indices.request.cache.tiered_spillover.onheap.store.size
+     */
+    public static final Setting.AffixSetting<ByteSizeValue> TIERED_SPILLOVER_ONHEAP_STORE_SIZE = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".onheap.store.size",
+        (key) -> Setting.memorySizeSetting(key, "1%", NodeScope)
+    );
+
+    /**
+     * Setting which defines the disk cache size to be used within tiered cache.
+     */
+    public static final Setting.AffixSetting<Long> TIERED_SPILLOVER_DISK_STORE_SIZE = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.size",
+        (key) -> Setting.longSetting(key, DEFAULT_DISK_CACHE_SIZE_IN_BYTES, MIN_DISK_CACHE_SIZE_IN_BYTES, NodeScope)
     );
 
     /**

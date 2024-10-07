@@ -134,11 +134,13 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         final long delay;
         final int maxSize;
         final boolean statsTrackingEnabled;
+        final int keyValueSize;
 
-        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled) {
+        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled, int keyValueSize) {
             this.delay = delay;
             this.maxSize = maxSize;
             this.statsTrackingEnabled = statsTrackingEnabled;
+            this.keyValueSize = keyValueSize;
         }
 
         @Override
@@ -155,12 +157,10 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
                 .setDeliberateDelay(delay)
                 .setRemovalListener(config.getRemovalListener())
                 .setStatsTrackingEnabled(config.getStatsTrackingEnabled());
-            if (config.getSegmentCount() > 0) {
-                int perSegmentSize = maxSize / config.getSegmentCount();
-                if (perSegmentSize <= 0) {
-                    throw new IllegalArgumentException("Per segment size for mock disk cache should be " + "greater than 0");
-                }
-                builder.setMaxSize(perSegmentSize);
+
+            // For mock disk cache, size refers to number of entries for simplicity.
+            if (config.getMaxSizeInBytes() > 0) {
+                builder.setMaxSize(Math.toIntExact(config.getMaxSizeInBytes()));
             } else {
                 builder.setMaxSize(maxSize);
             }

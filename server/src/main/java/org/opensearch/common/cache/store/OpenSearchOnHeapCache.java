@@ -54,8 +54,10 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     private final List<String> dimensionNames;
     private final ToLongBiFunction<ICacheKey<K>, V> weigher;
     private final boolean statsTrackingEnabled;
+    private final long maximumWeight;
 
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
+        this.maximumWeight = builder.getMaxWeightInBytes();
         CacheBuilder<ICacheKey<K>, V> cacheBuilder = CacheBuilder.<ICacheKey<K>, V>builder()
             .setMaximumWeight(builder.getMaxWeightInBytes())
             .weigher(builder.getWeigher())
@@ -64,8 +66,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             cacheBuilder.setExpireAfterAccess(builder.getExpireAfterAcess());
         }
         if (builder.getNumberOfSegments() > 0) {
-            // In case this is a segmented cache, creating underlying cache with multiple segments does not make sense.
-            cacheBuilder.setNumberOfSegments(1);
+            cacheBuilder.setNumberOfSegments(builder.getNumberOfSegments());
         }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
@@ -77,6 +78,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();
+    }
+
+    // package private for testing
+    long getMaximumWeight() {
+        return this.maximumWeight;
     }
 
     @Override
@@ -185,15 +191,17 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
                 cacheType.getSettingPrefix()
             );
             long maxSizeInBytes = ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes();
-            // Check if this is a segmented cache.
-            if (config.getSegmentCount() > 0) {
-                long perSegmentSizeInBytes = maxSizeInBytes / config.getSegmentCount();
-                if (perSegmentSizeInBytes <= 0) {
-                    throw new IllegalArgumentException("Per segment size for opensearch onHeap cache should be greater than 0");
-                }
-                builder.setMaximumWeightInBytes(perSegmentSizeInBytes);
+
+            if (config.getMaxSizeInBytes() > 0) { // If this is passed from upstream(like tieredCache), then use this
+                // instead.
+                builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
             } else {
                 builder.setMaximumWeightInBytes(maxSizeInBytes);
+            }
+            if (config.getSegmentCount() > 0) {
+                builder.setNumberOfSegments(config.getSegmentCount());
+            } else {
+                builder.setNumberOfSegments(-1); // By default it will use 256 segments.
             }
 
             String storeName = cacheSettingForCacheType.get(settings);
