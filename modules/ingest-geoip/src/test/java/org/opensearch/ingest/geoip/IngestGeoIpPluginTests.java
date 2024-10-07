@@ -128,9 +128,9 @@ public class IngestGeoIpPluginTests extends OpenSearchTestCase {
     }
 
     public void testSettingsRegistration() {
-        final IngestGeoIpModulePlugin plugin = new IngestGeoIpModulePlugin();
+        final IngestGeoIpPlugin plugin = new IngestGeoIpPlugin();
         final List<Setting<?>> settings = plugin.getSettings();
-        assertTrue(settings.contains(IngestGeoIpModulePlugin.PROCESSORS_ALLOWLIST_SETTING));
+        assertTrue(settings.contains(IngestGeoIpPlugin.PROCESSORS_ALLOWLIST_SETTING));
     }
 
     private void runAllowListTest(List<String> allowList) throws IOException {

@@ -89,9 +89,9 @@ public class IngestUserAgentPluginTests extends OpenSearchTestCase {
     }
 
     public void testSettingsRegistration() {
-        final IngestUserAgentModulePlugin plugin = new IngestUserAgentModulePlugin();
+        final IngestUserAgentPlugin plugin = new IngestUserAgentPlugin();
         final List<Setting<?>> settings = plugin.getSettings();
-        assertTrue(settings.contains(IngestUserAgentModulePlugin.PROCESSORS_ALLOWLIST_SETTING));
+        assertTrue(settings.contains(IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING));
     }
 
     private void runAllowListTest(List<String> allowList) throws IOException {
