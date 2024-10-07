@@ -137,8 +137,6 @@ import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
  */
 class InstallPluginCommand extends EnvironmentAwareCommand {
 
-    private static final String PROPERTY_STAGING_ID = "opensearch.plugins.staging";
-
     // exit codes for install
     /** A plugin with the same name is already installed. */
     static final int PLUGIN_EXISTS = 1;
@@ -307,14 +305,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private Path download(Terminal terminal, String pluginId, Path tmpDir, boolean isBatch) throws Exception {
 
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String url = getOpenSearchUrl(
-                terminal,
-                getStagingHash(),
-                Version.CURRENT,
-                isSnapshot(),
-                pluginId,
-                Platforms.PLATFORM_NAME
-            );
+            final String url = getOpenSearchUrl(terminal, Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from opensearch");
             return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
         }
@@ -341,11 +332,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return downloadZip(terminal, pluginId, tmpDir, isBatch);
     }
 
-    // pkg private so tests can override
-    String getStagingHash() {
-        return System.getProperty(PROPERTY_STAGING_ID);
-    }
-
     boolean isSnapshot() {
         return Build.CURRENT.isSnapshot();
     }
@@ -353,27 +339,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Returns the url for an official opensearch plugin. */
     private String getOpenSearchUrl(
         final Terminal terminal,
-        final String stagingHash,
         final Version version,
         final boolean isSnapshot,
         final String pluginId,
         final String platform
     ) throws IOException, UserException {
         final String baseUrl;
-        if (isSnapshot && stagingHash == null) {
-            throw new UserException(
-                ExitCodes.CONFIG,
-                "attempted to install release build of official plugin on snapshot build of OpenSearch"
-            );
-        }
-        if (stagingHash != null) {
-            baseUrl = String.format(
-                Locale.ROOT,
-                "https://artifacts.opensearch.org/snapshots/plugins/%s/%s-%s",
-                pluginId,
-                version,
-                stagingHash
-            );
+        if (isSnapshot) {
+            baseUrl = String.format(Locale.ROOT, "https://artifacts.opensearch.org/snapshots/plugins/%s/%s", pluginId, version);
         } else {
             baseUrl = String.format(
                 Locale.ROOT,
