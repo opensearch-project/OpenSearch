@@ -117,6 +117,11 @@ subprojects {
             developer.appendNode('url', 'https://github.com/opensearch-project/OpenSearch')
           }
         }
+        pluginZip(MavenPublication) { publication ->
+          groupId = "org.opensearch.plugin"
+          artifactId = project.name
+          version = project.version
+        }
       }
       repositories {
         maven {
