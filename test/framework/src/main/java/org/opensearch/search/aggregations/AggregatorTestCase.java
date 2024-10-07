@@ -99,6 +99,7 @@ import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
 import org.opensearch.index.mapper.ContentPath;
@@ -407,7 +408,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
         when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
 
-        StarTreeMapper.StarTreeFieldType compositeMappedFieldType = mock(StarTreeMapper.StarTreeFieldType.class);
+        CompositeDataCubeFieldType compositeMappedFieldType = mock(CompositeDataCubeFieldType.class);
         when(compositeMappedFieldType.name()).thenReturn(starTree.getField());
         when(compositeMappedFieldType.getCompositeIndexType()).thenReturn(starTree.getType());
         Set<CompositeMappedFieldType> compositeFieldTypes = Set.of(compositeMappedFieldType);
