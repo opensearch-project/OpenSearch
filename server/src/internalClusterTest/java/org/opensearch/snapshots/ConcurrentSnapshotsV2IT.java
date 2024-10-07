@@ -479,6 +479,126 @@ public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
         assertThat(snapInfo, containsInAnyOrder(csr.getSnapshotInfo(), csr2.getSnapshotInfo()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16191")
+    public void testDeleteWhileV2CreateOngoing() throws Exception {
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String repoName = "test-create-snapshot-repo";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false);
+        createRepository(repoName, "mock", settings);
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        startFullSnapshot(repoName, "snapshot-v1").actionGet();
+
+        // Creating a v2 repo
+        settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(repoName, "mock", settings);
+
+        blockClusterManagerOnWriteIndexFile(repoName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, "snapshot-v2");
+        awaitNumberOfSnapshotsInProgress(1);
+
+        ActionFuture<AcknowledgedResponse> a = startDeleteSnapshot(repoName, "snapshot-v1");
+
+        unblockNode(repoName, clusterManagerName);
+        CreateSnapshotResponse csr = snapshotFuture.actionGet();
+        assertTrue(csr.getSnapshotInfo().getPinnedTimestamp() != 0);
+        assertTrue(a.actionGet().isAcknowledged());
+        List<SnapshotInfo> snapInfo = client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots();
+        assertEquals(1, snapInfo.size());
+        assertThat(snapInfo, contains(csr.getSnapshotInfo()));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16191")
+    public void testDeleteAndCloneV1WhileV2CreateOngoing() throws Exception {
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String repoName = "test-create-snapshot-repo";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), false);
+        createRepository(repoName, "mock", settings);
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        startFullSnapshot(repoName, "snapshot-v1").actionGet();
+        startFullSnapshot(repoName, "snapshot-v1-2").actionGet();
+
+        // Creating a v2 repo
+        settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(repoName, "mock", settings);
+
+        blockClusterManagerOnWriteIndexFile(repoName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, "snapshot-v2");
+        awaitNumberOfSnapshotsInProgress(1);
+
+        ActionFuture<AcknowledgedResponse> startDeleteSnapshot = startDeleteSnapshot(repoName, "snapshot-v1");
+        ActionFuture<AcknowledgedResponse> startCloneSnapshot = startCloneSnapshot(repoName, "snapshot-v1-2", "snapshot-v1-2-clone");
+
+        unblockNode(repoName, clusterManagerName);
+        CreateSnapshotResponse csr = snapshotFuture.actionGet();
+        assertTrue(csr.getSnapshotInfo().getPinnedTimestamp() != 0);
+        assertTrue(startDeleteSnapshot.actionGet().isAcknowledged());
+        assertTrue(startCloneSnapshot.actionGet().isAcknowledged());
+        List<SnapshotInfo> snapInfo = client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots();
+        assertEquals(3, snapInfo.size());
+    }
+
     protected ActionFuture<AcknowledgedResponse> startCloneSnapshot(String repoName, String sourceSnapshotName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
         return clusterAdmin().prepareCloneSnapshot(repoName, sourceSnapshotName, snapshotName).setIndices("*").execute();
