@@ -9,4 +9,4 @@
 /**
  * Exposes utilities for Rest actions to paginate responses.
  */
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;

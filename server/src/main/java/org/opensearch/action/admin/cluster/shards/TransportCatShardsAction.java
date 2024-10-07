@@ -12,6 +12,8 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.pagination.PageParams;
+import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
@@ -57,7 +59,11 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
         clusterStateRequest.setShouldCancelOnTimeout(true);
         clusterStateRequest.local(shardsRequest.local());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.clusterManagerNodeTimeout());
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
+        if (Objects.isNull(shardsRequest.getPageParams())) {
+            clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
+        } else {
+            clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices()).metadata(true);
+        }
         assert parentTask instanceof CancellableTask;
         clusterStateRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
 
@@ -87,13 +93,26 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                 @Override
                 public void onResponse(ClusterStateResponse clusterStateResponse) {
                     validateRequestLimit(shardsRequest, clusterStateResponse, cancellableListener);
-                    catShardsResponse.setClusterStateResponse(clusterStateResponse);
-                    IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                    indicesStatsRequest.setShouldCancelOnTimeout(true);
-                    indicesStatsRequest.all();
-                    indicesStatsRequest.indices(shardsRequest.getIndices());
-                    indicesStatsRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
                     try {
+                        ShardPaginationStrategy paginationStrategy = getPaginationStrategy(
+                            shardsRequest.getPageParams(),
+                            clusterStateResponse
+                        );
+                        String[] indices = Objects.isNull(paginationStrategy)
+                            ? shardsRequest.getIndices()
+                            : paginationStrategy.getRequestedIndices().toArray(new String[0]);
+                        catShardsResponse.setNodes(clusterStateResponse.getState().getNodes());
+                        catShardsResponse.setResponseShards(
+                            Objects.isNull(paginationStrategy)
+                                ? clusterStateResponse.getState().routingTable().allShards()
+                                : paginationStrategy.getRequestedEntities()
+                        );
+                        catShardsResponse.setPageToken(Objects.isNull(paginationStrategy) ? null : paginationStrategy.getResponseToken());
+                        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                        indicesStatsRequest.setShouldCancelOnTimeout(true);
+                        indicesStatsRequest.all();
+                        indicesStatsRequest.indices(indices);
+                        indicesStatsRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
                         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
@@ -120,6 +139,10 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
             cancellableListener.onFailure(e);
         }
 
+    }
+
+    private ShardPaginationStrategy getPaginationStrategy(PageParams pageParams, ClusterStateResponse clusterStateResponse) {
+        return Objects.isNull(pageParams) ? null : new ShardPaginationStrategy(pageParams, clusterStateResponse.getState());
     }
 
     private void validateRequestLimit(
