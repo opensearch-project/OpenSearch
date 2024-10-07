@@ -57,7 +57,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "query_group_stats_action";
+        return "wlm_stats_action";
     }
 
     @Override
