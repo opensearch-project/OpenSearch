@@ -479,6 +479,7 @@ public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
         assertThat(snapInfo, containsInAnyOrder(csr.getSnapshotInfo(), csr2.getSnapshotInfo()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16191")
     public void testDeleteWhileV2CreateOngoing() throws Exception {
         final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
@@ -537,6 +538,7 @@ public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
         assertThat(snapInfo, contains(csr.getSnapshotInfo()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16191")
     public void testDeleteAndCloneV1WhileV2CreateOngoing() throws Exception {
         final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
