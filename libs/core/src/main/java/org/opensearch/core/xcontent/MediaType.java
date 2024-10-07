@@ -32,7 +32,10 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
@@ -73,6 +76,13 @@ public interface MediaType extends Writeable {
         return type() + "/" + subtype();
     }
 
+    /**
+     * Unique identifier typically used for binary serialization. Must be distinct
+     * from the unique IDs of all other MediaTypes registered with {@link MediaTypeRegistry}.
+     * See {@link MediaType#readFrom} and {@link MediaType#writeTo}.
+     */
+    int uniqueId();
+
     XContent xContent();
 
     boolean detectedXContent(final byte[] bytes, int offset, int length);
@@ -88,6 +98,29 @@ public interface MediaType extends Writeable {
     XContentBuilder contentBuilder() throws IOException;
 
     XContentBuilder contentBuilder(final OutputStream os) throws IOException;
+
+    /**
+     * Serializes this MediaType to the given StreamOutput.
+     */
+    @Override
+    default void writeTo(StreamOutput output) throws IOException {
+        if (output.getVersion().onOrAfter(Version.V_2_10_0) && output.getVersion().before(Version.V_3_0_0)) {
+            output.writeString(this.mediaType());
+        } else {
+            output.writeVInt(uniqueId());
+        }
+    }
+
+    /**
+     * Reads a MediaType instance from the given StreamInput.
+     */
+    static MediaType readFrom(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0) && in.getVersion().before(Version.V_3_0_0)) {
+            return MediaTypeRegistry.fromMediaType(in.readString());
+        } else {
+            return MediaTypeRegistry.fromUniqueId(in.readVInt());
+        }
+    }
 
     /**
      * Accepts a format string, which is most of the time is equivalent to {@link MediaType#subtype()}

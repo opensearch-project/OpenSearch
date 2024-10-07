@@ -40,7 +40,6 @@ import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -238,7 +237,7 @@ public enum XContentType implements MediaType {
         }
     };
 
-    private int index;
+    private final int index;
 
     XContentType(int index) {
         this.index = index;
@@ -259,7 +258,7 @@ public enum XContentType implements MediaType {
     }
 
     @Override
-    public void writeTo(StreamOutput output) throws IOException {
-        output.writeString(this.mediaType());
+    public int uniqueId() {
+        return index;
     }
 }

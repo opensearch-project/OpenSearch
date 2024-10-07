@@ -62,7 +62,6 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -254,11 +253,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         documents = in.readList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
-            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-                documentXContentType = in.readMediaType();
-            } else {
-                documentXContentType = in.readEnum(XContentType.class);
-            }
+            documentXContentType = MediaType.readFrom(in);
         } else {
             documentXContentType = null;
         }
@@ -304,11 +299,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeBytesReference(document);
         }
         if (documents.isEmpty() == false) {
-            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-                documentXContentType.writeTo(out);
-            } else {
-                out.writeEnum((XContentType) documentXContentType);
-            }
+            documentXContentType.writeTo(out);
         }
     }
 

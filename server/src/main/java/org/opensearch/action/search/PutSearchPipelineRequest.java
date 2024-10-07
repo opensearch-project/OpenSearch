@@ -8,7 +8,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.annotation.PublicApi;
@@ -49,11 +48,7 @@ public class PutSearchPipelineRequest extends AcknowledgedRequest<PutSearchPipel
         super(in);
         id = in.readString();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType = in.readMediaType();
-        } else {
-            mediaType = in.readEnum(XContentType.class);
-        }
+        mediaType = MediaType.readFrom(in);
     }
 
     @Override
@@ -78,11 +73,7 @@ public class PutSearchPipelineRequest extends AcknowledgedRequest<PutSearchPipel
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType.writeTo(out);
-        } else {
-            out.writeEnum((XContentType) mediaType);
-        }
+        mediaType.writeTo(out);
     }
 
     @Override

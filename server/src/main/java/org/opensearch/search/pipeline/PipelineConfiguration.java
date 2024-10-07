@@ -8,7 +8,6 @@
 
 package org.opensearch.search.pipeline;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.annotation.PublicApi;
@@ -122,11 +121,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(
-            in.readString(),
-            in.readBytesReference(),
-            in.getVersion().onOrAfter(Version.V_2_10_0) ? in.readMediaType() : in.readEnum(XContentType.class)
-        );
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(), MediaType.readFrom(in));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -142,11 +137,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType.writeTo(out);
-        } else {
-            out.writeEnum((XContentType) mediaType);
-        }
+        mediaType.writeTo(out);
     }
 
     @Override

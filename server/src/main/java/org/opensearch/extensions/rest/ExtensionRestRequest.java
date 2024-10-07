@@ -9,9 +9,7 @@
 package org.opensearch.extensions.rest;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -106,11 +104,7 @@ public class ExtensionRestRequest extends TransportRequest {
         params = in.readMap(StreamInput::readString, StreamInput::readString);
         headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
         if (in.readBoolean()) {
-            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-                mediaType = in.readMediaType();
-            } else {
-                mediaType = in.readEnum(XContentType.class);
-            }
+            mediaType = MediaType.readFrom(in);
         }
         content = in.readBytesReference();
         principalIdentifierToken = in.readString();
@@ -127,11 +121,7 @@ public class ExtensionRestRequest extends TransportRequest {
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
         out.writeBoolean(mediaType != null);
         if (mediaType != null) {
-            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-                mediaType.writeTo(out);
-            } else {
-                out.writeEnum((XContentType) mediaType);
-            }
+            mediaType.writeTo(out);
         }
         out.writeBytesReference(content);
         out.writeString(principalIdentifierToken);

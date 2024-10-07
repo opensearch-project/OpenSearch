@@ -57,6 +57,7 @@ import java.util.stream.Stream;
 public final class MediaTypeRegistry {
     private static Map<String, MediaType> formatToMediaType = Map.of();
     private static Map<String, MediaType> typeWithSubtypeToMediaType = Map.of();
+    private static Map<Integer, MediaType> uniqueIdToMediaType = Map.of();
 
     // Default mediaType singleton
     private static MediaType DEFAULT_MEDIA_TYPE;
@@ -84,12 +85,19 @@ public final class MediaTypeRegistry {
         // ensures the map is not overwritten:
         Map<String, MediaType> typeMap = new HashMap<>(typeWithSubtypeToMediaType);
         Map<String, MediaType> formatMap = new HashMap<>(formatToMediaType);
+        Map<Integer, MediaType> uniqueIdMap = new HashMap<>(uniqueIdToMediaType);
         for (MediaType mediaType : acceptedMediaTypes) {
             if (formatMap.containsKey(mediaType.format())) {
                 throw new IllegalArgumentException("unable to register mediaType: [" + mediaType.format() + "]. Type already exists.");
             }
+            if (uniqueIdMap.containsKey(mediaType.uniqueId())) {
+                throw new IllegalArgumentException(
+                    "unable to register mediaType with ID: [" + mediaType.uniqueId() + "]. ID already exists."
+                );
+            }
             typeMap.put(mediaType.typeWithSubtype(), mediaType);
             formatMap.put(mediaType.format(), mediaType);
+            uniqueIdMap.put(mediaType.uniqueId(), mediaType);
         }
         for (Map.Entry<String, MediaType> entry : additionalMediaTypes.entrySet()) {
             String typeWithSubtype = entry.getKey().toLowerCase(Locale.ROOT);
@@ -111,6 +119,11 @@ public final class MediaTypeRegistry {
 
         formatToMediaType = Map.copyOf(formatMap);
         typeWithSubtypeToMediaType = Map.copyOf(typeMap);
+        uniqueIdToMediaType = Map.copyOf(uniqueIdMap);
+    }
+
+    public static MediaType fromUniqueId(int id) {
+        return uniqueIdToMediaType.get(id);
     }
 
     public static MediaType fromMediaType(String mediaType) {
