@@ -300,6 +300,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
@@ -461,6 +462,10 @@ import org.opensearch.rest.action.ingest.RestDeletePipelineAction;
 import org.opensearch.rest.action.ingest.RestGetPipelineAction;
 import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.rest.action.ingest.RestSimulatePipelineAction;
+import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.rest.action.list.RestIndicesListAction;
+import org.opensearch.rest.action.list.RestListAction;
+import org.opensearch.rest.action.list.RestShardsListAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
@@ -529,6 +534,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ExtensionsManager extensionsManager;
+    private final ResponseLimitSettings responseLimitSettings;
 
     public ActionModule(
         Settings settings,
@@ -583,7 +589,8 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
         );
 
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, identityService);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -806,9 +813,14 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
+        List<AbstractListAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
             if (handler instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) handler);
+                if (handler instanceof AbstractListAction && ((AbstractListAction) handler).isActionPaginated()) {
+                    listActions.add((AbstractListAction) handler);
+                } else {
+                    catActions.add((AbstractCatAction) handler);
+                }
             }
             restController.registerHandler(handler);
         };
@@ -964,8 +976,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterManagerAction());
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction());
-        registerHandler.accept(new RestSegmentsAction());
+        registerHandler.accept(new RestIndicesAction(responseLimitSettings));
+        registerHandler.accept(new RestSegmentsAction(responseLimitSettings));
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.opensearch.rest.action.cat.RestCountAction());
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
@@ -983,6 +995,10 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestWarmTieringAction());
         }
         registerHandler.accept(new RestTemplatesAction());
+
+        // LIST API
+        registerHandler.accept(new RestIndicesListAction(responseLimitSettings));
+        registerHandler.accept(new RestShardsListAction());
 
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());
@@ -1015,6 +1031,7 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+        registerHandler.accept(new RestListAction(listActions));
         registerHandler.accept(new RestDecommissionAction());
         registerHandler.accept(new RestGetDecommissionStateAction());
         registerHandler.accept(new RestRemoteStoreStatsAction());
@@ -1052,6 +1069,8 @@ public class ActionModule extends AbstractModule {
 
         // register dynamic ActionType -> transportAction Map used by NodeClient
         bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
+
+        bind(ResponseLimitSettings.class).toInstance(responseLimitSettings);
     }
 
     public ActionFilters getActionFilters() {

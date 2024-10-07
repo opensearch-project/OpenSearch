@@ -178,14 +178,6 @@ public class PublicationTransportHandler {
         );
     }
 
-    public PersistedStateStats getFullDownloadStats() {
-        return remoteClusterStateService.getFullDownloadStats();
-    }
-
-    public PersistedStateStats getDiffDownloadStats() {
-        return remoteClusterStateService.getDiffDownloadStats();
-    }
-
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         try (StreamInput in = CompressedStreamUtils.decompressBytes(request, namedWriteableRegistry)) {
             ClusterState incomingState;
@@ -356,7 +348,7 @@ public class PublicationTransportHandler {
     ) {
         if (isRemotePublicationEnabled == true) {
             if (allNodesRemotePublicationEnabled.get() == false) {
-                if (validateRemotePublicationOnAllNodes(clusterChangedEvent.state().nodes()) == true) {
+                if (validateRemotePublicationConfiguredOnAllNodes(clusterChangedEvent.state().nodes()) == true) {
                     allNodesRemotePublicationEnabled.set(true);
                 }
             }
@@ -374,11 +366,11 @@ public class PublicationTransportHandler {
         return publicationContext;
     }
 
-    private boolean validateRemotePublicationOnAllNodes(DiscoveryNodes discoveryNodes) {
+    private boolean validateRemotePublicationConfiguredOnAllNodes(DiscoveryNodes discoveryNodes) {
         assert ClusterMetadataManifest.getCodecForVersion(discoveryNodes.getMinNodeVersion()) >= ClusterMetadataManifest.CODEC_V0;
         for (DiscoveryNode node : discoveryNodes.getNodes().values()) {
             // if a node is non-remote then created local publication context
-            if (node.isRemoteStatePublicationEnabled() == false) {
+            if (node.isRemoteStatePublicationConfigured() == false) {
                 return false;
             }
         }
@@ -542,7 +534,7 @@ public class PublicationTransportHandler {
         }
 
         public void sendClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            logger.debug("sending cluster state over transport to node: {}", destination.getName());
+            logger.trace("sending cluster state over transport to node: {}", destination.getName());
             if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);

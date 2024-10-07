@@ -78,6 +78,9 @@ public class RemoteFsTranslog extends Translog {
     // min generation referred by last uploaded translog
     protected volatile long minRemoteGenReferenced;
 
+    // the max global checkpoint that has been synced
+    protected volatile long globalCheckpointSynced;
+
     // clean up translog folder uploaded by previous primaries once
     protected final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
@@ -437,9 +440,10 @@ public class RemoteFsTranslog extends Translog {
                 config.getNodeId()
             ).build()
         ) {
+            Checkpoint checkpoint = current.getLastSyncedCheckpoint();
             return translogTransferManager.transferSnapshot(
                 transferSnapshotProvider,
-                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo)
+                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo, checkpoint.globalCheckpoint)
             );
         } finally {
             syncPermit.release(SYNC_PERMIT);
@@ -474,7 +478,10 @@ public class RemoteFsTranslog extends Translog {
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {
             return current.syncNeeded()
-                || (maxRemoteTranslogGenerationUploaded + 1 < this.currentFileGeneration() && current.totalOperations() == 0);
+                || (maxRemoteTranslogGenerationUploaded + 1 < this.currentFileGeneration() && current.totalOperations() == 0)
+                // The below condition on GCP exists to handle global checkpoint updates during close index.
+                // Refer issue - https://github.com/opensearch-project/OpenSearch/issues/15989
+                || (current.getLastSyncedCheckpoint().globalCheckpoint > globalCheckpointSynced);
         }
     }
 
@@ -549,8 +556,16 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public void trimUnreferencedReaders() throws IOException {
+        trimUnreferencedReaders(false);
+    }
+
+    protected void trimUnreferencedReaders(boolean onlyTrimLocal) throws IOException {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
+
+        if (onlyTrimLocal) {
+            return;
+        }
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
@@ -674,21 +689,34 @@ public class RemoteFsTranslog extends Translog {
 
         private final long maxSeqNo;
 
-        RemoteFsTranslogTransferListener(long generation, long primaryTerm, long maxSeqNo) {
+        private final long globalCheckpoint;
+
+        RemoteFsTranslogTransferListener(long generation, long primaryTerm, long maxSeqNo, long globalCheckpoint) {
             this.generation = generation;
             this.primaryTerm = primaryTerm;
             this.maxSeqNo = maxSeqNo;
+            this.globalCheckpoint = globalCheckpoint;
         }
 
         @Override
         public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
             maxRemoteTranslogGenerationUploaded = generation;
+            long previousMinRemoteGenReferenced = minRemoteGenReferenced;
             minRemoteGenReferenced = getMinFileGeneration();
+            // Update the global checkpoint only if the supplied global checkpoint is greater than it
+            // When a new writer is created the
+            if (globalCheckpoint > globalCheckpointSynced) {
+                globalCheckpointSynced = globalCheckpoint;
+            }
+            if (previousMinRemoteGenReferenced != minRemoteGenReferenced) {
+                onMinRemoteGenReferencedChange();
+            }
             logger.debug(
-                "Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}",
+                "Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}, minRemoteGenReferenced = {}",
                 primaryTerm,
                 generation,
-                maxSeqNo
+                maxSeqNo,
+                minRemoteGenReferenced
             );
         }
 
@@ -700,6 +728,10 @@ public class RemoteFsTranslog extends Translog {
                 throw (RuntimeException) ex;
             }
         }
+    }
+
+    protected void onMinRemoteGenReferencedChange() {
+
     }
 
     @Override

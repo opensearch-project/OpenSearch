@@ -127,7 +127,7 @@ dependencies {
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
-  implementation 'org.roaringbitmap:RoaringBitmap:1.2.1'
+  implementation 'org.roaringbitmap:RoaringBitmap:1.3.0'
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -407,6 +407,8 @@ tasks.named("sourcesJar").configure {
 /** Compares the current build against a laltest released version or the version supplied through 'japicmp.compare.version' system property */
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
+    // See please https://github.com/siom79/japicmp/issues/201
+    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT" ]
     oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
     onlyModified = true

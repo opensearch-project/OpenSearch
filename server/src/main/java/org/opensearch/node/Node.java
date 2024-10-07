@@ -315,9 +315,9 @@ import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -530,11 +530,7 @@ public class Node implements Closeable {
             FeatureFlags.initializeFeatureFlags(settings);
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
-            if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
-                // If identity is enabled load plugins implementing the extension point
-                logger.info("Identity on so found plugins implementing: " + pluginsService.filterPlugins(IdentityPlugin.class).toString());
-                identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
-            }
+            identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -800,7 +796,7 @@ public class Node implements Closeable {
             final RemoteClusterStateService remoteClusterStateService;
             final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
             final RemoteIndexPathUploader remoteIndexPathUploader;
-            if (isRemoteStoreClusterStateEnabled(settings)) {
+            if (isRemoteClusterStateConfigured(settings)) {
                 remoteIndexPathUploader = new RemoteIndexPathUploader(
                     threadPool,
                     settings,
@@ -1627,6 +1623,7 @@ public class Node implements Closeable {
 
         injector.getInstance(GatewayService.class).start();
         Discovery discovery = injector.getInstance(Discovery.class);
+        discovery.setNodeConnectionsService(nodeConnectionsService);
         clusterService.getClusterManagerService().setClusterStatePublisher(discovery::publish);
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService

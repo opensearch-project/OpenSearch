@@ -9,6 +9,8 @@
 package org.opensearch.remotestore;
 
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -17,8 +19,13 @@ import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.REMOTE_STORE;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase {
@@ -72,6 +79,11 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
             Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp_2 = RemoteStorePinnedTimestampService.getPinnedTimestamps();
             long lastFetchTimestamp_2 = pinnedTimestampWithFetchTimestamp_2.v1();
             assertTrue(lastFetchTimestamp_2 != -1);
+            Map<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
+            assertEquals(3, pinnedEntities.size());
+            assertEquals(Set.of("ss2", "ss3", "ss4"), pinnedEntities.keySet());
+            assertEquals(pinnedEntities.get("ss2").size(), 1);
+            assertEquals(Optional.of(timestamp1).get(), pinnedEntities.get("ss2").get(0));
             assertEquals(Set.of(timestamp1, timestamp2, timestamp3), pinnedTimestampWithFetchTimestamp_2.v2());
         });
 
@@ -99,10 +111,14 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         // Adding different entity to already pinned timestamp
         remoteStorePinnedTimestampService.pinTimestamp(timestamp3, "ss5", noOpActionListener);
 
-        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+        remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
 
         assertBusy(() -> {
             Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp_3 = RemoteStorePinnedTimestampService.getPinnedTimestamps();
+            Map<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
+            assertEquals(3, pinnedEntities.size());
+            assertEquals(pinnedEntities.get("ss5").size(), 1);
+            assertEquals(Optional.of(timestamp3).get(), pinnedEntities.get("ss5").get(0));
             long lastFetchTimestamp_3 = pinnedTimestampWithFetchTimestamp_3.v1();
             assertTrue(lastFetchTimestamp_3 != -1);
             assertEquals(Set.of(timestamp1, timestamp3), pinnedTimestampWithFetchTimestamp_3.v2());
@@ -178,6 +194,43 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
 
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
         assertBusy(() -> assertEquals(Set.of(timestamp2, timestamp3), RemoteStorePinnedTimestampService.getPinnedTimestamps().v2()));
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
+    }
+
+    public void testLastSuccessfulFetchOfPinnedTimestampsPresentInNodeStats() throws Exception {
+        logger.info("Starting up cluster manager");
+        logger.info("cluster.remote_store.pinned_timestamps.enabled set to true");
+        logger.info("cluster.remote_store.pinned_timestamps.scheduler_interval set to minimum value of 1minute");
+        Settings pinnedTimestampEnabledSettings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.getKey(), "1m")
+            .build();
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampEnabledSettings);
+        String remoteNodeName = internalCluster().startDataOnlyNodes(1, pinnedTimestampEnabledSettings).get(0);
+        ensureStableCluster(2);
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            remoteNodeName
+        );
+
+        remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
+
+        assertBusy(() -> {
+            long lastSuccessfulFetchOfPinnedTimestamps = RemoteStorePinnedTimestampService.getPinnedTimestamps().v1();
+            assertTrue(lastSuccessfulFetchOfPinnedTimestamps > 0L);
+            NodesStatsResponse nodesStatsResponse = internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareNodesStats()
+                .addMetric(REMOTE_STORE.metricName())
+                .execute()
+                .actionGet();
+            for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
+                long lastRecordedFetch = nodeStats.getRemoteStoreNodeStats().getLastSuccessfulFetchOfPinnedTimestamps();
+                assertTrue(lastRecordedFetch >= lastSuccessfulFetchOfPinnedTimestamps);
+            }
+        });
+
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
     }
 }

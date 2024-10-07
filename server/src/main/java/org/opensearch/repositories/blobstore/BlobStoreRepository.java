@@ -50,6 +50,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RepositoryCleanupInProgress;
@@ -69,6 +70,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -180,6 +182,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -196,7 +199,6 @@ import java.util.stream.Stream;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
-import static org.opensearch.snapshots.SnapshotsService.SNAPSHOT_PINNED_TIMESTAMP_DELIMITER;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -353,6 +355,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.Final
     );
 
+    /**
+     * Controls the fixed prefix for the snapshot shard blob path. cluster.snapshot.async-deletion.enable
+     */
+    public static final Setting<Boolean> SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING = Setting.boolSetting(
+        "cluster.snapshot.async-deletion.enable",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     protected volatile boolean supportURLRepo;
 
     private volatile int maxShardBlobDeleteBatch;
@@ -446,6 +458,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final String snapshotShardPathPrefix;
 
+    private volatile boolean enableAsyncDeletion;
+
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
@@ -498,6 +512,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
         this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX_SETTING.get(clusterService.getSettings());
+        this.enableAsyncDeletion = SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING, this::setEnableAsyncDeletion);
     }
 
     @Override
@@ -1292,7 +1308,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // iterate through all the indices and trigger remote store directory cleanup for deleted index segments
             for (String indexId : uniqueIndexIds) {
-                cleanRemoteStoreDirectoryIfNeeded(snapshotIds, indexId, repositoryData, remoteSegmentStoreDirectoryFactory);
+                cleanRemoteStoreDirectoryIfNeeded(snapshotIds, indexId, repositoryData, remoteSegmentStoreDirectoryFactory, false);
             }
             afterCleanupsListener.onResponse(null);
         } catch (Exception e) {
@@ -1340,11 +1356,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) {
         remoteStorePinnedTimestampService.unpinTimestamp(
             timestampToUnpin,
-            repository + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotId.getUUID(),
+            SnapshotsService.getPinningEntity(repository, snapshotId.getUUID()),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    logger.debug("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    logger.info("Timestamp {} unpinned successfully for snapshot {}", timestampToUnpin, snapshotId.getName());
+                    try {
+                        remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
+                        logger.debug("Successfully synced pinned timestamp state");
+                    } catch (Exception e) {
+                        logger.warn("Exception while updating pinning timestamp state, snapshot deletion will continue", e);
+                    }
                     listener.onResponse(null);
                 }
 
@@ -1449,7 +1471,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String indexUUID,
         ShardId shardId,
         String threadPoolName,
-        RemoteStorePathStrategy pathStrategy
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean
     ) {
         threadpool.executor(threadPoolName)
             .execute(
@@ -1459,7 +1482,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         remoteStoreRepoForIndex,
                         indexUUID,
                         shardId,
-                        pathStrategy
+                        pathStrategy,
+                        forceClean
                     ),
                     indexUUID,
                     shardId
@@ -1515,7 +1539,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexUUID,
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
-                remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy()
+                remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy(),
+                false
             );
         }
     }
@@ -2078,11 +2103,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 deleteResult = deleteResult.add(cleanUpStaleSnapshotShardPathsFile(matchingShardPaths, snapshotShardPaths));
 
                 if (remoteSegmentStoreDirectoryFactory != null) {
-                    cleanRemoteStoreDirectoryIfNeeded(deletedSnapshots, indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory);
+                    cleanRemoteStoreDirectoryIfNeeded(deletedSnapshots, indexSnId, oldRepoData, remoteSegmentStoreDirectoryFactory, true);
                 }
 
                 // Finally, we delete the [base_path]/indexId folder
-                deleteResult = deleteResult.add(indexEntry.getValue().delete()); // Deleting the index folder
+                deleteResult = deleteResult.add(deleteContainer(indexEntry.getValue())); // Deleting the index folder
                 logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                 return deleteResult;
             } catch (IOException e) {
@@ -2115,6 +2140,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }));
     }
 
+    private DeleteResult deleteContainer(BlobContainer container) throws IOException {
+        long startTime = System.nanoTime();
+        DeleteResult deleteResult;
+        if (enableAsyncDeletion && container instanceof AsyncMultiStreamBlobContainer) {
+            // Use deleteAsync and wait for the result
+            PlainActionFuture<DeleteResult> future = new PlainActionFuture<>();
+            ((AsyncMultiStreamBlobContainer) container).deleteAsync(future);
+            deleteResult = future.actionGet();
+        } else {
+            deleteResult = container.delete();
+        }
+        logger.debug(new ParameterizedMessage("[{}] Deleted {} in {}ns", metadata.name(), container.path(), startTime - System.nanoTime()));
+        return deleteResult;
+    }
+
     /**
      * Cleans up the remote store directory if needed.
      * <p> This method cleans up segments in the remote store directory for deleted indices.
@@ -2135,7 +2175,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> deletedSnapshots,
         String indexSnId,
         RepositoryData oldRepoData,
-        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        boolean forceClean
     ) {
         assert (indexSnId != null);
 
@@ -2187,9 +2228,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 prevIndexMetadata.getIndexUUID(),
                                 shard,
                                 ThreadPool.Names.REMOTE_PURGE,
-                                remoteStorePathStrategy
+                                remoteStorePathStrategy,
+                                forceClean
                             );
-                            remoteTranslogCleanupAsync(remoteTranslogRepository, shard, remoteStorePathStrategy, prevIndexMetadata);
+                            remoteTranslogCleanupAsync(
+                                remoteTranslogRepository,
+                                shard,
+                                remoteStorePathStrategy,
+                                prevIndexMetadata,
+                                forceClean
+                            );
                         }
                     }
                 } catch (Exception e) {
@@ -2213,7 +2261,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Repository remoteTranslogRepository,
         ShardId shardId,
         RemoteStorePathStrategy remoteStorePathStrategy,
-        IndexMetadata prevIndexMetadata
+        IndexMetadata prevIndexMetadata,
+        boolean forceClean
     ) {
         assert remoteTranslogRepository instanceof BlobStoreRepository;
         boolean indexMetadataEnabled = RemoteStoreUtils.determineTranslogMetadataEnabled(prevIndexMetadata);
@@ -2230,7 +2279,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             indexMetadataEnabled
         );
         try {
-            RemoteFsTimestampAwareTranslog.cleanup(translogTransferManager);
+            RemoteFsTimestampAwareTranslog.cleanupOfDeletedIndex(translogTransferManager, forceClean);
         } catch (IOException e) {
             logger.error("Exception while cleaning up remote translog for shard: " + shardId, e);
         }
@@ -2318,7 +2367,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return A DeleteResult object representing the result of the deletion operation.
      * @throws IOException If an I/O error occurs during the deletion process.
      */
-    private DeleteResult deleteShardData(ShardInfo shardInfo) throws IOException {
+    private DeleteResult deleteShardData(ShardInfo shardInfo) throws IOException, ExecutionException, InterruptedException {
         // If the provided ShardInfo is null, return a zero DeleteResult
         if (shardInfo == null) {
             return DeleteResult.ZERO;
@@ -2330,7 +2379,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Iterate over the shards and delete each shard's data
         for (int i = 0; i < shardInfo.getShardCount(); i++) {
             // Call the delete method on the shardContainer and accumulate the result
-            deleteResult = deleteResult.add(shardContainer(shardInfo.getIndexId(), i).delete());
+            deleteResult = deleteResult.add(deleteContainer(shardContainer(shardInfo.getIndexId(), i)));
         }
 
         // Return the accumulated DeleteResult
@@ -2714,7 +2763,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void deleteFromContainer(BlobContainer container, List<String> blobs) throws IOException {
         logger.trace(() -> new ParameterizedMessage("[{}] Deleting {} from [{}]", metadata.name(), blobs, container.path()));
-        container.deleteBlobsIgnoringIfNotExists(blobs);
+        long startTime = System.nanoTime();
+        if (enableAsyncDeletion && container instanceof AsyncMultiStreamBlobContainer) {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            ((AsyncMultiStreamBlobContainer) container).deleteBlobsAsyncIgnoringIfNotExists(blobs, future);
+            future.actionGet();
+        } else {
+            container.deleteBlobsIgnoringIfNotExists(blobs);
+        }
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "[{}] Deletion {} from [{}] took {}ns",
+                metadata.name(),
+                blobs,
+                container.path(),
+                System.nanoTime() - startTime
+            )
+        );
     }
 
     private BlobPath indicesPath() {
@@ -4465,7 +4530,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
-        try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
+        try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READ, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 
@@ -4564,5 +4629,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         public String toString() {
             return name;
         }
+    }
+
+    public void setEnableAsyncDeletion(boolean enableAsyncDeletion) {
+        this.enableAsyncDeletion = enableAsyncDeletion;
     }
 }
