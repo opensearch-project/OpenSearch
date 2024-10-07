@@ -10,6 +10,7 @@ package org.opensearch.index.codec.composite99.datacube.startree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
@@ -60,10 +61,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING;
 import static org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils.assertStarTreeDocuments;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 
 /**
  * Star tree doc values Lucene tests
@@ -83,8 +86,8 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         List<Object[]> parameters = new ArrayList<>();
-        parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP });
-        parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP });
+        parameters.add(new Object[]{StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP});
+        parameters.add(new Object[]{StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP});
         return parameters;
     }
 
@@ -181,20 +184,20 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
          */
         StarTreeDocument[] expectedStarTreeDocuments = new StarTreeDocument[4];
         expectedStarTreeDocuments[0] = new StarTreeDocument(
-            new Long[] { 1L, 1L },
-            new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+            new Long[]{1L, 1L},
+            new Double[]{-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0}
         );
         expectedStarTreeDocuments[1] = new StarTreeDocument(
-            new Long[] { 2L, 2L },
-            new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+            new Long[]{2L, 2L},
+            new Double[]{-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0}
         );
         expectedStarTreeDocuments[2] = new StarTreeDocument(
-            new Long[] { null, 1L },
-            new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+            new Long[]{null, 1L},
+            new Double[]{-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0}
         );
         expectedStarTreeDocuments[3] = new StarTreeDocument(
-            new Long[] { null, 2L },
-            new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+            new Long[]{null, 2L},
+            new Double[]{-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0}
         );
 
         for (LeafReaderContext context : ir.leaves()) {
@@ -286,20 +289,20 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
          */
         StarTreeDocument[] expectedStarTreeDocuments = new StarTreeDocument[4];
         expectedStarTreeDocuments[0] = new StarTreeDocument(
-            new Long[] { 1L, 1L },
-            new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+            new Long[]{1L, 1L},
+            new Double[]{-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0}
         );
         expectedStarTreeDocuments[1] = new StarTreeDocument(
-            new Long[] { 2L, 2L },
-            new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+            new Long[]{2L, 2L},
+            new Double[]{-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0}
         );
         expectedStarTreeDocuments[2] = new StarTreeDocument(
-            new Long[] { null, 1L },
-            new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+            new Long[]{null, 1L},
+            new Double[]{-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0}
         );
         expectedStarTreeDocuments[3] = new StarTreeDocument(
-            new Long[] { null, 2L },
-            new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+            new Long[]{null, 2L},
+            new Double[]{-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0}
         );
 
         for (LeafReaderContext context : ir.leaves()) {
@@ -328,10 +331,10 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                     assertStarTreeDocuments(starTreeDocuments, expectedStarTreeDocuments);
                 } else if (starTreeValues.getStarTreeField().getName().equals("startree2")) {
                     StarTreeDocument[] resultStarTreeDocuments = new StarTreeDocument[4];
-                    resultStarTreeDocuments[0] = new StarTreeDocument(new Long[] { null, null, null }, new Double[] { 0.0, 4.0 });
-                    resultStarTreeDocuments[1] = new StarTreeDocument(new Long[] { null, null, null }, new Double[] { null, null });
-                    resultStarTreeDocuments[2] = new StarTreeDocument(new Long[] { null, null, null }, new Double[] { null, null });
-                    resultStarTreeDocuments[3] = new StarTreeDocument(new Long[] { null, null, null }, new Double[] { null, null });
+                    resultStarTreeDocuments[0] = new StarTreeDocument(new Long[]{null, null, null}, new Double[]{0.0, 4.0});
+                    resultStarTreeDocuments[1] = new StarTreeDocument(new Long[]{null, null, null}, new Double[]{null, null});
+                    resultStarTreeDocuments[2] = new StarTreeDocument(new Long[]{null, null, null}, new Double[]{null, null});
+                    resultStarTreeDocuments[3] = new StarTreeDocument(new Long[]{null, null, null}, new Double[]{null, null});
                     StarTreeDocument[] starTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
                         List.of(starTreeValues),
                         List.of(
@@ -397,16 +400,20 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             b.endObject();
             b.startObject("properties");
             b.startObject("sndv");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("dv");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("field");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.endObject();
         });
+    }
+
+    private static String getRandomMapping(String[] options) {
+        return RandomPicks.randomFrom(new Random(), options);
     }
 
     public void testMultipleStarTrees() throws IOException {
@@ -498,13 +505,13 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 StarTreeValues starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(compositeIndexFieldInfo);
                 if (starTreeValues.getStarTreeField().getName().equals("startree2")) {
                     StarTreeDocument[] expectedStarTreeDocuments = new StarTreeDocument[7];
-                    expectedStarTreeDocuments[0] = new StarTreeDocument(new Long[] { 1L, 11L, 21L }, new Object[] { 400.0, 1.0 });
-                    expectedStarTreeDocuments[1] = new StarTreeDocument(new Long[] { 1L, 12L, 22L }, new Object[] { 200.0, 1.0 });
-                    expectedStarTreeDocuments[2] = new StarTreeDocument(new Long[] { 2L, 13L, 21L }, new Object[] { 100.0, 1.0 });
-                    expectedStarTreeDocuments[3] = new StarTreeDocument(new Long[] { 2L, 13L, 23L }, new Object[] { 300.0, 1.0 });
-                    expectedStarTreeDocuments[4] = new StarTreeDocument(new Long[] { 3L, 11L, 21L }, new Object[] { 600.0, 1.0 });
-                    expectedStarTreeDocuments[5] = new StarTreeDocument(new Long[] { 3L, 12L, 21L }, new Object[] { 400.0, 1.0 });
-                    expectedStarTreeDocuments[6] = new StarTreeDocument(new Long[] { 3L, 12L, 23L }, new Object[] { 200.0, 1.0 });
+                    expectedStarTreeDocuments[0] = new StarTreeDocument(new Long[]{1L, 11L, 21L}, new Object[]{400.0, 1.0});
+                    expectedStarTreeDocuments[1] = new StarTreeDocument(new Long[]{1L, 12L, 22L}, new Object[]{200.0, 1.0});
+                    expectedStarTreeDocuments[2] = new StarTreeDocument(new Long[]{2L, 13L, 21L}, new Object[]{100.0, 1.0});
+                    expectedStarTreeDocuments[3] = new StarTreeDocument(new Long[]{2L, 13L, 23L}, new Object[]{300.0, 1.0});
+                    expectedStarTreeDocuments[4] = new StarTreeDocument(new Long[]{3L, 11L, 21L}, new Object[]{600.0, 1.0});
+                    expectedStarTreeDocuments[5] = new StarTreeDocument(new Long[]{3L, 12L, 21L}, new Object[]{400.0, 1.0});
+                    expectedStarTreeDocuments[6] = new StarTreeDocument(new Long[]{3L, 12L, 23L}, new Object[]{200.0, 1.0});
 
                     StarTreeDocument[] starTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
                         List.of(starTreeValues),
@@ -515,32 +522,32 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 } else if (starTreeValues.getStarTreeField().getName().equals("startree1")) {
                     StarTreeDocument[] expectedStarTreeDocuments = new StarTreeDocument[7];
                     expectedStarTreeDocuments[0] = new StarTreeDocument(
-                        new Long[] { 1L, 1L },
-                        new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+                        new Long[]{1L, 1L},
+                        new Double[]{-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0}
                     );
                     expectedStarTreeDocuments[1] = new StarTreeDocument(
-                        new Long[] { 2L, 2L },
-                        new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+                        new Long[]{2L, 2L},
+                        new Double[]{-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0}
                     );
                     expectedStarTreeDocuments[2] = new StarTreeDocument(
-                        new Long[] { null, null },
-                        new Double[] { 0.0, 0.0, null, null, 0.0, 0.0, null, null, 3.0 }
+                        new Long[]{null, null},
+                        new Double[]{0.0, 0.0, null, null, 0.0, 0.0, null, null, 3.0}
                     );
                     expectedStarTreeDocuments[3] = new StarTreeDocument(
-                        new Long[] { null, 1L },
-                        new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
+                        new Long[]{null, 1L},
+                        new Double[]{-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0}
                     );
                     expectedStarTreeDocuments[4] = new StarTreeDocument(
-                        new Long[] { null, 2L },
-                        new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
+                        new Long[]{null, 2L},
+                        new Double[]{-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0}
                     );
                     expectedStarTreeDocuments[5] = new StarTreeDocument(
-                        new Long[] { null, null },
-                        new Double[] { 0.0, 0.0, null, null, 0.0, 0.0, null, null, 3.0 }
+                        new Long[]{null, null},
+                        new Double[]{0.0, 0.0, null, null, 0.0, 0.0, null, null, 3.0}
                     );
                     expectedStarTreeDocuments[6] = new StarTreeDocument(
-                        new Long[] { null, null },
-                        new Double[] { -6.0, 4.0, -2.0, -1.0, 6.0, 4.0, 1.0, 2.0, 7.0 }
+                        new Long[]{null, null},
+                        new Double[]{-6.0, 4.0, -2.0, -1.0, 6.0, 4.0, 1.0, 2.0, 7.0}
                     );
 
                     StarTreeDocument[] starTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
@@ -639,25 +646,25 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             // Properties
             b.startObject("properties");
             b.startObject("sndv");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("dv");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("field");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("fieldC");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("fieldB");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("fieldL");
-            b.field("type", "integer");
+            b.field("type", getRandomMapping(new String[]{"integer", "byte", "short", "long"}));
             b.endObject();
             b.startObject("fieldI");
-            b.field("type", "double");
+            b.field("type", getRandomMapping(new String[]{"double"}));
             b.endObject();
             b.endObject();
         });
