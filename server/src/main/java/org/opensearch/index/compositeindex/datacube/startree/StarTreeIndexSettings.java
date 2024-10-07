@@ -35,7 +35,7 @@ public class StarTreeIndexSettings {
         "index.composite_index.star_tree.max_fields",
         1,
         1,
-        1,
+        2,
         Setting.Property.IndexScope,
         Setting.Property.Final
     );

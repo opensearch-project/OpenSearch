@@ -8,6 +8,8 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -41,6 +43,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class StarTreeTestUtils {
+
+    private static final Logger logger = LogManager.getLogger(StarTreeTestUtils.class);
 
     public static StarTreeDocument[] getSegmentsStarTreeDocuments(
         List<StarTreeValues> starTreeValuesSubs,
@@ -109,10 +113,13 @@ public class StarTreeTestUtils {
 
     public static Double toAggregatorValueType(Long value, FieldValueConverter fieldValueConverter) {
         try {
-            return fieldValueConverter.toDoubleValue(value);
+            if (value != null) {
+                return fieldValueConverter.toDoubleValue(value);
+            }
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
+            logger.warn("Cannot convert {} to sortable aggregation type", value, e);
         }
+        return null;
     }
 
     public static void assertStarTreeDocuments(StarTreeDocument[] starTreeDocuments, StarTreeDocument[] expectedStarTreeDocuments) {
