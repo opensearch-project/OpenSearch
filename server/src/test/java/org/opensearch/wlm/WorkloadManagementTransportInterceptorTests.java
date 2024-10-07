@@ -32,6 +32,7 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
     private WorkloadManagementSettings mockWorkloadManagementSettings;
     private ThreadPool threadPool;
     private WorkloadManagementTransportInterceptor sut;
+    private QueryGroupsStateAccessor stateAccessor;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -40,6 +41,8 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         mockThreadPool = mock(ThreadPool.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
         threadPool = new TestThreadPool(getTestName());
+        stateAccessor = new QueryGroupsStateAccessor();
+
         ClusterState state = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(mockClusterService.state()).thenReturn(state);
@@ -47,7 +50,13 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         when(metadata.queryGroups()).thenReturn(Collections.emptyMap());
         sut = new WorkloadManagementTransportInterceptor(
             threadPool,
-            new QueryGroupService(mockTaskCancellationService, mockClusterService, mockThreadPool, mockWorkloadManagementSettings)
+            new QueryGroupService(
+                mockTaskCancellationService,
+                mockClusterService,
+                mockThreadPool,
+                mockWorkloadManagementSettings,
+                stateAccessor
+            )
         );
     }
 

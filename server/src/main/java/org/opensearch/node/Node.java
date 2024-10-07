@@ -270,6 +270,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.QueryGroupService;
+import org.opensearch.wlm.QueryGroupsStateAccessor;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
 import org.opensearch.wlm.cancellation.MaximumResourceTaskSelectionStrategy;
@@ -1034,15 +1035,19 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings()
             );
 
+            final QueryGroupsStateAccessor queryGroupsStateAccessor = new QueryGroupsStateAccessor();
+
             final QueryGroupService queryGroupService = new QueryGroupService(
                 new QueryGroupTaskCancellationService(
                     workloadManagementSettings,
                     new MaximumResourceTaskSelectionStrategy(),
-                    queryGroupResourceUsageTrackerService
+                    queryGroupResourceUsageTrackerService,
+                    queryGroupsStateAccessor
                 ),
                 clusterService,
                 threadPool,
-                workloadManagementSettings
+                workloadManagementSettings,
+                queryGroupsStateAccessor
             );
             taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
 

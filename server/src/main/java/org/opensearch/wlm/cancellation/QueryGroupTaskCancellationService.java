@@ -15,6 +15,7 @@ import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.QueryGroupsStateAccessor;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
@@ -29,7 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.TRACKED_RESOURCES;
@@ -60,19 +60,17 @@ public class QueryGroupTaskCancellationService {
     private final QueryGroupResourceUsageTrackerService resourceUsageTrackerService;
     // a map of QueryGroupId to its corresponding QueryGroupLevelResourceUsageView object
     Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews;
-    private Function<String, QueryGroupState> queryGroupStateAccessor;
+    private final QueryGroupsStateAccessor queryGroupStateAccessor;
 
     public QueryGroupTaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,
         TaskSelectionStrategy taskSelectionStrategy,
-        QueryGroupResourceUsageTrackerService resourceUsageTrackerService
+        QueryGroupResourceUsageTrackerService resourceUsageTrackerService,
+        QueryGroupsStateAccessor queryGroupStateAccessor
     ) {
         this.workloadManagementSettings = workloadManagementSettings;
         this.taskSelectionStrategy = taskSelectionStrategy;
         this.resourceUsageTrackerService = resourceUsageTrackerService;
-    }
-
-    public void setQueryGroupStateMapAccessor(final Function<String, QueryGroupState> queryGroupStateAccessor) {
         this.queryGroupStateAccessor = queryGroupStateAccessor;
     }
 
@@ -259,7 +257,7 @@ public class QueryGroupTaskCancellationService {
     private QueryGroupState getQueryGroupState(String queryGroupId) {
         assert queryGroupId != null : "queryGroupId should never be null at this point.";
 
-        return queryGroupStateAccessor.apply(queryGroupId);
+        return queryGroupStateAccessor.getQueryGroupState(queryGroupId);
     }
 
     /**

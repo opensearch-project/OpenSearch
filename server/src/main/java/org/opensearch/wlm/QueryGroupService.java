@@ -47,9 +47,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
     implements
         ClusterStateApplier,
         TaskResourceTrackingService.TaskCompletionListener {
-    // This map does not need to be concurrent since we will process the cluster state change serially and update
-    // this map with new additions and deletions of entries. QueryGroupState is thread safe
-    private final Map<String, QueryGroupState> queryGroupStateMap;
+
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
 
     private final QueryGroupTaskCancellationService taskCancellationService;
@@ -60,12 +58,14 @@ public class QueryGroupService extends AbstractLifecycleComponent
     private Set<QueryGroup> activeQueryGroups;
     private final Set<QueryGroup> deletedQueryGroups;
     private final NodeDuressTrackers nodeDuressTrackers;
+    private final QueryGroupsStateAccessor queryGroupsStateAccessor;
 
     public QueryGroupService(
         QueryGroupTaskCancellationService taskCancellationService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        WorkloadManagementSettings workloadManagementSettings
+        WorkloadManagementSettings workloadManagementSettings,
+        QueryGroupsStateAccessor queryGroupsStateAccessor
     ) {
 
         this(
@@ -90,7 +90,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
                     )
                 )
             ),
-            new HashMap<>(),
+            queryGroupsStateAccessor,
             new HashSet<>(),
             new HashSet<>()
         );
@@ -102,7 +102,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
         NodeDuressTrackers nodeDuressTrackers,
-        Map<String, QueryGroupState> stateMap,
+        QueryGroupsStateAccessor queryGroupsStateAccessor,
         Set<QueryGroup> activeQueryGroups,
         Set<QueryGroup> deletedQueryGroups
     ) {
@@ -113,26 +113,21 @@ public class QueryGroupService extends AbstractLifecycleComponent
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.activeQueryGroups = activeQueryGroups;
         this.deletedQueryGroups = deletedQueryGroups;
-        activeQueryGroups.forEach(queryGroup -> stateMap.putIfAbsent(queryGroup.get_id(), new QueryGroupState()));
-        this.queryGroupStateMap = stateMap;
-        this.queryGroupStateMap.put(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(), new QueryGroupState());
-        taskCancellationService.setQueryGroupStateMapAccessor(this::getQueryGroupState);
+        this.queryGroupsStateAccessor = queryGroupsStateAccessor;
+        activeQueryGroups.forEach(queryGroup -> this.queryGroupsStateAccessor.addNewQueryGroup(queryGroup.get_id()));
+        this.queryGroupsStateAccessor.addNewQueryGroup(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
         clusterService.addStateApplier(this);
     }
 
     /**
      * run at regular interval
      */
-    protected void doRun() {
+    void doRun() {
         if (workloadManagementSettings.getWlmMode() == WlmMode.DISABLED) {
             return;
         }
         taskCancellationService.cancelTasks(nodeDuressTrackers::isNodeInDuress, activeQueryGroups, deletedQueryGroups);
         taskCancellationService.pruneDeletedQueryGroups(deletedQueryGroups);
-    }
-
-    private QueryGroupState getQueryGroupState(final String queryGroupId) {
-        return queryGroupStateMap.getOrDefault(queryGroupId, queryGroupStateMap.get(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get()));
     }
 
     /**
@@ -175,7 +170,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
                 // New query group detected
                 QueryGroup newQueryGroup = currentQueryGroups.get(queryGroupName);
                 // Perform any necessary actions with the new query group
-                queryGroupStateMap.put(newQueryGroup.get_id(), new QueryGroupState());
+                queryGroupsStateAccessor.addNewQueryGroup(newQueryGroup.get_id());
             }
         }
 
@@ -186,7 +181,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
                 QueryGroup deletedQueryGroup = previousQueryGroups.get(queryGroupName);
                 // Perform any necessary actions with the deleted query group
                 this.deletedQueryGroups.add(deletedQueryGroup);
-                queryGroupStateMap.remove(deletedQueryGroup.get_id());
+                queryGroupsStateAccessor.removeQueryGroup(deletedQueryGroup.get_id());
             }
         }
         this.activeQueryGroups = new HashSet<>(currentMetadata.queryGroups().values());
@@ -198,7 +193,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
      * @param queryGroupId query group identifier
      */
     public void incrementFailuresFor(final String queryGroupId) {
-        QueryGroupState queryGroupState = queryGroupStateMap.get(queryGroupId);
+        QueryGroupState queryGroupState = queryGroupsStateAccessor.getQueryGroupState(queryGroupId);
         // This can happen if the request failed for a deleted query group
         // or new queryGroup is being created and has not been acknowledged yet
         if (queryGroupState == null) {
@@ -212,7 +207,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
      */
     public QueryGroupStats nodeStats() {
         final Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
-        for (Map.Entry<String, QueryGroupState> queryGroupsState : queryGroupStateMap.entrySet()) {
+        for (Map.Entry<String, QueryGroupState> queryGroupsState : queryGroupsStateAccessor.getQueryGroupStateMap().entrySet()) {
             final String queryGroupId = queryGroupsState.getKey();
             final QueryGroupState currentState = queryGroupsState.getValue();
 
@@ -231,7 +226,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
         }
 
         if (queryGroupId == null || queryGroupId.equals(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get())) return;
-        QueryGroupState queryGroupState = queryGroupStateMap.get(queryGroupId);
+        QueryGroupState queryGroupState = queryGroupsStateAccessor.getQueryGroupState(queryGroupId);
 
         // This can happen if the request failed for a deleted query group
         // or new queryGroup is being created and has not been acknowledged yet or invalid query group id
@@ -327,9 +322,9 @@ public class QueryGroupService extends AbstractLifecycleComponent
         }
 
         if (task instanceof SearchShardTask) {
-            queryGroupStateMap.get(queryGroupId).shardCompletions.inc();
+            queryGroupsStateAccessor.getQueryGroupState(queryGroupId).shardCompletions.inc();
         } else {
-            queryGroupStateMap.get(queryGroupId).completions.inc();
+            queryGroupsStateAccessor.getQueryGroupState(queryGroupId).completions.inc();
         }
     }
 }

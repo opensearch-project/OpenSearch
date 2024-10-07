@@ -17,6 +17,7 @@ import org.opensearch.wlm.MutableQueryGroupFragment;
 import org.opensearch.wlm.MutableQueryGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.QueryGroupsStateAccessor;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +53,7 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
     private QueryGroupTaskCancellationService taskCancellation;
     private WorkloadManagementSettings workloadManagementSettings;
     private QueryGroupResourceUsageTrackerService resourceUsageTrackerService;
+    private QueryGroupsStateAccessor stateAccessor;
 
     @Before
     public void setup() {
@@ -63,12 +66,14 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         when(workloadManagementSettings.getNodeLevelCpuCancellationThreshold()).thenReturn(0.9);
         when(workloadManagementSettings.getNodeLevelMemoryCancellationThreshold()).thenReturn(0.9);
         resourceUsageTrackerService = mock(QueryGroupResourceUsageTrackerService.class);
+        stateAccessor = mock(QueryGroupsStateAccessor.class);
+        when(stateAccessor.getQueryGroupState(any())).thenReturn(new QueryGroupState());
         taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService
+            resourceUsageTrackerService,
+            stateAccessor
         );
-        taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
     }
 
     public void testGetCancellableTasksFrom_setupAppropriateCancellationReasonAndScore() {
@@ -189,7 +194,8 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService
+            resourceUsageTrackerService,
+            stateAccessor
         );
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.SOFT, activeQueryGroups);
@@ -219,9 +225,9 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService
+            resourceUsageTrackerService,
+            stateAccessor
         );
-        taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
 
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
@@ -281,9 +287,9 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService
+            resourceUsageTrackerService,
+            stateAccessor
         );
-        taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
@@ -351,9 +357,9 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService
+            resourceUsageTrackerService,
+            stateAccessor
         );
-        taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeQueryGroups);
@@ -410,9 +416,9 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService
+            resourceUsageTrackerService,
+            stateAccessor
         );
-        taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
 
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
@@ -543,9 +549,9 @@ public class QueryGroupTaskCancellationServiceTests extends OpenSearchTestCase {
         QueryGroupTaskCancellationService taskCancellation = new QueryGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
-            resourceUsageTrackerService
+            resourceUsageTrackerService,
+            stateAccessor
         );
-        taskCancellation.setQueryGroupStateMapAccessor((x) -> new QueryGroupState());
         taskCancellation.queryGroupLevelResourceUsageViews = queryGroupLevelViews;
 
         taskCancellation.pruneDeletedQueryGroups(deletedQueryGroups);

@@ -56,6 +56,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     private Scheduler.Cancellable mockScheduledFuture;
     private Map<String, QueryGroupState> mockQueryGroupStateMap;
     NodeDuressTrackers mockNodeDuressTrackers;
+    QueryGroupsStateAccessor mockQueryGroupsStateAccessor;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -66,6 +67,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockQueryGroupStateMap = new HashMap<>();
         mockNodeDuressTrackers = Mockito.mock(NodeDuressTrackers.class);
         mockCancellationService = Mockito.mock(TestQueryGroupCancellationService.class);
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor();
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
@@ -73,7 +75,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            mockQueryGroupStateMap,
+            mockQueryGroupsStateAccessor,
             new HashSet<>(),
             new HashSet<>()
         );
@@ -178,6 +180,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             }
         };
         mockQueryGroupStateMap = new HashMap<>();
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
         mockQueryGroupStateMap.put("queryGroupId1", new QueryGroupState());
 
         Map<String, QueryGroupState> spyMap = spy(mockQueryGroupStateMap);
@@ -188,7 +191,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            spyMap,
+            mockQueryGroupsStateAccessor,
             activeQueryGroups,
             new HashSet<>()
         );
@@ -216,6 +219,8 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         QueryGroupState spyState = spy(new QueryGroupState());
         mockQueryGroupStateMap.put("queryGroupId1", spyState);
 
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
+
         Map<String, QueryGroupState> spyMap = spy(mockQueryGroupStateMap);
 
         queryGroupService = new QueryGroupService(
@@ -224,7 +229,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            spyMap,
+            mockQueryGroupsStateAccessor,
             activeQueryGroups,
             new HashSet<>()
         );
@@ -252,13 +257,15 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         mockQueryGroupStateMap.put("queryGroupId1", queryGroupState);
 
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
+
         queryGroupService = new QueryGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            mockQueryGroupStateMap,
+            mockQueryGroupsStateAccessor,
             activeQueryGroups,
             new HashSet<>()
         );
@@ -295,6 +302,8 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         queryGroupState.getResourceState().get(ResourceType.MEMORY).setLastRecordedUsage(0.18);
         QueryGroupState spyState = spy(queryGroupState);
 
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
+
         mockQueryGroupStateMap.put("queryGroupId1", spyState);
 
         queryGroupService = new QueryGroupService(
@@ -303,7 +312,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            mockQueryGroupStateMap,
+            mockQueryGroupsStateAccessor,
             activeQueryGroups,
             new HashSet<>()
         );
@@ -339,13 +348,15 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         Map<String, QueryGroupState> spyMap = spy(mockQueryGroupStateMap);
 
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
+
         queryGroupService = new QueryGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            spyMap,
+            mockQueryGroupsStateAccessor,
             activeQueryGroups,
             new HashSet<>()
         );
@@ -361,13 +372,14 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
         QueryGroupState queryGroupState = new QueryGroupState();
         mockQueryGroupStateMap.put("testId", queryGroupState);
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
         queryGroupService = new QueryGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            mockQueryGroupStateMap,
+            mockQueryGroupsStateAccessor,
             new HashSet<>() {
                 {
                     add(
@@ -406,13 +418,14 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         QueryGroupState queryGroupState = new QueryGroupState();
         Set<QueryGroup> activeQueryGroups = new HashSet<>();
         mockQueryGroupStateMap.put("testId", queryGroupState);
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
         queryGroupService = new QueryGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
             mockNodeDuressTrackers,
-            mockQueryGroupStateMap,
+            mockQueryGroupsStateAccessor,
             activeQueryGroups,
             Collections.emptySet()
         );
@@ -457,10 +470,11 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
             WorkloadManagementSettings workloadManagementSettings,
             TaskSelectionStrategy taskSelectionStrategy,
             QueryGroupResourceUsageTrackerService resourceUsageTrackerService,
+            QueryGroupsStateAccessor queryGroupsStateAccessor,
             Collection<QueryGroup> activeQueryGroups,
             Collection<QueryGroup> deletedQueryGroups
         ) {
-            super(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService);
+            super(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, queryGroupsStateAccessor);
         }
 
         @Override

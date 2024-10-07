@@ -18,6 +18,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.QueryGroupsStateAccessor;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
@@ -120,6 +121,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
     public void testMultiThreadedValidQueryGroupRequestFailures() {
 
         queryGroupStateMap.put(testQueryGroupId, new QueryGroupState());
+        QueryGroupsStateAccessor accessor = new QueryGroupsStateAccessor(queryGroupStateMap);
         setupMockedQueryGroupsFromClusterState();
         queryGroupService = new QueryGroupService(
             taskCancellationService,
@@ -127,7 +129,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             testThreadPool,
             mockWorkloadManagementSettings,
             null,
-            queryGroupStateMap,
+            accessor,
             Collections.emptySet(),
             Collections.emptySet()
         );
@@ -212,7 +214,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 new QueryGroupStats.QueryGroupStatsHolder(
                     0,
                     0,
-                    0,
+                    1,
                     0,
                     0,
                     Map.of(
@@ -235,7 +237,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         QueryGroupStats expectedStats,
         String threadContextQG_Id
     ) {
-
+        QueryGroupsStateAccessor stateAccessor = new QueryGroupsStateAccessor(queryGroupStateMap);
         try (ThreadContext.StoredContext currentContext = testThreadPool.getThreadContext().stashContext()) {
             testThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, threadContextQG_Id);
             queryGroupStateMap.put(testQueryGroupId, new QueryGroupState());
@@ -248,7 +250,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 testThreadPool,
                 mockWorkloadManagementSettings,
                 null,
-                queryGroupStateMap,
+                stateAccessor,
                 Collections.emptySet(),
                 Collections.emptySet()
             );
