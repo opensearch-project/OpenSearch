@@ -244,7 +244,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     // pkg private for tests
     private boolean validateLocalChecksum(StoreFileMetadata file) {
-        try (IndexInput indexInput = indexShard.store().directory().openInput(file.name(), IOContext.DEFAULT)) {
+        try (IndexInput indexInput = indexShard.store().directory().openInput(file.name(), IOContext.READONCE)) {
             String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
             if (file.checksum().equals(checksum)) {
                 return true;
