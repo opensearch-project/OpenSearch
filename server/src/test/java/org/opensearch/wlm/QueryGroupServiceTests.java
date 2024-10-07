@@ -86,7 +86,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.shutdown();
     }
 
-    public void testApplyClusterState() {
+    public void testClusterChanged() {
         ClusterChangedEvent mockClusterChangedEvent = Mockito.mock(ClusterChangedEvent.class);
         ClusterState mockPreviousClusterState = Mockito.mock(ClusterState.class);
         ClusterState mockClusterState = Mockito.mock(ClusterState.class);
@@ -115,7 +115,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         when(mockClusterState.metadata()).thenReturn(mockMetadata);
         when(mockPreviousMetadata.queryGroups()).thenReturn(previousQueryGroups);
         when(mockMetadata.queryGroups()).thenReturn(currentQueryGroups);
-        queryGroupService.applyClusterState(mockClusterChangedEvent);
+        queryGroupService.clusterChanged(mockClusterChangedEvent);
 
         Set<QueryGroup> currentQueryGroupsExpected = Set.of(currentQueryGroups.get("4241"));
         Set<QueryGroup> previousQueryGroupsExpected = Set.of(previousQueryGroups.get("4242"));

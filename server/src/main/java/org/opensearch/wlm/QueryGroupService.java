@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.cluster.ClusterChangedEvent;
-import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
@@ -45,7 +45,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
  */
 public class QueryGroupService extends AbstractLifecycleComponent
     implements
-        ClusterStateApplier,
+        ClusterStateListener,
         TaskResourceTrackingService.TaskCompletionListener {
 
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
@@ -116,7 +116,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
         this.queryGroupsStateAccessor = queryGroupsStateAccessor;
         activeQueryGroups.forEach(queryGroup -> this.queryGroupsStateAccessor.addNewQueryGroup(queryGroup.get_id()));
         this.queryGroupsStateAccessor.addNewQueryGroup(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
-        clusterService.addStateApplier(this);
+        this.clusterService.addListener(this);
     }
 
     /**
@@ -155,7 +155,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
     protected void doClose() throws IOException {}
 
     @Override
-    public void applyClusterState(ClusterChangedEvent event) {
+    public void clusterChanged(ClusterChangedEvent event) {
         // Retrieve the current and previous cluster states
         Metadata previousMetadata = event.previousState().metadata();
         Metadata currentMetadata = event.state().metadata();
