@@ -113,7 +113,9 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
             Map<Integer, IndexShardRoutingTable> indexShardRoutingTable = indicesRouting.get(indexName).getShards();
             for (; startShardId < indexShardRoutingTable.size(); startShardId++) {
                 if (indexShardRoutingTable.get(startShardId).size() > numShardsRequired) {
-                    throw new IllegalArgumentException("size value should be greater than the replica count of all indices");
+                    throw new IllegalArgumentException(
+                        "size value should be greater than the replica count of all indices, so that all primary and replicas of a shard show up in single page"
+                    );
                 }
                 shardCount += indexShardRoutingTable.get(startShardId).size();
                 if (shardCount > numShardsRequired) {
