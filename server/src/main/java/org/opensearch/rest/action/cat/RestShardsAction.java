@@ -35,11 +35,12 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.action.admin.cluster.shards.CatShardsAction;
 import org.opensearch.action.admin.cluster.shards.CatShardsRequest;
 import org.opensearch.action.admin.cluster.shards.CatShardsResponse;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Table;
@@ -63,6 +64,7 @@ import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
@@ -80,7 +82,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  *
  * @opensearch.api
  */
-public class RestShardsAction extends AbstractCatAction {
+public class RestShardsAction extends AbstractListAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestShardsAction.class);
 
@@ -119,20 +121,32 @@ public class RestShardsAction extends AbstractCatAction {
         shardsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
         shardsRequest.setIndices(indices);
         shardsRequest.setRequestLimitCheckSupported(isRequestLimitCheckSupported());
+        shardsRequest.setPageParams(pageParams);
         parseDeprecatedMasterTimeoutParameter(shardsRequest, request, deprecationLogger, getName());
         return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
             public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {
-                ClusterStateResponse clusterStateResponse = catShardsResponse.getClusterStateResponse();
-                IndicesStatsResponse indicesStatsResponse = catShardsResponse.getIndicesStatsResponse();
-                return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
+                return RestTable.buildResponse(
+                    buildTable(
+                        request,
+                        catShardsResponse.getNodes(),
+                        catShardsResponse.getIndicesStatsResponse(),
+                        catShardsResponse.getResponseShards(),
+                        catShardsResponse.getPageToken()
+                    ),
+                    channel
+                );
             }
         });
     }
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        return getTableWithHeader(request, null);
+    }
+
+    protected Table getTableWithHeader(final RestRequest request, final PageToken pageToken) {
+        Table table = new Table(pageToken);
         table.startHeaders()
             .addCell("index", "default:true;alias:i,idx;desc:index name")
             .addCell("shard", "default:true;alias:s,sh;desc:shard name")
@@ -301,10 +315,16 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
-        Table table = getTableWithHeader(request);
+    Table buildTable(
+        RestRequest request,
+        DiscoveryNodes nodes,
+        IndicesStatsResponse stats,
+        List<ShardRouting> responseShards,
+        PageToken pageToken
+    ) {
+        Table table = getTableWithHeader(request, pageToken);
 
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : responseShards) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;
@@ -331,13 +351,13 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
             table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
             if (shard.assignedToNode()) {
-                String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
+                String ip = nodes.get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
                 StringBuilder name = new StringBuilder();
-                name.append(state.getState().nodes().get(shard.currentNodeId()).getName());
+                name.append(nodes.get(shard.currentNodeId()).getName());
                 if (shard.relocating()) {
-                    String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
-                    String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).getName();
+                    String reloIp = nodes.get(shard.relocatingNodeId()).getHostAddress();
+                    String reloNme = nodes.get(shard.relocatingNodeId()).getName();
                     String reloNodeId = shard.relocatingNodeId();
                     name.append(" -> ");
                     name.append(reloIp);
@@ -459,5 +479,10 @@ public class RestShardsAction extends AbstractCatAction {
         }
 
         return table;
+    }
+
+    @Override
+    public boolean isActionPaginated() {
+        return false;
     }
 }
