@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -26,8 +26,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
 import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
-import org.opensearch.index.codec.composite.composite99.Composite99Codec;
-import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
+import org.opensearch.index.codec.composite.composite912.Composite912Codec;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
@@ -351,12 +351,12 @@ public class BuilderTestsUtils {
         );
 
         DocValuesProducer compositeDocValuesProducer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
-            Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
+            Composite912Codec.COMPOSITE_INDEX_CODEC_NAME,
             readState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
 
         IndexInput dataIn = readState.directory.openInput(dataFileName, IOContext.DEFAULT);
@@ -461,7 +461,7 @@ public class BuilderTestsUtils {
             numDocs,
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             writeState.segmentInfo.getId(),
             new HashMap<>(),
@@ -515,7 +515,7 @@ public class BuilderTestsUtils {
             numDocs,
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             id,
             new HashMap<>(),

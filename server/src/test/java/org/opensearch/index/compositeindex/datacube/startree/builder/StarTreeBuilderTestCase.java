@@ -25,7 +25,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.compositeindex.CompositeIndexConstants;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -152,14 +152,14 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         dataFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,
             writeState.segmentSuffix,
-            Composite99DocValuesFormat.DATA_EXTENSION
+            Composite912DocValuesFormat.DATA_EXTENSION
         );
         dataOut = writeState.directory.createOutput(dataFileName, writeState.context);
 
         metaFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,
             writeState.segmentSuffix,
-            Composite99DocValuesFormat.META_EXTENSION
+            Composite912DocValuesFormat.META_EXTENSION
         );
         metaOut = writeState.directory.createOutput(metaFileName, writeState.context);
 
