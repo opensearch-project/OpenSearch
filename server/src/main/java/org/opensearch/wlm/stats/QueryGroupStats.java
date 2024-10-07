@@ -8,7 +8,6 @@
 
 package org.opensearch.wlm.stats;
 
-import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -124,9 +123,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             this.rejections = in.readVLong();
             this.failures = in.readVLong();
             this.totalCancellations = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
-                this.shardCompletions = in.readVLong();
-            }
+            this.shardCompletions = in.readVLong();
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
 
@@ -164,9 +161,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             out.writeVLong(statsHolder.rejections);
             out.writeVLong(statsHolder.failures);
             out.writeVLong(statsHolder.totalCancellations);
-            if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
-                out.writeVLong(statsHolder.shardCompletions);
-            }
+            out.writeVLong(statsHolder.shardCompletions);
             out.writeMap(statsHolder.resourceStats, (o, val) -> o.writeString(val.getName()), ResourceStats::writeTo);
         }
 
