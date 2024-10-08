@@ -19,14 +19,19 @@ import java.util.Map;
  */
 public class QueryGroupState {
     /**
-     * completions at the query group level, this is a cumulative counter since the Opensearch start time
+     * co-ordinator level completions at the query group level, this is a cumulative counter since the Opensearch start time
      */
-    final CounterMetric completions = new CounterMetric();
+    public final CounterMetric completions = new CounterMetric();
+
+    /**
+     * shard level completions at the query group level, this is a cumulative counter since the Opensearch start time
+     */
+    public final CounterMetric shardCompletions = new CounterMetric();
 
     /**
      * rejections at the query group level, this is a cumulative counter since the OpenSearch start time
      */
-    final CounterMetric totalRejections = new CounterMetric();
+    public final CounterMetric totalRejections = new CounterMetric();
 
     /**
      * this will track the cumulative failures in a query group
@@ -36,7 +41,7 @@ public class QueryGroupState {
     /**
      * This will track total number of cancellations in the query group due to all resource type breaches
      */
-    final CounterMetric totalCancellations = new CounterMetric();
+    public final CounterMetric totalCancellations = new CounterMetric();
 
     /**
      * This is used to store the resource type state both for CPU and MEMORY
@@ -54,10 +59,18 @@ public class QueryGroupState {
 
     /**
      *
-     * @return completions in the query group
+     * @return co-ordinator completions in the query group
      */
     public long getCompletions() {
         return completions.count();
+    }
+
+    /**
+     *
+     * @return shard completions in the query group
+     */
+    public long getShardCompletions() {
+        return shardCompletions.count();
     }
 
     /**
@@ -92,9 +105,9 @@ public class QueryGroupState {
      * This class holds the resource level stats for the query group
      */
     public static class ResourceTypeState {
-        final ResourceType resourceType;
-        final CounterMetric cancellations = new CounterMetric();
-        final CounterMetric rejections = new CounterMetric();
+        public final ResourceType resourceType;
+        public final CounterMetric cancellations = new CounterMetric();
+        public final CounterMetric rejections = new CounterMetric();
         private double lastRecordedUsage = 0;
 
         public ResourceTypeState(ResourceType resourceType) {
