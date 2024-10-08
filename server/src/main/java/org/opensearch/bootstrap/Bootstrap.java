@@ -336,6 +336,8 @@ final class Bootstrap {
     }
 
     private void start() throws NodeValidationException {
+        // keepAliveThread should start first than node to ensure the cluster can spin up successfully in edge cases:
+        // https://github.com/opensearch-project/OpenSearch/issues/14791
         keepAliveThread.start();
         node.start();
     }
