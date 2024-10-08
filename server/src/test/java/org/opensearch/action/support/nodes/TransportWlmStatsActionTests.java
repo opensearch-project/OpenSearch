@@ -12,14 +12,6 @@ import org.opensearch.action.admin.cluster.wlm.TransportWlmStatsAction;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
-<<<<<<< HEAD
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.test.transport.CapturingTransport;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterService;
-=======
->>>>>>> ffe0d7fa2cd (address comments)
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.transport.CapturingTransport;
@@ -40,33 +32,13 @@ public class TransportWlmStatsActionTests extends TransportNodesActionTests {
      * We don't want to send discovery nodes list to each request that is sent across from the coordinator node.
      * This behavior is asserted in this test.
      */
-<<<<<<< HEAD:server/src/test/java/org/opensearch/action/support/nodes/TransportQueryGroupStatsActionTests.java
-    public void testQueryGroupStatsActionWithRetentionOfDiscoveryNodesList() {
-        QueryGroupStatsRequest request = new QueryGroupStatsRequest();
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
-=======
-        Map<String, List<MockNodeQueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
->>>>>>> b5cbfa4de9e (changelog)
-=======
-        Map<String, List<NodeQueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
->>>>>>> ffe0d7fa2cd (address comments)
-=======
-        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = performQueryGroupStatsAction(request);
->>>>>>> 3a7ac33beb6 (modify based on comments)
-=======
     public void testWlmStatsActionWithRetentionOfDiscoveryNodesList() {
         WlmStatsRequest request = new WlmStatsRequest();
         Map<String, List<WlmStatsRequest>> combinedSentRequest = performWlmStatsAction(request);
->>>>>>> bb4288b3eba (modify based on comments):server/src/test/java/org/opensearch/action/support/nodes/TransportWlmStatsActionTests.java
 
         assertNotNull(combinedSentRequest);
         combinedSentRequest.forEach((node, capturedRequestList) -> {
             assertNotNull(capturedRequestList);
-<<<<<<< HEAD
-<<<<<<< HEAD
             capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.concreteNodes()); });
         });
     }
@@ -85,79 +57,16 @@ public class TransportWlmStatsActionTests extends TransportNodesActionTests {
         Map<String, List<WlmStatsRequest>> combinedSentRequest = new HashMap<>();
 
         capturedRequests.forEach((node, capturedRequestList) -> {
-<<<<<<< HEAD:server/src/test/java/org/opensearch/action/support/nodes/TransportQueryGroupStatsActionTests.java
-            List<QueryGroupStatsRequest> sentRequestList = new ArrayList<>();
-=======
-            capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.getDiscoveryNodes()); });
-=======
-            capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.concreteNodes()); });
->>>>>>> 3a7ac33beb6 (modify based on comments)
-        });
-    }
-
-    private Map<String, List<QueryGroupStatsRequest>> performQueryGroupStatsAction(QueryGroupStatsRequest request) {
-        TransportNodesAction action = new TransportQueryGroupStatsAction(
-            THREAD_POOL,
-            clusterService,
-            transportService,
-            mock(QueryGroupService.class),
-            new ActionFilters(Collections.emptySet())
-        );
-        PlainActionFuture<QueryGroupStatsRequest> listener = new PlainActionFuture<>();
-        action.new AsyncAction(null, request, listener).start();
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        Map<String, List<QueryGroupStatsRequest>> combinedSentRequest = new HashMap<>();
-
-        capturedRequests.forEach((node, capturedRequestList) -> {
-<<<<<<< HEAD
-<<<<<<< HEAD
-            List<MockNodeQueryGroupStatsRequest> sentRequestList = new ArrayList<>();
->>>>>>> b5cbfa4de9e (changelog)
-=======
-            List<NodeQueryGroupStatsRequest> sentRequestList = new ArrayList<>();
->>>>>>> ffe0d7fa2cd (address comments)
-=======
-            List<QueryGroupStatsRequest> sentRequestList = new ArrayList<>();
->>>>>>> 3a7ac33beb6 (modify based on comments)
-=======
             List<WlmStatsRequest> sentRequestList = new ArrayList<>();
->>>>>>> bb4288b3eba (modify based on comments):server/src/test/java/org/opensearch/action/support/nodes/TransportWlmStatsActionTests.java
 
             capturedRequestList.forEach(preSentRequest -> {
                 BytesStreamOutput out = new BytesStreamOutput();
                 try {
-<<<<<<< HEAD:server/src/test/java/org/opensearch/action/support/nodes/TransportQueryGroupStatsActionTests.java
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    QueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator = (QueryGroupStatsRequest) preSentRequest.request;
-                    QueryGroupStatsRequestFromCoordinator.writeTo(out);
-                    StreamInput in = out.bytes().streamInput();
-                    QueryGroupStatsRequest QueryGroupStatsRequest = new QueryGroupStatsRequest(in);
-=======
-                    TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator =
-                        (TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest) preSentRequest.request;
-                    QueryGroupStatsRequestFromCoordinator.writeTo(out);
-                    StreamInput in = out.bytes().streamInput();
-<<<<<<< HEAD
-                    MockNodeQueryGroupStatsRequest QueryGroupStatsRequest = new MockNodeQueryGroupStatsRequest(in);
->>>>>>> b5cbfa4de9e (changelog)
-=======
-                    NodeQueryGroupStatsRequest QueryGroupStatsRequest = new NodeQueryGroupStatsRequest(in);
->>>>>>> ffe0d7fa2cd (address comments)
-=======
-                    QueryGroupStatsRequest QueryGroupStatsRequestFromCoordinator = (QueryGroupStatsRequest) preSentRequest.request;
-                    QueryGroupStatsRequestFromCoordinator.writeTo(out);
-                    StreamInput in = out.bytes().streamInput();
-                    QueryGroupStatsRequest QueryGroupStatsRequest = new QueryGroupStatsRequest(in);
->>>>>>> 3a7ac33beb6 (modify based on comments)
-                    sentRequestList.add(QueryGroupStatsRequest);
-=======
                     WlmStatsRequest wlmStatsRequestFromCoordinator = (WlmStatsRequest) preSentRequest.request;
                     wlmStatsRequestFromCoordinator.writeTo(out);
                     StreamInput in = out.bytes().streamInput();
                     WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(in);
                     sentRequestList.add(wlmStatsRequest);
->>>>>>> bb4288b3eba (modify based on comments):server/src/test/java/org/opensearch/action/support/nodes/TransportWlmStatsActionTests.java
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -168,43 +77,4 @@ public class TransportWlmStatsActionTests extends TransportNodesActionTests {
 
         return combinedSentRequest;
     }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
-    private TestTransportQueryGroupStatsAction getTestTransportQueryGroupStatsAction() {
-        return new TestTransportQueryGroupStatsAction(
-            THREAD_POOL,
-            clusterService,
-            transportService,
-            mock(QueryGroupService.class),
-            new ActionFilters(Collections.emptySet())
-        );
-    }
-
-    private static class TestTransportQueryGroupStatsAction extends TransportQueryGroupStatsAction {
-        public TestTransportQueryGroupStatsAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            QueryGroupService queryGroupService,
-            ActionFilters actionFilters
-        ) {
-            super(threadPool, clusterService, transportService, queryGroupService, actionFilters);
-        }
-    }
-
-    private static class MockNodeQueryGroupStatsRequest extends TransportQueryGroupStatsAction.NodeQueryGroupStatsRequest {
-
-        public MockNodeQueryGroupStatsRequest(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public DiscoveryNode[] getDiscoveryNodes() {
-            return this.request.concreteNodes();
-        }
-    }
->>>>>>> b5cbfa4de9e (changelog)
-=======
->>>>>>> ffe0d7fa2cd (address comments)
 }

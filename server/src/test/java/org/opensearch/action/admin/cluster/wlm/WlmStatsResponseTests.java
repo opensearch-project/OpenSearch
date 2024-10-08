@@ -46,6 +46,7 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
                 0,
                 1,
                 0,
+                0,
                 Map.of(
                     ResourceType.CPU,
                     new QueryGroupStats.ResourceStats(0, 0, 0),

@@ -42,10 +42,6 @@ import java.util.Objects;
 public class QueryGroupStats extends BaseNodeResponse implements ToXContentObject, Writeable {
     private final Map<String, QueryGroupStatsHolder> stats;
 
-    public Map<String, QueryGroupStatsHolder> getStats() {
-        return stats;
-    }
-
     public QueryGroupStats(DiscoveryNode node, Map<String, QueryGroupStatsHolder> stats) {
         super(node);
         this.stats = stats;
@@ -89,6 +85,10 @@ public class QueryGroupStats extends BaseNodeResponse implements ToXContentObjec
     @Override
     public int hashCode() {
         return Objects.hash(stats);
+    }
+
+    public Map<String, QueryGroupStatsHolder> getStats() {
+        return stats;
     }
 
     /**

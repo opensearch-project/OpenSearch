@@ -26,19 +26,7 @@ public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
     private final Set<String> queryGroupIds;
     private final Boolean breach;
 
-<<<<<<< HEAD:server/src/main/java/org/opensearch/action/admin/cluster/wlm/QueryGroupStatsRequest.java
-<<<<<<< HEAD
-<<<<<<< HEAD
-    public QueryGroupStatsRequest(StreamInput in) throws IOException {
-=======
-    protected QueryGroupStatsRequest(StreamInput in) throws IOException {
->>>>>>> ffe0d7fa2cd (address comments)
-=======
-    public QueryGroupStatsRequest(StreamInput in) throws IOException {
->>>>>>> 3a7ac33beb6 (modify based on comments)
-=======
     public WlmStatsRequest(StreamInput in) throws IOException {
->>>>>>> bb4288b3eba (modify based on comments):server/src/main/java/org/opensearch/action/admin/cluster/wlm/WlmStatsRequest.java
         super(in);
         this.queryGroupIds = new HashSet<>(Set.of(in.readStringArray()));
         this.breach = in.readOptionalBoolean();

@@ -34,23 +34,10 @@ public class RestWlmStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(
             asList(
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> ebf941fb3c8 (modify uri)
                 new Route(GET, "_wlm/stats"),
                 new Route(GET, "_wlm/{nodeId}/stats"),
                 new Route(GET, "_wlm/stats/{queryGroupId}"),
                 new Route(GET, "_wlm/{nodeId}/stats/{queryGroupId}")
-<<<<<<< HEAD
-=======
-                new Route(GET, "query_group/stats"),
-                new Route(GET, "query_group/stats/{queryGroupId}"),
-                new Route(GET, "query_group/stats/nodes/{nodeId}"),
-                new Route(GET, "query_group/stats/{queryGroupId}/nodes/{nodeId}")
->>>>>>> ffe0d7fa2cd (address comments)
-=======
->>>>>>> ebf941fb3c8 (modify uri)
             )
         );
     }

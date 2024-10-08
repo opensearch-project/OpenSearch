@@ -1501,7 +1501,6 @@ public class Node implements Closeable {
                 b.bind(SearchRequestStats.class).toInstance(searchRequestStats);
                 b.bind(SearchRequestSlowLog.class).toInstance(searchRequestSlowLog);
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
-                b.bind(QueryGroupService.class).toInstance(queryGroupService);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(RemoteIndexPathUploader.class).toProvider(() -> remoteIndexPathUploader);
                 b.bind(RemoteStorePinnedTimestampService.class).toProvider(() -> remoteStorePinnedTimestampService);
