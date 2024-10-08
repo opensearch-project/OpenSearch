@@ -148,6 +148,10 @@ public class TieredSpilloverCacheSettings {
         DISK_CACHE_ENABLED_SETTING_MAP = diskCacheSettingMap;
     }
 
+    /**
+     * Returns the default segment count to be used within TieredCache.
+     * @return default segment count
+     */
     public static int defaultSegments() {
         // For now, we use number of search threads as the default segment count. If needed each cache type can
         // configure its own segmentCount via setting in the future.
