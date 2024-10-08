@@ -42,6 +42,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.QueryGroupService;
 import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
@@ -86,12 +87,14 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
     private final Map<Class<? extends SearchBackpressureTask>, SearchBackpressureState> searchBackpressureStates;
     private final TaskManager taskManager;
+    private final QueryGroupService queryGroupService;
 
     public SearchBackpressureService(
         SearchBackpressureSettings settings,
         TaskResourceTrackingService taskResourceTrackingService,
         ThreadPool threadPool,
-        TaskManager taskManager
+        TaskManager taskManager,
+        QueryGroupService queryGroupService
     ) {
         this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
             {
@@ -131,7 +134,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 settings.getClusterSettings(),
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             ),
-            taskManager
+            taskManager,
+            queryGroupService
         );
     }
 
@@ -143,7 +147,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         NodeDuressTrackers nodeDuressTrackers,
         TaskResourceUsageTrackers searchTaskTrackers,
         TaskResourceUsageTrackers searchShardTaskTrackers,
-        TaskManager taskManager
+        TaskManager taskManager,
+        QueryGroupService queryGroupService
     ) {
         this.settings = settings;
         this.taskResourceTrackingService = taskResourceTrackingService;
@@ -151,6 +156,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         this.threadPool = threadPool;
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.taskManager = taskManager;
+        this.queryGroupService = queryGroupService;
 
         this.searchBackpressureStates = Map.of(
             SearchTask.class,
@@ -346,6 +352,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             .stream()
             .filter(type::isInstance)
             .map(type::cast)
+            .filter(queryGroupService::shouldSBPHandle)
             .collect(Collectors.toUnmodifiableList());
     }
 
