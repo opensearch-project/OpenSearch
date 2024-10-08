@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ public class SearchRequestContext {
     private final Map<String, Long> phaseTookMap;
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
-    private Set<String> successfulSearchShardIndices;
+    private Set<Index> successfulSearchShardIndices;
 
     private final SearchRequest searchRequest;
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
@@ -144,15 +145,15 @@ public class SearchRequestContext {
         return searchRequest;
     }
 
-    void setSuccessfulSearchShardIndices(Set<String> successfulSearchShardIndices) {
+    void setSuccessfulSearchShardIndices(Set<Index> successfulSearchShardIndices) {
         this.successfulSearchShardIndices = successfulSearchShardIndices;
     }
 
     /**
-     * @return A {@link List} of {@link String} representing the names of the indices that were
+     * @return A {@link Set} of {@link Index} representing the names of the indices that were
      * successfully queried at the shard level.
      */
-    public Set<String> getSuccessfulSearchShardIndices() {
+    public Set<Index> getSuccessfulSearchShardIndices() {
         return successfulSearchShardIndices;
     }
 }
