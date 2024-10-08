@@ -34,8 +34,12 @@ package org.opensearch.common.cache;
 
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.ToLongBiFunction;
+
+import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
+import static org.opensearch.common.cache.settings.CacheSettings.VALID_SEGMENT_COUNT_VALUES;
 
 /**
  * The cache builder.
@@ -48,12 +52,21 @@ public class CacheBuilder<K, V> {
     private long expireAfterWriteNanos = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
+    private int numberOfSegments = -1;
 
     public static <K, V> CacheBuilder<K, V> builder() {
         return new CacheBuilder<>();
     }
 
     private CacheBuilder() {}
+
+    public CacheBuilder<K, V> setNumberOfSegments(int numberOfSegments) {
+        if (!VALID_SEGMENT_COUNT_VALUES.contains(numberOfSegments)) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE, "Cache"));
+        }
+        this.numberOfSegments = numberOfSegments;
+        return this;
+    }
 
     public CacheBuilder<K, V> setMaximumWeight(long maximumWeight) {
         if (maximumWeight < 0) {
@@ -108,7 +121,7 @@ public class CacheBuilder<K, V> {
     }
 
     public Cache<K, V> build() {
-        Cache<K, V> cache = new Cache<>();
+        Cache<K, V> cache = new Cache<>(numberOfSegments);
         if (maximumWeight != -1) {
             cache.setMaximumWeight(maximumWeight);
         }
