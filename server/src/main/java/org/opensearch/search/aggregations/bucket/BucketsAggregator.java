@@ -221,10 +221,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
         InternalAggregations[] result = new InternalAggregations[bucketOrdsToCollect.length];
         for (int ord = 0; ord < bucketOrdsToCollect.length; ord++) {
-            InternalAggregation[] slice = new InternalAggregation[subAggregators.length];
-            for (int i = 0; i < subAggregators.length; i++) {
-                slice[i] = aggregations[i][ord];
-            }
             final int thisOrd = ord;
             result[ord] = InternalAggregations.from(new AbstractList<InternalAggregation>() {
                 @Override
