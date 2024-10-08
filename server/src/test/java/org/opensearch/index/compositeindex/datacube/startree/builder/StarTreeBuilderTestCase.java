@@ -24,9 +24,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.compositeindex.CompositeIndexConstants;
+import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -36,7 +39,10 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
@@ -245,7 +251,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
     protected List<String> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
         List<String> dimensionNames = new ArrayList<>();
         for (Dimension dimension : dimensionsOrder) {
-            dimensionNames.add(dimension.getField());
+            dimensionNames.addAll(dimension.getSubDimensionNames());
         }
         return dimensionNames;
     }
@@ -331,6 +337,21 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
             0,
             dataLength
         );
+    }
+
+    protected StarTreeField getStarTreeFieldWithDateDimension() {
+        List<DateTimeUnitRounding> intervals = new ArrayList<>();
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR));
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
+        intervals.add(DataCubeDateTimeUnit.HALF_HOUR_OF_DAY);
+        Dimension d1 = new DateDimension("field1", intervals, DateFieldMapper.Resolution.MILLISECONDS);
+        Dimension d2 = new NumericDimension("field3");
+        Metric m1 = new Metric("field2", List.of(MetricStat.VALUE_COUNT, MetricStat.SUM));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(10, new HashSet<>(), getBuildMode());
+        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        return sf;
     }
 
     @Override
