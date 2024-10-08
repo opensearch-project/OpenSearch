@@ -73,6 +73,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.request.RequestCacheStats;
@@ -851,15 +852,18 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertFalse(concurrentModificationExceptionDetected.get());
     }
 
-    private IndicesRequestCache getIndicesRequestCache(Settings settings) {
+    private IndicesRequestCache getIndicesRequestCache(Settings settings) throws IOException {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        return new IndicesRequestCache(
-            settings,
-            indicesService.indicesRequestCache.cacheEntityLookup,
-            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-            threadPool,
-            ClusterServiceUtils.createClusterService(threadPool)
-        );
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            return new IndicesRequestCache(
+                settings,
+                indicesService.indicesRequestCache.cacheEntityLookup,
+                new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+                threadPool,
+                ClusterServiceUtils.createClusterService(threadPool),
+                env
+            );
+        }
     }
 
     private DirectoryReader getReader(IndexWriter writer, ShardId shardId) throws IOException {
@@ -913,23 +917,26 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%")
             .put(FeatureFlags.PLUGGABLE_CACHE, true)
             .build();
-        cache = new IndicesRequestCache(settings, (shardId -> {
-            IndexService indexService = null;
-            try {
-                indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            } catch (IndexNotFoundException ex) {
-                return Optional.empty();
-            }
-            try {
-                return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-            } catch (ShardNotFoundException ex) {
-                return Optional.empty();
-            }
-        }),
-            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-            threadPool,
-            ClusterServiceUtils.createClusterService(threadPool)
-        );
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            cache = new IndicesRequestCache(settings, (shardId -> {
+                IndexService indexService = null;
+                try {
+                    indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                } catch (IndexNotFoundException ex) {
+                    return Optional.empty();
+                }
+                try {
+                    return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+                } catch (ShardNotFoundException ex) {
+                    return Optional.empty();
+                }
+            }),
+                new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+                threadPool,
+                ClusterServiceUtils.createClusterService(threadPool),
+                env
+            );
+        }
 
         writer.addDocument(newDoc(0, "foo"));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
@@ -1058,6 +1065,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             IOUtils.close(reader, secondReader, writer, dir, cache);
         }
         indexShard = createIndex("test1").getShard(0);
+        NodeEnvironment environment = newNodeEnvironment();
         IndicesRequestCache cache = new IndicesRequestCache(
             // TODO: Add wiggle room to max size to allow for overhead of ICacheKey. This can be removed once API PR goes in, as it updates
             // the old API to account for the ICacheKey overhead.
@@ -1065,7 +1073,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool,
-            ClusterServiceUtils.createClusterService(threadPool)
+            ClusterServiceUtils.createClusterService(threadPool),
+            environment
         );
         dir = newDirectory();
         writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -1085,7 +1094,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(2, cache.count());
         assertEquals(1, indexShard.requestCache().stats().getEvictions());
-        IOUtils.close(reader, secondReader, thirdReader);
+        IOUtils.close(reader, secondReader, thirdReader, environment);
     }
 
     public void testClearAllEntityIdentity() throws Exception {

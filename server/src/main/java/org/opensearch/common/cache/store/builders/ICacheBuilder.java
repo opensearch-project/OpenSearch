@@ -39,6 +39,8 @@ public abstract class ICacheBuilder<K, V> {
 
     private boolean statsTrackingEnabled = true;
 
+    private int numberOfSegments;
+
     public ICacheBuilder() {}
 
     public ICacheBuilder<K, V> setMaximumWeightInBytes(long sizeInBytes) {
@@ -71,12 +73,21 @@ public abstract class ICacheBuilder<K, V> {
         return this;
     }
 
+    public ICacheBuilder<K, V> setNumberOfSegments(int numberOfSegments) {
+        this.numberOfSegments = numberOfSegments;
+        return this;
+    }
+
     public long getMaxWeightInBytes() {
         return maxWeightInBytes;
     }
 
     public TimeValue getExpireAfterAcess() {
         return expireAfterAcess;
+    }
+
+    public int getNumberOfSegments() {
+        return numberOfSegments;
     }
 
     public ToLongBiFunction<ICacheKey<K>, V> getWeigher() {
