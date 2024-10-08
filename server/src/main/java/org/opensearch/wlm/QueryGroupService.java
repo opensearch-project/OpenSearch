@@ -33,6 +33,7 @@ import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
+import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -213,7 +214,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
     /**
      * @return node level query group stats
      */
-    public QueryGroupStats nodeStats(Set<String> queryGroupIds, Boolean requestedBreached) {
+    public WlmStats nodeStats(Set<String> queryGroupIds, Boolean requestedBreached) {
         final Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
         Map<String, QueryGroup> existingGroups = clusterService.state().metadata().queryGroups();
         if (!queryGroupIds.contains("_all")) {
@@ -223,16 +224,20 @@ public class QueryGroupService extends AbstractLifecycleComponent
                 }
             }
         }
-        queryGroupsStateAccessor.getQueryGroupStateMap().forEach((queryGroupId, currentState) -> {
-            boolean shouldInclude = (queryGroupIds.size() == 1 && queryGroupIds.contains("_all")) || queryGroupIds.contains(queryGroupId);
-            if (shouldInclude) {
-                boolean breached = resourceLimitBreached(existingGroups.get(queryGroupId), currentState).v1().length() != 0;
-                if (requestedBreached == null || requestedBreached == breached) {
-                    statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+        Map<String, QueryGroupState> stateMap = queryGroupsStateAccessor.getQueryGroupStateMap();
+        if (stateMap != null) {
+            stateMap.forEach((queryGroupId, currentState) -> {
+                boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
+                if (shouldInclude) {
+                    if (requestedBreached == null
+                        || requestedBreached == (resourceLimitBreached(existingGroups.get(queryGroupId), currentState).v1()
+                            .length() != 0)) {
+                        statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+                    }
                 }
-            }
-        });
-        return new QueryGroupStats(transportService.getLocalNode(), statsHolderMap);
+            });
+        }
+        return new WlmStats(transportService.getLocalNode(), new QueryGroupStats(statsHolderMap));
     }
 
     /**

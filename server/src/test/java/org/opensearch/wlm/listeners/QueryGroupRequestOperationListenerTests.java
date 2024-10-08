@@ -26,6 +26,7 @@ import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,9 +61,14 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         mockClusterService = mock(ClusterService.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
         mockDiscoveryNode = mock(DiscoveryNode.class);
+        when(mockTransportService.getLocalNode()).thenReturn(mockDiscoveryNode);
         queryGroupStateMap = new HashMap<>();
         testQueryGroupId = "safjgagnakg-3r3fads";
         testThreadPool = new TestThreadPool("RejectionTestThreadPool");
+        ClusterState mockClusterState = mock(ClusterState.class);
+        when(mockClusterService.state()).thenReturn(mockClusterState);
+        Metadata mockMetaData = mock(Metadata.class);
+        when(mockClusterState.metadata()).thenReturn(mockMetaData);
         queryGroupService = mock(QueryGroupService.class);
         sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
     }
@@ -90,7 +96,6 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
     public void testValidQueryGroupRequestFailure() throws IOException {
 
         QueryGroupStats expectedStats = new QueryGroupStats(
-            mockDiscoveryNode,
             Map.of(
                 testQueryGroupId,
                 new QueryGroupStats.QueryGroupStatsHolder(
@@ -123,7 +128,7 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             )
         );
 
-        assertSuccess(testQueryGroupId, queryGroupStateMap, expectedStats, testQueryGroupId);
+        assertSuccess(testQueryGroupId, queryGroupStateMap, new WlmStats(mockDiscoveryNode, expectedStats), testQueryGroupId);
     }
 
     public void testMultiThreadedValidQueryGroupRequestFailures() {
@@ -164,10 +169,11 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             }
         });
 
-        QueryGroupStats actualStats = queryGroupService.nodeStats(new HashSet<>(), null);
+        HashSet<String> set = new HashSet<>();
+        set.add("_all");
+        WlmStats actualStats = queryGroupService.nodeStats(set, null);
 
-        QueryGroupStats expectedStats = new QueryGroupStats(
-            mockDiscoveryNode,
+        QueryGroupStats queryGroupStats = new QueryGroupStats(
             Map.of(
                 testQueryGroupId,
                 new QueryGroupStats.QueryGroupStatsHolder(
@@ -200,12 +206,12 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             )
         );
 
+        WlmStats expectedStats = new WlmStats(mockDiscoveryNode, queryGroupStats);
         assertEquals(expectedStats, actualStats);
     }
 
     public void testInvalidQueryGroupFailure() throws IOException {
         QueryGroupStats expectedStats = new QueryGroupStats(
-            mockDiscoveryNode,
             Map.of(
                 testQueryGroupId,
                 new QueryGroupStats.QueryGroupStatsHolder(
@@ -238,14 +244,14 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             )
         );
 
-        assertSuccess(testQueryGroupId, queryGroupStateMap, expectedStats, "dummy-invalid-qg-id");
+        assertSuccess(testQueryGroupId, queryGroupStateMap, new WlmStats(mockDiscoveryNode, expectedStats), "dummy-invalid-qg-id");
 
     }
 
     private void assertSuccess(
         String testQueryGroupId,
         Map<String, QueryGroupState> queryGroupStateMap,
-        QueryGroupStats expectedStats,
+        WlmStats expectedStats,
         String threadContextQG_Id
     ) {
         QueryGroupsStateAccessor stateAccessor = new QueryGroupsStateAccessor(queryGroupStateMap);
@@ -266,11 +272,12 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 Collections.emptySet(),
                 Collections.emptySet()
             );
-
             sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
             sut.onRequestFailure(null, null);
 
-            QueryGroupStats actualStats = queryGroupService.nodeStats(new HashSet<>(), null);
+            HashSet<String> set = new HashSet<>();
+            set.add("_all");
+            WlmStats actualStats = queryGroupService.nodeStats(set, null);
             assertEquals(expectedStats, actualStats);
         }
 

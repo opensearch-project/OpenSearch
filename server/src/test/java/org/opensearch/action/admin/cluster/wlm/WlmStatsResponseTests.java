@@ -18,6 +18,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +39,6 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
     );
     Map<String, QueryGroupStats.QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
     QueryGroupStats queryGroupStats = new QueryGroupStats(
-        node,
         Map.of(
             testQueryGroupId,
             new QueryGroupStats.QueryGroupStatsHolder(
@@ -56,11 +56,12 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
             )
         )
     );
-    List<QueryGroupStats> queryGroupStatsList = List.of(queryGroupStats);
+    WlmStats wlmStats = new WlmStats(node, queryGroupStats);
+    List<WlmStats> wlmStatsList = List.of(wlmStats);
     List<FailedNodeException> failedNodeExceptionList = new ArrayList<>();
 
     public void testSerializationAndDeserialization() throws IOException {
-        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, queryGroupStatsList, failedNodeExceptionList);
+        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, wlmStatsList, failedNodeExceptionList);
         BytesStreamOutput out = new BytesStreamOutput();
         queryGroupStatsResponse.writeTo(out);
         StreamInput in = out.bytes().streamInput();
@@ -70,7 +71,7 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, queryGroupStatsList, failedNodeExceptionList);
+        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, wlmStatsList, failedNodeExceptionList);
         String responseString = queryGroupStatsResponse.toString();
         assertEquals(
             "{\n"
@@ -78,6 +79,7 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
                 + "    \"query_groups\" : {\n"
                 + "      \"safjgagnaeekg-3r3fads\" : {\n"
                 + "        \"completions\" : 0,\n"
+                + "        \"shard_completions\" : 0,\n"
                 + "        \"rejections\" : 0,\n"
                 + "        \"failures\" : 1,\n"
                 + "        \"total_cancellations\" : 0,\n"

@@ -17,17 +17,17 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.QueryGroupService;
-import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- * Transport action for obtaining QueryGroupStats
+ * Transport action for obtaining WlmStats
  *
  * @opensearch.experimental
  */
-public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsRequest, WlmStatsResponse, WlmStatsRequest, QueryGroupStats> {
+public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsRequest, WlmStatsResponse, WlmStatsRequest, WlmStats> {
 
     final QueryGroupService queryGroupService;
 
@@ -48,18 +48,14 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
             WlmStatsRequest::new,
             WlmStatsRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            QueryGroupStats.class
+            WlmStats.class
         );
         this.queryGroupService = queryGroupService;
     }
 
     @Override
-    protected WlmStatsResponse newResponse(
-        WlmStatsRequest request,
-        List<QueryGroupStats> queryGroupStats,
-        List<FailedNodeException> failures
-    ) {
-        return new WlmStatsResponse(clusterService.getClusterName(), queryGroupStats, failures);
+    protected WlmStatsResponse newResponse(WlmStatsRequest request, List<WlmStats> wlmStats, List<FailedNodeException> failures) {
+        return new WlmStatsResponse(clusterService.getClusterName(), wlmStats, failures);
     }
 
     @Override
@@ -68,12 +64,12 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
     }
 
     @Override
-    protected QueryGroupStats newNodeResponse(StreamInput in) throws IOException {
-        return new QueryGroupStats(in);
+    protected WlmStats newNodeResponse(StreamInput in) throws IOException {
+        return new WlmStats(in);
     }
 
     @Override
-    protected QueryGroupStats nodeOperation(WlmStatsRequest wlmStatsRequest) {
+    protected WlmStats nodeOperation(WlmStatsRequest wlmStatsRequest) {
         return queryGroupService.nodeStats(wlmStatsRequest.getQueryGroupIds(), wlmStatsRequest.isBreach());
     }
 }

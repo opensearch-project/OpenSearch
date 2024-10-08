@@ -22,6 +22,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.cancellation.TaskSelectionStrategy;
 import org.opensearch.wlm.stats.QueryGroupState;
@@ -49,6 +50,7 @@ import static org.mockito.Mockito.when;
 
 public class QueryGroupServiceTests extends OpenSearchTestCase {
     private QueryGroupService queryGroupService;
+    private TransportService mockTransportService;
     private QueryGroupTaskCancellationService mockCancellationService;
     private ClusterService mockClusterService;
     private ThreadPool mockThreadPool;
@@ -61,6 +63,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         mockClusterService = Mockito.mock(ClusterService.class);
+        mockTransportService = Mockito.mock(TransportService.class);
         mockThreadPool = Mockito.mock(ThreadPool.class);
         mockScheduledFuture = Mockito.mock(Scheduler.Cancellable.class);
         mockWorkloadManagementSettings = Mockito.mock(WorkloadManagementSettings.class);
@@ -71,6 +74,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
@@ -187,6 +191,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
@@ -225,6 +230,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
@@ -261,6 +267,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
@@ -308,6 +315,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
@@ -352,6 +360,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
@@ -375,6 +384,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,
@@ -421,6 +431,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
         queryGroupService = new QueryGroupService(
             mockCancellationService,
+            mockTransportService,
             mockClusterService,
             mockThreadPool,
             mockWorkloadManagementSettings,

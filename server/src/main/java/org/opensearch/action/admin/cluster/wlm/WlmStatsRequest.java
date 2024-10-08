@@ -36,7 +36,7 @@ public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
      * Get QueryGroup stats from nodes based on the nodes ids specified. If none are passed, stats
      * for all nodes will be returned.
      */
-    public WlmStatsRequest(String[] nodesIds, Set<String> queryGroupIds, boolean breach) {
+    public WlmStatsRequest(String[] nodesIds, Set<String> queryGroupIds, Boolean breach) {
         super(false, nodesIds);
         this.queryGroupIds = queryGroupIds;
         this.breach = breach;
@@ -59,7 +59,7 @@ public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
         return queryGroupIds;
     }
 
-    public boolean isBreach() {
+    public Boolean isBreach() {
         return breach;
     }
 }

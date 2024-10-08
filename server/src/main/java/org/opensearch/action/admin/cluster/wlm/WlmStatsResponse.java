@@ -18,6 +18,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,30 +27,31 @@ import java.util.List;
  * A response for obtaining Workload Management Stats
  */
 @ExperimentalApi
-public class WlmStatsResponse extends BaseNodesResponse<QueryGroupStats> implements ToXContentFragment {
+public class WlmStatsResponse extends BaseNodesResponse<WlmStats> implements ToXContentFragment {
 
     WlmStatsResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    WlmStatsResponse(ClusterName clusterName, List<QueryGroupStats> nodes, List<FailedNodeException> failures) {
+    WlmStatsResponse(ClusterName clusterName, List<WlmStats> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
-    protected List<QueryGroupStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(QueryGroupStats::new);
+    protected List<WlmStats> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(WlmStats::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<QueryGroupStats> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<WlmStats> nodes) throws IOException {
         out.writeList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (QueryGroupStats queryGroupStats : getNodes()) {
-            builder.startObject(queryGroupStats.getNode().getId());
+        for (WlmStats wlmStats : getNodes()) {
+            builder.startObject(wlmStats.getNode().getId());
+            QueryGroupStats queryGroupStats = wlmStats.getQueryGroupStats();
             queryGroupStats.toXContent(builder, params);
             builder.endObject();
         }
