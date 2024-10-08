@@ -16,8 +16,10 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
@@ -183,7 +185,9 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
             public void build(
                 List<StarTreeValues> starTreeValuesSubs,
                 AtomicInteger fieldNumberAcrossStarTrees,
-                DocValuesConsumer starTreeDocValuesConsumer
+                DocValuesConsumer starTreeDocValuesConsumer,
+                MergeState mergeState,
+                Map<String, SortedSetDocValues> fieldDocIdSetIteratorMap
             ) throws IOException {}
 
             @Override
@@ -219,7 +223,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValues) throws IOException {
+            Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValues, MergeState mergeState) throws IOException {
                 return null;
             }
         };

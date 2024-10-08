@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentWriteState;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -124,14 +126,16 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         metaOut.close();
         dataOut.close();
         docValuesConsumer.close();
-
+        LinkedHashMap<String, DocValuesType> docValues = new LinkedHashMap<>();
+        docValues.put("field1", DocValuesType.SORTED_NUMERIC);
+        docValues.put("field3", DocValuesType.SORTED_NUMERIC);
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
             "sf",
             STAR_TREE,
             mock(IndexInput.class),
             VERSION_CURRENT,
             builder.numStarTreeNodes,
-            List.of("field1", "field3"),
+            docValues,
             List.of(new Metric("field2", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT, MetricStat.AVG))),
             6,
             builder.numStarTreeDocs,
@@ -222,13 +226,16 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         dataOut.close();
         docValuesConsumer.close();
 
+        LinkedHashMap<String, DocValuesType> docValues = new LinkedHashMap<>();
+        docValues.put("field1", DocValuesType.SORTED_NUMERIC);
+        docValues.put("field3", DocValuesType.SORTED_NUMERIC);
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
             "sf",
             STAR_TREE,
             mock(IndexInput.class),
             VERSION_CURRENT,
             builder.numStarTreeNodes,
-            List.of("field1", "field3"),
+            docValues,
             List.of(new Metric("field2", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT, MetricStat.AVG))),
             6,
             builder.numStarTreeDocs,
@@ -322,7 +329,10 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         dataOut.close();
         docValuesConsumer.close();
 
-        StarTreeMetadata starTreeMetadata = getStarTreeMetadata(List.of("field1", "field3"), 100, 1, 6699);
+        LinkedHashMap<String, DocValuesType> map = new LinkedHashMap<>();
+        map.put("field1", DocValuesType.SORTED_NUMERIC);
+        map.put("field3", DocValuesType.SORTED_NUMERIC);
+        StarTreeMetadata starTreeMetadata = getStarTreeMetadata(map, 100, 1, 6699);
 
         validateStarTreeFileFormats(
             builder.getRootNode(),

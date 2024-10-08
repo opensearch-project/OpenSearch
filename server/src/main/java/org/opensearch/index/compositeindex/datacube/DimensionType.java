@@ -27,5 +27,11 @@ public enum DimensionType {
      * Represents a date dimension type.
      * This is used for dimensions that contain date or timestamp values.
      */
-    DATE
+    DATE,
+
+    /**
+     * Represents a keyword dimension type.
+     * This is used for dimensions that contain keyword ordinals.
+     */
+    KEYWORD
 }
