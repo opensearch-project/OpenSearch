@@ -269,8 +269,13 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.QueryGroupService;
+import org.opensearch.wlm.QueryGroupsStateAccessor;
+import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
+import org.opensearch.wlm.cancellation.MaximumResourceTaskSelectionStrategy;
+import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 
 import javax.net.ssl.SNIHostName;
 
@@ -1019,8 +1024,30 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
-            final QueryGroupService queryGroupService = new QueryGroupService(); // We will need to replace this with actual instance of the
-                                                                                 // queryGroupService
+            final QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
+                taskResourceTrackingService
+            );
+            final WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(
+                settings,
+                settingsModule.getClusterSettings()
+            );
+
+            final QueryGroupsStateAccessor queryGroupsStateAccessor = new QueryGroupsStateAccessor();
+
+            final QueryGroupService queryGroupService = new QueryGroupService(
+                new QueryGroupTaskCancellationService(
+                    workloadManagementSettings,
+                    new MaximumResourceTaskSelectionStrategy(),
+                    queryGroupResourceUsageTrackerService,
+                    queryGroupsStateAccessor
+                ),
+                clusterService,
+                threadPool,
+                workloadManagementSettings,
+                queryGroupsStateAccessor
+            );
+            taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
+
             final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
                 queryGroupService,
                 threadPool
@@ -1086,7 +1113,7 @@ public class Node implements Closeable {
 
             WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
                 threadPool,
-                new QueryGroupService() // We will need to replace this with actual implementation
+                queryGroupService
             );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
@@ -1180,7 +1207,8 @@ public class Node implements Closeable {
                 searchBackpressureSettings,
                 taskResourceTrackingService,
                 threadPool,
-                transportService.getTaskManager()
+                transportService.getTaskManager(),
+                queryGroupService
             );
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
@@ -1392,6 +1420,7 @@ public class Node implements Closeable {
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
+                b.bind(QueryGroupService.class).toInstance(queryGroupService);
                 b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -1583,6 +1612,7 @@ public class Node implements Closeable {
         nodeService.getMonitorService().start();
         nodeService.getSearchBackpressureService().start();
         nodeService.getTaskCancellationMonitoringService().start();
+        injector.getInstance(QueryGroupService.class).start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -1756,6 +1786,7 @@ public class Node implements Closeable {
         injector.getInstance(FsHealthService.class).stop();
         injector.getInstance(NodeResourceUsageTracker.class).stop();
         injector.getInstance(ResourceUsageCollectorService.class).stop();
+        injector.getInstance(QueryGroupService.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
         injector.getInstance(GatewayService.class).stop();
