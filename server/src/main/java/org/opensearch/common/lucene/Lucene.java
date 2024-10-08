@@ -113,7 +113,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene99";
+    public static final String LATEST_CODEC = "Lucene912";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -287,7 +287,7 @@ public class Lucene {
 
             @Override
             protected Object doBody(String segmentFileName) throws IOException {
-                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
+                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READONCE)) {
                     CodecUtil.checksumEntireFile(input);
                 }
                 return null;
