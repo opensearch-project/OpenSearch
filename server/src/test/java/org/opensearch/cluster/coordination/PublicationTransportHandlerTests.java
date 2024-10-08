@@ -466,7 +466,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
             transportService,
             writableRegistry(),
             handlePublishRequest,
-            (pu, l) -> {},
+            (pu, uc, l) -> {},
             remoteClusterStateService
         );
         transportService.start();
