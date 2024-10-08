@@ -17,7 +17,6 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.monitor.jvm.JvmStats;
@@ -28,12 +27,10 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.stats.QueryGroupState;
 import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
-import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -63,11 +60,9 @@ public class QueryGroupService extends AbstractLifecycleComponent
     private final Set<QueryGroup> deletedQueryGroups;
     private final NodeDuressTrackers nodeDuressTrackers;
     private final QueryGroupsStateAccessor queryGroupsStateAccessor;
-    private final TransportService transportService;
 
     public QueryGroupService(
         QueryGroupTaskCancellationService taskCancellationService,
-        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
@@ -76,7 +71,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
         this(
             taskCancellationService,
-            transportService,
             clusterService,
             threadPool,
             workloadManagementSettings,
@@ -105,7 +99,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
     public QueryGroupService(
         QueryGroupTaskCancellationService taskCancellationService,
-        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
@@ -115,7 +108,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
         Set<QueryGroup> deletedQueryGroups
     ) {
         this.taskCancellationService = taskCancellationService;
-        this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.workloadManagementSettings = workloadManagementSettings;
@@ -214,53 +206,48 @@ public class QueryGroupService extends AbstractLifecycleComponent
     /**
      * @return node level query group stats
      */
-    public WlmStats nodeStats(Set<String> queryGroupIds, Boolean requestedBreached) {
+    public QueryGroupStats nodeStats(Set<String> queryGroupIds, Boolean requestedBreached) {
         final Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
-        Map<String, QueryGroup> existingGroups = clusterService.state().metadata().queryGroups();
+        Map<String, QueryGroupState> existingStateMap = queryGroupsStateAccessor.getQueryGroupStateMap();
         if (!queryGroupIds.contains("_all")) {
             for (String id : queryGroupIds) {
-                if (!existingGroups.containsKey(id)) {
+                if (!existingStateMap.containsKey(id)) {
                     throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
                 }
             }
         }
-        Map<String, QueryGroupState> stateMap = queryGroupsStateAccessor.getQueryGroupStateMap();
-        if (stateMap != null) {
-            stateMap.forEach((queryGroupId, currentState) -> {
+        if (existingStateMap != null) {
+            existingStateMap.forEach((queryGroupId, currentState) -> {
                 boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
                 if (shouldInclude) {
-                    if (requestedBreached == null
-                        || requestedBreached == (resourceLimitBreached(existingGroups.get(queryGroupId), currentState).v1()
-                            .length() != 0)) {
+                    if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
                         statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
                     }
                 }
             });
         }
-        return new WlmStats(transportService.getLocalNode(), new QueryGroupStats(statsHolderMap));
+        return new QueryGroupStats(statsHolderMap);
     }
 
     /**
      * @return if the QueryGroup breaches any resource limit based on the LastRecordedUsage
      */
-    public Tuple<StringBuilder, ResourceType> resourceLimitBreached(QueryGroup queryGroup, QueryGroupState queryGroupState) {
-        StringBuilder reason = new StringBuilder();
+    public boolean resourceLimitBreached(String id, QueryGroupState currentState) {
+        QueryGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
+        if (queryGroup == null) {
+            throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
+        }
+
         for (ResourceType resourceType : TRACKED_RESOURCES) {
             if (queryGroup.getResourceLimits().containsKey(resourceType)) {
                 final double threshold = getNormalisedRejectionThreshold(queryGroup.getResourceLimits().get(resourceType), resourceType);
-                final double lastRecordedUsage = queryGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
+                final double lastRecordedUsage = currentState.getResourceState().get(resourceType).getLastRecordedUsage();
                 if (threshold < lastRecordedUsage) {
-                    reason.append(resourceType)
-                        .append(" limit is breaching for ENFORCED type QueryGroup: (")
-                        .append(threshold)
-                        .append(" < ")
-                        .append(lastRecordedUsage)
-                        .append("). ");
-                    return new Tuple<>(reason, resourceType);
+                    return true;
                 }
             }
         }
-        return new Tuple<>(reason, null);
+        return false;
     }
 
     /**
@@ -287,9 +274,30 @@ public class QueryGroupService extends AbstractLifecycleComponent
             return;
 
         optionalQueryGroup.ifPresent(queryGroup -> {
-            Tuple<StringBuilder, ResourceType> reason = resourceLimitBreached(queryGroup, queryGroupState);
-            if (reason.v1().length() != 0) {
-                queryGroupState.getResourceState().get(reason.v2()).rejections.inc();
+            boolean reject = false;
+            final StringBuilder reason = new StringBuilder();
+            for (ResourceType resourceType : TRACKED_RESOURCES) {
+                if (queryGroup.getResourceLimits().containsKey(resourceType)) {
+                    final double threshold = getNormalisedRejectionThreshold(
+                        queryGroup.getResourceLimits().get(resourceType),
+                        resourceType
+                    );
+                    final double lastRecordedUsage = queryGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
+                    if (threshold < lastRecordedUsage) {
+                        reject = true;
+                        reason.append(resourceType)
+                            .append(" limit is breaching for ENFORCED type QueryGroup: (")
+                            .append(threshold)
+                            .append(" < ")
+                            .append(lastRecordedUsage)
+                            .append("). ");
+                        queryGroupState.getResourceState().get(resourceType).rejections.inc();
+                        // should not double count even if both the resource limits are breaching
+                        break;
+                    }
+                }
+            }
+            if (reject) {
                 queryGroupState.totalRejections.inc();
                 throw new OpenSearchRejectedExecutionException(
                     "QueryGroup " + queryGroupId + " is already contended. " + reason.toString()

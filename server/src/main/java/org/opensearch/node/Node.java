@@ -354,12 +354,12 @@ public class Node implements Closeable {
     );
 
     /**
-    * controls whether the node is allowed to persist things like metadata to disk
-    * Note that this does not control whether the node stores actual indices (see
-    * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
-    * and {@link #NODE_MASTER_SETTING} must also be false.
-    *
-    */
+     * controls whether the node is allowed to persist things like metadata to disk
+     * Note that this does not control whether the node stores actual indices (see
+     * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
+     * and {@link #NODE_MASTER_SETTING} must also be false.
+     *
+     */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
         "node.local_storage",
         true,
@@ -1037,6 +1037,41 @@ public class Node implements Closeable {
 
             final QueryGroupsStateAccessor queryGroupsStateAccessor = new QueryGroupsStateAccessor();
 
+            final QueryGroupService queryGroupService = new QueryGroupService(
+                new QueryGroupTaskCancellationService(
+                    workloadManagementSettings,
+                    new MaximumResourceTaskSelectionStrategy(),
+                    queryGroupResourceUsageTrackerService,
+                    queryGroupsStateAccessor
+                ),
+                clusterService,
+                threadPool,
+                workloadManagementSettings,
+                queryGroupsStateAccessor
+            );
+            taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
+
+            final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
+                queryGroupService,
+                threadPool
+            );
+
+            // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
+            final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
+                new SearchRequestOperationsCompositeListenerFactory(
+                    Stream.concat(
+                        Stream.of(
+                            searchRequestStats,
+                            searchRequestSlowLog,
+                            searchTaskRequestOperationsListener,
+                            queryGroupRequestOperationListener
+                        ),
+                        pluginComponents.stream()
+                            .filter(p -> p instanceof SearchRequestOperationsListener)
+                            .map(p -> (SearchRequestOperationsListener) p)
+                    ).toArray(SearchRequestOperationsListener[]::new)
+                );
+
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -1079,11 +1114,9 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
-            SetOnce<QueryGroupService> queryGroupServiceSetOnce = new SetOnce<>();
-
             WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
                 threadPool,
-                queryGroupServiceSetOnce // We will need to replace this with actual implementation
+                queryGroupService
             );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
@@ -1145,45 +1178,6 @@ public class Node implements Closeable {
                 taskHeaders,
                 tracer
             );
-
-            final QueryGroupService queryGroupService = new QueryGroupService(
-                new QueryGroupTaskCancellationService(
-                    workloadManagementSettings,
-                    new MaximumResourceTaskSelectionStrategy(),
-                    queryGroupResourceUsageTrackerService,
-                    queryGroupsStateAccessor
-                ),
-                transportService,
-                clusterService,
-                threadPool,
-                workloadManagementSettings,
-                queryGroupsStateAccessor
-            );
-
-            queryGroupServiceSetOnce.set(queryGroupService);
-            taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
-
-            final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
-                queryGroupService,
-                threadPool
-            );
-
-            // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
-            final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
-                new SearchRequestOperationsCompositeListenerFactory(
-                    Stream.concat(
-                        Stream.of(
-                            searchRequestStats,
-                            searchRequestSlowLog,
-                            searchTaskRequestOperationsListener,
-                            queryGroupRequestOperationListener
-                        ),
-                        pluginComponents.stream()
-                            .filter(p -> p instanceof SearchRequestOperationsListener)
-                            .map(p -> (SearchRequestOperationsListener) p)
-                    ).toArray(SearchRequestOperationsListener[]::new)
-                );
-
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
             this.extensionsManager.initializeServicesAndRestHandler(
@@ -1509,6 +1503,7 @@ public class Node implements Closeable {
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
                 b.bind(SegmentReplicator.class).toInstance(segmentReplicator);
+
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
             injector = modules.createInjector();

@@ -70,6 +70,10 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
 
     @Override
     protected WlmStats nodeOperation(WlmStatsRequest wlmStatsRequest) {
-        return queryGroupService.nodeStats(wlmStatsRequest.getQueryGroupIds(), wlmStatsRequest.isBreach());
+        assert transportService.getLocalNode() != null;
+        return new WlmStats(
+            transportService.getLocalNode(),
+            queryGroupService.nodeStats(wlmStatsRequest.getQueryGroupIds(), wlmStatsRequest.isBreach())
+        );
     }
 }

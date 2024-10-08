@@ -27,7 +27,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.mockito.Mockito.mock;
 
-class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
+public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
 
     public void testToXContent() throws IOException {
         final Map<String, QueryGroupStats.QueryGroupStatsHolder> stats = new HashMap<>();
