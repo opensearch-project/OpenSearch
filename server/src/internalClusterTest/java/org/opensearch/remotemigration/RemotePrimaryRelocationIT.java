@@ -63,18 +63,10 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // create shard with 1 replica and 1 shard
-        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping("field", "type=text").get();
+        Settings settings = super.indexSettings();
+        settings = Settings.builder().put(settings).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(settings).setMapping("field", "type=text").get();
         ensureGreen(INDEX_NAME);
-
-        assertAcked(
-            internalCluster().client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings()
-                .setIndices(INDEX_NAME)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
-                .get()
-        );
 
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
