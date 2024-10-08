@@ -106,7 +106,7 @@ public class TieredSpilloverCacheSettings {
      * Storage path for disk cache.
      */
     public static final Setting.AffixSetting<String> TIERED_SPILLOVER_DISK_STORAGE_PATH = Setting.suffixKeySetting(
-        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.storage.path",
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.storage.path",
         (key) -> Setting.simpleString(key, "", NodeScope)
     );
 
