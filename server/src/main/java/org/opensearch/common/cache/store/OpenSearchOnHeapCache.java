@@ -54,14 +54,19 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     private final List<String> dimensionNames;
     private final ToLongBiFunction<ICacheKey<K>, V> weigher;
     private final boolean statsTrackingEnabled;
+    private final long maximumWeight;
 
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
+        this.maximumWeight = builder.getMaxWeightInBytes();
         CacheBuilder<ICacheKey<K>, V> cacheBuilder = CacheBuilder.<ICacheKey<K>, V>builder()
             .setMaximumWeight(builder.getMaxWeightInBytes())
             .weigher(builder.getWeigher())
             .removalListener(this);
         if (builder.getExpireAfterAcess() != null) {
             cacheBuilder.setExpireAfterAccess(builder.getExpireAfterAcess());
+        }
+        if (builder.getNumberOfSegments() > 0) {
+            cacheBuilder.setNumberOfSegments(builder.getNumberOfSegments());
         }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
@@ -73,6 +78,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();
+    }
+
+    // package private for testing
+    long getMaximumWeight() {
+        return this.maximumWeight;
     }
 
     @Override
@@ -174,18 +184,33 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             boolean statsTrackingEnabled = statsTrackingEnabled(config.getSettings(), config.getStatsTrackingEnabled());
             ICacheBuilder<K, V> builder = new Builder<K, V>().setDimensionNames(config.getDimensionNames())
                 .setStatsTrackingEnabled(statsTrackingEnabled)
-                .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
                 .setExpireAfterAccess(((TimeValue) settingList.get(EXPIRE_AFTER_ACCESS_KEY).get(settings)))
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener());
             Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
                 cacheType.getSettingPrefix()
             );
+            long maxSizeInBytes = ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes();
+
+            if (config.getMaxSizeInBytes() > 0) { // If this is passed from upstream(like tieredCache), then use this
+                // instead.
+                builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
+            } else {
+                builder.setMaximumWeightInBytes(maxSizeInBytes);
+            }
+            if (config.getSegmentCount() > 0) {
+                builder.setNumberOfSegments(config.getSegmentCount());
+            } else {
+                builder.setNumberOfSegments(-1); // By default it will use 256 segments.
+            }
+
             String storeName = cacheSettingForCacheType.get(settings);
             if (!FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || (storeName == null || storeName.isBlank())) {
                 // For backward compatibility as the user intent is to use older settings.
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
                 builder.setExpireAfterAccess(config.getExpireAfterAccess());
+                builder.setNumberOfSegments(-1); // By default it will use 256 as we don't want to use this setting
+                // when user wants to use older default onHeap cache settings.
             }
             return builder.build();
         }
