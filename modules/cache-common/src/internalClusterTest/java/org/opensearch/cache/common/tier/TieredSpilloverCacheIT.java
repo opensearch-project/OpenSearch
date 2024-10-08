@@ -635,7 +635,7 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
 
         @Override
         public Map<String, ICache.Factory> getCacheFactoryMap() {
-            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 10000, false, 1));
+            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 10000, false));
         }
 
         @Override

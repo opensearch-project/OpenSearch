@@ -103,6 +103,14 @@ public class TieredSpilloverCacheSettings {
     );
 
     /**
+     * Storage path for disk cache.
+     */
+    public static final Setting.AffixSetting<String> TIERED_SPILLOVER_DISK_STORAGE_PATH = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.storage.path",
+        (key) -> Setting.simpleString(key, "", NodeScope)
+    );
+
+    /**
      * Setting defining the minimum took time for a query to be allowed into the disk cache.
      */
     private static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD = Setting.suffixKeySetting(
