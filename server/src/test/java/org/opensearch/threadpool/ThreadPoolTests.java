@@ -36,6 +36,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -149,6 +150,53 @@ public class ThreadPoolTests extends OpenSearchTestCase {
             executed.await();
         } finally {
             latch.countDown();
+            terminate(threadPool);
+        }
+    }
+
+    public void testThreadPoolResize() {
+        TestThreadPool threadPool = new TestThreadPool("test");
+        try {
+            // increase it
+            Settings commonSettings = Settings.builder().put("snapshot.max", "10").put("snapshot.core", "2").put("get.size", "100").build();
+            threadPool.setThreadPool(commonSettings);
+            ExecutorService executorService = threadPool.executor("snapshot");
+            OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) executorService;
+            assertEquals(10, executor.getMaximumPoolSize());
+            assertEquals(2, executor.getCorePoolSize());
+
+            executorService = threadPool.executor("get");
+            executor = (OpenSearchThreadPoolExecutor) executorService;
+            assertEquals(100, executor.getMaximumPoolSize());
+            assertEquals(100, executor.getCorePoolSize());
+
+            // decrease it
+            commonSettings = Settings.builder().put("snapshot.max", "2").put("snapshot.core", "1").put("get.size", "90").build();
+            threadPool.setThreadPool(commonSettings);
+            executorService = threadPool.executor("snapshot");
+            executor = (OpenSearchThreadPoolExecutor) executorService;
+            assertEquals(2, executor.getMaximumPoolSize());
+            assertEquals(1, executor.getCorePoolSize());
+
+            executorService = threadPool.executor("get");
+            executor = (OpenSearchThreadPoolExecutor) executorService;
+            assertEquals(90, executor.getMaximumPoolSize());
+            assertEquals(90, executor.getCorePoolSize());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testThreadPoolResizeFail() {
+        TestThreadPool threadPool = new TestThreadPool("test");
+        try {
+            Settings commonSettings = Settings.builder().put("snapshot.max", "50").put("snapshot.core", "100").build();
+            threadPool.setThreadPool(commonSettings);
+            ExecutorService executorService = threadPool.executor("snapshot");
+            OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) executorService;
+            assertNotEquals(50, executor.getMaximumPoolSize());
+            assertNotEquals(100, executor.getCorePoolSize());
+        } finally {
             terminate(threadPool);
         }
     }
