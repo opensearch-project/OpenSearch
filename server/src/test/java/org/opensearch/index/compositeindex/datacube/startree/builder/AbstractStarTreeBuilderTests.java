@@ -33,12 +33,15 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.Version;
+import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
 import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
 import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
 import org.opensearch.index.compositeindex.CompositeIndexConstants;
+import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -53,9 +56,12 @@ import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNo
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.FieldValueConverter;
 import org.opensearch.index.mapper.Mapper;
@@ -84,6 +90,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils.validateFileFormats;
 import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
@@ -1864,7 +1871,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
 
         List<String> dimensionNames = new ArrayList<>();
         for (Dimension dimension : dimensionsOrder) {
-            dimensionNames.add(dimension.getField());
+            dimensionNames.addAll(dimension.getSubDimensionNames());
         }
         return dimensionNames;
 
@@ -3842,7 +3849,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
     }
 
     public static long getLongFromDouble(double value) {
-        return Double.doubleToLongBits(value);
+        return NumericUtils.doubleToSortableLong(value);
     }
 
     public void testMergeFlowWithMaxLeafDocsAndStarTreeNodesAssertion() throws IOException {
@@ -4199,9 +4206,11 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
          ...
          [999, 999, 999, 999] | [19980.0]
          */
+        builder.appendDocumentsToStarTree(starTreeDocumentIterator);
         for (StarTreeDocument starTreeDocument : builder.getStarTreeDocuments()) {
             assertEquals(starTreeDocument.dimensions[0] * 20.0, starTreeDocument.metrics[0]);
-            assertEquals(2L, starTreeDocument.metrics[1]);
+            assertEquals(starTreeDocument.dimensions[0] * 2, starTreeDocument.metrics[1]);
+            assertEquals(2L, starTreeDocument.metrics[2]);
         }
         builder.build(starTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
 
@@ -4213,7 +4222,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         docValuesConsumer.close();
 
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
-            "sf",
+            compositeField.getName(),
             STAR_TREE,
             mock(IndexInput.class),
             VERSION_CURRENT,
@@ -4235,6 +4244,251 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             starTreeMetadata,
             builder.getStarTreeDocuments()
         );
+    }
+
+    public void testFlushFlowWithTimestamps() throws IOException {
+        List<Long> dimList = List.of(1655288152000L, 1655288092000L, 1655288032000L, 1655287972000L, 1655288092000L);
+        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5);
+
+        List<Long> metricsList = List.of(
+            getLongFromDouble(0.0),
+            getLongFromDouble(10.0),
+            getLongFromDouble(20.0),
+            getLongFromDouble(30.0),
+            getLongFromDouble(40.0),
+            getLongFromDouble(50.0)
+        );
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
+
+        compositeField = getStarTreeFieldWithDateDimension();
+        SortedNumericStarTreeValuesIterator d1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList, docsWithField));
+        SortedNumericStarTreeValuesIterator d2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(dimList2, docsWithField2)
+        );
+        SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
+        SortedNumericStarTreeValuesIterator m2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
+        this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
+            writeState,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+        );
+        builder = getStarTreeBuilder(metaOut, dataOut, compositeField, getWriteState(6, writeState.segmentInfo.getId()), mapperService);
+        SequentialDocValuesIterator[] dimDvs = { new SequentialDocValuesIterator(d1sndv), new SequentialDocValuesIterator(d2sndv) };
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.sortAndAggregateSegmentDocuments(
+            dimDvs,
+            List.of(new SequentialDocValuesIterator(m1sndv), new SequentialDocValuesIterator(m2sndv))
+        );
+        /**
+         * Asserting following dim / metrics [ dim1, dim2 / Sum [metric], count [metric] ]
+         [1655287920000, 1655287200000, 1655287200000, 4] | [40.0, 1]
+         [1655287980000, 1655287200000, 1655287200000, 3] | [30.0, 1]
+         [1655288040000, 1655287200000, 1655287200000, 1] | [10.0, 1]
+         [1655288040000, 1655287200000, 1655287200000, 5] | [50.0, 1]
+         [1655288100000, 1655287200000, 1655287200000, 0] | [0.0, 1]
+         [null, null, null, 2] | [20.0, 1]
+         */
+        int count = 0;
+        List<StarTreeDocument> starTreeDocumentsList = new ArrayList<>();
+        starTreeDocumentIterator.forEachRemaining(starTreeDocumentsList::add);
+        starTreeDocumentIterator = starTreeDocumentsList.iterator();
+        while (starTreeDocumentIterator.hasNext()) {
+            count++;
+            StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
+            assertEquals(starTreeDocument.dimensions[3] * 1 * 10.0, starTreeDocument.metrics[1]);
+            assertEquals(1L, starTreeDocument.metrics[0]);
+        }
+        assertEquals(6, count);
+        builder.build(starTreeDocumentsList.iterator(), new AtomicInteger(), docValuesConsumer);
+        validateStarTree(builder.getRootNode(), 3, 10, builder.getStarTreeDocuments());
+    }
+
+    public void testMergeFlowWithTimestamps() throws IOException {
+        List<Long> dimList = List.of(1655288152000L, 1655288092000L, 1655288032000L, 1655287972000L, 1655288092000L, 1655288092000L);
+        List<Integer> docsWithField = List.of(0, 1, 2, 3, 4, 6);
+        List<Long> dimList2 = List.of(1655288152000L, 1655288092000L, 1655288032000L, 1655287972000L, 1655288092000L, 1655288092000L, -1L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 6);
+        List<Long> dimList7 = List.of(1655288152000L, 1655288092000L, 1655288032000L, 1655287972000L, 1655288092000L, 1655288092000L, -1L);
+        List<Integer> docsWithField7 = List.of(0, 1, 2, 3, 4, 6);
+
+        List<Long> dimList5 = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
+        List<Integer> docsWithField5 = List.of(0, 1, 2, 3, 4, 5, 6);
+        List<Long> metricsList1 = List.of(
+            getLongFromDouble(0.0),
+            getLongFromDouble(10.0),
+            getLongFromDouble(20.0),
+            getLongFromDouble(30.0),
+            getLongFromDouble(40.0),
+            getLongFromDouble(50.0),
+            getLongFromDouble(60.0)
+        );
+        List<Integer> metricsWithField1 = List.of(0, 1, 2, 3, 4, 5, 6);
+        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> dimList3 = List.of(1655288152000L, 1655288092000L, 1655288032000L, -1L);
+        List<Integer> docsWithField3 = List.of(0, 1, 3, 4);
+        List<Long> dimList4 = List.of(1655288152000L, 1655288092000L, 1655288032000L, -1L);
+        List<Integer> docsWithField4 = List.of(0, 1, 3, 4);
+        List<Long> dimList8 = List.of(1655288152000L, 1655288092000L, 1655288032000L, -1L);
+        List<Integer> docsWithField8 = List.of(0, 1, 3, 4);
+
+        List<Long> dimList6 = List.of(5L, 6L, 7L, 8L);
+        List<Integer> docsWithField6 = List.of(0, 1, 2, 3);
+        List<Long> metricsList21 = List.of(
+            getLongFromDouble(50.0),
+            getLongFromDouble(60.0),
+            getLongFromDouble(70.0),
+            getLongFromDouble(80.0),
+            getLongFromDouble(90.0)
+        );
+        List<Integer> metricsWithField21 = List.of(0, 1, 2, 3, 4);
+        List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
+        List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
+
+        compositeField = getStarTreeFieldWithDateDimension();
+        StarTreeValues starTreeValues = getStarTreeValuesWithDates(
+            getSortedNumericMock(dimList, docsWithField),
+            getSortedNumericMock(dimList2, docsWithField2),
+            getSortedNumericMock(dimList7, docsWithField7),
+            getSortedNumericMock(dimList5, docsWithField5),
+            getSortedNumericMock(metricsList, metricsWithField),
+            getSortedNumericMock(metricsList1, metricsWithField1),
+            compositeField,
+            "6"
+        );
+
+        StarTreeValues starTreeValues2 = getStarTreeValuesWithDates(
+            getSortedNumericMock(dimList3, docsWithField3),
+            getSortedNumericMock(dimList4, docsWithField4),
+            getSortedNumericMock(dimList8, docsWithField8),
+            getSortedNumericMock(dimList6, docsWithField6),
+            getSortedNumericMock(metricsList2, metricsWithField2),
+            getSortedNumericMock(metricsList21, metricsWithField21),
+            compositeField,
+            "4"
+        );
+        this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
+            writeState,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+        );
+        builder = getStarTreeBuilder(metaOut, dataOut, compositeField, getWriteState(4, writeState.segmentInfo.getId()), mapperService);
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
+        /**
+         [1655287972000, 1655287972000, 1655287972000, 3] | [30.0, 3]
+         [1655288032000, 1655288032000, 1655288032000, 2] | [20.0, 2]
+         [1655288032000, 1655288032000, 1655288032000, 8] | [80.0, 8]
+         [1655288092000, 1655288092000, 1655288092000, 1] | [10.0, 1]
+         [1655288092000, 1655288092000, 1655288092000, 4] | [40.0, 4]
+         [1655288092000, 1655288092000, 1655288092000, 6] | [60.0, 6]
+         [1655288152000, 1655288152000, 1655288152000, 0] | [0.0, 0]
+         [1655288152000, 1655288152000, 1655288152000, 5] | [50.0, 5]
+         [null, null, null, 5] | [50.0, 5]
+         [null, null, null, 7] | [70.0, 7]
+         */
+        int count = 0;
+        builder.appendDocumentsToStarTree(starTreeDocumentIterator);
+        for (StarTreeDocument starTreeDocument : builder.getStarTreeDocuments()) {
+            count++;
+            assertEquals(starTreeDocument.dimensions[3] * 10.0, (double) starTreeDocument.metrics[1], 0);
+            assertEquals(starTreeDocument.dimensions[3], starTreeDocument.metrics[0]);
+        }
+        assertEquals(10, count);
+        builder.build(starTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
+        validateStarTree(builder.getRootNode(), 4, 10, builder.getStarTreeDocuments());
+        metaOut.close();
+        dataOut.close();
+        docValuesConsumer.close();
+
+        StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
+            "sf",
+            STAR_TREE,
+            mock(IndexInput.class),
+            VERSION_CURRENT,
+            builder.numStarTreeNodes,
+            getStarTreeDimensionNames(compositeField.getDimensionsOrder()),
+            compositeField.getMetrics(),
+            10,
+            builder.numStarTreeDocs,
+            compositeField.getStarTreeConfig().maxLeafDocs(),
+            Set.of(),
+            getBuildMode(),
+            0,
+            231
+        );
+
+        validateStarTreeFileFormats(
+            builder.getRootNode(),
+            builder.getStarTreeDocuments().size(),
+            starTreeMetadata,
+            builder.getStarTreeDocuments()
+        );
+    }
+
+    private StarTreeValues getStarTreeValuesWithDates(
+        SortedNumericDocValues dimList,
+        SortedNumericDocValues dimList2,
+        SortedNumericDocValues dimList4,
+        SortedNumericDocValues dimList3,
+        SortedNumericDocValues metricsList,
+        SortedNumericDocValues metricsList1,
+        StarTreeField sf,
+        String number
+    ) {
+        Map<String, Supplier<StarTreeValuesIterator>> dimDocIdSetIterators = Map.of(
+            "field1_minute",
+            () -> new SortedNumericStarTreeValuesIterator(dimList),
+            "field1_half-hour",
+            () -> new SortedNumericStarTreeValuesIterator(dimList4),
+            "field1_hour",
+            () -> new SortedNumericStarTreeValuesIterator(dimList2),
+            "field3",
+            () -> new SortedNumericStarTreeValuesIterator(dimList3)
+        );
+        Map<String, Supplier<StarTreeValuesIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
+
+        metricDocIdSetIterators.put(
+            fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                sf.getName(),
+                "field2",
+                sf.getMetrics().get(0).getMetrics().get(0).getTypeName()
+            ),
+            () -> new SortedNumericStarTreeValuesIterator(metricsList)
+        );
+        metricDocIdSetIterators.put(
+            fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                sf.getName(),
+                "field2",
+                sf.getMetrics().get(0).getMetrics().get(1).getTypeName()
+            ),
+            () -> new SortedNumericStarTreeValuesIterator(metricsList1)
+        );
+        return new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators, Map.of(SEGMENT_DOCS_COUNT, number), null);
+    }
+
+    private StarTreeField getStarTreeFieldWithDateDimension() {
+        List<DateTimeUnitRounding> intervals = new ArrayList<>();
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR));
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.HOUR_OF_DAY));
+        intervals.add(DataCubeDateTimeUnit.HALF_HOUR_OF_DAY);
+        Dimension d1 = new DateDimension("field1", intervals, DateFieldMapper.Resolution.MILLISECONDS);
+        Dimension d2 = new NumericDimension("field3");
+        Metric m1 = new Metric("field2", List.of(MetricStat.VALUE_COUNT, MetricStat.SUM));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(10, new HashSet<>(), getBuildMode());
+        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        return sf;
     }
 
     private void validateStarTree(

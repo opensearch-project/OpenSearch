@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -22,9 +23,13 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchHit;
@@ -58,13 +63,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject("startree-1")
                 .field("type", "star_tree")
                 .startObject("config")
+                .startObject("date_dimension")
+                .field("name", "timestamp")
+                .endObject()
                 .startArray("ordered_dimensions")
-                .startObject()
-                .field("name", "numeric_dv_1")
-                .endObject()
-                .startObject()
-                .field("name", "numeric_dv_2")
-                .endObject()
                 .startObject()
                 .field("name", getDim(invalidDim, keywordDim))
                 .endObject()
@@ -85,11 +87,58 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
-                .startObject("numeric_dv_1")
+                .startObject("numeric")
                 .field("type", "integer")
+                .field("doc_values", false)
+                .endObject()
+                .startObject("keyword_dv")
+                .field("type", "keyword")
                 .field("doc_values", true)
                 .endObject()
-                .startObject("numeric_dv_2")
+                .startObject("keyword")
+                .field("type", "keyword")
+                .field("doc_values", false)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static XContentBuilder createDateTestMapping(boolean duplicate) {
+        try {
+            return jsonBuilder().startObject()
+                .startObject("composite")
+                .startObject("startree-1")
+                .field("type", "star_tree")
+                .startObject("config")
+                .startObject("date_dimension")
+                .field("name", "timestamp")
+                .startArray("calendar_intervals")
+                .value("day")
+                .value("quarter-hour")
+                .value(duplicate ? "quarter-hour" : "half-hour")
+                .endArray()
+                .endObject()
+                .startArray("ordered_dimensions")
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .endArray()
+                .startArray("metrics")
+                .startObject()
+                .field("name", "numeric_dv")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("properties")
+                .startObject("timestamp")
+                .field("type", "date")
+                .endObject()
+                .startObject("numeric_dv")
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
@@ -119,10 +168,15 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject("startree-1")
                 .field("type", "star_tree")
                 .startObject("config")
-                .startArray("ordered_dimensions")
-                .startObject()
-                .field("name", "dim4")
+                .startObject("date_dimension")
+                .field("name", "timestamp")
+                .startArray("calendar_intervals")
+                .value("day")
+                .value("month")
+                .value("half-hour")
+                .endArray()
                 .endObject()
+                .startArray("ordered_dimensions")
                 .startObject()
                 .field("name", "dim2")
                 .endObject()
@@ -167,7 +221,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         }
     }
 
-    private static XContentBuilder createTestMappingWithoutStarTree(boolean invalidDim, boolean invalidMetric, boolean keywordDim) {
+    private static XContentBuilder createTestMappingWithoutStarTree() {
         try {
             return jsonBuilder().startObject()
                 .startObject("properties")
@@ -204,10 +258,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject(sameStarTree ? "startree-1" : "startree-2")
                 .field("type", "star_tree")
                 .startObject("config")
-                .startArray("ordered_dimensions")
-                .startObject()
-                .field("name", "numeric_dv1")
+                .startObject("date_dimension")
+                .field("name", "timestamp")
                 .endObject()
+                .startArray("ordered_dimensions")
                 .startObject()
                 .field("name", changeDim ? "numeric_new" : getDim(false, false))
                 .endObject()
@@ -225,10 +279,6 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "date")
                 .endObject()
                 .startObject("numeric_dv")
-                .field("type", "integer")
-                .field("doc_values", true)
-                .endObject()
-                .startObject("numeric_dv1")
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
@@ -263,10 +313,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject("startree-1")
                 .field("type", "star_tree")
                 .startObject("config")
-                .startArray("ordered_dimensions")
-                .startObject()
-                .field("name", "numeric_dv2")
+                .startObject("date_dimension")
+                .field("name", "timestamp")
                 .endObject()
+                .startArray("ordered_dimensions")
                 .startObject()
                 .field("name", "numeric_dv")
                 .endObject()
@@ -290,10 +340,6 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "date")
                 .endObject()
                 .startObject("numeric_dv")
-                .field("type", "integer")
-                .field("doc_values", true)
-                .endObject()
-                .startObject("numeric_dv2")
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
@@ -341,8 +387,92 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 for (CompositeMappedFieldType ft : fts) {
                     assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
                     StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
-                    assertEquals("numeric_dv_1", starTreeFieldType.getDimensions().get(0).getField());
-                    assertEquals("numeric_dv_2", starTreeFieldType.getDimensions().get(1).getField());
+                    assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
+                    assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
+                    DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
+                    List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                        new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+                        DataCubeDateTimeUnit.HALF_HOUR_OF_DAY
+                    );
+                    for (int i = 0; i < dateDim.getSortedCalendarIntervals().size(); i++) {
+                        assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
+                    }
+                    assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
+                    assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
+                    List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
+                    assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
+                    assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
+                    assertEquals(
+                        StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP,
+                        starTreeFieldType.getStarTreeConfig().getBuildMode()
+                    );
+                    assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
+                }
+            }
+        }
+    }
+
+    public void testValidCompositeIndexWithDates() {
+        prepareCreate(TEST_INDEX).setMapping(createDateTestMapping(false)).setSettings(settings).get();
+        Iterable<IndicesService> dataNodeInstances = internalCluster().getDataNodeInstances(IndicesService.class);
+        for (IndicesService service : dataNodeInstances) {
+            final Index index = resolveIndex("test");
+            if (service.hasIndex(index)) {
+                IndexService indexService = service.indexService(index);
+                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
+
+                for (CompositeMappedFieldType ft : fts) {
+                    assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
+                    StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
+                    assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
+                    assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
+                    DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
+                    List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                        DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY,
+                        DataCubeDateTimeUnit.HALF_HOUR_OF_DAY,
+                        new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
+                    );
+                    for (int i = 0; i < dateDim.getIntervals().size(); i++) {
+                        assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
+                    }
+                    assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
+                    assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
+                    List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
+                    assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
+                    assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
+                    assertEquals(
+                        StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP,
+                        starTreeFieldType.getStarTreeConfig().getBuildMode()
+                    );
+                    assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
+                }
+            }
+        }
+    }
+
+    public void testValidCompositeIndexWithDuplicateDates() {
+        prepareCreate(TEST_INDEX).setMapping(createDateTestMapping(true)).setSettings(settings).get();
+        Iterable<IndicesService> dataNodeInstances = internalCluster().getDataNodeInstances(IndicesService.class);
+        for (IndicesService service : dataNodeInstances) {
+            final Index index = resolveIndex("test");
+            if (service.hasIndex(index)) {
+                IndexService indexService = service.indexService(index);
+                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
+
+                for (CompositeMappedFieldType ft : fts) {
+                    assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
+                    StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
+                    assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
+                    assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
+                    DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
+                    List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                        DataCubeDateTimeUnit.QUARTER_HOUR_OF_DAY,
+                        new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
+                    );
+                    for (int i = 0; i < dateDim.getIntervals().size(); i++) {
+                        assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
+                    }
+                    assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
                     assertEquals(2, starTreeFieldType.getMetrics().size());
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
 
@@ -458,7 +588,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateIndexWithNewerStarTree() {
-        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createTestMappingWithoutStarTree(false, false, false)).get();
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createTestMappingWithoutStarTree()).get();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -502,8 +632,18 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 for (CompositeMappedFieldType ft : fts) {
                     assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
                     StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
-                    assertEquals("numeric_dv_1", starTreeFieldType.getDimensions().get(0).getField());
-                    assertEquals("numeric_dv_2", starTreeFieldType.getDimensions().get(1).getField());
+                    assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
+                    assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
+                    DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
+                    List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                        new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+                        DataCubeDateTimeUnit.HALF_HOUR_OF_DAY
+                    );
+                    for (int i = 0; i < expectedTimeUnits.size(); i++) {
+                        assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getIntervals().get(i).shortName());
+                    }
+
+                    assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
 
                     // Assert default metrics
@@ -536,6 +676,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             MapperParsingException.class,
             () -> prepareCreate(TEST_INDEX).setSettings(settings)
                 .setMapping(createMaxDimTestMapping())
+                // Date dimension is considered as one dimension regardless of number of actual calendar intervals
                 .setSettings(
                     Settings.builder()
                         .put(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 2)
@@ -565,6 +706,24 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         );
         assertEquals(
             "Failed to parse mapping [_doc]: There cannot be more than [4] base metrics for star tree field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testMaxCalendarIntervalsCompositeIndex() {
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setMapping(createMaxDimTestMapping())
+                .setSettings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING.getKey(), 1)
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                )
+                .get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: At most [1] calendar intervals are allowed in dimension [timestamp]",
             ex.getMessage()
         );
     }
