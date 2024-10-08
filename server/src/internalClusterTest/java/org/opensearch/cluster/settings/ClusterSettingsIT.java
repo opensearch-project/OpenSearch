@@ -380,6 +380,35 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testThreadPoolSettings() {
+        String key1 = "cluster.thread_pool.snapshot.max";
+        Settings transientSettings = Settings.builder().put(key1, "-1").build();
+
+        String key2 = "cluster.thread_pool.snapshot.max";
+        Settings persistentSettings = Settings.builder().put(key2, "5").build();
+
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(transientSettings)
+                .setPersistentSettings(persistentSettings)
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getMessage(), "illegal value for [cluster.thread_pool.snapshot], has to be positive value");
+        }
+
+        transientSettings = Settings.builder().put(key1, "1").build();
+        persistentSettings = Settings.builder().put(key2, "5").build();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(transientSettings)
+            .setPersistentSettings(persistentSettings)
+            .get();
+    }
+
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
 
