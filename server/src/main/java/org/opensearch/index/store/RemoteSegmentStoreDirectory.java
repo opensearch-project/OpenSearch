@@ -774,7 +774,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             return Long.toString(CodecUtil.retrieveChecksum(indexInput));
         }
     }

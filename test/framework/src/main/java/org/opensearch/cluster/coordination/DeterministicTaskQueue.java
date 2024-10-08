@@ -92,6 +92,12 @@ public class DeterministicTaskQueue {
         }
     }
 
+    public void runAllRunnableTasksInEnqueuedOrder() {
+        while (hasRunnableTasks()) {
+            runTask(0);
+        }
+    }
+
     public void runAllTasks() {
         while (hasDeferredTasks() || hasRunnableTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
@@ -139,6 +145,11 @@ public class DeterministicTaskQueue {
     public void runRandomTask() {
         assert hasRunnableTasks();
         runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
+    }
+
+    public void runNextTask() {
+        assert hasRunnableTasks();
+        runTask(0);
     }
 
     private void runTask(final int index) {

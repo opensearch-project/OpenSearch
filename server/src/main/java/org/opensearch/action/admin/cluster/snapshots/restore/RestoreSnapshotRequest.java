@@ -667,6 +667,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed source_remote_store_repository");
                 }
+            } else if (name.equals("source_remote_translog_repository")) {
+                if (entry.getValue() instanceof String) {
+                    setSourceRemoteTranslogRepository((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed source_remote_translog_repository");
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);

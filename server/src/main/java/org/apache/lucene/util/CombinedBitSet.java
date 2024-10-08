@@ -87,15 +87,7 @@ public final class CombinedBitSet extends BitSet implements Bits {
 
     @Override
     public int nextSetBit(int index) {
-        assert index >= 0 && index < length : "index=" + index + " numBits=" + length();
-        int next = first.nextSetBit(index);
-        while (next != DocIdSetIterator.NO_MORE_DOCS && second.get(next) == false) {
-            if (next == length() - 1) {
-                return DocIdSetIterator.NO_MORE_DOCS;
-            }
-            next = first.nextSetBit(next + 1);
-        }
-        return next;
+        return nextSetBit(index, length() - 1);
     }
 
     @Override
@@ -131,5 +123,21 @@ public final class CombinedBitSet extends BitSet implements Bits {
     @Override
     public boolean getAndSet(int i) {
         throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public int nextSetBit(int start, int end) {
+        assert start >= 0 && start < length() : "start=" + start + " numBits=" + length();
+        assert end >= start && end < length() : "end=" + end + " numBits=" + length();
+
+        int next = first.nextSetBit(start);
+        while (next != DocIdSetIterator.NO_MORE_DOCS && second.get(next) == false) {
+            if (next >= end) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            next = first.nextSetBit(next + 1);
+        }
+        return next;
+
     }
 }

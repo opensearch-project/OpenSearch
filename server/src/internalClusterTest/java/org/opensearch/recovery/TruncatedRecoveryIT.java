@@ -58,6 +58,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING;
@@ -184,7 +185,7 @@ public class TruncatedRecoveryIT extends ParameterizedStaticSettingsOpenSearchIn
             )
             .get();
 
-        latch.await();
+        latch.await(5, TimeUnit.MINUTES);
 
         // at this point we got some truncated left overs on the replica on the unlucky node
         // now we are allowing the recovery to allocate again and finish to see if we wipe the truncated files

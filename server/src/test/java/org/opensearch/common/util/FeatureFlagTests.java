@@ -14,7 +14,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.common.util.FeatureFlags.DATETIME_FORMATTER_CACHING;
 import static org.opensearch.common.util.FeatureFlags.EXTENSIONS;
-import static org.opensearch.common.util.FeatureFlags.IDENTITY;
 
 public class FeatureFlagTests extends OpenSearchTestCase {
 
@@ -40,7 +39,7 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     }
 
     public void testBooleanFeatureFlagWithDefaultSetToFalse() {
-        final String testFlag = IDENTITY;
+        final String testFlag = EXTENSIONS;
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
         assertNotNull(testFlag);
         assertFalse(FeatureFlags.isEnabled(testFlag));
@@ -49,15 +48,13 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     public void testBooleanFeatureFlagInitializedWithEmptySettingsAndDefaultSetToFalse() {
         final String testFlag = DATETIME_FORMATTER_CACHING;
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-        assertNotNull(testFlag);
         assertFalse(FeatureFlags.isEnabled(testFlag));
     }
 
     public void testInitializeFeatureFlagsWithExperimentalSettings() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(IDENTITY, true).build());
-        assertTrue(FeatureFlags.isEnabled(IDENTITY));
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(EXTENSIONS, true).build());
+        assertTrue(FeatureFlags.isEnabled(EXTENSIONS));
         assertFalse(FeatureFlags.isEnabled(DATETIME_FORMATTER_CACHING));
-        assertFalse(FeatureFlags.isEnabled(EXTENSIONS));
         // reset FeatureFlags to defaults
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
