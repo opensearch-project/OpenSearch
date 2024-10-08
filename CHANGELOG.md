@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-core-http-netty` from 1.15.3 to 1.15.4 ([#16133](https://github.com/opensearch-project/OpenSearch/pull/16133))
 - Bump `org.jline:jline` from 3.26.3 to 3.27.0 ([#16135](https://github.com/opensearch-project/OpenSearch/pull/16135))
 - Bump `netty` from 4.1.112.Final to 4.1.114.Final ([#16182](https://github.com/opensearch-project/OpenSearch/pull/16182))
+- Bump `org.apache.rat:apache-rat'` from 0.15 to 0.16.1 ([#16121](https://github.com/opensearch-project/OpenSearch/pull/16121))
 
 ### Changed
 - Add support for docker compose v2 in TestFixturesPlugin ([#16049](https://github.com/opensearch-project/OpenSearch/pull/16049))
