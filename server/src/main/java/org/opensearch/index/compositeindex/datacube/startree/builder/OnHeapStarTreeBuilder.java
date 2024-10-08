@@ -9,12 +9,8 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.compositeindex.datacube.Dimension;
-import org.opensearch.index.compositeindex.datacube.Metric;
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -28,9 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 
 /**
  * On heap single tree builder
@@ -133,33 +126,13 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
-            List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
-            SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[dimensionsSplitOrder.size()];
 
-            for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
-                String dimension = dimensionsSplitOrder.get(i).getField();
-                dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionValuesIterator(dimension));
-            }
-
+            SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
-            // get doc id set iterators for metrics
-            for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
-                for (MetricStat metricStat : metric.getBaseMetrics()) {
-                    String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                        starTreeValues.getStarTreeField().getName(),
-                        metric.getField(),
-                        metricStat.getTypeName()
-                    );
-                    metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricValuesIterator(metricFullName)));
-
-                }
-            }
-
+            AtomicInteger numSegmentDocs = new AtomicInteger();
+            setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
             int currentDocId = 0;
-            int numSegmentDocs = Integer.parseInt(
-                starTreeValues.getAttributes().getOrDefault(SEGMENT_DOCS_COUNT, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
-            );
-            while (currentDocId < numSegmentDocs) {
+            while (currentDocId < numSegmentDocs.get()) {
                 starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders));
                 currentDocId++;
             }
