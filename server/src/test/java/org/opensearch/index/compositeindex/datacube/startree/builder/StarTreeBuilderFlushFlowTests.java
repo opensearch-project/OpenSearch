@@ -332,6 +332,70 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         );
     }
 
+    public void testFlushFlowWithTimestamps() throws IOException {
+        List<Long> dimList = List.of(1655288152000L, 1655288092000L, 1655288032000L, 1655287972000L, 1655288092000L);
+        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5);
+
+        List<Long> metricsList = List.of(
+            getLongFromDouble(0.0),
+            getLongFromDouble(10.0),
+            getLongFromDouble(20.0),
+            getLongFromDouble(30.0),
+            getLongFromDouble(40.0),
+            getLongFromDouble(50.0)
+        );
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
+
+        compositeField = getStarTreeFieldWithDateDimension();
+        SortedNumericStarTreeValuesIterator d1sndv = new SortedNumericStarTreeValuesIterator(getSortedNumericMock(dimList, docsWithField));
+        SortedNumericStarTreeValuesIterator d2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(dimList2, docsWithField2)
+        );
+        SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
+        SortedNumericStarTreeValuesIterator m2sndv = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(metricsList, metricsWithField)
+        );
+        this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
+            writeState,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+        );
+        builder = getStarTreeBuilder(metaOut, dataOut, compositeField, getWriteState(6, writeState.segmentInfo.getId()), mapperService);
+        SequentialDocValuesIterator[] dimDvs = { new SequentialDocValuesIterator(d1sndv), new SequentialDocValuesIterator(d2sndv) };
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.sortAndAggregateSegmentDocuments(
+            dimDvs,
+            List.of(new SequentialDocValuesIterator(m1sndv), new SequentialDocValuesIterator(m2sndv))
+        );
+        /**
+         * Asserting following dim / metrics [ dim1, dim2 / Sum [metric], count [metric] ]
+         [1655287920000, 1655287200000, 1655287200000, 4] | [40.0, 1]
+         [1655287980000, 1655287200000, 1655287200000, 3] | [30.0, 1]
+         [1655288040000, 1655287200000, 1655287200000, 1] | [10.0, 1]
+         [1655288040000, 1655287200000, 1655287200000, 5] | [50.0, 1]
+         [1655288100000, 1655287200000, 1655287200000, 0] | [0.0, 1]
+         [null, null, null, 2] | [20.0, 1]
+         */
+        int count = 0;
+        List<StarTreeDocument> starTreeDocumentsList = new ArrayList<>();
+        starTreeDocumentIterator.forEachRemaining(starTreeDocumentsList::add);
+        starTreeDocumentIterator = starTreeDocumentsList.iterator();
+        while (starTreeDocumentIterator.hasNext()) {
+            count++;
+            StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
+            assertEquals(starTreeDocument.dimensions[3] * 1 * 10.0, starTreeDocument.metrics[1]);
+            assertEquals(1L, starTreeDocument.metrics[0]);
+        }
+        assertEquals(6, count);
+        builder.build(starTreeDocumentsList.iterator(), new AtomicInteger(), docValuesConsumer);
+        validateStarTree(builder.getRootNode(), 3, 10, builder.getStarTreeDocuments());
+    }
+
     private StarTreeField getStarTreeFieldWithMultipleMetrics() {
         Dimension d1 = new NumericDimension("field1");
         Dimension d2 = new NumericDimension("field3");
