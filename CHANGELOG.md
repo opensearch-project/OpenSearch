@@ -43,7 +43,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-core-http-netty` from 1.15.3 to 1.15.4 ([#16133](https://github.com/opensearch-project/OpenSearch/pull/16133))
 - Bump `org.jline:jline` from 3.26.3 to 3.27.0 ([#16135](https://github.com/opensearch-project/OpenSearch/pull/16135))
 - Bump `netty` from 4.1.112.Final to 4.1.114.Final ([#16182](https://github.com/opensearch-project/OpenSearch/pull/16182))
+- Bump `com.google.api-client:google-api-client` from 2.2.0 to 2.7.0 ([#16216](https://github.com/opensearch-project/OpenSearch/pull/16216))
 - Bump `com.azure:azure-json` from 1.1.0 to 1.3.0 ([#16217](https://github.com/opensearch-project/OpenSearch/pull/16217))
+- Bump `io.grpc:grpc-api` from 1.57.2 to 1.68.0 ([#16213](https://github.com/opensearch-project/OpenSearch/pull/16213))
+- Bump `com.squareup.okio:okio` from 3.9.0 to 3.9.1 ([#16212](https://github.com/opensearch-project/OpenSearch/pull/16212))
 
 ### Changed
 - Add support for docker compose v2 in TestFixturesPlugin ([#16049](https://github.com/opensearch-project/OpenSearch/pull/16049))
@@ -66,6 +69,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix race condition in node-join and node-left ([#15521](https://github.com/opensearch-project/OpenSearch/pull/15521))
 - Streaming bulk request hangs ([#16158](https://github.com/opensearch-project/OpenSearch/pull/16158))
 - Fix warnings from SLF4J on startup when repository-s3 is installed ([#16194](https://github.com/opensearch-project/OpenSearch/pull/16194))
+- Fix protobuf-java leak through client library dependencies ([#16254](https://github.com/opensearch-project/OpenSearch/pull/16254))
 
 ### Security
 

@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.opensearch.index.codec.composite.composite99.Composite99DocValuesReader.getSortedNumericDocValues;
+import static org.opensearch.index.codec.composite.composite912.Composite912DocValuesReader.getSortedNumericDocValues;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
