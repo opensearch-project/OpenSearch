@@ -14,7 +14,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Query class for querying star tree data structure.
@@ -34,20 +33,20 @@ public class StarTreeQueryContext {
      * Map of field name to a value to be queried for that field
      * This is used to filter the data based on the query
      */
-    private volatile Map<String, Long> queryMap;
+    private final Map<String, Long> queryMap;
 
     /**
     * Cache for leaf results
     * This is used to cache the results for each leaf reader context
     * to avoid reading the filtered values from the leaf reader context multiple times
     */
-    protected volatile Map<LeafReaderContext, FixedBitSet> starTreeValuesMap;
+    private FixedBitSet[] starTreeValues;
 
-    public StarTreeQueryContext(CompositeIndexFieldInfo starTree, Map<String, Long> queryMap, boolean cacheStarTreeValues) {
+    public StarTreeQueryContext(CompositeIndexFieldInfo starTree, Map<String, Long> queryMap, int cacheStarTreeValuesSize) {
         this.starTree = starTree;
         this.queryMap = queryMap;
-        if (cacheStarTreeValues) {
-            starTreeValuesMap = new ConcurrentHashMap<>();
+        if (cacheStarTreeValuesSize > -1) {
+            starTreeValues = new FixedBitSet[cacheStarTreeValuesSize];
         }
     }
 
@@ -59,7 +58,21 @@ public class StarTreeQueryContext {
         return queryMap;
     }
 
-    public Map<LeafReaderContext, FixedBitSet> getStarTreeValuesMap() {
-        return starTreeValuesMap;
+    public FixedBitSet[] getStarTreeValues() {
+        return starTreeValues;
     }
+
+    public FixedBitSet getStarTreeValues(LeafReaderContext ctx) {
+        if (starTreeValues != null) {
+            return starTreeValues[ctx.ord];
+        }
+        return null;
+    }
+
+    public void setStarTreeValues(LeafReaderContext ctx, FixedBitSet values) {
+        if (starTreeValues != null) {
+            starTreeValues[ctx.ord] = values;
+        }
+    }
+
 }

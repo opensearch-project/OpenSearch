@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
@@ -174,7 +175,9 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         int numBits = matchedDocIds.length();  // Get the length of the FixedBitSet
         if (numBits > 0) {
             // Iterate over the FixedBitSet
-            for (int bit = matchedDocIds.nextSetBit(0); bit != -1; bit = bit + 1 < numBits ? matchedDocIds.nextSetBit(bit + 1) : -1) {
+            for (int bit = matchedDocIds.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = bit + 1 < numBits
+                ? matchedDocIds.nextSetBit(bit + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
                 // Advance to the bit (entryId) in the valuesIterator
                 if ((sumValuesIterator.advanceExact(bit) && countValueIterator.advanceExact(bit)) == false) {
                     continue;  // Skip if no more entries
