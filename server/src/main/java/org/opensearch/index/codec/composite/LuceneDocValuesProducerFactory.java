@@ -11,7 +11,7 @@ package org.opensearch.index.codec.composite;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesProducerWrapper;
 import org.apache.lucene.index.SegmentReadState;
-import org.opensearch.index.codec.composite.composite99.Composite99Codec;
+import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 
 import java.io.IOException;
 
@@ -39,7 +39,7 @@ public class LuceneDocValuesProducerFactory {
     ) throws IOException {
 
         switch (compositeCodec) {
-            case Composite99Codec.COMPOSITE_INDEX_CODEC_NAME:
+            case Composite912Codec.COMPOSITE_INDEX_CODEC_NAME:
                 Lucene90DocValuesProducerWrapper lucene90DocValuesProducerWrapper = new Lucene90DocValuesProducerWrapper(
                     state,
                     dataCodec,
