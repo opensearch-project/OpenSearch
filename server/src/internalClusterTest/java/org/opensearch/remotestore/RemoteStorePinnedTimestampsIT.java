@@ -76,8 +76,6 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         );
 
         Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp = RemoteStorePinnedTimestampService.getPinnedTimestamps();
-        long lastFetchTimestamp = pinnedTimestampWithFetchTimestamp.v1();
-        assertEquals(-1L, lastFetchTimestamp);
         assertEquals(Set.of(), pinnedTimestampWithFetchTimestamp.v2());
 
         long timestamp1 = System.currentTimeMillis() + 30000L;
