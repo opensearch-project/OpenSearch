@@ -190,7 +190,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final RemoteClusterStateService remoteClusterStateService;
     private final RemoteStoreNodeService remoteStoreNodeService;
     private NodeConnectionsService nodeConnectionsService;
-    private final RemoteClusterStateService remoteClusterStateService;
     private final ClusterSettings clusterSettings;
 
     /**
