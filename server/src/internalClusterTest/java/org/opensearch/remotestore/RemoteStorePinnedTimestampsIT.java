@@ -41,10 +41,14 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
 
     ActionListener<Void> noOpActionListener = new ActionListener<>() {
         @Override
-        public void onResponse(Void unused) {}
+        public void onResponse(Void unused) {
+            // do nothing
+        }
 
         @Override
-        public void onFailure(Exception e) {}
+        public void onFailure(Exception e) {
+            fail();
+        }
     };
 
     public void testTimestampPinUnpin() throws Exception {
@@ -60,11 +64,6 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         long lastFetchTimestamp = pinnedTimestampWithFetchTimestamp.v1();
         assertEquals(-1L, lastFetchTimestamp);
         assertEquals(Set.of(), pinnedTimestampWithFetchTimestamp.v2());
-
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> remoteStorePinnedTimestampService.pinTimestamp(1234L, "ss1", noOpActionListener)
-        );
 
         long timestamp1 = System.currentTimeMillis() + 30000L;
         long timestamp2 = System.currentTimeMillis() + 60000L;
@@ -195,6 +194,97 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
         assertBusy(() -> assertEquals(Set.of(timestamp2, timestamp3), RemoteStorePinnedTimestampService.getPinnedTimestamps().v2()));
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
+    }
+
+    public void testPinExceptionsOlderTimestamp() throws InterruptedException {
+        prepareCluster(1, 1, INDEX_NAME, 0, 2);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteStorePinnedTimestampService.pinTimestamp(1234L, "ss1", new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                // We expect onFailure to be called
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof IllegalArgumentException);
+            }
+        }, latch));
+
+        latch.await();
+    }
+
+    // This test fails as we can't control actual upload of pinned timestamp file. We ideally need a BlobStoreRepository
+    // which can control the speed of upload.
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/16246")
+    public void testPinExceptionsRemoteStoreCallTakeTime() throws InterruptedException {
+        prepareCluster(1, 1, INDEX_NAME, 0, 2);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.timeValueNanos(50000));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        long timestampToBePinned = System.currentTimeMillis();
+        remoteStorePinnedTimestampService.pinTimestamp(timestampToBePinned, "ss1", new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                // We expect onFailure to be called
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(e.getMessage());
+                assertTrue(e instanceof RuntimeException);
+                assertTrue(e.getMessage().contains("Timestamp pinning took"));
+
+                // Check if the timestamp was unpinned
+                remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
+                assertFalse(RemoteStorePinnedTimestampService.getPinnedTimestamps().v2().contains(timestampToBePinned));
+            }
+        }, latch));
+
+        latch.await();
+    }
+
+    public void testUnpinException() throws InterruptedException {
+        prepareCluster(1, 1, INDEX_NAME, 0, 2);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteStorePinnedTimestampService.unpinTimestamp(1234L, "dummy-entity", new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                // We expect onFailure to be called
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(e.getMessage());
+                assertTrue(e instanceof IllegalArgumentException);
+            }
+        }, latch));
+
+        latch.await();
     }
 
     public void testLastSuccessfulFetchOfPinnedTimestampsPresentInNodeStats() throws Exception {
