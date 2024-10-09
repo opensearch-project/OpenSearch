@@ -17,7 +17,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
-import org.opensearch.index.codec.composite.composite99.Composite99Codec;
+import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -73,7 +73,7 @@ public class LuceneDocValuesConsumerFactoryTests extends OpenSearchTestCase {
         );
 
         assertEquals("org.apache.lucene.codecs.lucene90.Lucene90DocValuesConsumer", consumer.getClass().getName());
-        assertEquals(CompositeCodecFactory.COMPOSITE_CODEC, Composite99Codec.COMPOSITE_INDEX_CODEC_NAME);
+        assertEquals(CompositeCodecFactory.COMPOSITE_CODEC, Composite912Codec.COMPOSITE_INDEX_CODEC_NAME);
         consumer.close();
     }
 
