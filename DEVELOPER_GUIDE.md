@@ -556,6 +556,44 @@ Then, you need to apply patterns for git-secrets, you can install the AWS standa
 git secrets --register-aws
 ```
 
+#### Run remote backed storage from dev environment
+
+To run the remote backed storage from the dev/local environment - Please do add the below to run.gradle file.
+
+```
+testClusters {
+   runTask {
+    // Add following lines to enable remote store
+    setting 'node.attr.remote_store.segment.repository', '<repository_name>'
+    setting 'node.attr.remote_store.translog.repository', '<repository_name>'
+    setting 'node.attr.remote_store.state.repository', '<repository_name>'
+    setting 'node.attr.remote_store.repository.my-repository.type', '<type>'
+    setting 'node.attr.remote_store.repository.my-repository.settings.bucket', '<bucket_name>'
+    setting 'node.attr.remote_store.repository.my-repository.settings.base_path', '<base_path>'
+    setting 'node.attr.remote_store.repository.my-repository.settings.region', '<region>'
+
+
+    // Add AWS credentials to the keystore
+    keystore 's3.client.default.access_key', System.getenv('AWS_ACCESS_KEY_ID')
+    keystore 's3.client.default.secret_key', System.getenv('AWS_SECRET_ACCESS_KEY')
+    keystore 's3.client.default.session_token', System.getenv('AWS_SESSION_TOKEN')
+
+     testDistribution = 'archive'
+     if (numZones > 1) numberOfZones = numZones
+     if (numNodes > 1) numberOfNodes = numNodes
+```
+Then run by giving the required plugin as parameter
+```
+Exporting values to use as system variable. 
+export AWS_ACCESS_KEY_ID=<access_key>
+export AWS_SECRET_ACCESS_KEY=<secret_key>
+export AWS_SESSION_TOKEN=<session_token>
+
+Example: plugin can be 'repository-s3'
+./gradlew run -PinstalledPlugins="['<plugin>']" --debug-jvm
+
+```
+
 ### Submitting Changes
 
 See [CONTRIBUTING](CONTRIBUTING.md).
