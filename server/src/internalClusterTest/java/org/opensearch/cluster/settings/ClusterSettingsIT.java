@@ -381,32 +381,97 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testThreadPoolSettings() {
-        String key1 = "cluster.thread_pool.snapshot.max";
-        Settings transientSettings = Settings.builder().put(key1, "-1").build();
-
-        String key2 = "cluster.thread_pool.snapshot.max";
-        Settings persistentSettings = Settings.builder().put(key2, "5").build();
-
+        // wrong threadpool
         try {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(transientSettings)
-                .setPersistentSettings(persistentSettings)
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.wrong.max", "-1").build())
                 .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "illegal value for [cluster.thread_pool.snapshot], has to be positive value");
+            assertTrue(ex.getCause().getMessage().contains("illegal thread_pool name : "));
         }
 
-        transientSettings = Settings.builder().put(key1, "1").build();
-        persistentSettings = Settings.builder().put(key2, "5").build();
-        client().admin()
+        // Scaling threadpool - negative value
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal value for [cluster.thread_pool.snapshot], has to be positive value");
+        }
+
+        // Scaling threadpool - Other than max and core
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.wrong", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have max and core");
+        }
+
+        // Scaling threadpool - core > max
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put("cluster.thread_pool.snapshot.core", "2").put("cluster.thread_pool.snapshot.max", "1").build()
+                )
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "core threadpool size cannot be greater than max");
+        }
+
+        // Scaling threadpool - happy case
+        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(transientSettings)
-            .setPersistentSettings(persistentSettings)
+            .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "1").build())
+            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "5").build())
             .get();
+        assertTrue(clusterUpdateSettingsResponse.isAcknowledged());
+
+        // Fixed threadpool - Other than size
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.wrong", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have size");
+        }
+
+        // Fixed threadpool - 0 value
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.size", "0").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal value for [cluster.thread_pool.get], has to be positive value");
+        }
+
+        // Fixed threadpool - happy case
+        clusterUpdateSettingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.size", "1").build())
+            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.get.size", "1").build())
+            .get();
+        assertTrue(clusterUpdateSettingsResponse.isAcknowledged());
     }
 
     public void testLoggerLevelUpdate() {
