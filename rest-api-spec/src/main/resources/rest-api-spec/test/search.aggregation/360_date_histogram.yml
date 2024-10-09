@@ -141,11 +141,6 @@ setup:
           - '{"date": "2025-02-14"}'
 
   - do:
-      indices.forcemerge:
-        index: dhisto-agg-w-query
-        max_num_segments: 1
-
-  - do:
       search:
         index: dhisto-agg-w-query
         body:
