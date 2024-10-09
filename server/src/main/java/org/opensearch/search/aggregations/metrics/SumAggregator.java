@@ -62,13 +62,13 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  */
 public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
-    protected final ValuesSource.Numeric valuesSource;
-    protected final DocValueFormat format;
+    private final ValuesSource.Numeric valuesSource;
+    private final DocValueFormat format;
 
-    protected DoubleArray sums;
-    protected DoubleArray compensations;
+    private DoubleArray sums;
+    private DoubleArray compensations;
 
-    public SumAggregator(
+    SumAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
