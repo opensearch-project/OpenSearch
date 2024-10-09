@@ -116,13 +116,13 @@ public class Cache<K, V> {
     private RemovalListener<K, V> removalListener = notification -> {};
 
     private final int numberOfSegments;
-    private static final int NUMBER_OF_SEGMENTS_DEFAULT = 256;
+    public static final int NUMBER_OF_SEGMENTS = 256;
 
     Cache(final int numberOfSegments) {
         if (numberOfSegments != -1) {
             this.numberOfSegments = numberOfSegments;
         } else {
-            this.numberOfSegments = NUMBER_OF_SEGMENTS_DEFAULT;
+            this.numberOfSegments = NUMBER_OF_SEGMENTS;
         }
         this.segments = new CacheSegment[this.numberOfSegments];
         for (int i = 0; i < this.numberOfSegments; i++) {
