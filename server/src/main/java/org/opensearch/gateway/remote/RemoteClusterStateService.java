@@ -113,7 +113,7 @@ import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLA
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -279,7 +279,7 @@ public class RemoteClusterStateService implements Closeable {
         this.isPublicationEnabled = new AtomicBoolean(
             clusterSettings.get(REMOTE_PUBLICATION_SETTING)
                 && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
-                && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings)
+                && RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured(settings)
         );
         clusterSettings.addSettingsUpdateConsumer(REMOTE_PUBLICATION_SETTING, this::setRemotePublicationSetting);
         this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
@@ -1126,7 +1126,7 @@ public class RemoteClusterStateService implements Closeable {
         if (remotePublicationSetting == false) {
             this.isPublicationEnabled.set(false);
         } else {
-            this.isPublicationEnabled.set(isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableEnabled(settings));
+            this.isPublicationEnabled.set(isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableConfigured(settings));
         }
     }
 

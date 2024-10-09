@@ -202,7 +202,7 @@ public class RemoteStoreNodeAttribute {
             .isEmpty() == false;
     }
 
-    public static boolean isRemoteRoutingTableEnabled(Settings settings) {
+    public static boolean isRemoteRoutingTableConfigured(Settings settings) {
         return isRemoteRoutingTableAttributePresent(settings);
     }
 
