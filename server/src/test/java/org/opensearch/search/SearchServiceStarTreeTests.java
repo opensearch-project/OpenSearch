@@ -17,7 +17,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
-import org.opensearch.index.codec.composite99.datacube.startree.StarTreeDocValuesFormatTests;
+import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.CompositeMappedFieldType;

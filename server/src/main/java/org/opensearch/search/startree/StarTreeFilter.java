@@ -42,28 +42,18 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class StarTreeFilter {
     private static final Logger logger = LogManager.getLogger(StarTreeFilter.class);
 
-    private final Map<String, Long> queryMap;
-    private final StarTreeValues starTreeValues;
-
-    public StarTreeFilter(StarTreeValues starTreeAggrStructure, Map<String, Long> predicateEvaluators) {
-        // This filter operator does not support AND/OR/NOT operations as of now.
-        starTreeValues = starTreeAggrStructure;
-        queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
-    }
-
     /**
-     * <ul>
-     *   <li>First go over the star tree and try to match as many dimensions as possible
-     *   <li>For the remaining columns, use star-tree doc values to match them
-     * </ul>
+     *   First go over the star tree and try to match as many dimensions as possible
+     *   For the remaining columns, use star-tree doc values to match them
      */
-    public FixedBitSet getStarTreeResult() throws IOException {
-        StarTreeResult starTreeResult = traverseStarTree();
+    public static FixedBitSet getStarTreeResult(StarTreeValues starTreeValues, Map<String, Long> predicateEvaluators) throws IOException {
+        Map<String, Long> queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
+        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, queryMap);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
         SortedNumericStarTreeValuesIterator starTreeValuesIterator = new SortedNumericStarTreeValuesIterator(
-            starTreeResult._matchedDocIds.build().iterator()
+            starTreeResult.matchedDocIds.build().iterator()
         );
 
         // No matches, return an empty FixedBitSet
@@ -80,10 +70,10 @@ public class StarTreeFilter {
         FixedBitSet tempBitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
 
         // Process remaining predicate columns to further filter the results
-        for (String remainingPredicateColumn : starTreeResult._remainingPredicateColumns) {
+        for (String remainingPredicateColumn : starTreeResult.remainingPredicateColumns) {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
 
-            SortedNumericStarTreeValuesIterator ndv = (SortedNumericStarTreeValuesIterator) this.starTreeValues.getDimensionValuesIterator(
+            SortedNumericStarTreeValuesIterator ndv = (SortedNumericStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
                 remainingPredicateColumn
             );
 
@@ -118,8 +108,8 @@ public class StarTreeFilter {
      * Helper method to traverse the star tree, get matching documents and keep track of all the
      * predicate dimensions that are not matched.
      */
-    private StarTreeResult traverseStarTree() throws IOException {
-        DocIdSetBuilder docsWithField = new DocIdSetBuilder(this.starTreeValues.getStarTreeDocumentCount());
+    private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, Map<String, Long> queryMap) throws IOException {
+        DocIdSetBuilder docsWithField = new DocIdSetBuilder(starTreeValues.getStarTreeDocumentCount());
         DocIdSetBuilder.BulkAdder adder;
         Set<String> globalRemainingPredicateColumns = null;
         StarTreeNode starTree = starTreeValues.getRoot();
@@ -214,15 +204,20 @@ public class StarTreeFilter {
     /**
      * Helper class to wrap the result from traversing the star tree.
      * */
-    static class StarTreeResult {
-        final DocIdSetBuilder _matchedDocIds;
-        final Set<String> _remainingPredicateColumns;
-        final int numOfMatchedDocs;
-        final int maxMatchedDoc;
+    public static class StarTreeResult {
+        public final DocIdSetBuilder matchedDocIds;
+        public final Set<String> remainingPredicateColumns;
+        public final int numOfMatchedDocs;
+        public final int maxMatchedDoc;
 
-        StarTreeResult(DocIdSetBuilder matchedDocIds, Set<String> remainingPredicateColumns, int numOfMatchedDocs, int maxMatchedDoc) {
-            _matchedDocIds = matchedDocIds;
-            _remainingPredicateColumns = remainingPredicateColumns;
+        public StarTreeResult(
+            DocIdSetBuilder matchedDocIds,
+            Set<String> remainingPredicateColumns,
+            int numOfMatchedDocs,
+            int maxMatchedDoc
+        ) {
+            this.matchedDocIds = matchedDocIds;
+            this.remainingPredicateColumns = remainingPredicateColumns;
             this.numOfMatchedDocs = numOfMatchedDocs;
             this.maxMatchedDoc = maxMatchedDoc;
         }
