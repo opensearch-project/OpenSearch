@@ -32,10 +32,6 @@
 package org.opensearch.bootstrap;
 
 import org.mockito.InOrder;
-import org.opensearch.Version;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.KeyStoreCommandTestCase;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
@@ -43,10 +39,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
-import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -63,13 +56,10 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
 public class BootstrapTests extends OpenSearchTestCase {
     Environment env;
