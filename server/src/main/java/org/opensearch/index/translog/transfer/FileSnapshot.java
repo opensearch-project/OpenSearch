@@ -163,14 +163,28 @@ public class FileSnapshot implements Closeable {
     public static final class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
+        // translogWithoutFooterChecksum is the checksum of Translog which does not include footer.
+        // The checksum variable has the checksum of Translog which includes footer.
+        private Long translogWithoutFooterChecksum;
 
         public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
             super(path, primaryTerm, checksum);
             this.generation = generation;
+            this.translogWithoutFooterChecksum = checksum;
+        }
+
+        public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum, Long translogWithFooterChecksum)
+            throws IOException {
+            this(primaryTerm, generation, path, translogWithFooterChecksum);
+            this.translogWithoutFooterChecksum = checksum;
         }
 
         public long getGeneration() {
             return generation;
+        }
+
+        public Long getTranslogWithoutFooterChecksum() {
+            return translogWithoutFooterChecksum;
         }
 
         @Override

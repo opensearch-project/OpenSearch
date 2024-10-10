@@ -168,7 +168,13 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
                 Path checkpointPath = location.resolve(checkpointGenFileNameMapper.apply(readerGeneration));
                 generations.add(readerGeneration);
                 translogTransferSnapshot.add(
-                    new TranslogFileSnapshot(readerPrimaryTerm, readerGeneration, translogPath, reader.getTranslogChecksum()),
+                    new TranslogFileSnapshot(
+                        readerPrimaryTerm,
+                        readerGeneration,
+                        translogPath,
+                        reader.getTranslogChecksum(),
+                        reader.getTranslogWithFooterChecksum()
+                    ),
                     new CheckpointFileSnapshot(
                         readerPrimaryTerm,
                         checkpointGeneration,

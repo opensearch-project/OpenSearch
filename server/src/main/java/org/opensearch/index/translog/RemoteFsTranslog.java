@@ -254,14 +254,67 @@ public class RemoteFsTranslog extends Translog {
                 Files.createDirectories(location);
             }
 
-            // Delete translog files on local before downloading from remote
+            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
+            Map<String, String> generationToChecksumMapper = translogMetadata.getGenerationToChecksumMapper();
+            long maxGeneration = translogMetadata.getGeneration();
+            long minGeneration = translogMetadata.getMinTranslogGeneration();
+
+            // Delete any translog and checkpoint file which is not part of the current generation range.
             for (Path file : FileSystemUtils.files(location)) {
-                Files.delete(file);
+                try {
+                    long generation = parseIdFromFileName(file.getFileName().toString(), STRICT_TLOG_OR_CKP_PATTERN);
+                    if (generation < minGeneration || generation > maxGeneration) {
+                        // If the generation is outside the required range, then we delete the same.
+                        Files.delete(file);
+                    }
+                } catch (IllegalStateException | IllegalArgumentException e) {
+                    // Delete any file which does not conform to Translog or Checkpoint filename patterns.
+                    Files.delete(file);
+                }
             }
 
-            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
-            for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
+            // For incremental downloads, we will check if the local translog matches the one present in
+            // remote store. If so, we will skip its download.
+            for (long i = maxGeneration; i >= minGeneration; i--) {
                 String generation = Long.toString(i);
+                String translogFilename = Translog.getFilename(i);
+                Path targetTranslogPath = location.resolve(translogFilename);
+
+                // If we have the translog available for the generation locally, then we need to
+                // compare the checksum with that in remote obtained via metadata.
+                // For backward compatibility, we consider the following cases here-
+                // - Remote metadata does not have the mapping for generation
+                // - Local translog file lacks the checksum value in footer
+                // In both these cases, we will download the files for the generation.
+                if (generationToChecksumMapper.containsKey(generation) && FileSystemUtils.exists(targetTranslogPath)) {
+                    try {
+                        final long expectedChecksum = Long.parseLong(generationToChecksumMapper.get(generation));
+                        final Long actualChecksum = TranslogFooter.readChecksum(targetTranslogPath);
+
+                        // If the local and remote checksum are same, then continue.
+                        // Else exit the loop and download the translog.
+                        if (actualChecksum != null && actualChecksum == expectedChecksum) {
+                            logger.info(
+                                "Download skipped for translog and checkpoint files for generation={} due to them being locally present",
+                                generation
+                            );
+
+                            // Mark the translog and checkpoint file as available in the file tracker.
+                            translogTransferManager.markFileAsDownloaded(translogFilename);
+                            translogTransferManager.markFileAsDownloaded(Translog.getCommitCheckpointFileName(i));
+                            continue;
+                        }
+                    } catch (IOException e) {
+                        // The exception can occur if the remote translog files were uploaded without footer.
+                        logger.info(
+                            "Exception occurred during reconciliation of translog state between local and remote. "
+                                + "Reverting to downloading the translog and checksum files for generation={}",
+                            generation
+                        );
+                    }
+                }
+
+                logger.info("Downloading translog and checkpoint files for generation={}", generation);
                 translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
             logger.info(
