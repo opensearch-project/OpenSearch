@@ -404,7 +404,11 @@ public class RestoreService implements ClusterStateApplier {
                                     ignoreSettingsInternal
                                 );
 
-                                validateReplicationTypeRestoreSettings(metadata.index(index), snapshotIndexMetadata);
+                                validateReplicationTypeRestoreSettings(
+                                    snapshot,
+                                    metadata.index(index).getSettings().get(SETTING_REPLICATION_TYPE),
+                                    snapshotIndexMetadata
+                                );
 
                                 if (isRemoteSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
@@ -654,33 +658,6 @@ public class RestoreService implements ClusterStateApplier {
                         RoutingTable rt = rtBuilder.build();
                         ClusterState updatedState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rt).build();
                         return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
-                    }
-
-                    private void validateReplicationTypeRestoreSettings(IndexMetadata snapshottedMetadata, IndexMetadata updatedMetadata) {
-                        String restoreReplicationType = updatedMetadata.getSettings().get(SETTING_REPLICATION_TYPE);
-                        int restoreNumberOfSearchReplicas = updatedMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
-
-                        if (ReplicationType.DOCUMENT.toString().equals(restoreReplicationType)) {
-                            if (restoreNumberOfSearchReplicas > 0) {
-                                throw new SnapshotRestoreException(
-                                    snapshot,
-                                    "snapshot was created with ["
-                                        + SETTING_REPLICATION_TYPE
-                                        + "]"
-                                        + " as ["
-                                        + snapshottedMetadata.getSettings().get(SETTING_REPLICATION_TYPE)
-                                        + "]."
-                                        + " To restore with ["
-                                        + SETTING_REPLICATION_TYPE
-                                        + "]"
-                                        + " as ["
-                                        + ReplicationType.DOCUMENT
-                                        + "], ["
-                                        + SETTING_NUMBER_OF_SEARCH_REPLICAS
-                                        + "] must be set to [0]"
-                                );
-                            }
-                        }
                     }
 
                     private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {
@@ -1314,6 +1291,32 @@ public class RestoreService implements ClusterStateApplier {
                     + "] which is higher than the version of this node ["
                     + Version.CURRENT
                     + "]"
+            );
+        }
+    }
+
+    // Visible for testing
+    static void validateReplicationTypeRestoreSettings(Snapshot snapshot, String snapshotReplicationType, IndexMetadata updatedMetadata) {
+        int restoreNumberOfSearchReplicas = updatedMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
+
+        if (restoreNumberOfSearchReplicas > 0
+            && ReplicationType.DOCUMENT.toString().equals(updatedMetadata.getSettings().get(SETTING_REPLICATION_TYPE))) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "snapshot was created with ["
+                    + SETTING_REPLICATION_TYPE
+                    + "]"
+                    + " as ["
+                    + snapshotReplicationType
+                    + "]."
+                    + " To restore with ["
+                    + SETTING_REPLICATION_TYPE
+                    + "]"
+                    + " as ["
+                    + ReplicationType.DOCUMENT
+                    + "], ["
+                    + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                    + "] must be set to [0]"
             );
         }
     }
