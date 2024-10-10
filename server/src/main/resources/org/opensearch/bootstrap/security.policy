@@ -165,9 +165,6 @@ grant {
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "fileSystemProvider";
 
-  // needed for UT test in BootstrapTests
-  permission java.lang.RuntimePermission "shutdownHooks";
-
   // needed by jvminfo for monitoring the jvm
   permission java.lang.management.ManagementPermission "monitor";
 

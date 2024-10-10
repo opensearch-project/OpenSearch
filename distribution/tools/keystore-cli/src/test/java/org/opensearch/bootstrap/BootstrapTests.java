@@ -31,7 +31,10 @@
 
 package org.opensearch.bootstrap;
 
-import org.mockito.InOrder;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.opensearch.cli.UserException;
+import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.settings.KeyStoreCommandTestCase;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
@@ -40,6 +43,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
+import org.opensearch.node.NodeValidationException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -47,19 +51,21 @@ import org.junit.Before;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.inOrder;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class BootstrapTests extends OpenSearchTestCase {
     Environment env;
@@ -138,44 +144,28 @@ public class BootstrapTests extends OpenSearchTestCase {
         }
     }
 
+    public void testInitExecutionOrder() throws Exception {
+        AtomicInteger order = new AtomicInteger(0);
 
-    public void testInitExecutionOrder() {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // Create mock objects for Thread and Node
-                Thread mockThread = mock(Thread.class);
-                Node mockNode = mock(Node.class);
-
-                // Use reflection to set the INSTANCE to null before the test
-                Field instanceField = Bootstrap.class.getDeclaredField("INSTANCE");
-                instanceField.setAccessible(true);
-                instanceField.set(null, null);
-
-                // Use reflection to replace the private fields with our mocks
-                Bootstrap bootstrap = new Bootstrap();
-                Field threadField = Bootstrap.class.getDeclaredField("keepAliveThread");
-                threadField.setAccessible(true);
-                threadField.set(bootstrap, mockThread);
-
-                Field nodeField = Bootstrap.class.getDeclaredField("node");
-                nodeField.setAccessible(true);
-                nodeField.set(bootstrap, mockNode);
-
-                // Set the INSTANCE to our modified bootstrap
-                instanceField.set(null, bootstrap);
-
-                // Call the startInstance method
-                Bootstrap.startInstance(bootstrap);
-
-                // Verify the order of execution
-                InOrder inOrder = inOrder(mockThread, mockNode);
-                inOrder.verify(mockThread).start();
-                inOrder.verify(mockNode).start();
-            } catch (Exception e) {
-                fail(e.getMessage());
-            }
-            return null;
+        Thread mockThread = new Thread(() -> {
+            assertEquals(0, order.getAndIncrement());
         });
 
+        Node mockNode = mock(Node.class);
+        doAnswer(invocation -> {
+            assertEquals(1, order.getAndIncrement());
+            return null;
+        }).when(mockNode).start();
+
+        LogConfigurator.registerErrorListener();
+        Bootstrap testBootstrap = new Bootstrap(mockThread, mockNode);
+        testBootstrap.setInstance(testBootstrap);
+
+        Bootstrap.startInstance(testBootstrap);
+
+        verify(mockNode).start();
+        assertEquals(2, order.get());
     }
+
+
 }
