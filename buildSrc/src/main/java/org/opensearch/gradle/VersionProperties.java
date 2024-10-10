@@ -32,19 +32,16 @@
 package org.opensearch.gradle;
 
 import org.apache.commons.lang3.StringUtils;
-import org.tomlj.Toml;
-import org.tomlj.TomlParseResult;
-import org.tomlj.TomlTable;
 
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+
+import org.tomlj.Toml;
+import org.tomlj.TomlParseResult;
+import org.tomlj.TomlTable;
 
 /**
  * Accessor for shared dependency versions used by opensearch, namely the opensearch and lucene versions.
@@ -144,16 +141,6 @@ public class VersionProperties {
     }
 
     private static Properties getVersionProperties() {
-//        Properties props = new Properties();
-//        try (InputStream propsStream = VersionProperties.class.getResourceAsStream("/version.properties")) {
-//            if (propsStream == null) {
-//                throw new IllegalStateException("/version.properties resource missing");
-//            }
-//            props.load(propsStream);
-//        } catch (IOException e) {
-//            throw new IllegalStateException("Failed to load version properties", e);
-//        }
-
         TomlParseResult toml = null;
         try {
             toml = Toml.parse(Path.of("gradle/libs.versions.toml"));
@@ -161,14 +148,8 @@ public class VersionProperties {
             throw new RuntimeException(e);
         }
 
-        // Convert TOML to Properties
         Properties properties = new Properties();
         flattenToml(toml, properties, "");
-
-        System.out.println("properties: " + properties);
-
-        // Now you can use properties as needed
-        properties.forEach((key, value) -> System.out.println(key + ": " + value));
         return properties;
     }
 

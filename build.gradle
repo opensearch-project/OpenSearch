@@ -735,12 +735,12 @@ tasks.register('checkCompatibility', CheckCompatibilityTask) {
 }
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-  destinationFile = file("buildSrc/${buildDir}/version.properties")
+  destinationFile = file("${buildDir}/version.properties")
   comment = 'Generated version properties'
   // properties(props)
 
   def libsTomlFile = file("gradle/libs.versions.toml")
-  def propertiesFile = file("buildSrc/${buildDir}/versions.properties")
+  def propertiesFile = file("${buildDir}/versions.properties")
 
   doLast {
     def properties = org.opensearch.gradle.VersionPropertiesGenerator.generateVersionProperties(libsTomlFile)
@@ -753,8 +753,10 @@ def generateVersionProperties = tasks.register("generateVersionProperties", Writ
   }
 }
 
-processResources {
-  from(generateVersionProperties)
+if (project != rootProject) {
+  processResources {
+    from(generateVersionProperties)
+  }
 }
 
 allprojects { project ->

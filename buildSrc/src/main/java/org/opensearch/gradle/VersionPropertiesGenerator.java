@@ -31,12 +31,12 @@
 
 package org.opensearch.gradle;
 
-import org.tomlj.Toml;
-import org.tomlj.TomlParseResult;
-
 import java.io.File;
 import java.io.FileReader;
 import java.util.Properties;
+
+import org.tomlj.Toml;
+import org.tomlj.TomlParseResult;
 
 /**
  * Generator for shared dependency versions used by opensearch, namely the opensearch and lucene versions.
