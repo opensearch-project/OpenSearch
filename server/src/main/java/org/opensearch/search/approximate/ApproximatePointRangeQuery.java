@@ -433,9 +433,6 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.aggregations() != null) {
             return false;
         }
-        if (!(context.query() instanceof ApproximateIndexOrDocValuesQuery)) {
-            return false;
-        }
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(10_000);
