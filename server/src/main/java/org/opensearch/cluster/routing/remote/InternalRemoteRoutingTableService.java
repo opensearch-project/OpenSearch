@@ -49,7 +49,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured;
 
 /**
  * A Service which provides APIs to upload and download routing table from remote store.
@@ -76,7 +76,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         ThreadPool threadpool,
         String clusterName
     ) {
-        assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
+        assert isRemoteRoutingTableConfigured(settings) : "Remote routing table is not enabled";
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.threadPool = threadpool;
@@ -234,7 +234,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
     @Override
     protected void doStart() {
-        assert isRemoteRoutingTableEnabled(settings) == true : "Remote routing table is not enabled";
+        assert isRemoteRoutingTableConfigured(settings) == true : "Remote routing table is not enabled";
         final String remoteStoreRepo = settings.get(
             Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
