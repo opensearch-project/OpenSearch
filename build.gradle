@@ -469,6 +469,9 @@ gradle.projectsEvaluated {
 // test retry configuration
 subprojects {
   tasks.withType(Test).configureEach {
+    // If running in CI then bail out after first failure
+    failFast = BuildParams.isCi()
+
     develocity.testRetry {
       if (BuildParams.isCi()) {
         maxRetries = 3
