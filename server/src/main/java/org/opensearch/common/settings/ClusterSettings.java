@@ -805,7 +805,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings to be used for limiting rest requests
                 ResponseLimitSettings.CAT_INDICES_RESPONSE_LIMIT_SETTING,
                 ResponseLimitSettings.CAT_SHARDS_RESPONSE_LIMIT_SETTING,
-                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING
+                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING,
+
+                // Thread pool Settings
+                ThreadPool.CLUSTER_THREAD_POOL_SIZE_SETTING
             )
         )
     );

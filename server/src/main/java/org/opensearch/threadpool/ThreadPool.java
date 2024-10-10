@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
@@ -58,11 +59,14 @@ import org.opensearch.node.Node;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -211,6 +215,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final ScheduledThreadPoolExecutor scheduler;
 
+    private ClusterSettings clusterSettings = null;
+
     public Collection<ExecutorBuilder> builders() {
         return Collections.unmodifiableCollection(builders.values());
     }
@@ -222,8 +228,97 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Settings> CLUSTER_THREAD_POOL_SIZE_SETTING = Setting.groupSetting(
+        "cluster.thread_pool.",
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         this(settings, null, customBuilders);
+    }
+
+    public void setThreadPool(Settings tpSettings) {
+        Map<String, Settings> tpGroups = tpSettings.getAsGroups();
+        for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
+            String tpName = entry.getKey();
+            Settings tpGroup = entry.getValue();
+            ExecutorHolder holder = executors.get(tpName);
+            assert holder.executor instanceof OpenSearchThreadPoolExecutor;
+            OpenSearchThreadPoolExecutor o = (OpenSearchThreadPoolExecutor) holder.executor;
+            if (holder.info.type == ThreadPoolType.SCALING) {
+                int max = tpGroup.getAsInt("max", o.getMaximumPoolSize());
+                int core = tpGroup.getAsInt("core", o.getCorePoolSize());
+                /*
+                 If we are decreasing, core pool size has to be decreased first.
+                 If we are increasing ,max pool size has to be increased first
+                 This ensures that core pool is always smaller than max pool size .
+                 */
+                if (core < o.getCorePoolSize()) {
+                    o.setCorePoolSize(core);
+                    o.setMaximumPoolSize(max);
+                } else {
+                    o.setMaximumPoolSize(max);
+                    o.setCorePoolSize(core);
+                }
+            } else {
+                int size = tpGroup.getAsInt("size", o.getMaximumPoolSize());
+                if (size < o.getCorePoolSize()) {
+                    o.setCorePoolSize(size);
+                    o.setMaximumPoolSize(size);
+                } else {
+                    o.setMaximumPoolSize(size);
+                    o.setCorePoolSize(size);
+                }
+            }
+        }
+    }
+
+    public void setClusterSettings(ClusterSettings clusterSettings) {
+        this.clusterSettings = clusterSettings;
+        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_THREAD_POOL_SIZE_SETTING, this::setThreadPool, this::validateSetting);
+    }
+
+    private void validateSetting(Settings tpSettings) {
+        Map<String, Settings> tpGroups = tpSettings.getAsGroups();
+        for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
+            String tpName = entry.getKey();
+            if (THREAD_POOL_TYPES.get(tpName) == null) {
+                throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
+            }
+            Settings tpGroup = entry.getValue();
+            ExecutorHolder holder = executors.get(tpName);
+            assert holder.executor instanceof OpenSearchThreadPoolExecutor;
+            OpenSearchThreadPoolExecutor o = (OpenSearchThreadPoolExecutor) holder.executor;
+            if (holder.info.type == ThreadPoolType.SCALING) {
+                Set<String> so = new HashSet<>(Arrays.asList("max", "core"));
+                if (tpGroup.keySet().stream().allMatch(so::contains) == false) {
+                    throw new IllegalArgumentException(
+                        "illegal thread_pool config : " + tpGroup.keySet() + " should only have max and core"
+                    );
+                }
+                int max = tpGroup.getAsInt("max", o.getMaximumPoolSize());
+                int core = tpGroup.getAsInt("core", o.getCorePoolSize());
+                if (core < 1 || max < 1) {
+                    throw new IllegalArgumentException("illegal value for [cluster.thread_pool." + tpName + "], has to be positive value");
+                } else if (core > max) {
+                    throw new IllegalArgumentException("core threadpool size cannot be greater than max");
+                }
+            } else {
+                if (tpGroup.keySet().size() != 1) {
+                    throw new IllegalArgumentException("illegal thread_pool config : " + tpGroup.keySet());
+                } else if (tpGroup.keySet().contains("size") == false) {
+                    throw new IllegalArgumentException("illegal thread_pool config : " + tpGroup.keySet() + " should only have size");
+                } else {
+                    int size = tpGroup.getAsInt("size", o.getMaximumPoolSize());
+                    if (size < 1) {
+                        throw new IllegalArgumentException(
+                            "illegal value for [cluster.thread_pool." + tpName + "], has to be positive value"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     public ThreadPool(
