@@ -512,8 +512,8 @@ final class QueryAnalyzer {
     private static int minTermLength(Set<QueryExtraction> extractions) {
         // In case there are only range extractions, then we return Integer.MIN_VALUE,
         // so that selectBestExtraction(...) we are likely to prefer the extractions that contains at least a single extraction
-        if (extractions.stream().filter(queryExtraction -> queryExtraction.term != null).count() == 0
-            && extractions.stream().filter(queryExtraction -> queryExtraction.range != null).count() > 0) {
+        if (extractions.stream().noneMatch(queryExtraction -> queryExtraction.term != null)
+            && extractions.stream().anyMatch(queryExtraction -> queryExtraction.range != null)) {
             return Integer.MIN_VALUE;
         }
 
