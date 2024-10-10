@@ -10,6 +10,7 @@ package org.opensearch.wlm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
@@ -42,6 +43,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 
 /**
  * As of now this is a stub and main implementation PR will be raised soon.Coming PR will collate these changes with core QueryGroupService changes
+ * @opensearch.experimental
  */
 public class QueryGroupService extends AbstractLifecycleComponent
     implements
@@ -49,7 +51,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
         TaskResourceTrackingService.TaskCompletionListener {
 
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
-
     private final QueryGroupTaskCancellationService taskCancellationService;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ThreadPool threadPool;
@@ -205,16 +206,48 @@ public class QueryGroupService extends AbstractLifecycleComponent
     /**
      * @return node level query group stats
      */
-    public QueryGroupStats nodeStats() {
+    public QueryGroupStats nodeStats(Set<String> queryGroupIds, Boolean requestedBreached) {
         final Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
-        for (Map.Entry<String, QueryGroupState> queryGroupsState : queryGroupsStateAccessor.getQueryGroupStateMap().entrySet()) {
-            final String queryGroupId = queryGroupsState.getKey();
-            final QueryGroupState currentState = queryGroupsState.getValue();
+        Map<String, QueryGroupState> existingStateMap = queryGroupsStateAccessor.getQueryGroupStateMap();
+        if (!queryGroupIds.contains("_all")) {
+            for (String id : queryGroupIds) {
+                if (!existingStateMap.containsKey(id)) {
+                    throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
+                }
+            }
+        }
+        if (existingStateMap != null) {
+            existingStateMap.forEach((queryGroupId, currentState) -> {
+                boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
+                if (shouldInclude) {
+                    if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
+                        statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+                    }
+                }
+            });
+        }
+        return new QueryGroupStats(statsHolderMap);
+    }
 
-            statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+    /**
+     * @return if the QueryGroup breaches any resource limit based on the LastRecordedUsage
+     */
+    public boolean resourceLimitBreached(String id, QueryGroupState currentState) {
+        QueryGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
+        if (queryGroup == null) {
+            throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
         }
 
-        return new QueryGroupStats(statsHolderMap);
+        for (ResourceType resourceType : TRACKED_RESOURCES) {
+            if (queryGroup.getResourceLimits().containsKey(resourceType)) {
+                final double threshold = getNormalisedRejectionThreshold(queryGroup.getResourceLimits().get(resourceType), resourceType);
+                final double lastRecordedUsage = currentState.getResourceState().get(resourceType).getLastRecordedUsage();
+                if (threshold < lastRecordedUsage) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
