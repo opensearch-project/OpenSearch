@@ -79,6 +79,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -466,34 +467,35 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot creation listener
      */
     public void createSnapshotV2(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        long pinnedTimestamp = System.currentTimeMillis();
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
+        validate(repositoryName, snapshotName);
+
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        long pinnedTimestamp = System.currentTimeMillis();
+        try {
+            updateSnapshotPinnedTimestamp(snapshot, pinnedTimestamp);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         Repository repository = repositoriesService.repository(repositoryName);
-        validate(repositoryName, snapshotName);
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
-
-            private SnapshotId snapshotId;
-
-            private Snapshot snapshot;
-
             boolean enteredLoop;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // move to in progress
-                snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
                 Repository repository = repositoriesService.repository(repositoryName);
-
                 if (repository.isReadOnly()) {
                     listener.onFailure(
                         new RepositoryException(repository.getMetadata().name(), "cannot create snapshot-v2 in a readonly repository")
                     );
                 }
 
-                snapshot = new Snapshot(repositoryName, snapshotId);
                 final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
 
                 createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
@@ -593,59 +595,45 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     pinnedTimestamp
                 );
                 final Version version = minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null);
-                final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                pinnedTimestampListener.whenComplete(repoData -> {
-                    repository.finalizeSnapshot(
-                        shardGenerations,
-                        repositoryData.getGenId(),
-                        metadataForSnapshot(newState.metadata(), request.includeGlobalState(), false, dataStreams, newEntry.indices()),
-                        snapshotInfo,
-                        version,
-                        state -> stateWithoutSnapshot(state, snapshot),
-                        Priority.IMMEDIATE,
-                        new ActionListener<RepositoryData>() {
-                            @Override
-                            public void onResponse(RepositoryData repositoryData) {
-                                if (clusterService.state().nodes().isLocalNodeElectedClusterManager() == false) {
-                                    leaveRepoLoop(repositoryName);
-                                    failSnapshotCompletionListeners(
-                                        snapshot,
-                                        new SnapshotException(snapshot, "Aborting snapshot-v2, no longer cluster manager")
-                                    );
-                                    listener.onFailure(
-                                        new SnapshotException(
-                                            repositoryName,
-                                            snapshotName,
-                                            "Aborting snapshot-v2, no longer cluster manager"
-                                        )
-                                    );
-                                    return;
-                                }
-                                listener.onResponse(snapshotInfo);
-                                // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
-                                // can get queued . This is triggering them.
-                                runNextQueuedOperation(repositoryData, repositoryName, true);
-                                cleanOrphanTimestamp(repositoryName, repositoryData);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("Failed to finalize snapshot repo {} for snapshot-v2 {} ", repositoryName, snapshotName);
+                repository.finalizeSnapshot(
+                    shardGenerations,
+                    repositoryData.getGenId(),
+                    metadataForSnapshot(newState.metadata(), request.includeGlobalState(), false, dataStreams, newEntry.indices()),
+                    snapshotInfo,
+                    version,
+                    state -> stateWithoutSnapshot(state, snapshot),
+                    Priority.IMMEDIATE,
+                    new ActionListener<RepositoryData>() {
+                        @Override
+                        public void onResponse(RepositoryData repositoryData) {
+                            if (clusterService.state().nodes().isLocalNodeElectedClusterManager() == false) {
                                 leaveRepoLoop(repositoryName);
-                                // cleaning up in progress snapshot here
-                                stateWithoutSnapshotV2(newState);
-                                listener.onFailure(e);
+                                failSnapshotCompletionListeners(
+                                    snapshot,
+                                    new SnapshotException(snapshot, "Aborting snapshot-v2, no longer cluster manager")
+                                );
+                                listener.onFailure(
+                                    new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2, no longer cluster manager")
+                                );
+                                return;
                             }
+                            listener.onResponse(snapshotInfo);
+                            // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
+                            // can get queued . This is triggering them.
+                            runNextQueuedOperation(repositoryData, repositoryName, true);
+                            cleanOrphanTimestamp(repositoryName, repositoryData);
                         }
-                    );
-                }, e -> {
-                    logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} {} ", repositoryName, snapshotName, e);
-                    leaveRepoLoop(repositoryName);
-                    // cleaning up in progress snapshot here
-                    stateWithoutSnapshotV2(newState);
-                    listener.onFailure(e);
-                });
-                updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("Failed to finalize snapshot repo {} for snapshot-v2 {} ", repositoryName, snapshotName);
+                            leaveRepoLoop(repositoryName);
+                            // cleaning up in progress snapshot here
+                            stateWithoutSnapshotV2(newState);
+                            listener.onFailure(e);
+                        }
+                    }
+                );
             }
 
             @Override
@@ -733,30 +721,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
     }
 
-    private void updateSnapshotPinnedTimestamp(
-        RepositoryData repositoryData,
-        Snapshot snapshot,
-        long timestampToPin,
-        ActionListener<RepositoryData> listener
-    ) {
+    private void updateSnapshotPinnedTimestamp(Snapshot snapshot, long timestampToPin) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        SetOnce<Exception> ex = new SetOnce<>();
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
             getPinningEntity(snapshot.getRepository(), snapshot.getSnapshotId().getUUID()),
-            new ActionListener<Void>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
-                    listener.onResponse(repositoryData);
+                    latch.countDown();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
-                    listener.onFailure(e);
-
+                    ex.set(e);
+                    latch.countDown();
                 }
             }
         );
+        latch.await();
+        if (ex.get() != null) {
+            throw ex.get();
+        }
     }
 
     public static String getPinningEntity(String repositoryName, String snapshotUUID) {
