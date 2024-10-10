@@ -128,6 +128,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -466,7 +467,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot creation listener
      */
     public void createSnapshotV2(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        long pinnedTimestamp = System.currentTimeMillis();
+        AtomicLong pinnedTimestamp = new AtomicLong();
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
 
@@ -578,11 +579,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     request.indicesOptions(),
                     request.indices()
                 );
+                pinnedTimestamp.set(System.currentTimeMillis());
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
                     snapshotId,
                     shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
                     newEntry.dataStreams(),
-                    pinnedTimestamp,
+                    pinnedTimestamp.get(),
                     null,
                     System.currentTimeMillis(),
                     shardGenerations.totalShards(),
@@ -590,7 +592,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     request.includeGlobalState(),
                     newEntry.userMetadata(),
                     true,
-                    pinnedTimestamp
+                    pinnedTimestamp.get()
                 );
                 final Version version = minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null);
                 final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
@@ -645,7 +647,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     stateWithoutSnapshotV2(newState);
                     listener.onFailure(e);
                 });
-                updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
+                updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp.get(), pinnedTimestampListener);
             }
 
             @Override
