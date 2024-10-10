@@ -8,6 +8,7 @@
 
 package org.opensearch.ingest.useragent;
 
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.ingest.Processor;
@@ -85,6 +86,12 @@ public class IngestUserAgentPluginTests extends OpenSearchTestCase {
             final Set<String> expected = Set.of("user_agent");
             assertEquals(expected, plugin.getProcessors(createParameters(settingsBuilder.build())).keySet());
         }
+    }
+
+    public void testSettingsRegistration() {
+        final IngestUserAgentPlugin plugin = new IngestUserAgentPlugin();
+        final List<Setting<?>> settings = plugin.getSettings();
+        assertTrue(settings.contains(IngestUserAgentPlugin.PROCESSORS_ALLOWLIST_SETTING));
     }
 
     private void runAllowListTest(List<String> allowList) throws IOException {

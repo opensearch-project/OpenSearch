@@ -35,6 +35,7 @@ package org.opensearch.ingest.geoip;
 import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.ingest.Processor;
@@ -124,6 +125,12 @@ public class IngestGeoIpPluginTests extends OpenSearchTestCase {
             final Set<String> expected = Set.of("geoip");
             assertEquals(expected, plugin.getProcessors(createParameters(settingsBuilder.build())).keySet());
         }
+    }
+
+    public void testSettingsRegistration() {
+        final IngestGeoIpPlugin plugin = new IngestGeoIpPlugin();
+        final List<Setting<?>> settings = plugin.getSettings();
+        assertTrue(settings.contains(IngestGeoIpPlugin.PROCESSORS_ALLOWLIST_SETTING));
     }
 
     private void runAllowListTest(List<String> allowList) throws IOException {
