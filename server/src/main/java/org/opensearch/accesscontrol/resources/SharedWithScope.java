@@ -52,7 +52,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
     @Override
     public String toString() {
-        return "SharedWithScope {" + scope + ": " + sharedWithPerScope + '}';
+        return "{" + scope + ": " + sharedWithPerScope + '}';
     }
 
     @Override
@@ -110,7 +110,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
         @Override
         public String toString() {
-            return "ShareWith {" + "users=" + users + ", roles=" + roles + ", backendRoles=" + backendRoles + '}';
+            return "{" + "users=" + users + ", roles=" + roles + ", backendRoles=" + backendRoles + '}';
         }
 
         @Override

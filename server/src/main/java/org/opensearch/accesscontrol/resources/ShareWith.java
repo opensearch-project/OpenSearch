@@ -66,4 +66,9 @@ public class ShareWith implements ToXContentFragment, NamedWriteable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(sharedWithScopes);
     }
+
+    @Override
+    public String toString() {
+        return "ShareWith " + sharedWithScopes;
+    }
 }
