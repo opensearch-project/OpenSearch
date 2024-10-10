@@ -62,8 +62,8 @@ import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -111,21 +111,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING)
             ? DEFAULT_DATE_TIME_FORMATTER
             : LEGACY_DEFAULT_DATE_TIME_FORMATTER;
-    }
-
-    public static Query getDefaultQuery(Query pointRangeQuery, Query dvQuery, String name, long l, long u) {
-        return FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)
-            ? new ApproximateIndexOrDocValuesQuery(
-                pointRangeQuery,
-                new ApproximatePointRangeQuery(name, pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                },
-                dvQuery
-            )
-            : new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
     }
 
     /**
@@ -488,22 +473,39 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query pointRangeQuery = isSearchable() ? LongPoint.newRangeQuery(name(), l, u) : null;
                 Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
-                if (isSearchable() && hasDocValues()) {
-                    Query query = getDefaultQuery(pointRangeQuery, dvQuery, name(), l, u);
-                    if (context.indexSortedOnField(name())) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                if (isSearchable()) {
+                    Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                    } else {
+                        query = pointRangeQuery;
+                    }
+                    if (FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)) {
+                        return new ApproximateScoreQuery(
+                            query,
+                            new ApproximatePointRangeQuery(
+                                name(),
+                                pack(new long[] { l }).bytes,
+                                pack(new long[] { u }).bytes,
+                                new long[] { l }.length
+                            ) {
+                                @Override
+                                protected String toString(int dimension, byte[] value) {
+                                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                                }
+                            }
+                        );
                     }
                     return query;
                 }
-                if (hasDocValues()) {
-                    if (context.indexSortedOnField(name())) {
-                        dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
-                    }
-                    return dvQuery;
+
+                // Not searchable. Must have doc values.
+                if (context.indexSortedOnField(name())) {
+                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
                 }
-                return pointRangeQuery;
+                return dvQuery;
             });
         }
 
