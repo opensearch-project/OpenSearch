@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -70,5 +71,10 @@ public class NumericDimension implements Dimension {
     @Override
     public int hashCode() {
         return Objects.hash(field);
+    }
+
+    @Override
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 }
