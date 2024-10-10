@@ -11,7 +11,8 @@ updates:
     open-pull-requests-limit: 1
     package-ecosystem: "github-actions"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "21:10"
     labels:
       - "dependabot"
       - "dependencies"
