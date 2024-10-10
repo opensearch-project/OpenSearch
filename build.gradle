@@ -737,7 +737,6 @@ tasks.register('checkCompatibility', CheckCompatibilityTask) {
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   destinationFile = file("${buildDir}/version.properties")
   comment = 'Generated version properties'
-  // properties(props)
 
   def libsTomlFile = file("gradle/libs.versions.toml")
   def propertiesFile = file("${buildDir}/versions.properties")
