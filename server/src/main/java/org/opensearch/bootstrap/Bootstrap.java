@@ -412,7 +412,7 @@ final class Bootstrap {
                 throw new BootstrapException(e);
             }
 
-            INSTANCE.start();
+            startInstance(INSTANCE);
 
             // We don't close stderr if `--quiet` is passed, because that
             // hides fatal startup errors. For example, if OpenSearch is
@@ -462,6 +462,10 @@ final class Bootstrap {
 
             throw e;
         }
+    }
+
+    static void startInstance(Bootstrap instance) throws NodeValidationException {
+        instance.start();
     }
 
     @SuppressForbidden(reason = "System#out")
