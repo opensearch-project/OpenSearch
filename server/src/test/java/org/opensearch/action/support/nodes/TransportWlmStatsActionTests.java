@@ -63,8 +63,7 @@ public class TransportWlmStatsActionTests extends TransportNodesActionTests {
             capturedRequestList.forEach(preSentRequest -> {
                 BytesStreamOutput out = new BytesStreamOutput();
                 try {
-                    NodeWlmStatsRequest wlmStatsRequestFromCoordinator =
-                        (NodeWlmStatsRequest) preSentRequest.request;
+                    NodeWlmStatsRequest wlmStatsRequestFromCoordinator = (NodeWlmStatsRequest) preSentRequest.request;
                     wlmStatsRequestFromCoordinator.writeTo(out);
                     StreamInput in = out.bytes().streamInput();
                     NodeWlmStatsRequest wlmStatsRequest = new NodeWlmStatsRequest(in);
