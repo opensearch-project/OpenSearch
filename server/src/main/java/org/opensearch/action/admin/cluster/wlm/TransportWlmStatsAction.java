@@ -10,10 +10,13 @@ package org.opensearch.action.admin.cluster.wlm;
 
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.QueryGroupService;
@@ -27,7 +30,11 @@ import java.util.List;
  *
  * @opensearch.experimental
  */
-public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsRequest, WlmStatsResponse, WlmStatsRequest, WlmStats> {
+public class TransportWlmStatsAction extends TransportNodesAction<
+    WlmStatsRequest,
+    WlmStatsResponse,
+    TransportWlmStatsAction.NodeWlmStatsRequest,
+    WlmStats> {
 
     final QueryGroupService queryGroupService;
 
@@ -46,7 +53,7 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
             transportService,
             actionFilters,
             WlmStatsRequest::new,
-            WlmStatsRequest::new,
+            NodeWlmStatsRequest::new,
             ThreadPool.Names.MANAGEMENT,
             WlmStats.class
         );
@@ -59,8 +66,8 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
     }
 
     @Override
-    protected WlmStatsRequest newNodeRequest(WlmStatsRequest request) {
-        return request;
+    protected NodeWlmStatsRequest newNodeRequest(WlmStatsRequest request) {
+        return new NodeWlmStatsRequest(request);
     }
 
     @Override
@@ -69,11 +76,38 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
     }
 
     @Override
-    protected WlmStats nodeOperation(WlmStatsRequest wlmStatsRequest) {
+    protected WlmStats nodeOperation(NodeWlmStatsRequest nodeWlmStatsRequest) {
         assert transportService.getLocalNode() != null;
-        return new WlmStats(
-            transportService.getLocalNode(),
-            queryGroupService.nodeStats(wlmStatsRequest.getQueryGroupIds(), wlmStatsRequest.isBreach())
-        );
+        WlmStatsRequest request = nodeWlmStatsRequest.request;
+        return new WlmStats(transportService.getLocalNode(), queryGroupService.nodeStats(request.getQueryGroupIds(), request.isBreach()));
+    }
+
+    /**
+     * Inner WlmStatsRequest
+     *
+     * @opensearch.experimental
+     */
+    public static class NodeWlmStatsRequest extends BaseNodeRequest {
+
+        protected WlmStatsRequest request;
+
+        public NodeWlmStatsRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new WlmStatsRequest(in);
+        }
+
+        NodeWlmStatsRequest(WlmStatsRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            request.writeTo(out);
+        }
+
+        public DiscoveryNode[] getDiscoveryNodes() {
+            return this.request.concreteNodes();
+        }
     }
 }
