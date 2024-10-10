@@ -16,6 +16,8 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 
 /**
@@ -39,7 +41,10 @@ public class ByteArrayBackedBitsetTests extends OpenSearchTestCase {
         IndexOutput indexOutput = fsDirectory.createOutput(TEST_FILE, IOContext.DEFAULT);
         bitset.set(randomIndex1);
         bitset.set(randomIndex2);
-        bitset.write(indexOutput);
+        byte[] bytes = new byte[randomArraySize];
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());
+        bitset.write(buffer);
+        indexOutput.writeBytes(bytes, bytes.length);
         indexOutput.close();
 
         IndexInput in = fsDirectory.openInput(TEST_FILE, IOContext.DEFAULT);
