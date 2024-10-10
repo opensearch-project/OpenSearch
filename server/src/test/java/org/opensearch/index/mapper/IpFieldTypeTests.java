@@ -117,7 +117,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field",true, false, false, null, Collections.emptyMap());
 
         assertEquals(
             InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),

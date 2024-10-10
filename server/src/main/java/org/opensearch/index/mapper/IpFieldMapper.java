@@ -36,6 +36,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -58,6 +60,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -263,29 +266,53 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return query;
         }
 
+        // @TODO check strings, byterefs, inetaddresses for concrete and masks
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            InetAddress[] addresses = new InetAddress[values.size()];
+            List<InetAddress> concreteIPs = new ArrayList<>();
+            BooleanQuery.Builder ranges = new BooleanQuery.Builder();
             int i = 0;
-            for (Object value : values) {
-                InetAddress address;
+            for (final Object value : values) {
                 if (value instanceof InetAddress) {
-                    address = (InetAddress) value;
+                    concreteIPs.add((InetAddress) value);
                 } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
-                    }
-                    if (value.toString().contains("/")) {
+                    final String strVal = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+                    if (strVal.contains("/")) {
                         // the `terms` query contains some prefix queries, so we cannot create a set query
                         // and need to fall back to a disjunction of `term` queries
-                        return super.termsQuery(values, context);
+                        Query query = termQuery(strVal, context);
+                        // would be great to have union on ranges over bare points
+                        ranges.add(query, BooleanClause.Occur.SHOULD);
+                    } else {
+                        concreteIPs.add(InetAddresses.forString(strVal));
                     }
-                    address = InetAddresses.forString(value.toString());
                 }
-                addresses[i++] = address;
             }
-            return InetAddressPoint.newSetQuery(name(), addresses);
+            if (!concreteIPs.isEmpty()) {
+                Supplier<Query> pointsQuery;// TODO this trick is redundant
+//                if (concreteIPs.size() == 1) {
+//                          it can't get InetAddress since it convert is to string and misguided by hostname separating slash
+//                    pointsQuery = () -> termQuery(concreteIPs.get(0), context);
+//                } else {
+                    pointsQuery = () -> InetAddressPoint.newSetQuery(name(), concreteIPs.toArray(new InetAddress[0]));
+                    if (hasDocValues()) {
+                        List<BytesRef> set = new ArrayList<>(concreteIPs.size());
+                        for(final InetAddress address : concreteIPs) {
+                            set.add(new BytesRef(InetAddressPoint.encode(address)));
+                        }
+                        Query dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), set);
+                        if (!isSearchable()) {
+                            pointsQuery = () -> dvQuery;
+                        } else {
+                            Supplier<Query> wrap = pointsQuery;
+                            pointsQuery = () -> new IndexOrDocValuesQuery(wrap.get(), dvQuery);
+                        }
+                    }
+                //}
+                ranges.add(pointsQuery.get(), BooleanClause.Occur.SHOULD);
+            }
+            return ranges.build();
         }
 
         @Override
