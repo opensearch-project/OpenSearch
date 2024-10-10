@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -56,6 +57,10 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
         queryGroupStateMap = new HashMap<>();
         testQueryGroupId = "safjgagnakg-3r3fads";
         testThreadPool = new TestThreadPool("RejectionTestThreadPool");
+        ClusterState mockClusterState = mock(ClusterState.class);
+        when(mockClusterService.state()).thenReturn(mockClusterState);
+        Metadata mockMetaData = mock(Metadata.class);
+        when(mockClusterState.metadata()).thenReturn(mockMetaData);
         queryGroupService = mock(QueryGroupService.class);
         sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
     }
@@ -155,7 +160,9 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
             }
         });
 
-        QueryGroupStats actualStats = queryGroupService.nodeStats();
+        HashSet<String> set = new HashSet<>();
+        set.add("_all");
+        QueryGroupStats actualStats = queryGroupService.nodeStats(set, null);
 
         QueryGroupStats expectedStats = new QueryGroupStats(
             Map.of(
@@ -254,11 +261,12 @@ public class QueryGroupRequestOperationListenerTests extends OpenSearchTestCase 
                 Collections.emptySet(),
                 Collections.emptySet()
             );
-
             sut = new QueryGroupRequestOperationListener(queryGroupService, testThreadPool);
             sut.onRequestFailure(null, null);
 
-            QueryGroupStats actualStats = queryGroupService.nodeStats();
+            HashSet<String> set = new HashSet<>();
+            set.add("_all");
+            QueryGroupStats actualStats = queryGroupService.nodeStats(set, null);
             assertEquals(expectedStats, actualStats);
         }
 

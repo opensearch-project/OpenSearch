@@ -82,6 +82,10 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         return Objects.hash(stats);
     }
 
+    public Map<String, QueryGroupStatsHolder> getStats() {
+        return stats;
+    }
+
     /**
      * This is a stats holder object which will hold the data for a query group at a point in time
      * the instance will only be created on demand through stats api
