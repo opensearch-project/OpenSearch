@@ -190,6 +190,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final PersistedStateRegistry persistedStateRegistry;
     private final RemoteStoreNodeService remoteStoreNodeService;
     private NodeConnectionsService nodeConnectionsService;
+    private final RemoteClusterStateService remoteClusterStateService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -313,6 +314,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.persistedStateRegistry = persistedStateRegistry;
         this.localNodeCommissioned = true;
         this.remoteStoreNodeService = remoteStoreNodeService;
+        this.remoteClusterStateService = remoteClusterStateService;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -913,9 +915,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 stats.add(persistedStateRegistry.getPersistedState(stateType).getStats());
             }
         });
-        if (coordinationState.get().isRemotePublicationEnabled()) {
-            stats.add(publicationHandler.getFullDownloadStats());
-            stats.add(publicationHandler.getDiffDownloadStats());
+        if (remoteClusterStateService != null) {
+            stats.add(remoteClusterStateService.getFullDownloadStats());
+            stats.add(remoteClusterStateService.getDiffDownloadStats());
         }
         clusterStateStats.setPersistenceStats(stats);
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
