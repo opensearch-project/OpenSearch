@@ -11,21 +11,29 @@ package org.opensearch.remotestore;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.REMOTE_STORE;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_SLOWDOWN_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase {
@@ -33,18 +41,29 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        String segmentRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_NAME
+        );
+
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
+            .put(segmentRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
             .build();
     }
 
     ActionListener<Void> noOpActionListener = new ActionListener<>() {
         @Override
-        public void onResponse(Void unused) {}
+        public void onResponse(Void unused) {
+            // do nothing
+        }
 
         @Override
-        public void onFailure(Exception e) {}
+        public void onFailure(Exception e) {
+            fail();
+        }
     };
 
     public void testTimestampPinUnpin() throws Exception {
@@ -57,14 +76,7 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         );
 
         Tuple<Long, Set<Long>> pinnedTimestampWithFetchTimestamp = RemoteStorePinnedTimestampService.getPinnedTimestamps();
-        long lastFetchTimestamp = pinnedTimestampWithFetchTimestamp.v1();
-        assertEquals(-1L, lastFetchTimestamp);
         assertEquals(Set.of(), pinnedTimestampWithFetchTimestamp.v2());
-
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> remoteStorePinnedTimestampService.pinTimestamp(1234L, "ss1", noOpActionListener)
-        );
 
         long timestamp1 = System.currentTimeMillis() + 30000L;
         long timestamp2 = System.currentTimeMillis() + 60000L;
@@ -195,6 +207,104 @@ public class RemoteStorePinnedTimestampsIT extends RemoteStoreBaseIntegTestCase 
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueSeconds(1));
         assertBusy(() -> assertEquals(Set.of(timestamp2, timestamp3), RemoteStorePinnedTimestampService.getPinnedTimestamps().v2()));
         remoteStorePinnedTimestampService.rescheduleAsyncUpdatePinnedTimestampTask(TimeValue.timeValueMinutes(3));
+    }
+
+    public void testPinExceptionsOlderTimestamp() throws InterruptedException {
+        prepareCluster(1, 1, INDEX_NAME, 0, 2);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteStorePinnedTimestampService.pinTimestamp(1234L, "ss1", new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                // We expect onFailure to be called
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof IllegalArgumentException);
+            }
+        }, latch));
+
+        latch.await();
+    }
+
+    public void testPinExceptionsRemoteStoreCallTakeTime() throws InterruptedException, ExecutionException {
+        prepareCluster(1, 1, INDEX_NAME, 0, 2);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        slowDownRepo(REPOSITORY_NAME, 10);
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.timeValueSeconds(1));
+        long timestampToBePinned = System.currentTimeMillis() + 600000;
+        remoteStorePinnedTimestampService.pinTimestamp(timestampToBePinned, "ss1", new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                // We expect onFailure to be called
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(e.getMessage());
+                assertTrue(e instanceof RuntimeException);
+                assertTrue(e.getMessage().contains("Timestamp pinning took"));
+
+                // Check if the timestamp was unpinned
+                remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
+                assertFalse(RemoteStorePinnedTimestampService.getPinnedTimestamps().v2().contains(timestampToBePinned));
+            }
+        }, latch));
+
+        latch.await();
+    }
+
+    protected void slowDownRepo(String repoName, int value) throws ExecutionException, InterruptedException {
+        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { repoName });
+        GetRepositoriesResponse res = client().admin().cluster().getRepositories(gr).get();
+        RepositoryMetadata rmd = res.repositories().get(0);
+        Settings.Builder settings = Settings.builder()
+            .put("location", rmd.settings().get("location"))
+            .put(REPOSITORIES_SLOWDOWN_SETTING.getKey(), value);
+        createRepository(repoName, rmd.type(), settings);
+    }
+
+    public void testUnpinException() throws InterruptedException {
+        prepareCluster(1, 1, INDEX_NAME, 0, 2);
+        ensureGreen(INDEX_NAME);
+
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            primaryNodeName(INDEX_NAME)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteStorePinnedTimestampService.unpinTimestamp(1234L, "dummy-entity", new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                // We expect onFailure to be called
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(e.getMessage());
+                assertTrue(e instanceof IllegalArgumentException);
+            }
+        }, latch));
+
+        latch.await();
     }
 
     public void testLastSuccessfulFetchOfPinnedTimestampsPresentInNodeStats() throws Exception {
