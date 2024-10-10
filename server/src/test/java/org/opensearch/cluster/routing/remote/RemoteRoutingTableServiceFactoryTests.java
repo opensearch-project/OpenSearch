@@ -20,7 +20,7 @@ import org.junit.After;
 import java.util.function.Supplier;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.test.RemoteStoreAttributeConstants.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
 

@@ -42,6 +42,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
+
 /**
  * Service for managing pinned timestamps in a remote store.
  * This service handles pinning and unpinning of timestamps, as well as periodic updates of the pinned timestamps set.
@@ -87,7 +89,9 @@ public class RemoteStorePinnedTimestampService implements Closeable {
 
     private static BlobContainer validateAndCreateBlobContainer(Settings settings, RepositoriesService repositoriesService) {
         final String remoteStoreRepo = settings.get(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
+            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY.apply(
+                REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX
+            )
         );
         assert remoteStoreRepo != null : "Remote Segment Store repository is not configured";
         final Repository repository = repositoriesService.repository(remoteStoreRepo);

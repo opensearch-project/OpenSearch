@@ -57,6 +57,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.RemoteStoreAttributeConstants;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -69,12 +70,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.VersionUtils.allOpenSearchVersions;
@@ -497,9 +494,9 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .build();
 
         for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
-            if (nodeAttribute.getKey() != REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
-                && nodeAttribute.getKey() != REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+            if (nodeAttribute.getKey() != RemoteStoreAttributeConstants.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
+                && nodeAttribute.getKey() != RemoteStoreAttributeConstants.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+                && nodeAttribute.getKey() != RemoteStoreAttributeConstants.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue() + "-new");
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());
@@ -521,13 +518,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .build();
 
         for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
-            if (REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+            if (RemoteStoreAttributeConstants.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO + "new", TRANSLOG_REPO);
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
-            } else if (REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+            } else if (RemoteStoreAttributeConstants.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO + "new");
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
-            } else if (REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+            } else if (RemoteStoreAttributeConstants.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(
+                nodeAttribute.getKey()
+            )) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(
                     SEGMENT_REPO,
                     TRANSLOG_REPO,
@@ -1258,11 +1257,11 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         return new HashMap<>() {
             {
-                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                put(RemoteStoreAttributeConstants.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
                 put(segmentRepositoryTypeAttributeKey, "s3");
                 put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
                 put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
-                put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName);
+                put(RemoteStoreAttributeConstants.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName);
                 putIfAbsent(translogRepositoryTypeAttributeKey, "s3");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "bucket", "translog_bucket");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "base_path", "/translog/path");
@@ -1292,7 +1291,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         return new HashMap<>() {
             {
-                put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, clusterStateRepo);
+                put(RemoteStoreAttributeConstants.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, clusterStateRepo);
                 putIfAbsent(clusterStateRepositoryTypeAttributeKey, "s3");
                 putIfAbsent(clusterStateRepositorySettingsAttributeKeyPrefix + "bucket", "state_bucket");
                 putIfAbsent(clusterStateRepositorySettingsAttributeKeyPrefix + "base_path", "/state/path");
@@ -1314,7 +1313,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         return new HashMap<>() {
             {
-                put(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName);
+                put(RemoteStoreAttributeConstants.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName);
                 putIfAbsent(routingTableRepositoryTypeAttributeKey, "s3");
                 putIfAbsent(routingTableRepositorySettingsAttributeKeyPrefix + "bucket", "state_bucket");
                 putIfAbsent(routingTableRepositorySettingsAttributeKeyPrefix + "base_path", "/state/path");

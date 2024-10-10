@@ -13,7 +13,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.test.RemoteStoreAttributeConstants;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,9 +38,12 @@ public class IndexShardTestUtils {
 
     public static DiscoveryNode getFakeRemoteEnabledNode(String id) {
         Map<String, String> remoteNodeAttributes = new HashMap<String, String>();
-        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_STATE_REPO_NAME);
-        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_SEGMENT_REPO_NAME);
-        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_TLOG_REPO_NAME);
+        remoteNodeAttributes.put(
+            RemoteStoreAttributeConstants.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            MOCK_STATE_REPO_NAME
+        );
+        remoteNodeAttributes.put(RemoteStoreAttributeConstants.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_SEGMENT_REPO_NAME);
+        remoteNodeAttributes.put(RemoteStoreAttributeConstants.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_TLOG_REPO_NAME);
         return new DiscoveryNode(
             id,
             id,
