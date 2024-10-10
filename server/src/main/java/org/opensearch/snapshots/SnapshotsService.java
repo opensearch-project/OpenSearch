@@ -724,23 +724,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void updateSnapshotPinnedTimestamp(Snapshot snapshot, long timestampToPin) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         SetOnce<Exception> ex = new SetOnce<>();
+        ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
+                ex.set(e);
+            }
+        };
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
             getPinningEntity(snapshot.getRepository(), snapshot.getSnapshotId().getUUID()),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
-                    ex.set(e);
-                    latch.countDown();
-                }
-            }
+            new LatchedActionListener<>(listener, latch)
         );
         latch.await();
         if (ex.get() != null) {

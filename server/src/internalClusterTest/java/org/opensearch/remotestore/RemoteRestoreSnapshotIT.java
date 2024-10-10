@@ -963,15 +963,17 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
             thread.join();
         }
 
+        client().admin().cluster().prepareCreateSnapshot(snapshotRepoName, "snapshot-cleanup-timestamp").setWaitForCompletion(true).get();
         // Validate that only one snapshot has been created
         Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
         PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
         repository.getRepositoryData(repositoryDataPlainActionFuture);
-
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
-        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
-        forceSyncPinnedTimestamps();
-        assertEquals(RemoteStorePinnedTimestampService.getPinnedEntities().size(), repositoryData.getSnapshotIds().size());
+        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(2));
+        waitUntil(() -> {
+            forceSyncPinnedTimestamps();
+            return RemoteStorePinnedTimestampService.getPinnedEntities().size() == repositoryData.getSnapshotIds().size();
+        });
     }
 
     public void testConcurrentSnapshotV2CreateOperation_MasterChange() throws Exception {
