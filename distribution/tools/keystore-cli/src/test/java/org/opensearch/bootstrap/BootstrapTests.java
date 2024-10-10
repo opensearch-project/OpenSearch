@@ -140,9 +140,7 @@ public class BootstrapTests extends OpenSearchTestCase {
     public void testInitExecutionOrder() throws Exception {
         AtomicInteger order = new AtomicInteger(0);
 
-        Thread mockThread = new Thread(() -> {
-            assertEquals(0, order.getAndIncrement());
-        });
+        Thread mockThread = new Thread(() -> { assertEquals(0, order.getAndIncrement()); });
 
         Node mockNode = mock(Node.class);
         doAnswer(invocation -> {
@@ -159,6 +157,5 @@ public class BootstrapTests extends OpenSearchTestCase {
         verify(mockNode).start();
         assertEquals(2, order.get());
     }
-
 
 }
