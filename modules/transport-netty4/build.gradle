@@ -77,6 +77,10 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 
+forbiddenPatterns {
+  exclude '**/*.p12'
+}
+
 test {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
