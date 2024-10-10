@@ -125,3 +125,40 @@ setup:
 
   - match: { aggregations.conns.buckets.3.doc_count: 1 }
   - match: { aggregations.conns.buckets.3.key: "4" }
+
+
+---
+"Show only intersections":
+  - skip:
+      version: " - 2.13.99"
+      reason: "show_only_intersecting was added in 2.14"
+      features: node_selector
+  - do:
+      node_selector:
+        version: "2.14.0 - "
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            conns:
+              adjacency_matrix:
+                show_only_intersecting: true
+                filters:
+                  1:
+                    term:
+                      num: 1
+                  2:
+                    term:
+                      num: 2
+                  4:
+                    term:
+                      num: 4
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.conns.buckets: 1 }
+
+  - match: { aggregations.conns.buckets.0.doc_count: 1 }
+  - match: { aggregations.conns.buckets.0.key: "1&2" }
