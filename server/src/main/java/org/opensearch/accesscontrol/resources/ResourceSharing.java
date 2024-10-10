@@ -105,11 +105,12 @@ public class ResourceSharing implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-            .field("source_idx", sourceIdx)
-            .field("resource_id", resourceId)
-            .field("created_by", createdBy)
-            .field("share_with", shareWith)
-            .endObject();
+        builder.startObject().field("source_idx", sourceIdx).field("resource_id", resourceId).field("created_by");
+        createdBy.toXContent(builder, params);
+        if (shareWith != null && !shareWith.getSharedWithScopes().isEmpty()) {
+            builder.field("share_with");
+            shareWith.toXContent(builder, params);
+        }
+        return builder.endObject();
     }
 }

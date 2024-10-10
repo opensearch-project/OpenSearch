@@ -42,7 +42,12 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(scope, sharedWithPerScope).endObject();
+        builder.field(scope);
+        builder.startObject();
+
+        sharedWithPerScope.toXContent(builder, params);
+
+        return builder.endObject();
     }
 
     @Override
@@ -110,7 +115,18 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("users", users).field("roles", roles).field("backend_roles", backendRoles).endObject();
+            writeFieldOrEmptyArray(builder, "users", users);
+            writeFieldOrEmptyArray(builder, "roles", roles);
+            writeFieldOrEmptyArray(builder, "backend_roles", backendRoles);
+            return builder;
+        }
+
+        private void writeFieldOrEmptyArray(XContentBuilder builder, String fieldName, List<String> values) throws IOException {
+            if (values != null) {
+                builder.field(fieldName, values);
+            } else {
+                builder.array(fieldName);
+            }
         }
 
         @Override

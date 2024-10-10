@@ -48,7 +48,13 @@ public class ShareWith implements ToXContentFragment, NamedWriteable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject("share_with").value(sharedWithScopes).endObject();
+        builder.startObject();
+
+        for (SharedWithScope scope : sharedWithScopes) {
+            scope.toXContent(builder, params);
+        }
+
+        return builder.endObject();
     }
 
     @Override
