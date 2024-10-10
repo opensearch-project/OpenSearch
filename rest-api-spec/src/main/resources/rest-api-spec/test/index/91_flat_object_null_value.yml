@@ -373,7 +373,7 @@ teardown:
         body: {
           _source: true,
           query: {
-            exists: { "field": "record.d" }
+            exists: { "field": "record.name.d" }
           },
           sort: [{ order: asc}]
         }
