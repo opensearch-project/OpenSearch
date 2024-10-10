@@ -57,18 +57,8 @@ if (project == rootProject) {
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../gradle/libs.versions.toml'))
 version = props.getProperty("opensearch")
-
-def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-  destinationFile = file("${buildDir}/version.properties")
-  comment = 'Generated version properties'
-  properties(props)
-}
-
-processResources {
-  from(generateVersionProperties)
-}
 
 /*****************************************************************************
  *         Java version                                                      *
@@ -123,6 +113,7 @@ dependencies {
   api 'org.jruby.joni:joni:2.2.1'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.1"
+  implementation 'org.tomlj:tomlj:1.1.1'
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
@@ -297,6 +288,10 @@ class VersionPropertiesLoader {
     } finally {
       is.close()
     }
+    props.forEach((key, value) -> {
+      String newValue = value.toString().replace("\"", "")
+      props.setProperty(key.toString(), newValue)
+    });
     loadBuildSrcVersion(props, System.getProperties())
     return props
   }

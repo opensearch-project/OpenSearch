@@ -139,6 +139,14 @@ include projects.toArray(new String[0])
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
 project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
+//dependencyResolutionManagement {
+//  versionCatalogs {
+//    libs {
+//      from(files("gradle/libs.versions.toml"))
+//    }
+//  }
+//}
+
 project(":libs").children.each { libsProject ->
   libsProject.name = "opensearch-${libsProject.name}"
 }
