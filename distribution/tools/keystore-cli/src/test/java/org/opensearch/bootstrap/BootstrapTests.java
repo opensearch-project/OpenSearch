@@ -31,9 +31,6 @@
 
 package org.opensearch.bootstrap;
 
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
-import org.opensearch.cli.UserException;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.settings.KeyStoreCommandTestCase;
 import org.opensearch.common.settings.KeyStoreWrapper;
@@ -43,7 +40,6 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
-import org.opensearch.node.NodeValidationException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -60,12 +56,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class BootstrapTests extends OpenSearchTestCase {
     Environment env;
