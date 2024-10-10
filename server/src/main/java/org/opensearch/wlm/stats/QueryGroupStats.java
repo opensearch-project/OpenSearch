@@ -82,6 +82,10 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         return Objects.hash(stats);
     }
 
+    public Map<String, QueryGroupStatsHolder> getStats() {
+        return stats;
+    }
+
     /**
      * This is a stats holder object which will hold the data for a query group at a point in time
      * the instance will only be created on demand through stats api
@@ -91,7 +95,9 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         public static final String REJECTIONS = "rejections";
         public static final String TOTAL_CANCELLATIONS = "total_cancellations";
         public static final String FAILURES = "failures";
+        public static final String SHARD_COMPLETIONS = "shard_completions";
         private long completions;
+        private long shardCompletions;
         private long rejections;
         private long failures;
         private long totalCancellations;
@@ -105,11 +111,13 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             long rejections,
             long failures,
             long totalCancellations,
+            long shardCompletions,
             Map<ResourceType, ResourceStats> resourceStats
         ) {
             this.completions = completions;
             this.rejections = rejections;
             this.failures = failures;
+            this.shardCompletions = shardCompletions;
             this.totalCancellations = totalCancellations;
             this.resourceStats = resourceStats;
         }
@@ -119,6 +127,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             this.rejections = in.readVLong();
             this.failures = in.readVLong();
             this.totalCancellations = in.readVLong();
+            this.shardCompletions = in.readVLong();
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
 
@@ -140,6 +149,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             statsHolder.rejections = queryGroupState.getTotalRejections();
             statsHolder.failures = queryGroupState.getFailures();
             statsHolder.totalCancellations = queryGroupState.getTotalCancellations();
+            statsHolder.shardCompletions = queryGroupState.getShardCompletions();
             statsHolder.resourceStats = resourceStatsMap;
             return statsHolder;
         }
@@ -155,6 +165,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             out.writeVLong(statsHolder.rejections);
             out.writeVLong(statsHolder.failures);
             out.writeVLong(statsHolder.totalCancellations);
+            out.writeVLong(statsHolder.shardCompletions);
             out.writeMap(statsHolder.resourceStats, (o, val) -> o.writeString(val.getName()), ResourceStats::writeTo);
         }
 
@@ -166,6 +177,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(COMPLETIONS, completions);
+            builder.field(SHARD_COMPLETIONS, shardCompletions);
             builder.field(REJECTIONS, rejections);
             builder.field(FAILURES, failures);
             builder.field(TOTAL_CANCELLATIONS, totalCancellations);
@@ -187,6 +199,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             QueryGroupStatsHolder that = (QueryGroupStatsHolder) o;
             return completions == that.completions
                 && rejections == that.rejections
+                && shardCompletions == that.shardCompletions
                 && Objects.equals(resourceStats, that.resourceStats)
                 && failures == that.failures
                 && totalCancellations == that.totalCancellations;
@@ -194,7 +207,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
 
         @Override
         public int hashCode() {
-            return Objects.hash(completions, rejections, totalCancellations, failures, resourceStats);
+            return Objects.hash(completions, shardCompletions, rejections, totalCancellations, failures, resourceStats);
         }
     }
 

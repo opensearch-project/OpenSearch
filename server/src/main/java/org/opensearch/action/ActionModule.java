@@ -123,6 +123,8 @@ import org.opensearch.action.admin.cluster.storedscripts.TransportGetStoredScrip
 import org.opensearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.opensearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
+import org.opensearch.action.admin.cluster.wlm.TransportWlmStatsAction;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.TransportIndicesAliasesAction;
@@ -375,6 +377,7 @@ import org.opensearch.rest.action.admin.cluster.RestRestoreRemoteStoreAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestWlmStatsAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
@@ -465,6 +468,7 @@ import org.opensearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.rest.action.list.RestListAction;
+import org.opensearch.rest.action.list.RestShardsListAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
@@ -480,6 +484,7 @@ import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
+import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -564,7 +569,10 @@ public class ActionModule extends AbstractModule {
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
-            Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
+            Stream.of(
+                new RestHeaderDefinition(Task.X_OPAQUE_ID, false),
+                new RestHeaderDefinition(QueryGroupTask.QUERY_GROUP_ID_HEADER, false)
+            )
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
@@ -617,6 +625,7 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
         actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
+        actions.register(WlmStatsAction.INSTANCE, TransportWlmStatsAction.class);
         actions.register(RemoteStoreStatsAction.INSTANCE, TransportRemoteStoreStatsAction.class);
         actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
@@ -823,6 +832,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
         registerHandler.accept(new RestMainAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
+        registerHandler.accept(new RestWlmStatsAction());
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesStatsAction());
         registerHandler.accept(new RestNodesUsageAction());
@@ -993,6 +1003,7 @@ public class ActionModule extends AbstractModule {
 
         // LIST API
         registerHandler.accept(new RestIndicesListAction(responseLimitSettings));
+        registerHandler.accept(new RestShardsListAction());
 
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());

@@ -9,13 +9,13 @@
 package org.opensearch.rest.action.list;
 
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.pagination.IndexPaginationStrategy;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestIndicesAction;
-import org.opensearch.rest.pagination.IndexPaginationStrategy;
-import org.opensearch.rest.pagination.PageParams;
 
 import java.util.Iterator;
 import java.util.List;
@@ -50,7 +50,6 @@ public class RestIndicesListAction extends RestIndicesAction {
         return "list_indices_action";
     }
 
-    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_list/indices\n");
         sb.append("/_list/indices/{index}\n");

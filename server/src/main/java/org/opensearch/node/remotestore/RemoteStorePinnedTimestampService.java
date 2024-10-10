@@ -130,16 +130,16 @@ public class RemoteStorePinnedTimestampService implements Closeable {
      * @throws IllegalArgumentException If the timestamp is less than the current time minus one second
      */
     public void pinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) {
-        // If a caller uses current system time to pin the timestamp, following check will almost always fail.
-        // So, we allow pinning timestamp in the past upto some buffer
-        long lookbackIntervalInMills = RemoteStoreSettings.getPinnedTimestampsLookbackInterval().millis();
-        if (timestamp < (System.currentTimeMillis() - lookbackIntervalInMills)) {
-            throw new IllegalArgumentException(
-                "Timestamp to be pinned is less than current timestamp - value of cluster.remote_store.pinned_timestamps.lookback_interval"
-            );
-        }
-        long startTime = System.nanoTime();
         try {
+            // If a caller uses current system time to pin the timestamp, following check will almost always fail.
+            // So, we allow pinning timestamp in the past upto some buffer
+            long lookbackIntervalInMills = RemoteStoreSettings.getPinnedTimestampsLookbackInterval().millis();
+            if (timestamp < (System.currentTimeMillis() - lookbackIntervalInMills)) {
+                throw new IllegalArgumentException(
+                    "Timestamp to be pinned is less than current timestamp - value of cluster.remote_store.pinned_timestamps.lookback_interval"
+                );
+            }
+            long startTime = System.nanoTime();
             logger.debug("Pinning timestamp = {} against entity = {}", timestamp, pinningEntity);
             blobContainer.writeBlob(getBlobName(timestamp, pinningEntity), new ByteArrayInputStream(new byte[0]), 0, true);
             long elapsedTime = System.nanoTime() - startTime;
@@ -155,7 +155,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
             } else {
                 listener.onResponse(null);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
@@ -198,7 +198,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 logger.error(errorMessage);
                 listener.onFailure(new IllegalArgumentException(errorMessage));
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
@@ -249,7 +249,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                 logger.error(errorMessage);
                 listener.onFailure(new IllegalArgumentException(errorMessage));
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

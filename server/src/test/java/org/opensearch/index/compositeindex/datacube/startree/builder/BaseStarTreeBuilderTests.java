@@ -10,7 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -25,7 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -108,12 +108,12 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
         SegmentInfo segmentInfo = new SegmentInfo(
             directory,
             Version.LATEST,
-            Version.LUCENE_9_11_0,
+            Version.LUCENE_9_12_0,
             "test_segment",
             5,
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),
@@ -150,14 +150,14 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
         String dataFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,
             writeState.segmentSuffix,
-            Composite99DocValuesFormat.DATA_EXTENSION
+            Composite912DocValuesFormat.DATA_EXTENSION
         );
         dataOut = writeState.directory.createOutput(dataFileName, writeState.context);
 
         String metaFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,
             writeState.segmentSuffix,
-            Composite99DocValuesFormat.META_EXTENSION
+            Composite912DocValuesFormat.META_EXTENSION
         );
         metaOut = writeState.directory.createOutput(metaFileName, writeState.context);
 

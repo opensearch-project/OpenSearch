@@ -32,9 +32,9 @@
 
 package org.opensearch.common;
 
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.common.Strings;
-import org.opensearch.rest.pagination.PageToken;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

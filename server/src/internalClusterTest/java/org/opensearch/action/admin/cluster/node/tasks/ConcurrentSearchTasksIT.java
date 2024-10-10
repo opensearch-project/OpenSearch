@@ -110,7 +110,7 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             Map<Long, List<ThreadResourceInfo>> threadStats = getThreadStats(SearchAction.NAME + "[*]", taskInfo.getTaskId());
             // Concurrent search forks each slice of 5 segments to different thread (see please
             // https://github.com/apache/lucene/issues/12498)
-            assertEquals((int) Math.ceil(getSegmentCount(INDEX_NAME) / 5.0) + 1, threadStats.size());
+            assertEquals((int) Math.ceil(getSegmentCount(INDEX_NAME) / 5.0), threadStats.size());
 
             // assert that all task descriptions have non-zero length
             MatcherAssert.assertThat(taskInfo.getDescription().length(), greaterThan(0));

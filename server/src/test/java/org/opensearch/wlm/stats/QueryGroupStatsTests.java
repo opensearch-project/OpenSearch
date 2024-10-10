@@ -8,16 +8,23 @@
 
 package org.opensearch.wlm.stats;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryGroupStats> {
 
@@ -28,9 +35,10 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
             queryGroupId,
             new QueryGroupStats.QueryGroupStatsHolder(
                 123456789,
+                13,
                 2,
                 0,
-                13,
+                1213718,
                 Map.of(ResourceType.CPU, new QueryGroupStats.ResourceStats(0.3, 13, 2))
             )
         );
@@ -40,7 +48,7 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
         queryGroupStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
-            "{\"query_groups\":{\"afakjklaj304041-afaka\":{\"completions\":123456789,\"rejections\":2,\"failures\":0,\"total_cancellations\":13,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
+            "{\"query_groups\":{\"afakjklaj304041-afaka\":{\"completions\":123456789,\"shard_completions\":1213718,\"rejections\":13,\"failures\":2,\"total_cancellations\":0,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
             builder.toString()
         );
     }
@@ -60,6 +68,7 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 Map.of(
                     ResourceType.CPU,
                     new QueryGroupStats.ResourceStats(
@@ -69,6 +78,13 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
                     )
                 )
             )
+        );
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            OpenSearchTestCase.buildNewFakeTransportAddress(),
+            emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
         );
         return new QueryGroupStats(stats);
     }
