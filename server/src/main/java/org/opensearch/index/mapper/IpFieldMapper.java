@@ -266,42 +266,40 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return query;
         }
 
+        // @TODO check strings, byterefs, inetaddresses for concrete and masks
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            List<InetAddress>addresses = new ArrayList<>();
+            List<InetAddress> concreteIPs = new ArrayList<>();
             BooleanQuery.Builder ranges = new BooleanQuery.Builder();
             int i = 0;
-            for (Object value : values) {
-                InetAddress address;
+            for (final Object value : values) {
                 if (value instanceof InetAddress) {
-                    address = (InetAddress) value;
+                    concreteIPs.add((InetAddress) value);
                 } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
-                    }
-                    if (value.toString().contains("/")) {
+                    final String strVal = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+                    if (strVal.contains("/")) {
                         // the `terms` query contains some prefix queries, so we cannot create a set query
                         // and need to fall back to a disjunction of `term` queries
-                        Query query = termQuery(value, context);
+                        Query query = termQuery(strVal, context);
                         // would be great to have union on ranges over bare points
                         ranges.add(query, BooleanClause.Occur.SHOULD);
-                        continue;
+                    } else {
+                        concreteIPs.add(InetAddresses.forString(strVal));
                     }
-                    address = InetAddresses.forString(value.toString());
                 }
-                addresses.add(address);
             }
-            if (!addresses.isEmpty()) {
-                Supplier<Query> pointsQuery;
-                if (addresses.size() == 1) {
-                    pointsQuery = () -> termQuery(addresses.get(0), context);
-                } else {
-                    pointsQuery = () -> InetAddressPoint.newSetQuery(name(), addresses.toArray(new InetAddress[0]));
+            if (!concreteIPs.isEmpty()) {
+                Supplier<Query> pointsQuery;// TODO this trick is redundant
+//                if (concreteIPs.size() == 1) {
+//                          it can't get InetAddress since it convert is to string and misguided by hostname separating slash
+//                    pointsQuery = () -> termQuery(concreteIPs.get(0), context);
+//                } else {
+                    pointsQuery = () -> InetAddressPoint.newSetQuery(name(), concreteIPs.toArray(new InetAddress[0]));
                     if (hasDocValues()) {
-                        List<BytesRef> set = new ArrayList<>(addresses.size());
-                        for(InetAddress ia : addresses) {
-                            set.add(new BytesRef(InetAddressPoint.encode(ia)));
+                        List<BytesRef> set = new ArrayList<>(concreteIPs.size());
+                        for(final InetAddress address : concreteIPs) {
+                            set.add(new BytesRef(InetAddressPoint.encode(address)));
                         }
                         Query dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), set);
                         if (!isSearchable()) {
@@ -311,7 +309,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                             pointsQuery = () -> new IndexOrDocValuesQuery(wrap.get(), dvQuery);
                         }
                     }
-                }
+                //}
                 ranges.add(pointsQuery.get(), BooleanClause.Occur.SHOULD);
             }
             return ranges.build();
