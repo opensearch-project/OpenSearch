@@ -25,8 +25,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.mockito.Mockito.mock;
 
-public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryGroupStats> {
+public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
 
     public void testToXContent() throws IOException {
         final Map<String, QueryGroupStats.QueryGroupStatsHolder> stats = new HashMap<>();
@@ -44,8 +45,9 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
         );
         XContentBuilder builder = JsonXContent.contentBuilder();
         QueryGroupStats queryGroupStats = new QueryGroupStats(stats);
+        WlmStats wlmStats = new WlmStats(mock(DiscoveryNode.class), queryGroupStats);
         builder.startObject();
-        queryGroupStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        wlmStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
             "{\"query_groups\":{\"afakjklaj304041-afaka\":{\"completions\":123456789,\"shard_completions\":1213718,\"rejections\":13,\"failures\":2,\"total_cancellations\":0,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
@@ -54,31 +56,12 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
     }
 
     @Override
-    protected Writeable.Reader<QueryGroupStats> instanceReader() {
-        return QueryGroupStats::new;
+    protected Writeable.Reader<WlmStats> instanceReader() {
+        return WlmStats::new;
     }
 
     @Override
-    protected QueryGroupStats createTestInstance() {
-        Map<String, QueryGroupStats.QueryGroupStatsHolder> stats = new HashMap<>();
-        stats.put(
-            randomAlphaOfLength(10),
-            new QueryGroupStats.QueryGroupStatsHolder(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                Map.of(
-                    ResourceType.CPU,
-                    new QueryGroupStats.ResourceStats(
-                        randomDoubleBetween(0.0, 0.90, false),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong()
-                    )
-                )
-            )
-        );
+    protected WlmStats createTestInstance() {
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "node",
             OpenSearchTestCase.buildNewFakeTransportAddress(),
@@ -86,6 +69,7 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
             DiscoveryNodeRole.BUILT_IN_ROLES,
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
         );
-        return new QueryGroupStats(stats);
+        QueryGroupStatsTests queryGroupStatsTests = new QueryGroupStatsTests();
+        return new WlmStats(discoveryNode, queryGroupStatsTests.createTestInstance());
     }
 }
