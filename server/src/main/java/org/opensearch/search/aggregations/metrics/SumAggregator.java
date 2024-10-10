@@ -33,9 +33,13 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -48,6 +52,8 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into a single sum value
@@ -89,6 +95,15 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        if (supportedStarTree != null) {
+            return getStarTreeCollector(ctx, sub, supportedStarTree);
+        }
+        return getDefaultLeafCollector(ctx, sub);
+    }
+
+    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -116,6 +131,21 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
                 }
             }
         };
+    }
+
+    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
+        throws IOException {
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
+        return StarTreeQueryHelper.getStarTreeLeafCollector(
+            context,
+            valuesSource,
+            ctx,
+            sub,
+            starTree,
+            MetricStat.SUM.getTypeName(),
+            value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),
+            () -> sums.set(0, kahanSummation.value())
+        );
     }
 
     @Override
