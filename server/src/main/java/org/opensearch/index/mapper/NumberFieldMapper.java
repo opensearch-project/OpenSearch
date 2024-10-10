@@ -60,6 +60,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
@@ -71,6 +72,8 @@ import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 
@@ -1064,24 +1067,40 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 QueryShardContext context
             ) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
-                    if (isSearchable && hasDocValues) {
-                        Query query = LongPoint.newRangeQuery(field, l, u);
-                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                        query = new IndexOrDocValuesQuery(query, dvQuery);
-                        if (context.indexSortedOnField(field)) {
-                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                    Query dvQuery = hasDocValues ? SortedNumericDocValuesField.newSlowRangeQuery(field, l, u) : null;
+                    if (isSearchable) {
+                        Query pointRangeQuery = LongPoint.newRangeQuery(field, l, u);
+                        Query query;
+                        if (dvQuery != null) {
+                            query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                            if (context.indexSortedOnField(field)) {
+                                query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, pointRangeQuery);
+                            }
+                        } else {
+                            query = pointRangeQuery;
+                        }
+                        if (FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)) {
+                            return new ApproximateScoreQuery(
+                                query,
+                                new ApproximatePointRangeQuery(
+                                    field,
+                                    LongPoint.pack(new long[] { l }).bytes,
+                                    LongPoint.pack(new long[] { u }).bytes,
+                                    new long[] { l }.length
+                                ) {
+                                    @Override
+                                    protected String toString(int dimension, byte[] value) {
+                                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                                    }
+                                }
+                            );
                         }
                         return query;
                     }
-                    if (hasDocValues) {
-                        Query query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                        if (context.indexSortedOnField(field)) {
-                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
-                        }
-                        return query;
+                    if (context.indexSortedOnField(field)) {
+                        dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, dvQuery);
                     }
-                    return LongPoint.newRangeQuery(field, l, u);
-
+                    return dvQuery;
                 });
             }
 
