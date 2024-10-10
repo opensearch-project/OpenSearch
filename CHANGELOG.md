@@ -15,6 +15,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Removed
 ### Fixed
 - Update help output for _cat ([#14722](https://github.com/opensearch-project/OpenSearch/pull/14722))
+- Bugfix to guard against stack overflow errors caused by very large reg-ex input ([#16101](https://github.com/opensearch-project/OpenSearch/pull/16101))
 
 ### Security
 

@@ -32,13 +32,22 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.opensearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -49,6 +58,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
 
     static int numDocs;
+
+    private static final String LARGE_STRING = String.join("", Collections.nCopies(2000, "a"));
+    private static final String LARGE_STRING_EXCEPTION_MESSAGE = "The length of regex ["
+        + LARGE_STRING.length()
+        + "] used in the request has exceeded the allowed maximum";
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -85,4 +99,51 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
         assertEquals(numDocs, total);
     }
 
+    public void testLargeRegExTermsAggregation() {
+        for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
+            TermsAggregationBuilder termsAggregation = terms("my_terms").field("f")
+                .includeExclude(getLargeStringInclude())
+                .executionHint(executionMode.toString());
+            runLargeStringAggregationTest(termsAggregation);
+        }
+    }
+
+    public void testLargeRegExSignificantTermsAggregation() {
+        for (SignificantTermsAggregatorFactory.ExecutionMode executionMode : SignificantTermsAggregatorFactory.ExecutionMode.values()) {
+            SignificantTermsAggregationBuilder significantTerms = new SignificantTermsAggregationBuilder("my_terms").field("f")
+                .includeExclude(getLargeStringInclude())
+                .executionHint(executionMode.toString());
+            runLargeStringAggregationTest(significantTerms);
+        }
+    }
+
+    public void testLargeRegExRareTermsAggregation() {
+        // currently this only supports "map" as an execution hint
+        RareTermsAggregationBuilder rareTerms = new RareTermsAggregationBuilder("my_terms").field("f")
+            .includeExclude(getLargeStringInclude())
+            .maxDocCount(2);
+        runLargeStringAggregationTest(rareTerms);
+    }
+
+    private IncludeExclude getLargeStringInclude() {
+        return new IncludeExclude(LARGE_STRING, null);
+    }
+
+    private void runLargeStringAggregationTest(AggregationBuilder aggregation) {
+        boolean exceptionThrown = false;
+        IncludeExclude include = new IncludeExclude(LARGE_STRING, null);
+        try {
+            client().prepareSearch("index").addAggregation(aggregation).get();
+        } catch (SearchPhaseExecutionException ex) {
+            exceptionThrown = true;
+            Throwable nestedException = ex.getCause();
+            assertNotNull(nestedException);
+            assertTrue(nestedException instanceof OpenSearchException);
+            assertNotNull(nestedException.getCause());
+            assertTrue(nestedException.getCause() instanceof IllegalArgumentException);
+            String actualExceptionMessage = nestedException.getCause().getMessage();
+            assertTrue(actualExceptionMessage.startsWith(LARGE_STRING_EXCEPTION_MESSAGE));
+        }
+        assertTrue("Exception should have been thrown", exceptionThrown);
+    }
 }
