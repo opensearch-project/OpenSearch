@@ -1,0 +1,24 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+import org.tomlj.Toml
+
+task generateVersionProperties {
+  def tomlFile = file("gradle/libs.versions.toml")
+  def propertiesFile = file("build/generated/versions.properties")
+
+  doLast {
+    def toml = Toml.parse(tomlFile.newReader())
+    propertiesFile.withWriter('UTF-8') { writer ->
+      toml.getTable("versions").keySet().each { key ->
+        def version = toml.getString("versions.${key}")
+        writer.write("${key}=${version}\n")
+      }
+    }
+  }
+}
