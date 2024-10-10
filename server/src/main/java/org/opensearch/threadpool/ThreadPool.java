@@ -304,12 +304,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.REMOTE_STATE_READ,
-            new ScalingExecutorBuilder(
-                Names.REMOTE_STATE_READ,
-                1,
-                twiceAllocatedProcessors(allocatedProcessors),
-                TimeValue.timeValueMinutes(5)
-            )
+            new ScalingExecutorBuilder(Names.REMOTE_STATE_READ, 1, boundedBy(4 * allocatedProcessors, 4, 32), TimeValue.timeValueMinutes(5))
         );
         builders.put(
             Names.INDEX_SEARCHER,
