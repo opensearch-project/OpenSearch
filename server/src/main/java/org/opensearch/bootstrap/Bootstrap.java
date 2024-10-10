@@ -93,6 +93,17 @@ final class Bootstrap {
     private final Thread keepAliveThread;
     private final Spawner spawner = new Spawner();
 
+    // For testing purpose
+    void setInstance(Bootstrap bootstrap) {
+        INSTANCE = bootstrap;
+    }
+
+    // For testing purpose
+    Bootstrap(Thread keepAliveThread, Node node) {
+        this.keepAliveThread = keepAliveThread;
+        this.node = node;
+    }
+
     /** creates a new instance */
     Bootstrap() {
         keepAliveThread = new Thread(new Runnable() {
