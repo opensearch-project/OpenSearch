@@ -513,10 +513,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         assert existingNodes.isEmpty() == false;
         Optional<DiscoveryNode> remotePublicationNode = existingNodes.stream()
-            .filter(DiscoveryNode::isRemoteStatePublicationConfigured)
+            .filter(DiscoveryNode::isRemoteStatePublicationEnabled)
             .findFirst();
 
-        if (remotePublicationNode.isPresent() && joiningNode.isRemoteStatePublicationConfigured()) {
+        if (remotePublicationNode.isPresent() && joiningNode.isRemoteStatePublicationEnabled()) {
             ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES);
         }
     }
