@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -99,6 +100,12 @@ public class StarTreeQueryHelper {
         if (queryBuilder == null || queryBuilder instanceof MatchAllQueryBuilder) {
             queryMap = null;
         } else if (queryBuilder instanceof TermQueryBuilder) {
+            // TODO: Add support for keyword fields
+            if (compositeFieldType.getDimensions().stream().anyMatch(d -> d.getDocValuesType() != DocValuesType.SORTED_NUMERIC)) {
+                // return null for non-numeric fields
+                return null;
+            }
+
             List<String> supportedDimensions = compositeFieldType.getDimensions()
                 .stream()
                 .map(Dimension::getField)
@@ -233,8 +240,7 @@ public class StarTreeQueryHelper {
         throws IOException {
         FixedBitSet result = context.getStarTreeQueryContext().getStarTreeValues(ctx);
         if (result == null) {
-            StarTreeFilter filter = new StarTreeFilter(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
-            result = filter.getStarTreeResult();
+            result = StarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
             context.getStarTreeQueryContext().setStarTreeValues(ctx, result);
         }
         return result;

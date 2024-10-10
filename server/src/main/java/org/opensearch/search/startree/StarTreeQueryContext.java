@@ -40,13 +40,15 @@ public class StarTreeQueryContext {
     * This is used to cache the results for each leaf reader context
     * to avoid reading the filtered values from the leaf reader context multiple times
     */
-    private FixedBitSet[] starTreeValues;
+    private final FixedBitSet[] starTreeValues;
 
-    public StarTreeQueryContext(CompositeIndexFieldInfo starTree, Map<String, Long> queryMap, int cacheStarTreeValuesSize) {
+    public StarTreeQueryContext(CompositeIndexFieldInfo starTree, Map<String, Long> queryMap, int numSegmentsCache) {
         this.starTree = starTree;
         this.queryMap = queryMap;
-        if (cacheStarTreeValuesSize > -1) {
-            starTreeValues = new FixedBitSet[cacheStarTreeValuesSize];
+        if (numSegmentsCache > -1) {
+            starTreeValues = new FixedBitSet[numSegmentsCache];
+        } else {
+            starTreeValues = null;
         }
     }
 
