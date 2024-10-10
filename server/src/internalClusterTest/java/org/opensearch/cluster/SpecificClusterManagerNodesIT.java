@@ -44,6 +44,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.opensearch.test.NodeRoles.clusterManagerNode;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
@@ -255,19 +256,24 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(clusterManagerNodeName)).get();
         // removing the cluster-manager from the voting configuration immediately triggers the cluster-manager to step down
         assertBusy(() -> {
-            assertThat(
-                internalCluster().nonClusterManagerClient()
-                    .admin()
-                    .cluster()
-                    .prepareState()
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getClusterManagerNode()
-                    .getName(),
-                equalTo(nextClusterManagerEligableNodeName)
-            );
+            Supplier<String> clusterManagerName = () -> {
+                try {
+                    return internalCluster().nonClusterManagerClient()
+                        .admin()
+                        .cluster()
+                        .prepareState()
+                        .execute()
+                        .actionGet()
+                        .getState()
+                        .nodes()
+                        .getClusterManagerNode()
+                        .getName();
+                } catch (Exception e) {
+                    logger.debug("failed to get cluster-manager name", e);
+                    return null;
+                }
+            };
+            assertThat(clusterManagerName.get(), equalTo(nextClusterManagerEligableNodeName));
             assertThat(
                 internalCluster().clusterManagerClient()
                     .admin()
