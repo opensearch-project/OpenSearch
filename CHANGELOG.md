@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- Adding configuring rebasing strategy for dependabot created PRs([#16099](https://github.com/opensearch-project/OpenSearch/issues/16099))
 - Add support for async deletion in S3BlobContainer ([#15621](https://github.com/opensearch-project/OpenSearch/pull/15621))
 - MultiTermQueries in keyword fields now default to `indexed` approach and gated behind cluster setting ([#15637](https://github.com/opensearch-project/OpenSearch/pull/15637))
 - [Workload Management] Add Integration Tests for Workload Management CRUD APIs ([#15955](https://github.com/opensearch-project/OpenSearch/pull/15955))
