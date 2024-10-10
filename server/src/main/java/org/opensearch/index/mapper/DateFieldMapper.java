@@ -474,6 +474,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
                 Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
+                if (dvQuery != null && context.indexSortedOnField(name())) {
+                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
+                }
                 if (isSearchable()) {
                     Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
                     Query query;
@@ -502,9 +505,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 }
 
                 // Not searchable. Must have doc values.
-                if (context.indexSortedOnField(name())) {
-                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
-                }
                 return dvQuery;
             });
         }
