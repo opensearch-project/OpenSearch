@@ -29,7 +29,8 @@ public class SnapshotShardPaths implements ToXContent {
 
     public static final String DELIMITER = ".";
 
-    public static final String FILE_NAME_FORMAT = "%s";
+    public static final String FILE_PREFIX = "snapshot_path_";
+    public static final String FILE_NAME_FORMAT = FILE_PREFIX + "%s";
 
     private static final String PATHS_FIELD = "paths";
     private static final String INDEX_ID_FIELD = "indexId";
@@ -101,12 +102,19 @@ public class SnapshotShardPaths implements ToXContent {
             throw new IllegalArgumentException("Invalid shard path format: " + shardPath);
         }
         try {
-            IndexId indexId = new IndexId(parts[1], parts[0], Integer.parseInt(parts[3]));
+            IndexId indexId = new IndexId(parts[1], getIndexId(parts[0]), Integer.parseInt(parts[3]));
             int shardCount = Integer.parseInt(parts[2]);
             return new ShardInfo(indexId, shardCount);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid shard path format: " + shardPath, e);
         }
+    }
+
+    public static String getIndexId(String indexIdField) {
+        if (indexIdField.startsWith(FILE_PREFIX)) {
+            return indexIdField.substring(FILE_PREFIX.length());
+        }
+        return indexIdField;
     }
 
     /**
