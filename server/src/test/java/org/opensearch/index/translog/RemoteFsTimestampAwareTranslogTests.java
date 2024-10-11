@@ -1505,4 +1505,22 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             );
         }, 30, TimeUnit.SECONDS);
     }
+
+    public void testTrimUnreferencedReadersFailAlwaysRepo() throws Exception {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
+
+        translog.setMinSeqNoToKeep(2);
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        updatePinnedTimstampTask.run();
+
+        fail.failAlways();
+        translog.trimUnreferencedReaders();
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+    }
 }
