@@ -94,7 +94,7 @@ dependencies {
   api project(":libs:opensearch-cli")
 
   // time handling, remove with java 8 time
-  api "joda-time:joda-time:2.12.7"
+  api "joda-time:joda-time:${libs.versions.joda}"
 
   // percentiles aggregation
   api "com.tdunning:t-digest:${versions.tdigest}"
