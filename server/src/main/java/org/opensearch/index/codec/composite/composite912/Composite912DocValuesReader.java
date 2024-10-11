@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.composite99;
+package org.opensearch.index.codec.composite.composite912;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,8 +58,8 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite99DocValuesReader extends DocValuesProducer implements CompositeIndexReader {
-    private static final Logger logger = LogManager.getLogger(Composite99DocValuesReader.class);
+public class Composite912DocValuesReader extends DocValuesProducer implements CompositeIndexReader {
+    private static final Logger logger = LogManager.getLogger(Composite912DocValuesReader.class);
 
     private final DocValuesProducer delegate;
     private IndexInput dataIn;
@@ -71,20 +71,20 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
     private final List<CompositeIndexFieldInfo> compositeFieldInfos = new ArrayList<>();
     private SegmentReadState readState;
 
-    public Composite99DocValuesReader(DocValuesProducer producer, SegmentReadState readState) throws IOException {
+    public Composite912DocValuesReader(DocValuesProducer producer, SegmentReadState readState) throws IOException {
         this.delegate = producer;
         this.fields = new ArrayList<>();
 
         String metaFileName = IndexFileNames.segmentFileName(
             readState.segmentInfo.name,
             readState.segmentSuffix,
-            Composite99DocValuesFormat.META_EXTENSION
+            Composite912DocValuesFormat.META_EXTENSION
         );
 
         String dataFileName = IndexFileNames.segmentFileName(
             readState.segmentInfo.name,
             readState.segmentSuffix,
-            Composite99DocValuesFormat.DATA_EXTENSION
+            Composite912DocValuesFormat.DATA_EXTENSION
         );
 
         boolean success = false;
@@ -94,9 +94,9 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
             dataIn = readState.directory.openInput(dataFileName, readState.context);
             CodecUtil.checkIndexHeader(
                 dataIn,
-                Composite99DocValuesFormat.DATA_CODEC_NAME,
-                Composite99DocValuesFormat.VERSION_START,
-                Composite99DocValuesFormat.VERSION_CURRENT,
+                Composite912DocValuesFormat.DATA_CODEC_NAME,
+                Composite912DocValuesFormat.VERSION_START,
+                Composite912DocValuesFormat.VERSION_CURRENT,
                 readState.segmentInfo.getId(),
                 readState.segmentSuffix
             );
@@ -107,9 +107,9 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
             try {
                 CodecUtil.checkIndexHeader(
                     metaIn,
-                    Composite99DocValuesFormat.META_CODEC_NAME,
-                    Composite99DocValuesFormat.VERSION_START,
-                    Composite99DocValuesFormat.VERSION_CURRENT,
+                    Composite912DocValuesFormat.META_CODEC_NAME,
+                    Composite912DocValuesFormat.VERSION_START,
+                    Composite912DocValuesFormat.VERSION_CURRENT,
                     readState.segmentInfo.getId(),
                     readState.segmentSuffix
                 );
@@ -194,12 +194,12 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
                 // initialize star-tree doc values producer
 
                 compositeDocValuesProducer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
-                    Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
+                    Composite912Codec.COMPOSITE_INDEX_CODEC_NAME,
                     this.readState,
-                    Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-                    Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-                    Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-                    Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+                    Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+                    Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+                    Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+                    Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
                 );
 
             } catch (Throwable t) {

@@ -16,7 +16,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.codec.composite.composite99.Composite99DocValuesReader;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesReader;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.opensearch.index.codec.composite.composite99.Composite99DocValuesReader.getSortedNumericDocValues;
+import static org.opensearch.index.codec.composite.composite912.Composite912DocValuesReader.getSortedNumericDocValues;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
@@ -175,7 +175,7 @@ public class StarTreeValues implements CompositeIndexValues {
                     if (dimensionfieldInfo.getDocValuesType().equals(DocValuesType.SORTED_SET)) {
                         SortedSetDocValues dimensionSortedSetDocValues = compositeDocValuesProducer.getSortedSet(dimensionfieldInfo);
                         return new SortedSetStarTreeValuesIterator(
-                            Composite99DocValuesReader.getSortedSetDocValues(dimensionSortedSetDocValues)
+                            Composite912DocValuesReader.getSortedSetDocValues(dimensionSortedSetDocValues)
                         );
                     } else {
                         SortedNumericDocValues dimensionSortedNumericDocValues = compositeDocValuesProducer.getSortedNumeric(

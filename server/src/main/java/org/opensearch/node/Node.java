@@ -354,12 +354,12 @@ public class Node implements Closeable {
     );
 
     /**
-    * controls whether the node is allowed to persist things like metadata to disk
-    * Note that this does not control whether the node stores actual indices (see
-    * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
-    * and {@link #NODE_MASTER_SETTING} must also be false.
-    *
-    */
+     * controls whether the node is allowed to persist things like metadata to disk
+     * Note that this does not control whether the node stores actual indices (see
+     * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
+     * and {@link #NODE_MASTER_SETTING} must also be false.
+     *
+     */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
         "node.local_storage",
         true,
@@ -1868,6 +1868,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(nodeService.getTaskCancellationMonitoringService());
+        toClose.add(injector.getInstance(RemoteStorePinnedTimestampService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
@@ -1898,6 +1899,7 @@ public class Node implements Closeable {
         if (logger.isTraceEnabled()) {
             toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
         }
+
         IOUtils.close(toClose);
         logger.info("closed");
     }

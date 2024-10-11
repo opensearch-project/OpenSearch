@@ -557,7 +557,6 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         final Settings starTreeEnabledSettings = Settings.builder().put(STAR_TREE_INDEX, "true").build();
         FeatureFlags.initializeFeatureFlags(starTreeEnabledSettings);
 
-
         DocumentMapper documentMapper = createIndex("test", settings).mapperService()
             .documentMapperParser()
             .parse("tweet", new CompressedXContent(mapping));

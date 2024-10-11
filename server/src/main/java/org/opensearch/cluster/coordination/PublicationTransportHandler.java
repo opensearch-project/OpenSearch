@@ -370,7 +370,7 @@ public class PublicationTransportHandler {
         assert ClusterMetadataManifest.getCodecForVersion(discoveryNodes.getMinNodeVersion()) >= ClusterMetadataManifest.CODEC_V0;
         for (DiscoveryNode node : discoveryNodes.getNodes().values()) {
             // if a node is non-remote then created local publication context
-            if (node.isRemoteStatePublicationConfigured() == false) {
+            if (node.isRemoteStatePublicationEnabled() == false) {
                 return false;
             }
         }

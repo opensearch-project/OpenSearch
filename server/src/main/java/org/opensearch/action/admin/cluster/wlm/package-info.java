@@ -6,7 +6,5 @@
  * compatible open source license.
  */
 
-/**
- *  Responsible for handling all composite index codecs and operations associated with Composite99 codec
- */
-package org.opensearch.index.codec.composite.composite99;
+/** WlmStats transport handlers. */
+package org.opensearch.action.admin.cluster.wlm;
