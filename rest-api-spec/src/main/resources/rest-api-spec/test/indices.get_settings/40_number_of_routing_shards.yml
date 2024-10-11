@@ -1,0 +1,41 @@
+---
+setup:
+  - do:
+      indices.create:
+        body:
+          settings:
+            index:
+              number_of_routing_shards: 4
+              number_of_shards: 2
+              number_of_replicas: 1
+        index: test-index
+
+  - do:
+      indices.create:
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 1
+        index: test-index1
+
+---
+Test retrieval of number_routing_shards settings:
+  - skip:
+      version: " - 2.17.99"
+      reason: "introduced in 2.18.0"
+  - do:
+      indices.get_settings:
+        flat_settings: true
+        index: test-index
+  # show `index.number_of_routing_shards` if it was explicitly set when creating
+  - match:
+      test-index.settings.index\.number_of_routing_shards: "4"
+
+  - do:
+      indices.get_settings:
+        flat_settings: true
+        index: test-index1
+  # do not show `index.number_of_routing_shards` if it was not explicitly set when creating
+  - match:
+      test-index1.settings.index\.number_of_routing_shards: null
