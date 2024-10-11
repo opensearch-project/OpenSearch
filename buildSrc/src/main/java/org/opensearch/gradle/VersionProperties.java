@@ -127,15 +127,15 @@ public class VersionProperties {
         }
     }
 
-    private static void flattenToml(TomlTable tomlTable, Properties properties, String prefix) {
+    private static void tomlVersionsToProperties(TomlTable tomlTable, Properties properties) {
         for (String key : tomlTable.keySet()) {
-            String fullKey = prefix.isEmpty() ? key : prefix + "." + key;
             Object value = tomlTable.get(key);
 
-            if (value instanceof TomlTable) {
-                flattenToml((TomlTable) value, properties, fullKey);
-            } else {
-                properties.setProperty(key, value.toString());
+            if (key.equals("versions")) {
+                TomlTable versions = (TomlTable) value;
+                for (String library : versions.keySet()) {
+                    properties.setProperty(library, versions.get(library).toString());
+                }
             }
         }
     }
@@ -149,7 +149,7 @@ public class VersionProperties {
         }
 
         Properties properties = new Properties();
-        flattenToml(toml, properties, "");
+        tomlVersionsToProperties(toml, properties);
         return properties;
     }
 
