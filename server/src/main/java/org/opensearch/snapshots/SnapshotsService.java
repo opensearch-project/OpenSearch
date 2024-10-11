@@ -618,6 +618,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 return;
                             }
                             listener.onResponse(snapshotInfo);
+                            logger.info("created snapshot-v2 [{}] in repository [{}]", repositoryName, snapshotName);
                             // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
                             // can get queued . This is triggering them.
                             runNextQueuedOperation(repositoryData, repositoryName, true);
