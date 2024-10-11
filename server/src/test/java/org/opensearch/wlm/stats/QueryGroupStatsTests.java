@@ -38,7 +38,6 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
                 13,
                 2,
                 0,
-                1213718,
                 Map.of(ResourceType.CPU, new QueryGroupStats.ResourceStats(0.3, 13, 2))
             )
         );
@@ -48,7 +47,7 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
         queryGroupStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
-            "{\"query_groups\":{\"afakjklaj304041-afaka\":{\"completions\":123456789,\"shard_completions\":1213718,\"rejections\":13,\"failures\":2,\"total_cancellations\":0,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
+            "{\"query_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,\"total_cancellations\":0,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
             builder.toString()
         );
     }
@@ -64,7 +63,6 @@ public class QueryGroupStatsTests extends AbstractWireSerializingTestCase<QueryG
         stats.put(
             randomAlphaOfLength(10),
             new QueryGroupStats.QueryGroupStatsHolder(
-                randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
