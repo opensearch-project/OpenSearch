@@ -143,7 +143,8 @@ public class VersionProperties {
     private static Properties getVersionProperties() {
         TomlParseResult toml = null;
         try {
-            toml = Toml.parse(Path.of("gradle/libs.versions.toml"));
+            Path path = Path.of(System.getProperty("user.dir"), "gradle/libs.versions.toml");
+            toml = Toml.parse(path);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
