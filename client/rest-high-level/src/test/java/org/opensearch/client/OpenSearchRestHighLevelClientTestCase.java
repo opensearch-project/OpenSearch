@@ -90,6 +90,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRestTestCase {
 
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
+    protected static final double DOUBLE_DELTA = 0.000001;
 
     private static RestHighLevelClient restHighLevelClient;
     private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));

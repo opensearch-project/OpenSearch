@@ -404,8 +404,6 @@ public abstract class AbstractBlobContainerRetriesTestCase extends OpenSearchTes
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }
-        if (randomBoolean()) {
-            exchange.getResponseBody().flush();
-        }
+        exchange.getResponseBody().flush();
     }
 }

@@ -123,6 +123,8 @@ import org.opensearch.action.admin.cluster.storedscripts.TransportGetStoredScrip
 import org.opensearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.opensearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
+import org.opensearch.action.admin.cluster.wlm.TransportWlmStatsAction;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.TransportIndicesAliasesAction;
@@ -300,6 +302,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
@@ -374,6 +377,7 @@ import org.opensearch.rest.action.admin.cluster.RestRestoreRemoteStoreAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestWlmStatsAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
@@ -461,6 +465,10 @@ import org.opensearch.rest.action.ingest.RestDeletePipelineAction;
 import org.opensearch.rest.action.ingest.RestGetPipelineAction;
 import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.rest.action.ingest.RestSimulatePipelineAction;
+import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.rest.action.list.RestIndicesListAction;
+import org.opensearch.rest.action.list.RestListAction;
+import org.opensearch.rest.action.list.RestShardsListAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
@@ -476,6 +484,7 @@ import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
+import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -528,6 +537,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ExtensionsManager extensionsManager;
+    private final ResponseLimitSettings responseLimitSettings;
 
     public ActionModule(
         Settings settings,
@@ -559,7 +569,10 @@ public class ActionModule extends AbstractModule {
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
-            Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
+            Stream.of(
+                new RestHeaderDefinition(Task.X_OPAQUE_ID, false),
+                new RestHeaderDefinition(QueryGroupTask.QUERY_GROUP_ID_HEADER, false)
+            )
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
@@ -580,6 +593,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -611,6 +625,7 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
         actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
+        actions.register(WlmStatsAction.INSTANCE, TransportWlmStatsAction.class);
         actions.register(RemoteStoreStatsAction.INSTANCE, TransportRemoteStoreStatsAction.class);
         actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
@@ -802,9 +817,14 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
+        List<AbstractListAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
             if (handler instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) handler);
+                if (handler instanceof AbstractListAction && ((AbstractListAction) handler).isActionPaginated()) {
+                    listActions.add((AbstractListAction) handler);
+                } else {
+                    catActions.add((AbstractCatAction) handler);
+                }
             }
             restController.registerHandler(handler);
         };
@@ -812,6 +832,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
         registerHandler.accept(new RestMainAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
+        registerHandler.accept(new RestWlmStatsAction());
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesStatsAction());
         registerHandler.accept(new RestNodesUsageAction());
@@ -960,8 +981,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterManagerAction());
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction());
-        registerHandler.accept(new RestSegmentsAction());
+        registerHandler.accept(new RestIndicesAction(responseLimitSettings));
+        registerHandler.accept(new RestSegmentsAction(responseLimitSettings));
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.opensearch.rest.action.cat.RestCountAction());
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
@@ -979,6 +1000,10 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestWarmTieringAction());
         }
         registerHandler.accept(new RestTemplatesAction());
+
+        // LIST API
+        registerHandler.accept(new RestIndicesListAction(responseLimitSettings));
+        registerHandler.accept(new RestShardsListAction());
 
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());
@@ -1011,6 +1036,7 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+        registerHandler.accept(new RestListAction(listActions));
         registerHandler.accept(new RestDecommissionAction());
         registerHandler.accept(new RestGetDecommissionStateAction());
         registerHandler.accept(new RestRemoteStoreStatsAction());
@@ -1048,6 +1074,8 @@ public class ActionModule extends AbstractModule {
 
         // register dynamic ActionType -> transportAction Map used by NodeClient
         bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
+
+        bind(ResponseLimitSettings.class).toInstance(responseLimitSettings);
     }
 
     public ActionFilters getActionFilters() {

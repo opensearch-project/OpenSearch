@@ -10,7 +10,7 @@ package org.opensearch.index.codec.composite;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
@@ -19,7 +19,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
-import org.opensearch.index.codec.composite.composite99.Composite99Codec;
+import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -48,12 +48,12 @@ public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
         SegmentInfo segmentInfo = new SegmentInfo(
             directory,
             Version.LATEST,
-            Version.LUCENE_9_11_0,
+            Version.LUCENE_9_12_0,
             "test_segment",
             randomInt(),
             false,
             false,
-            new Lucene99Codec(),
+            new Lucene912Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),
@@ -85,7 +85,7 @@ public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
             newIOContext(random())
         );
         DocValuesProducer producer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
-            Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
+            Composite912Codec.COMPOSITE_INDEX_CODEC_NAME,
             segmentReadState,
             dataCodec,
             dataExtension,

@@ -12,13 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.compositeindex.datacube.Dimension;
-import org.opensearch.index.compositeindex.datacube.Metric;
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -35,9 +31,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 
 /**
  * Off-heap implementation of the star tree builder.
@@ -68,9 +61,9 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         MapperService mapperService
     ) throws IOException {
         super(metaOut, dataOut, starTreeField, state, mapperService);
-        segmentDocumentFileManager = new SegmentDocsFileManager(state, starTreeField, metricAggregatorInfos);
+        segmentDocumentFileManager = new SegmentDocsFileManager(state, starTreeField, metricAggregatorInfos, numDimensions);
         try {
-            starTreeDocumentFileManager = new StarTreeDocsFileManager(state, starTreeField, metricAggregatorInfos);
+            starTreeDocumentFileManager = new StarTreeDocsFileManager(state, starTreeField, metricAggregatorInfos, numDimensions);
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(segmentDocumentFileManager);
             throw e;
@@ -147,31 +140,12 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         int[] docIds;
         try {
             for (StarTreeValues starTreeValues : starTreeValuesSubs) {
-                List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
-                SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[starTreeValues.getStarTreeField()
-                    .getDimensionsOrder()
-                    .size()];
-                for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
-                    String dimension = dimensionsSplitOrder.get(i).getField();
-                    dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionValuesIterator(dimension));
-                }
+                SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
                 List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
-                // get doc id set iterators for metrics
-                for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
-                    for (MetricStat metricStat : metric.getBaseMetrics()) {
-                        String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                            starTreeValues.getStarTreeField().getName(),
-                            metric.getField(),
-                            metricStat.getTypeName()
-                        );
-                        metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricValuesIterator(metricFullName)));
-                    }
-                }
+                AtomicInteger numSegmentDocs = new AtomicInteger();
+                setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
                 int currentDocId = 0;
-                int numSegmentDocs = Integer.parseInt(
-                    starTreeValues.getAttributes().getOrDefault(SEGMENT_DOCS_COUNT, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
-                );
-                while (currentDocId < numSegmentDocs) {
+                while (currentDocId < numSegmentDocs.get()) {
                     StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders);
                     segmentDocumentFileManager.writeStarTreeDocument(starTreeDocument, true);
                     numDocs++;
@@ -317,7 +291,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             int docId = 1;
 
             private boolean hasSameDimensions(StarTreeDocument document1, StarTreeDocument document2) {
-                for (int i = dimensionId + 1; i < starTreeField.getDimensionsOrder().size(); i++) {
+                for (int i = dimensionId + 1; i < numDimensions; i++) {
                     if (!Objects.equals(document1.dimensions[i], document2.dimensions[i])) {
                         return false;
                     }
