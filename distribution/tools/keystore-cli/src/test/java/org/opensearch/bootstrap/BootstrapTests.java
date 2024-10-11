@@ -150,7 +150,7 @@ public class BootstrapTests extends OpenSearchTestCase {
 
         LogConfigurator.registerErrorListener();
         Bootstrap testBootstrap = new Bootstrap(mockThread, mockNode);
-        testBootstrap.setInstance(testBootstrap);
+        Bootstrap.setInstance(testBootstrap);
 
         Bootstrap.startInstance(testBootstrap);
 

@@ -94,7 +94,7 @@ final class Bootstrap {
     private final Spawner spawner = new Spawner();
 
     // For testing purpose
-    void setInstance(Bootstrap bootstrap) {
+    static void setInstance(Bootstrap bootstrap) {
         INSTANCE = bootstrap;
     }
 
