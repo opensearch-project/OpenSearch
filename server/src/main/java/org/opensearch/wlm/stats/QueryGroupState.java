@@ -21,7 +21,7 @@ public class QueryGroupState {
     /**
      * co-ordinator level completions at the query group level, this is a cumulative counter since the Opensearch start time
      */
-    public final CounterMetric completions = new CounterMetric();
+    public final CounterMetric totalCompletions = new CounterMetric();
 
     /**
      * rejections at the query group level, this is a cumulative counter since the OpenSearch start time
@@ -56,8 +56,8 @@ public class QueryGroupState {
      *
      * @return co-ordinator completions in the query group
      */
-    public long getCompletions() {
-        return completions.count();
+    public long getTotalCompletions() {
+        return totalCompletions.count();
     }
 
     /**

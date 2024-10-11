@@ -353,6 +353,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
             queryGroupId = QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get();
         }
 
-        queryGroupsStateAccessor.getQueryGroupState(queryGroupId).completions.inc();
+        queryGroupsStateAccessor.getQueryGroupState(queryGroupId).totalCompletions.inc();
     }
 }
