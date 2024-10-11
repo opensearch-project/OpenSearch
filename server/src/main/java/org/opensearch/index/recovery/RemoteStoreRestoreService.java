@@ -27,6 +27,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -95,7 +96,7 @@ public class RemoteStoreRestoreService {
      * @param listener restore listener
      */
     public void restore(RestoreRemoteStoreRequest request, final ActionListener<RestoreService.RestoreCompletionResponse> listener) {
-        clusterService.submitStateUpdateTask("restore[remote_store]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("restore[remote_store]", new ClusterStateUpdateTask(Priority.URGENT) {
             String restoreUUID;
             RestoreInfo restoreInfo = null;
 
