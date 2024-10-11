@@ -11,10 +11,10 @@
 
 include 'reaper'
 
-dependencyResolutionManagement {
-  versionCatalogs {
-    libs {
-      from(files("../gradle/libs.versions.toml"))
-    }
-  }
-}
+//dependencyResolutionManagement {
+//  versionCatalogs {
+//    libs {
+//      from(files("../gradle/libs.versions.toml"))
+//    }
+//  }
+//}
