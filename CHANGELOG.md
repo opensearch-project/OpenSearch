@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api-client:google-api-client` from 2.2.0 to 2.7.0 ([#16216](https://github.com/opensearch-project/OpenSearch/pull/16216))
 - Bump `com.azure:azure-json` from 1.1.0 to 1.3.0 ([#16217](https://github.com/opensearch-project/OpenSearch/pull/16217))
 - Bump `org.jline:jline` from 3.26.3 to 3.27.0 ([#16135](https://github.com/opensearch-project/OpenSearch/pull/16135))
+- Bump `io.grpc:grpc-api` from 1.57.2 to 1.68.0 ([#16213](https://github.com/opensearch-project/OpenSearch/pull/16213))
 
 ### Changed
 - Add support for docker compose v2 in TestFixturesPlugin ([#16049](https://github.com/opensearch-project/OpenSearch/pull/16049))
