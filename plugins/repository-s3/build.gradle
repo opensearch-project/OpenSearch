@@ -79,7 +79,7 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "joda-time:joda-time:${versions.joda}"
+  api "joda-time:joda-time:${libs.versions.joda}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
