@@ -120,6 +120,7 @@ subprojects {
         }
       }
       repositories {
+        mavenCentral()
         maven {
           name = 'test'
           url = "${rootProject.buildDir}/local-test-repo"
