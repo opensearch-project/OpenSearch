@@ -372,7 +372,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      * <p>
      * Alias that match the rename pattern will be renamed according to {@link #renameAliasReplacement(String)}. The
      * rename pattern is applied according to the {@link java.util.regex.Matcher#appendReplacement(StringBuffer, String)}
-     * The request will fail if two or more alias will be renamed into the same name.
+     * If two or more aliases are renamed into the same name, they will be merged.
      *
      * @param renameAliasPattern rename pattern
      * @return this request
