@@ -58,7 +58,7 @@ dependencies {
 
   api 'com.google.apis:google-api-services-storage:v1-rev20230617-2.0.0'
 
-  api 'com.google.api-client:google-api-client:2.2.0'
+  api 'com.google.api-client:google-api-client:2.7.0'
 
   api 'com.google.api.grpc:proto-google-common-protos:2.37.1'
   api 'com.google.api.grpc:proto-google-iam-v1:1.33.0'
@@ -86,7 +86,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'org.threeten:threetenbp:1.4.4'
-  api 'io.grpc:grpc-api:1.57.2'
+  api "io.grpc:grpc-api:${versions.grpc}"
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
 

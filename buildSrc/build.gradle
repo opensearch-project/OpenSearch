@@ -113,7 +113,7 @@ dependencies {
   api 'com.github.johnrengelman:shadow:8.1.1'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
-  api 'de.thetaphi:forbiddenapis:3.6'
+  api 'de.thetaphi:forbiddenapis:3.8'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.6'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
   api 'org.apache.maven:maven-model:3.9.6'

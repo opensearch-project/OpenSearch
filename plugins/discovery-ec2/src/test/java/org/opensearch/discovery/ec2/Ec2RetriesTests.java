@@ -125,6 +125,7 @@ public class Ec2RetriesTests extends AbstractEc2MockAPITestCase {
                     exchange.getResponseHeaders().set("Content-Type", "text/xml; charset=UTF-8");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, responseBody.length);
                     exchange.getResponseBody().write(responseBody);
+                    exchange.getResponseBody().flush();
                     return;
                 }
             }

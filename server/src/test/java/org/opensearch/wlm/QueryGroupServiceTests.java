@@ -401,14 +401,14 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         ((QueryGroupTask) task).setQueryGroupId(mockThreadPool.getThreadContext());
         queryGroupService.onTaskCompleted(task);
 
-        assertEquals(1, queryGroupState.completions.count());
+        assertEquals(1, queryGroupState.totalCompletions.count());
 
         // test non QueryGroupTask
         task = new Task(1, "simple", "test", "mock task", null, null);
         queryGroupService.onTaskCompleted(task);
 
         // It should still be 1
-        assertEquals(1, queryGroupState.completions.count());
+        assertEquals(1, queryGroupState.totalCompletions.count());
 
         mockThreadPool.shutdown();
     }

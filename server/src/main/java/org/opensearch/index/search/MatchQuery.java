@@ -227,9 +227,6 @@ public class MatchQuery {
         this.occur = occur;
     }
 
-    /**
-     * @deprecated See {@link MatchQueryBuilder#setCommonTermsCutoff(Float)} for more details
-     */
     @Deprecated
     public void setCommonTermsCutoff(Float cutoff) {
         this.commonTermsCutoff = cutoff;
