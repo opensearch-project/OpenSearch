@@ -32,6 +32,12 @@
 
 package org.opensearch.action.admin.cluster.node.tasks;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
@@ -58,9 +64,14 @@ import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.Streams;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceStats;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
+import org.opensearch.core.tasks.resourcetracker.TaskThreadUsage;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.mapper.StrictDynamicMappingException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
@@ -86,6 +97,8 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -111,6 +124,26 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends AbstractTasksIT {
+
+    protected final TaskInfo taskInfo = new TaskInfo(
+        new TaskId("fake", 1),
+        "test_type",
+        "test_action",
+        "test_description",
+        null,
+        0L,
+        1L,
+        false,
+        false,
+        TaskId.EMPTY_TASK_ID,
+        Collections.emptyMap(),
+        new TaskResourceStats(new HashMap<>() {
+            {
+                put("dummy-type1", new TaskResourceUsage(10, 20));
+            }
+        }, new TaskThreadUsage(30, 40)),
+        2L
+    );
 
     public void testTaskCounts() {
         // Run only on data nodes
@@ -881,20 +914,7 @@ public class TasksIT extends AbstractTasksIT {
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
         resultsService.storeResult(
             new TaskResult(
-                new TaskInfo(
-                    new TaskId("fake", 1),
-                    "test",
-                    "test",
-                    "",
-                    null,
-                    0,
-                    0,
-                    false,
-                    false,
-                    TaskId.EMPTY_TASK_ID,
-                    Collections.emptyMap(),
-                    null
-                ),
+                taskInfo,
                 new RuntimeException("test")
             ),
             new ActionListener<Void>() {
@@ -917,8 +937,66 @@ public class TasksIT extends AbstractTasksIT {
 
         // Now we can find it!
         GetTaskResponse response = expectFinishedTask(new TaskId("fake:1"));
-        assertEquals("test", response.getTask().getTask().getAction());
-        assertNotNull(response.getTask().getError());
-        assertNull(response.getTask().getResponse());
+        TaskResult taskResult = response.getTask();
+        TaskInfo task = taskResult.getTask();
+
+        assertEquals("fake", task.getTaskId().getNodeId());
+        assertEquals(1, task.getTaskId().getId());
+        assertEquals("test_type", task.getType());
+        assertEquals("test_action", task.getAction());
+        assertEquals("test_description", task.getDescription());
+        assertEquals(0L, task.getStartTime());
+        assertEquals(1L, task.getRunningTimeNanos());
+        assertFalse(task.isCancellable());
+        assertFalse(task.isCancelled());
+        assertEquals(TaskId.EMPTY_TASK_ID, task.getParentTaskId());
+        assertEquals(1, task.getResourceStats().getResourceUsageInfo().size());
+        assertEquals(30, task.getResourceStats().getThreadUsage().getThreadExecutions());
+        assertEquals(40, task.getResourceStats().getThreadUsage().getActiveThreads());
+        assertEquals(Long.valueOf(2L), task.getCancellationStartTime());
+
+
+        assertNotNull(taskResult.getError());
+        assertNull(taskResult.getResponse());
+        System.out.println("original:"+resultsService.taskResultIndexMapping());
+    }
+
+    public void testStoreTaskResultFailsDueToMissingIndexMappingFields() throws IOException {
+        // given
+        TaskResultsService resultsService = spy(internalCluster().getInstance(TaskResultsService.class));
+
+        InputStream mockInputStream = getClass().getResourceAsStream("/org/opensearch/tasks/missing-fields-task-index-mapping.json");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Streams.copy(mockInputStream, out);
+        String mockJsonString = out.toString(StandardCharsets.UTF_8.name());
+
+        // when & then
+        doReturn(mockJsonString).when(resultsService).taskResultIndexMapping();
+
+        CompletionException thrown = assertThrows(CompletionException.class, () -> {
+            CompletableFuture<Void> future = new CompletableFuture<>();
+
+            resultsService.storeResult(
+                new TaskResult(
+                    taskInfo,
+                    new RuntimeException("test")
+                ),
+                new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void response) {
+                        future.complete(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        future.completeExceptionally(e);
+                    }
+                }
+            );
+
+            future.join();
+        });
+
+        assertTrue(thrown.getCause() instanceof StrictDynamicMappingException);
     }
 }
