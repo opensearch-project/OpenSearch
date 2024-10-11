@@ -11,7 +11,6 @@ package org.opensearch.wlm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.Metadata;
@@ -354,10 +353,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
             queryGroupId = QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get();
         }
 
-        if (task instanceof SearchShardTask) {
-            queryGroupsStateAccessor.getQueryGroupState(queryGroupId).shardCompletions.inc();
-        } else {
-            queryGroupsStateAccessor.getQueryGroupState(queryGroupId).completions.inc();
-        }
+        queryGroupsStateAccessor.getQueryGroupState(queryGroupId).totalCompletions.inc();
     }
 }
