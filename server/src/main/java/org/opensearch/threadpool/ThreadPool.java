@@ -218,8 +218,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final ScheduledThreadPoolExecutor scheduler;
 
-    private ClusterSettings clusterSettings = null;
-
     public Collection<ExecutorBuilder> builders() {
         return Collections.unmodifiableCollection(builders.values());
     }
@@ -418,9 +416,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return holder.info;
     }
 
-    public void setClusterSettings(ClusterSettings clusterSettings) {
-        this.clusterSettings = clusterSettings;
-        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_THREAD_POOL_SIZE_SETTING, this::setThreadPool, this::validateSetting);
+    public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_THREAD_POOL_SIZE_SETTING, this::setThreadPool, this::validateSetting);
     }
 
     /*

@@ -191,11 +191,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         TestThreadPool threadPool = new TestThreadPool("test");
         try {
             Settings commonSettings = Settings.builder().put("snapshot.max", "50").put("snapshot.core", "100").build();
-            threadPool.setThreadPool(commonSettings);
-            ExecutorService executorService = threadPool.executor("snapshot");
-            OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) executorService;
-            assertNotEquals(50, executor.getMaximumPoolSize());
-            assertNotEquals(100, executor.getCorePoolSize());
+            assertThrows(IllegalArgumentException.class, () -> threadPool.setThreadPool(commonSettings));
         } finally {
             terminate(threadPool);
         }
