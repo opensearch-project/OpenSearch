@@ -31,7 +31,7 @@ hdrhistogram      = "2.2.2"
 jna               = "5.13.0"
 
 netty             = "4.1.114.Final"
-joda              = "2.12.7"
+joda              = "2.12.4"
 
 # project reactor
 reactor_netty     = "1.1.22"
