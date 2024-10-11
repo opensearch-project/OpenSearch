@@ -382,6 +382,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         IndexId indexId = repoData.getIndices().values().iterator().next();
         int shardCount = repoData.shardGenerations().getGens(indexId).size();
 
+        // Version 2.17 has file name starting with indexId
         String shardPath = String.join(
             SnapshotShardPaths.DELIMITER,
             indexId.getId(),
@@ -391,7 +392,19 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             "1"
         );
         ShardInfo shardInfo = SnapshotShardPaths.parseShardPath(shardPath);
+        assertEquals(shardInfo.getIndexId(), indexId);
+        assertEquals(shardInfo.getShardCount(), shardCount);
 
+        // Version 2.17 has file name starting with snapshot_path_
+        shardPath = String.join(
+            SnapshotShardPaths.DELIMITER,
+            SnapshotShardPaths.FILE_PREFIX + indexId.getId(),
+            indexId.getName(),
+            String.valueOf(shardCount),
+            String.valueOf(indexId.getShardPathType()),
+            "1"
+        );
+        shardInfo = SnapshotShardPaths.parseShardPath(shardPath);
         assertEquals(shardInfo.getIndexId(), indexId);
         assertEquals(shardInfo.getShardCount(), shardCount);
     }
