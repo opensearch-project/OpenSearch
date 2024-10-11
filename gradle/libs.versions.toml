@@ -77,3 +77,6 @@ resteasy          = "6.2.4.Final"
 # opentelemetry dependencies
 opentelemetry         = "1.41.0"
 opentelemetrysemconv  = "1.27.0-alpha"
+
+#[libraries]
+#joda-time = { group = "joda-time", name = "joda-time", version.ref = "joda" }
