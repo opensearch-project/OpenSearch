@@ -414,7 +414,7 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
                 .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have max and core");
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have [core, max]");
         }
 
         // Scaling threadpool - core > max
@@ -449,7 +449,7 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
                 .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have size");
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have [size]");
         }
 
         // Fixed threadpool - 0 value
