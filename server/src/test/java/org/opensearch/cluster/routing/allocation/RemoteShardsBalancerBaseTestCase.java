@@ -277,7 +277,7 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
             final Map<String, Long> shardSizes
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of());
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of(), 0L);
         }
 
         @Override

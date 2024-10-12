@@ -127,7 +127,15 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
 
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of(), Map.of());
+        final ClusterInfo clusterInfo = new ClusterInfo(
+            leastAvailableUsages,
+            mostAvailableUsage,
+            shardSizes,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            10L
+        );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState.getRoutingNodes(),
@@ -203,7 +211,15 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         // way bigger than available space
         final long shardSize = randomIntBetween(110, 1000);
         shardSizes.put("[test][0][p]", shardSize);
-        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of(), Map.of());
+        ClusterInfo clusterInfo = new ClusterInfo(
+            leastAvailableUsages,
+            mostAvailableUsage,
+            shardSizes,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            shardSize
+        );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState.getRoutingNodes(),
@@ -326,7 +342,8 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
             shardSizes,
             shardRoutingMap,
             Map.of(),
-            Map.of()
+            Map.of(),
+            30L
         );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),

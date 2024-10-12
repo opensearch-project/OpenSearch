@@ -51,7 +51,8 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             randomShardSizes(),
             randomRoutingToDataPath(),
             randomReservedSpace(),
-            randomFileCacheStats()
+            randomFileCacheStats(),
+            randomLong()
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
