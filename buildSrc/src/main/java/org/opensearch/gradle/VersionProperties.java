@@ -35,6 +35,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -143,7 +144,11 @@ public class VersionProperties {
     private static Properties getVersionProperties() {
         TomlParseResult toml = null;
         try {
-            Path path = Path.of(System.getProperty("user.dir"), "gradle/libs.versions.toml");
+            Path rootDir = Paths.get(System.getProperty("user.dir"));
+            if (rootDir.endsWith("buildSrc")) {
+                rootDir = rootDir.getParent();
+            }
+            Path path = rootDir.resolve("gradle/libs.versions.toml");
             toml = Toml.parse(path);
         } catch (IOException e) {
             throw new RuntimeException(e);
