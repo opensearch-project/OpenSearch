@@ -118,6 +118,7 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
@@ -238,6 +239,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         analyzers.put("portuguese", PortugueseAnalyzerProvider::new);
         analyzers.put("romanian", RomanianAnalyzerProvider::new);
         analyzers.put("russian", RussianAnalyzerProvider::new);
+        analyzers.put("serbian", SerbianAnalyzerProvider::new);
         analyzers.put("sorani", SoraniAnalyzerProvider::new);
         analyzers.put("spanish", SpanishAnalyzerProvider::new);
         analyzers.put("swedish", SwedishAnalyzerProvider::new);
@@ -471,6 +473,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         analyzers.add(new PreBuiltAnalyzerProviderFactory("portuguese", CachingStrategy.LUCENE, PortugueseAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("romanian", CachingStrategy.LUCENE, RomanianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("russian", CachingStrategy.LUCENE, RussianAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("serbian", CachingStrategy.LUCENE, SerbianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("sorani", CachingStrategy.LUCENE, SoraniAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("spanish", CachingStrategy.LUCENE, SpanishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("swedish", CachingStrategy.LUCENE, SwedishAnalyzer::new));
