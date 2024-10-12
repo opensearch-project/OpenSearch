@@ -22,8 +22,8 @@ setup:
 ---
 Test retrieval of number_routing_shards settings:
   - skip:
-      version: " - 2.17.99"
-      reason: "introduced in 2.18.0"
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0" # TODO: change it to 2.18.0 after backport to 2.x branch
   - do:
       indices.get_settings:
         flat_settings: true
