@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -146,7 +147,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
         int numDocs = 0;
         int[] docIds;
-        OrdinalMap ordinalMap = getOrdinalMap(starTreeValuesSubs, mergeState);
+        Map<String, OrdinalMap> ordinalMaps = getOrdinalMaps(starTreeValuesSubs, mergeState);
         try {
             int seg = 0;
             for (StarTreeValues starTreeValues : starTreeValuesSubs) {
@@ -155,12 +156,12 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 AtomicInteger numSegmentDocs = new AtomicInteger();
                 setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
                 int currentDocId = 0;
-                LongValues longValues = null;
-                if (ordinalMap != null) {
-                    longValues = ordinalMap.getGlobalOrds(seg);
+                Map<String, LongValues> longValuesMap = new LinkedHashMap<>();
+                for (Map.Entry<String, OrdinalMap> entry : ordinalMaps.entrySet()) {
+                    longValuesMap.put(entry.getKey(), entry.getValue().getGlobalOrds(seg));
                 }
                 while (currentDocId < numSegmentDocs.get()) {
-                    StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, longValues);
+                    StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, longValuesMap);
                     segmentDocumentFileManager.writeStarTreeDocument(starTreeDocument, true);
                     numDocs++;
                     currentDocId++;

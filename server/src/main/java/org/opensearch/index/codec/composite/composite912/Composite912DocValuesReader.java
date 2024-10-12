@@ -165,6 +165,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                                     dimensionEntry.getKey()
                                 );
                                 fields.add(dimName);
+                                dimensionFieldTypeMap.put(dimName, dimensionEntry.getValue());
                             }
                             // adding metric fields
                             for (Metric metric : starTreeMetadata.getMetrics()) {

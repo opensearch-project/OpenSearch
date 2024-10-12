@@ -59,6 +59,7 @@ import org.opensearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -322,48 +323,64 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     }
 
     /**
-     * Returns the ordinal map based on given star-tree values across different segments
+     * Returns the ordinal map per field based on given star-tree values across different segments
      */
-    protected OrdinalMap getOrdinalMap(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
+    protected Map<String, OrdinalMap> getOrdinalMaps(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
         long curr = System.currentTimeMillis();
-        List<SortedSetStarTreeValuesIterator> toMerge = new ArrayList<>();
+        Map<String, List<SortedSetStarTreeValuesIterator>> dimensionToIterators = new HashMap<>();
 
+        // Group iterators by dimension
         for (StarTreeValues starTree : starTreeValuesSubs) {
             for (String dimName : starTree.getStarTreeField().getDimensionNames()) {
                 if (starTree.getDimensionValuesIterator(dimName) instanceof SortedSetStarTreeValuesIterator) {
-                    toMerge.add((SortedSetStarTreeValuesIterator) starTree.getDimensionValuesIterator(dimName));
+                    dimensionToIterators.computeIfAbsent(dimName, k -> new ArrayList<>())
+                        .add((SortedSetStarTreeValuesIterator) starTree.getDimensionValuesIterator(dimName));
                 }
             }
         }
-        if (toMerge.isEmpty()) return null;
-        // step 1: iterate through each sub and mark terms still in use
-        TermsEnum[] liveTerms = new TermsEnum[toMerge.size()];
-        long[] weights = new long[liveTerms.length];
-        for (int sub = 0; sub < liveTerms.length; sub++) {
-            SortedSetStarTreeValuesIterator dv = toMerge.get(sub);
-            Bits liveDocs = mergeState.liveDocs[sub];
-            if (liveDocs == null) {
-                liveTerms[sub] = dv.termsEnum();
-                weights[sub] = dv.getValueCount();
-            } else {
-                LongBitSet bitset = new LongBitSet(dv.getValueCount());
-                int docID;
-                while ((docID = dv.nextEntry()) != NO_MORE_ENTRIES) {
-                    if (liveDocs.get(docID)) {
-                        for (int i = 0; i < dv.docValueCount(); i++) {
-                            bitset.set(dv.nextOrd());
+
+        if (dimensionToIterators.isEmpty()) return Collections.emptyMap();
+
+        Map<String, OrdinalMap> dimensionToOrdinalMap = new HashMap<>();
+
+        for (Map.Entry<String, List<SortedSetStarTreeValuesIterator>> entry : dimensionToIterators.entrySet()) {
+            String dimName = entry.getKey();
+            List<SortedSetStarTreeValuesIterator> iterators = entry.getValue();
+
+            // step 1: iterate through each sub and mark terms still in use
+            TermsEnum[] liveTerms = new TermsEnum[iterators.size()];
+            long[] weights = new long[liveTerms.length];
+
+            for (int sub = 0; sub < liveTerms.length; sub++) {
+                SortedSetStarTreeValuesIterator dv = iterators.get(sub);
+                Bits liveDocs = mergeState.liveDocs[sub];
+                if (liveDocs == null) {
+                    liveTerms[sub] = dv.termsEnum();
+                    weights[sub] = dv.getValueCount();
+                } else {
+                    LongBitSet bitset = new LongBitSet(dv.getValueCount());
+                    int docID;
+                    while ((docID = dv.nextEntry()) != NO_MORE_ENTRIES) {
+                        if (liveDocs.get(docID)) {
+                            for (int i = 0; i < dv.docValueCount(); i++) {
+                                bitset.set(dv.nextOrd());
+                            }
                         }
                     }
+                    liveTerms[sub] = new BitsFilteredTermsEnum(dv.termsEnum(), bitset);
+                    weights[sub] = bitset.cardinality();
                 }
-                liveTerms[sub] = new BitsFilteredTermsEnum(dv.termsEnum(), bitset);
-                weights[sub] = bitset.cardinality();
             }
+
+            // step 2: create ordinal map for this dimension
+            OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
+            dimensionToOrdinalMap.put(dimName, map);
+
+            logger.debug("Ordinal map for dimension {} - Size in bytes: {}", dimName, map.ramBytesUsed());
         }
-        // step 2: create ordinal map (this conceptually does the "merging")
-        final OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
-        logger.debug("Map size in bytes : {}", map.ramBytesUsed());
-        logger.debug("Ordinal map takes : {} ", System.currentTimeMillis() - curr);
-        return map;
+
+        logger.debug("Total time to build ordinal maps: {} ms", System.currentTimeMillis() - curr);
+        return dimensionToOrdinalMap;
     }
 
     /**
@@ -579,13 +596,13 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         int currentDocId,
         SequentialDocValuesIterator[] dimensionReaders,
         List<SequentialDocValuesIterator> metricReaders,
-        LongValues longValues
+        Map<String, LongValues> longValues
     ) throws IOException {
         Long[] dims = new Long[numDimensions];
         int i = 0;
         for (SequentialDocValuesIterator dimensionValueIterator : dimensionReaders) {
             dimensionValueIterator.nextEntry(currentDocId);
-            Long val = dimensionValueIterator.value(currentDocId, longValues);
+            Long val = dimensionValueIterator.value(currentDocId, longValues.get(starTreeField.getDimensionNames().get(i)));
             dims[i] = val;
             i++;
         }
@@ -838,7 +855,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * Sets the sortedSetDocValuesMap.
      * This is needed as we need to write the ordinals and also the bytesRef associated with it
      */
-    protected void setSortedSetDocValuesMap(Map<String, SortedSetDocValues> sortedSetDocValuesMap) {
+    void setSortedSetDocValuesMap(Map<String, SortedSetDocValues> sortedSetDocValuesMap) {
         this.sortedSetDocValuesMap = sortedSetDocValuesMap;
     }
 
@@ -908,7 +925,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @throws IOException throws an exception if we are unable to add the doc
      */
     private void appendToStarTree(StarTreeDocument starTreeDocument) throws IOException {
-        // System.out.println(starTreeDocument);
         appendStarTreeDocument(starTreeDocument);
         numStarTreeDocs++;
     }

@@ -24,8 +24,8 @@ import org.opensearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -134,21 +134,20 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      */
     StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
-        OrdinalMap ordinalMap = getOrdinalMap(starTreeValuesSubs, mergeState);
+        Map<String, OrdinalMap> ordinalMaps = getOrdinalMaps(starTreeValuesSubs, mergeState);
         int seg = 0;
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
-            Map<Long, Long> segToGlobalOrdMap = new HashMap<>();
             SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
             AtomicInteger numSegmentDocs = new AtomicInteger();
             setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
             int currentDocId = 0;
-            LongValues longValues = null;
-            if (ordinalMap != null) {
-                longValues = ordinalMap.getGlobalOrds(seg);
+            Map<String, LongValues> longValuesMap = new LinkedHashMap<>();
+            for (Map.Entry<String, OrdinalMap> entry : ordinalMaps.entrySet()) {
+                longValuesMap.put(entry.getKey(), entry.getValue().getGlobalOrds(seg));
             }
             while (currentDocId < numSegmentDocs.get()) {
-                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, longValues));
+                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, longValuesMap));
                 currentDocId++;
             }
             seg++;

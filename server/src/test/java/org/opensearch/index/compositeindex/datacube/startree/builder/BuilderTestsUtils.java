@@ -18,11 +18,13 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
 import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
@@ -116,6 +118,61 @@ public class BuilderTestsUtils {
 
             @Override
             public int docValueCount() {
+                return 0;
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                return false;
+            }
+
+            @Override
+            public int docID() {
+                return index;
+            }
+
+            @Override
+            public int nextDoc() {
+                if (index == docsWithField.size() - 1) {
+                    return NO_MORE_DOCS;
+                }
+                index++;
+                return docsWithField.get(index);
+            }
+
+            @Override
+            public int advance(int target) {
+                return 0;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
+    }
+
+    public static SortedSetDocValues getSortedSetMock(List<Long> dimList, List<Integer> docsWithField) {
+        return new SortedSetDocValues() {
+            int index = -1;
+
+            @Override
+            public long nextOrd() throws IOException {
+                return dimList.get(index);
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long l) throws IOException {
+                return new BytesRef("dummy" + l);
+            }
+
+            @Override
+            public long getValueCount() {
                 return 0;
             }
 
@@ -409,7 +466,7 @@ public class BuilderTestsUtils {
                 false,
                 true,
                 IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
-                DocValuesType.SORTED_NUMERIC,
+                dimensionFields.get(dimension),
                 -1,
                 Collections.emptyMap(),
                 0,
