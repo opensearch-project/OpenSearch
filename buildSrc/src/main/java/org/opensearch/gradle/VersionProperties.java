@@ -141,7 +141,7 @@ public class VersionProperties {
         }
     }
 
-    private static Properties getVersionProperties() {
+    public static Properties getVersionProperties() {
         TomlParseResult toml = null;
         try {
             Path rootDir = Paths.get(System.getProperty("user.dir"));
@@ -156,7 +156,39 @@ public class VersionProperties {
 
         Properties properties = new Properties();
         tomlVersionsToProperties(toml, properties);
+        loadBuildSrcVersion(properties, System.getProperties());
         return properties;
+    }
+
+    private static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
+        String opensearch = loadedProps.getProperty("opensearch");
+        if (opensearch == null) {
+            throw new IllegalStateException("OpenSearch version is missing from properties.");
+        }
+        if (opensearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
+            throw new IllegalStateException("Expected opensearch version to be numbers only of the form  X.Y.Z but it was: " + opensearch);
+        }
+        String qualifier = systemProperties.getProperty("build.version_qualifier", "");
+        if (qualifier.isEmpty() == false) {
+            if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
+                throw new IllegalStateException("Invalid qualifier: " + qualifier);
+            }
+            opensearch += "-" + qualifier;
+        }
+        final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
+        switch (buildSnapshotSystemProperty) {
+            case "true":
+                opensearch += "-SNAPSHOT";
+                break;
+            case "false":
+                // do nothing
+                break;
+            default:
+                throw new IllegalArgumentException(
+                    "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]"
+                );
+        }
+        loadedProps.put("opensearch", opensearch);
     }
 
     public static boolean isOpenSearchSnapshot() {

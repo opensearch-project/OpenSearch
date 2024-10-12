@@ -30,6 +30,12 @@
 
 import org.gradle.internal.jvm.Jvm
 import org.gradle.util.GradleVersion
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.IOException;
 
 plugins {
   id 'java-gradle-plugin'
@@ -278,25 +284,57 @@ if (project != rootProject) {
   }
 }
 
-// Define this here because we need it early.
+// Define this here because we need it early. This reads in a toml file, extracts the section with the header
+// [versions] and converts to a Java Properties object
 class VersionPropertiesLoader {
   static Properties loadBuildSrcVersion(File input) throws IOException {
     Properties props = new Properties();
     InputStream is = new FileInputStream(input)
+    InputStream versionsStream = getSectionAsStream(is, "versions");
     try {
-      props.load(is)
+      props.load(versionsStream)
     } finally {
+      versionsStream.close()
       is.close()
     }
     props.forEach((key, value) -> {
-      String newValue = value.toString().replace("\"", "")
-      props.setProperty(key.toString(), newValue)
+      if (value != null && value instanceof String) {
+        String newValue = value.toString().replace("\"", "")
+        props.setProperty(key.toString(), newValue)
+      }
     });
     loadBuildSrcVersion(props, System.getProperties())
     return props
   }
 
-  protected static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
+  static InputStream getSectionAsStream(InputStream is, String startSection) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        StringBuilder section = new StringBuilder();
+
+        String line;
+        boolean inSection = false;
+
+        while ((line = reader.readLine()) != null) {
+            line = line.trim();
+
+            if (line.equals("[" + startSection + "]")) {
+                inSection = true;
+                continue;
+            }
+
+            if (inSection && line.startsWith("[") && line.endsWith("]")) {
+                break;
+            }
+            if (inSection) {
+                section.append(line).append("\n");
+            }
+        }
+
+        reader.close();
+        return new ByteArrayInputStream(section.toString().getBytes());
+    }
+
+  static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
     String opensearch = loadedProps.getProperty("opensearch")
     if (opensearch == null) {
       throw new IllegalStateException("OpenSearch version is missing from properties.")
