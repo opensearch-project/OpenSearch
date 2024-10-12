@@ -1327,7 +1327,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final Set<RepositoryShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
 
-    private void runReadyClone(
+    // Made to package private to be able to test the method in UTs
+    void runReadyClone(
         Snapshot target,
         SnapshotId sourceSnapshot,
         ShardSnapshotStatus shardStatusBefore,
