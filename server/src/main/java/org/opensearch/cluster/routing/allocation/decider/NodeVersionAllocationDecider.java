@@ -39,7 +39,6 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.List;
@@ -58,15 +57,13 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_version";
 
-    private final ReplicationType replicationType;
-
-    public NodeVersionAllocationDecider(Settings settings) {
-        replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
-    }
+    public NodeVersionAllocationDecider() {}
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
+            IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
+            final ReplicationType replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMd.getSettings());
             if (replicationType == ReplicationType.SEGMENT) {
                 List<ShardRouting> replicas = allocation.routingNodes()
                     .assignedShards(shardRouting.shardId())
