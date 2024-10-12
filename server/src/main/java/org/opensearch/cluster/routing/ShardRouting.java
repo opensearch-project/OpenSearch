@@ -49,7 +49,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
@@ -74,7 +73,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
     private final RecoverySource recoverySource;
     private final UnassignedInfo unassignedInfo;
     private final AllocationId allocationId;
-    private final transient List<ShardRouting> asList;
+    // private final transient List<ShardRouting> asList;
     private final long expectedShardSize;
     @Nullable
     private final ShardRouting targetRelocatingShard;
@@ -106,7 +105,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
         this.allocationId = allocationId;
         this.expectedShardSize = expectedShardSize;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
-        this.asList = Collections.singletonList(this);
+        // this.asList = Collections.singletonList(this);
         assert expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE
             || state == ShardRoutingState.INITIALIZING
             || state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
@@ -350,12 +349,13 @@ public class ShardRouting implements Writeable, ToXContentObject {
      * A shard iterator with just this shard in it.
      */
     public ShardIterator shardsIt() {
-        return new PlainShardIterator(shardId, asList);
+        return new PlainShardIterator(shardId, Collections.singletonList(this));
     }
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
         this.shardId = shardId;
-        currentNodeId = in.readOptionalString();
+        String currentNodeIdFromStream = in.readOptionalString();
+        currentNodeId = currentNodeIdFromStream != null ? currentNodeIdFromStream.intern() : null;
         relocatingNodeId = in.readOptionalString();
         primary = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
@@ -378,7 +378,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
             shardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
         expectedShardSize = shardSize;
-        asList = Collections.singletonList(this);
+        // asList = Collections.singletonList(this);
         targetRelocatingShard = initializeTargetRelocatingShard();
     }
 
