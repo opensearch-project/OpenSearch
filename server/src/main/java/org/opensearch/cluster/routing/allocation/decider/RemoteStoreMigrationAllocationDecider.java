@@ -186,8 +186,8 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
         String reason,
         RoutingAllocation allocation
     ) {
-        if (allocation.debugDecision()) {
-            return "";
+        if (allocation.debugDecision() == false) {
+            return null;
         }
         return new StringBuilder("[").append(migrationDirection.direction)
             .append(" migration_direction]: ")
