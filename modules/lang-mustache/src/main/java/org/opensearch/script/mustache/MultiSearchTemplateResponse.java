@@ -33,6 +33,7 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.common.Nullable;
@@ -174,6 +175,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
             if (item.isFailure()) {
                 builder.startObject();
                 OpenSearchException.generateFailureXContent(builder, params, item.getFailure(), true);
+                builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
                 builder.endObject();
             } else {
                 item.getResponse().toXContent(builder, params);
@@ -186,6 +188,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     static final class Fields {
         static final String RESPONSES = "responses";
+        static final String STATUS = "status";
     }
 
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
