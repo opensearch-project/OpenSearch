@@ -15,6 +15,7 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexResponse;
 import org.opensearch.action.bulk.BulkRequest;
@@ -35,16 +36,8 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-//import static org.opensearch.node.Node.NODE_NAME_SETTING;
 
 public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
-    // private DeterministicTaskQueue deterministicTaskQueue;
-
-    // @Before
-    // public void createServices() {
-    // deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "shared").build(), random());
-    // }
-
     // TODO there is certainly a better way to do this, but I don't know what it is....
     public void testRestoreToNewWithAliasAndRename() throws Exception {
         __testRestoreWithRename(false, false, true, true, true);
@@ -52,6 +45,14 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
 
     public void testRestoreToNewWithoutAliasAndWithRename() throws Exception {
         __testRestoreWithRename(false, false, false, true, true);
+    }
+
+    public void testRestoreToNewWithAliasAndWithoutRename() throws Exception {
+        __testRestoreWithRename(false, false, true, false, false);
+    }
+
+    public void testRestoreToNewWithoutAliasAndRename() throws Exception {
+        __testRestoreWithRename(false, false, false, false, false);
     }
 
     public void testRestoreOverExistingOpenWithAliasAndRename() throws Exception {
@@ -86,9 +87,9 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
         __testRestoreWithRename(true, true, true, false, false);
     }
 
-    public void __testRestoreWithRename(boolean exists, boolean closed, boolean includeAlias, boolean renameAliases, boolean renameIndexes)
+    private void __testRestoreWithRename(boolean exists, boolean closed, boolean includeAlias, boolean renameAliases, boolean renameIndexes)
         throws Exception {
-        assert exists || renameIndexes;
+        assert exists || !closed;
         final String indexName = "index_1";
         final String renamedIndexName = "index_2";
         final String aliasName = "alias_1";
@@ -102,6 +103,16 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
         if (exists && renameIndexes) {
             this.createIndex(renamedIndexName);
         }
+
+        final StepListener<AcknowledgedResponse> putRepositoryResponseStepListener = new StepListener<>();
+        Settings.Builder settings = Settings.builder().put("location", randomAlphaOfLength(10));
+        OpenSearchIntegTestCase.putRepository(
+            client().admin().cluster(),
+            repoName,
+            FsRepository.TYPE,
+            settings,
+            putRepositoryResponseStepListener
+        );
 
         final StepListener<AcknowledgedResponse> createAliasResponseStepListener = new StepListener<>();
         client().admin()
@@ -126,76 +137,82 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
             });
         });
 
-        Settings.Builder settings = Settings.builder().put("location", randomAlphaOfLength(10));
-        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, FsRepository.TYPE, settings);
-
         isDocumentFinished.await(1, TimeUnit.MINUTES);
 
         if (closed) {
-            final CountDownLatch isReady = new CountDownLatch(1);
+            final CountDownLatch isClosed = new CountDownLatch(1);
             final StepListener<CloseIndexResponse> closeIndexResponseStepListener = new StepListener<>();
             final String indexToClose = renameIndexes ? renamedIndexName : indexName;
             client().admin().indices().close(new CloseIndexRequest(indexToClose), closeIndexResponseStepListener);
 
-            continueOrDie(closeIndexResponseStepListener, ignored -> { isReady.countDown(); });
-            isReady.await(1, TimeUnit.MINUTES);
+            continueOrDie(closeIndexResponseStepListener, ignored -> { isClosed.countDown(); });
+            isClosed.await(1, TimeUnit.MINUTES);
         }
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
-
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, snapShotName)
-            .setWaitForCompletion(true)
-            .setPartial(true)
-            .execute(createSnapshotResponseStepListener);
-
-        final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new StepListener<>();
-
-        final CountDownLatch isFinished = new CountDownLatch(1);
-        continueOrDie(createSnapshotResponseStepListener, r -> {
-            assert r.getSnapshotInfo().state() == SnapshotState.SUCCESS;
-            RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repoName, snapShotName).includeAliases(includeAlias)
-                .waitForCompletion(true);
-            if (renameAliases) {
-                restoreSnapshotRequest = restoreSnapshotRequest.renameAliasPattern("1").renameAliasReplacement("2");
-            }
-            if (renameIndexes) {
-                restoreSnapshotRequest = restoreSnapshotRequest.renamePattern("1").renameReplacement("2");
-            }
-            client().admin().cluster().restoreSnapshot(restoreSnapshotRequest, restoreSnapshotResponseStepListener);
+        continueOrDie(putRepositoryResponseStepListener, ignored -> {
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repoName, snapShotName)
+                .setWaitForCompletion(true)
+                .setPartial(true)
+                .execute(createSnapshotResponseStepListener);
         });
 
-        restoreSnapshotResponseStepListener.whenComplete(r -> {
-            isFinished.countDown();
+        final CountDownLatch isRestorable = new CountDownLatch(1);
+
+        if (!exists && !renameIndexes) {
+            final StepListener<AcknowledgedResponse> deleteIndexResponseStepListener = new StepListener<>();
+            continueOrDie(createSnapshotResponseStepListener, ignored -> {
+                client().admin().indices().delete(new DeleteIndexRequest(indexName), deleteIndexResponseStepListener);
+            });
+            continueOrDie(deleteIndexResponseStepListener, ignored -> isRestorable.countDown());
+        } else {
+            continueOrDie(createSnapshotResponseStepListener, ignored -> isRestorable.countDown());
+        }
+
+        isRestorable.await(1, TimeUnit.MINUTES);
+
+        final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new StepListener<>();
+        final CountDownLatch isRestored = new CountDownLatch(1);
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repoName, snapShotName).includeAliases(includeAlias)
+            .waitForCompletion(true);
+        if (renameAliases) {
+            restoreSnapshotRequest = restoreSnapshotRequest.renameAliasPattern("1").renameAliasReplacement("2");
+        }
+        if (renameIndexes) {
+            restoreSnapshotRequest = restoreSnapshotRequest.renamePattern("1").renameReplacement("2");
+        }
+        client().admin().cluster().restoreSnapshot(restoreSnapshotRequest, restoreSnapshotResponseStepListener);
+
+        restoreSnapshotResponseStepListener.whenComplete(ignored -> {
+            isRestored.countDown();
             assertTrue("unexpected sucesssful restore", expectSuccess);
         }, e -> {
-            isFinished.countDown();
+            isRestored.countDown();
             if (expectSuccess) {
                 throw new RuntimeException(e);
             }
         });
 
-        isFinished.await(1, TimeUnit.MINUTES);
+        isRestored.await(1, TimeUnit.MINUTES);
 
         if (expectSuccess) {
-            // assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             final String indexToSearch = renameIndexes ? renamedIndexName : indexName;
             final String aliasToSearch = renameAliases ? renamedAliasName : aliasName;
 
             if (closed) {
-                final CountDownLatch isReady = new CountDownLatch(1);
+                final CountDownLatch isOpened = new CountDownLatch(1);
                 final StepListener<OpenIndexResponse> openIndexResponseStepListener = new StepListener<>();
                 client().admin().indices().open(new OpenIndexRequest(indexToSearch).waitForActiveShards(1), openIndexResponseStepListener);
-                continueOrDie(openIndexResponseStepListener, ignored -> { isReady.countDown(); });
+                continueOrDie(openIndexResponseStepListener, ignored -> { isOpened.countDown(); });
 
-                isReady.await(1, TimeUnit.MINUTES);
+                isOpened.await(1, TimeUnit.MINUTES);
             }
 
+            final CountDownLatch isSearchDone = new CountDownLatch(includeAlias ? 2 : 1);
             final StepListener<SearchResponse> searchIndexResponseListener = new StepListener<>();
             final StepListener<SearchResponse> searchAliasResponseListener = new StepListener<>();
-            final int expectedCount = includeAlias ? 2 : 1;
-            final CountDownLatch isSearchDone = new CountDownLatch(expectedCount);
             client().search(
                 new SearchRequest(indexToSearch).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchIndexResponseListener
