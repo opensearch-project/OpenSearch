@@ -235,7 +235,7 @@ public class RemoteClusterStateService implements Closeable {
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
-    private AtomicBoolean isPublicationEnabled;
+    private volatile AtomicBoolean isPublicationEnabled;
     private final String remotePathPrefix;
 
     private final RemoteClusterStateCache remoteClusterStateCache;
