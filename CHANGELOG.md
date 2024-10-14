@@ -50,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.squareup.okio:okio` from 3.9.0 to 3.9.1 ([#16212](https://github.com/opensearch-project/OpenSearch/pull/16212))
 - Bump `me.champeau.gradle.japicmp` from 0.4.3 to 0.4.4 ([#16309](https://github.com/opensearch-project/OpenSearch/pull/16309))
 - Bump `com.google.oauth-client:google-oauth-client` from 1.35.0 to 1.36.0 ([#16306](https://github.com/opensearch-project/OpenSearch/pull/16306))
+- Bump `lycheeverse/lychee-action` from 1.10.0 to 2.0.2 ([#16310](https://github.com/opensearch-project/OpenSearch/pull/16310))
 
 ### Changed
 - Add support for docker compose v2 in TestFixturesPlugin ([#16049](https://github.com/opensearch-project/OpenSearch/pull/16049))
