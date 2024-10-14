@@ -150,8 +150,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
-        renameAliasPattern = in.readOptionalString();
-        renameAliasReplacement = in.readOptionalString();
         waitForCompletion = in.readBoolean();
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
@@ -168,6 +166,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             sourceRemoteTranslogRepository = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            renameAliasPattern = in.readOptionalString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            renameAliasReplacement = in.readOptionalString();
+        }
     }
 
     @Override
@@ -179,8 +183,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
-        out.writeOptionalString(renameAliasPattern);
-        out.writeOptionalString(renameAliasReplacement);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
@@ -196,6 +198,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         }
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalString(sourceRemoteTranslogRepository);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalString(renameAliasPattern);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalString(renameAliasReplacement);
         }
     }
 
