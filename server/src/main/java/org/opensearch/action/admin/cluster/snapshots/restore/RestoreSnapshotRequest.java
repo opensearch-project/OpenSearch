@@ -810,6 +810,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(renamePattern, that.renamePattern)
             && Objects.equals(renameReplacement, that.renameReplacement)
+            && Objects.equals(renameAliasPattern, that.renameAliasPattern)
+            && Objects.equals(renameAliasReplacement, that.renameAliasReplacement)
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
@@ -828,6 +830,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             indicesOptions,
             renamePattern,
             renameReplacement,
+            renameAliasPattern,
+            renameAliasReplacement,
             waitForCompletion,
             includeGlobalState,
             partial,
