@@ -96,7 +96,7 @@ public abstract class Rounding implements Writeable {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
 
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundWeekOfWeekYear(utcMillis);
             }
 
@@ -108,7 +108,7 @@ public abstract class Rounding implements Writeable {
         YEAR_OF_CENTURY((byte) 2, "year", ChronoField.YEAR_OF_ERA, false, 12) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(366);
 
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundYear(utcMillis);
             }
 
@@ -119,7 +119,7 @@ public abstract class Rounding implements Writeable {
         QUARTER_OF_YEAR((byte) 3, "quarter", IsoFields.QUARTER_OF_YEAR, false, 3) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(92);
 
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundQuarterOfYear(utcMillis);
             }
 
@@ -130,7 +130,7 @@ public abstract class Rounding implements Writeable {
         MONTH_OF_YEAR((byte) 4, "month", ChronoField.MONTH_OF_YEAR, false, 1) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(31);
 
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundMonthOfYear(utcMillis);
             }
 
@@ -139,7 +139,7 @@ public abstract class Rounding implements Writeable {
             }
         },
         DAY_OF_MONTH((byte) 5, "day", ChronoField.DAY_OF_MONTH, true, ChronoField.DAY_OF_MONTH.getBaseUnit().getDuration().toMillis()) {
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, this.ratio);
             }
 
@@ -148,7 +148,7 @@ public abstract class Rounding implements Writeable {
             }
         },
         HOUR_OF_DAY((byte) 6, "hour", ChronoField.HOUR_OF_DAY, true, ChronoField.HOUR_OF_DAY.getBaseUnit().getDuration().toMillis()) {
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
@@ -163,7 +163,7 @@ public abstract class Rounding implements Writeable {
             true,
             ChronoField.MINUTE_OF_HOUR.getBaseUnit().getDuration().toMillis()
         ) {
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
@@ -178,7 +178,7 @@ public abstract class Rounding implements Writeable {
             true,
             ChronoField.SECOND_OF_MINUTE.getBaseUnit().getDuration().toMillis()
         ) {
-            long roundFloor(long utcMillis) {
+            public long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
@@ -211,7 +211,7 @@ public abstract class Rounding implements Writeable {
          * @param utcMillis the milliseconds since the epoch
          * @return          the rounded down milliseconds since the epoch
          */
-        abstract long roundFloor(long utcMillis);
+        public abstract long roundFloor(long utcMillis);
 
         /**
          * When looking up {@link LocalTimeOffset} go this many milliseconds

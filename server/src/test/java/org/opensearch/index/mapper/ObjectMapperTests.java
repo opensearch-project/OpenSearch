@@ -506,10 +506,10 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .startObject("startree")
             .field("type", "star_tree")
             .startObject("config")
-            .startArray("ordered_dimensions")
-            .startObject()
-            .field("name", "node")
+            .startObject("date_dimension")
+            .field("name", "@timestamp")
             .endObject()
+            .startArray("ordered_dimensions")
             .startObject()
             .field("name", "status")
             .endObject()
@@ -526,8 +526,8 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .startObject("properties")
-            .startObject("node")
-            .field("type", "integer")
+            .startObject("@timestamp")
+            .field("type", "date")
             .endObject()
             .startObject("status")
             .field("type", "integer")
@@ -565,9 +565,9 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
         assertEquals("star_tree", starTreeMapper.fieldType().typeName());
         // Check that field in properties was parsed correctly as well
-        mapper = documentMapper.root().getMapper("node");
+        mapper = documentMapper.root().getMapper("@timestamp");
         assertNotNull(mapper);
-        assertEquals("integer", mapper.typeName());
+        assertEquals("date", mapper.typeName());
 
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
