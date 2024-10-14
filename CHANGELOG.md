@@ -48,6 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-json` from 1.1.0 to 1.3.0 ([#16217](https://github.com/opensearch-project/OpenSearch/pull/16217))
 - Bump `io.grpc:grpc-api` from 1.57.2 to 1.68.0 ([#16213](https://github.com/opensearch-project/OpenSearch/pull/16213))
 - Bump `com.squareup.okio:okio` from 3.9.0 to 3.9.1 ([#16212](https://github.com/opensearch-project/OpenSearch/pull/16212))
+- Bump `me.champeau.gradle.japicmp` from 0.4.3 to 0.4.4 ([#16309](https://github.com/opensearch-project/OpenSearch/pull/16309))
 
 ### Changed
 - Add support for docker compose v2 in TestFixturesPlugin ([#16049](https://github.com/opensearch-project/OpenSearch/pull/16049))
