@@ -60,6 +60,9 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceStats;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
+import org.opensearch.core.tasks.resourcetracker.TaskThreadUsage;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -916,6 +919,60 @@ public class TasksIT extends AbstractTasksIT {
         b.await();
 
         // Now we can find it!
+        GetTaskResponse response = expectFinishedTask(new TaskId("fake:1"));
+        assertEquals("test", response.getTask().getTask().getAction());
+        assertNotNull(response.getTask().getError());
+        assertNull(response.getTask().getResponse());
+    }
+
+    public void testStoreResultWithAllFields() throws Exception {
+        // given
+        CyclicBarrier b = new CyclicBarrier(2);
+        TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
+
+        // when
+        resultsService.storeResult(
+            new TaskResult(
+                new TaskInfo(
+                    new TaskId("fake", 1),
+                    "test",
+                    "test",
+                    "",
+                    null,
+                    0,
+                    0,
+                    false,
+                    false,
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    new TaskResourceStats(new HashMap<>() {
+                        {
+                            put("dummy-type1", new TaskResourceUsage(100, 100));
+                        }
+                    }, new TaskThreadUsage(10, 10)),
+                    0L
+                ),
+                new RuntimeException("test")
+            ),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void response) {
+                    try {
+                        b.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        );
+        b.await();
+
+        // then
         GetTaskResponse response = expectFinishedTask(new TaskId("fake:1"));
         assertEquals("test", response.getTask().getTask().getAction());
         assertNotNull(response.getTask().getError());
