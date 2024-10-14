@@ -33,10 +33,8 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collections;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 //import static org.opensearch.node.Node.NODE_NAME_SETTING;
 
 public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
@@ -48,53 +46,48 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
     // }
 
     // TODO there is certainly a better way to do this, but I don't know what it is....
-    public void testRestoreToNewWithAliasAndRename() {
+    public void testRestoreToNewWithAliasAndRename() throws Exception {
         __testRestoreWithRename(false, false, true, true, true);
     }
 
-    public void testRestoreToNewWithoutAliasAndWithRename() {
+    public void testRestoreToNewWithoutAliasAndWithRename() throws Exception {
         __testRestoreWithRename(false, false, false, true, true);
     }
 
-    public void testRestoreOverExistingOpenWithAliasAndRename() {
+    public void testRestoreOverExistingOpenWithAliasAndRename() throws Exception {
         __testRestoreWithRename(true, false, true, true, true);
     }
 
-    public void testRestoreOverExistingOpenWithoutAliasAndWithRename() {
+    public void testRestoreOverExistingOpenWithoutAliasAndWithRename() throws Exception {
         __testRestoreWithRename(true, false, false, true, true);
     }
 
-    public void testRestoreOverExistingClosedWithAliasAndRename() {
+    public void testRestoreOverExistingClosedWithAliasAndRename() throws Exception {
         __testRestoreWithRename(true, true, true, true, true);
     }
 
-    public void testRestoreOverExistingClosedWithoutAliasAndWithRename() {
+    public void testRestoreOverExistingClosedWithoutAliasAndWithRename() throws Exception {
         __testRestoreWithRename(true, true, false, true, true);
     }
 
-    public void testRestoreOverExistingOpenWithoutAliasAndRename() {
+    public void testRestoreOverExistingOpenWithoutAliasAndRename() throws Exception {
         __testRestoreWithRename(true, false, false, false, false);
     }
 
-    public void testRestoreOverExistingOpenWithAliasAndWithoutRename() {
+    public void testRestoreOverExistingOpenWithAliasAndWithoutRename() throws Exception {
         __testRestoreWithRename(true, false, true, false, false);
     }
 
-    public void testRestoreOverExistingClosedWithoutAliasAndRename() {
+    public void testRestoreOverExistingClosedWithoutAliasAndRename() throws Exception {
         __testRestoreWithRename(true, true, false, false, false);
     }
 
-    public void testRestoreOverExistingClosedWithAliasAndWithoutRename() {
+    public void testRestoreOverExistingClosedWithAliasAndWithoutRename() throws Exception {
         __testRestoreWithRename(true, true, true, false, false);
     }
 
-    public void __testRestoreWithRename(
-        boolean exists,
-        boolean closed,
-        boolean includeAlias,
-        boolean renameAliases,
-        boolean renameIndexes
-    ) {
+    public void __testRestoreWithRename(boolean exists, boolean closed, boolean includeAlias, boolean renameAliases, boolean renameIndexes)
+        throws Exception {
         assert exists || renameIndexes;
         final String indexName = "index_1";
         final String renamedIndexName = "index_2";
@@ -118,7 +111,7 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
                 createAliasResponseStepListener
             );
 
-        final AtomicBoolean isDocumentFinished = new AtomicBoolean(false);
+        final CountDownLatch isDocumentFinished = new CountDownLatch(1);
         continueOrDie(createAliasResponseStepListener, ignored -> {
             final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int i = 0; i < documents; ++i) {
@@ -129,23 +122,23 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
             continueOrDie(bulkResponseStepListener, bulkResponse -> {
                 assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
                 assertEquals(documents, bulkResponse.getItems().length);
-                isDocumentFinished.set(true);
+                isDocumentFinished.countDown();
             });
         });
 
         Settings.Builder settings = Settings.builder().put("location", randomAlphaOfLength(10));
         OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, FsRepository.TYPE, settings);
 
-        runUntil(isDocumentFinished::get, TimeUnit.MINUTES.toMillis(1L));
+        isDocumentFinished.await(1, TimeUnit.MINUTES);
 
         if (closed) {
-            final AtomicBoolean isReady = new AtomicBoolean(false);
+            final CountDownLatch isReady = new CountDownLatch(1);
             final StepListener<CloseIndexResponse> closeIndexResponseStepListener = new StepListener<>();
             final String indexToClose = renameIndexes ? renamedIndexName : indexName;
             client().admin().indices().close(new CloseIndexRequest(indexToClose), closeIndexResponseStepListener);
 
-            continueOrDie(closeIndexResponseStepListener, ignored -> { isReady.set(true); });
-            runUntil(isReady::get, TimeUnit.MINUTES.toMillis(1L));
+            continueOrDie(closeIndexResponseStepListener, ignored -> { isReady.countDown(); });
+            isReady.await(1, TimeUnit.MINUTES);
         }
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
@@ -159,7 +152,7 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
 
         final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new StepListener<>();
 
-        final AtomicBoolean isFinished = new AtomicBoolean(false);
+        final CountDownLatch isFinished = new CountDownLatch(1);
         continueOrDie(createSnapshotResponseStepListener, r -> {
             assert r.getSnapshotInfo().state() == SnapshotState.SUCCESS;
             RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repoName, snapShotName).includeAliases(includeAlias)
@@ -174,16 +167,16 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
         });
 
         restoreSnapshotResponseStepListener.whenComplete(r -> {
-            isFinished.set(true);
+            isFinished.countDown();
             assertTrue("unexpected sucesssful restore", expectSuccess);
         }, e -> {
-            isFinished.set(true);
+            isFinished.countDown();
             if (expectSuccess) {
                 throw new RuntimeException(e);
             }
         });
 
-        runUntil(isFinished::get, TimeUnit.SECONDS.toMillis(10L));
+        isFinished.await(1, TimeUnit.MINUTES);
 
         if (expectSuccess) {
             // assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
@@ -191,31 +184,32 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
             final String aliasToSearch = renameAliases ? renamedAliasName : aliasName;
 
             if (closed) {
-                final AtomicBoolean isReady = new AtomicBoolean(false);
+                final CountDownLatch isReady = new CountDownLatch(1);
                 final StepListener<OpenIndexResponse> openIndexResponseStepListener = new StepListener<>();
                 client().admin().indices().open(new OpenIndexRequest(indexToSearch).waitForActiveShards(1), openIndexResponseStepListener);
-                continueOrDie(openIndexResponseStepListener, ignored -> { isReady.set(true); });
-                runUntil(isReady::get, TimeUnit.MINUTES.toMillis(1L));
+                continueOrDie(openIndexResponseStepListener, ignored -> { isReady.countDown(); });
+
+                isReady.await(1, TimeUnit.MINUTES);
             }
 
             final StepListener<SearchResponse> searchIndexResponseListener = new StepListener<>();
             final StepListener<SearchResponse> searchAliasResponseListener = new StepListener<>();
             final int expectedCount = includeAlias ? 2 : 1;
-            final AtomicInteger isSearchDone = new AtomicInteger(0);
+            final CountDownLatch isSearchDone = new CountDownLatch(expectedCount);
             client().search(
                 new SearchRequest(indexToSearch).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchIndexResponseListener
             );
-            continueOrDie(searchIndexResponseListener, ignored -> { isSearchDone.addAndGet(1); });
+            continueOrDie(searchIndexResponseListener, ignored -> { isSearchDone.countDown(); });
             if (includeAlias) {
                 client().search(
                     new SearchRequest(aliasToSearch).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                     searchAliasResponseListener
                 );
-                continueOrDie(searchAliasResponseListener, ignored -> { isSearchDone.addAndGet(1); });
+                continueOrDie(searchAliasResponseListener, ignored -> { isSearchDone.countDown(); });
             }
 
-            runUntil(() -> { return isSearchDone.get() >= expectedCount; }, TimeUnit.SECONDS.toMillis(10L));
+            isSearchDone.await(1, TimeUnit.MINUTES);
 
             assertEquals(documents, Objects.requireNonNull(searchIndexResponseListener.result().getHits().getTotalHits()).value);
             if (includeAlias) {
@@ -226,23 +220,5 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
 
     private static <T> void continueOrDie(StepListener<T> listener, CheckedConsumer<T, Exception> onResponse) {
         listener.whenComplete(onResponse, e -> { throw new AssertionError(e); });
-    }
-
-    // TODO there is certainly a better way to do this, but I don't know what it is....
-    private void runUntil(Supplier<Boolean> fulfilled, long timeout) {
-        // final long start = deterministicTaskQueue.getCurrentTimeMillis();
-        // while (timeout > deterministicTaskQueue.getCurrentTimeMillis() - start) {
-        final long start = System.currentTimeMillis();
-        while (timeout > System.currentTimeMillis() - start) {
-            if (fulfilled.get()) {
-                return;
-            }
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {}
-            // deterministicTaskQueue.runAllRunnableTasks();
-            // deterministicTaskQueue.advanceTime();
-        }
-        fail("Condition wasn't fulfilled.");
     }
 }
