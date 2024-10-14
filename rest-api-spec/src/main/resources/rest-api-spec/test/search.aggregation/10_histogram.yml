@@ -679,11 +679,6 @@ setup:
           - '{"date": "2016-03-01"}'
 
   - do:
-      indices.forcemerge:
-        index: test_2
-        max_num_segments: 1
-
-  - do:
       search:
         index: test_2
         body:
