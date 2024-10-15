@@ -1086,13 +1086,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                                     field,
                                     LongPoint.pack(new long[] { l }).bytes,
                                     LongPoint.pack(new long[] { u }).bytes,
-                                    new long[] { l }.length
-                                ) {
-                                    @Override
-                                    protected String toString(int dimension, byte[] value) {
-                                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                                    }
-                                }
+                                    new long[] { l }.length,
+                                    ApproximatePointRangeQuery.LONG_FORMAT
+                                )
                             );
                         }
                         return query;

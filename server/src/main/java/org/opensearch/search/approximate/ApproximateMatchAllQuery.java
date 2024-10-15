@@ -16,6 +16,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.FieldSortBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Replaces match-all query with a less expensive query if possible.
@@ -28,6 +29,7 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
 
     @Override
     protected boolean canApproximate(SearchContext context) {
+        approximation = null;
         if (context == null) {
             return false;
         }
@@ -66,7 +68,11 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
 
     @Override
     public boolean equals(Object o) {
-        return sameClassAs(o);
+        if (sameClassAs(o)) {
+            ApproximateMatchAllQuery other = (ApproximateMatchAllQuery) o;
+            return Objects.equals(approximation, other.approximation);
+        }
+        return false;
     }
 
     @Override
@@ -79,6 +85,6 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
         if (approximation == null) {
             throw new IllegalStateException("rewrite called without setting context or query could not be approximated");
         }
-        return approximation;
+        return approximation.rewrite(indexSearcher);
     }
 }

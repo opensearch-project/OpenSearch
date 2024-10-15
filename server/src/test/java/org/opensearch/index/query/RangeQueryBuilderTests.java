@@ -59,8 +59,10 @@ import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.FeatureFlagSetter;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -78,6 +80,13 @@ import static org.apache.lucene.document.LongPoint.pack;
 import static org.junit.Assume.assumeThat;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        FeatureFlagSetter.set(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY);
+    }
+
     @Override
     protected RangeQueryBuilder doCreateTestQueryBuilder() {
         RangeQueryBuilder query;
@@ -259,13 +268,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                             DATE_FIELD_NAME,
                             pack(new long[] { minLong }).bytes,
                             pack(new long[] { maxLong }).bytes,
-                            new long[] { minLong }.length
-                        ) {
-                            @Override
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        }
+                            new long[] { minLong }.length,
+                            ApproximatePointRangeQuery.LONG_FORMAT
+                        )
                     ),
                     query
                 );
@@ -355,13 +360,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
                     pack(new long[] { upper }).bytes,
-                    new long[] { lower }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             ),
             parsedQuery
         );
@@ -412,13 +413,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
                     pack(new long[] { upper }).bytes,
-                    new long[] { lower }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             )
 
             ,
@@ -449,13 +446,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
                     pack(new long[] { upper }).bytes,
-                    new long[] { lower }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             )
 
             ,

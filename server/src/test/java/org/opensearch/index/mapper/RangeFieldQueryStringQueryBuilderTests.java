@@ -204,13 +204,9 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
                     DATE_FIELD_NAME,
                     pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
                     pack(new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }).bytes,
-                    new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             ),
             queryOnDateField
         );
