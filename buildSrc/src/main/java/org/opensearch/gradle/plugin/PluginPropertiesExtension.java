@@ -53,8 +53,11 @@ public class PluginPropertiesExtension {
 
     private String customFolderName = "";
 
-    /** Other plugins this plugin extends through SPI */
+    /** Other plugins this plugin extends through SPI, these plugins are required to install this plugin */
     private List<String> extendedPlugins = new ArrayList<>();
+
+    /** Other plugins this plugin extends through SPI, these plugins are not required for install */
+    private List<String> optionalExtendedPlugins = new ArrayList<>();
 
     private boolean hasNativeController;
 
@@ -122,6 +125,10 @@ public class PluginPropertiesExtension {
         return this.extendedPlugins;
     }
 
+    public List<String> getOptionalExtendedPlugins() {
+        return this.optionalExtendedPlugins;
+    }
+
     public boolean isHasNativeController() {
         return hasNativeController;
     }
@@ -162,6 +169,10 @@ public class PluginPropertiesExtension {
 
     public void setExtendedPlugins(List<String> extendedPlugins) {
         this.extendedPlugins = extendedPlugins;
+    }
+
+    public void setOptionalExtendedPlugins(List<String> optionalExtendedPlugins) {
+        this.optionalExtendedPlugins = optionalExtendedPlugins;
     }
 
     public boolean isHasClientJar() {

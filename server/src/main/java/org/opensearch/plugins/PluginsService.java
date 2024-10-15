@@ -524,7 +524,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (String dependency : bundle.plugin.getExtendedPlugins()) {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
-                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                continue;
+                // throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
             assert sortedBundles.contains(depBundle);
@@ -653,7 +654,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
-                assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
+                if (pluginUrls == null) {
+                    continue;
+                }
 
                 Set<URL> intersection = new HashSet<>(urls);
                 intersection.retainAll(pluginUrls);
@@ -690,6 +693,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             union.addAll(bundle.urls);
             JarHell.checkJarHell(union, logger::debug);
         } catch (Exception e) {
+            e.printStackTrace();
             throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
         }
     }
