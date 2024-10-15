@@ -60,18 +60,23 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
     private final int fileCountMergeThreshold;
     private int numStarTreeDocs = 0;
 
-    public StarTreeDocsFileManager(SegmentWriteState state, StarTreeField starTreeField, List<MetricAggregatorInfo> metricAggregatorInfos)
-        throws IOException {
-        this(state, starTreeField, metricAggregatorInfos, DEFAULT_FILE_COUNT_MERGE_THRESHOLD);
+    public StarTreeDocsFileManager(
+        SegmentWriteState state,
+        StarTreeField starTreeField,
+        List<MetricAggregatorInfo> metricAggregatorInfos,
+        int numDimensions
+    ) throws IOException {
+        this(state, starTreeField, metricAggregatorInfos, DEFAULT_FILE_COUNT_MERGE_THRESHOLD, numDimensions);
     }
 
     public StarTreeDocsFileManager(
         SegmentWriteState state,
         StarTreeField starTreeField,
         List<MetricAggregatorInfo> metricAggregatorInfos,
-        int fileCountThreshold
+        int fileCountThreshold,
+        int numDimensions
     ) throws IOException {
-        super(state, starTreeField, metricAggregatorInfos);
+        super(state, starTreeField, metricAggregatorInfos, numDimensions);
         fileToEndDocIdMap = new LinkedHashMap<>();
         try {
             starTreeDocsFileOutput = createStarTreeDocumentsFileOutput();
@@ -126,7 +131,7 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
     @Override
     public Long[] readDimensions(int docId) throws IOException {
         ensureDocumentReadable(docId);
-        Long[] dims = new Long[starTreeField.getDimensionsOrder().size()];
+        Long[] dims = new Long[numDimensions];
         readDimensions(dims, starTreeDocsFileRandomInput, getOffset(docId));
         return dims;
     }
