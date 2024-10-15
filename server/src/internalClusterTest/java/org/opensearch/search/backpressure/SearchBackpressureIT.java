@@ -340,6 +340,10 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
         public Exception getException() {
             return exception;
         }
+
+        public CountDownLatch getLatch() {
+            return latch;
+        }
     }
 
     enum RequestType {

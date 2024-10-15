@@ -9,6 +9,7 @@
 package org.opensearch.wlm;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
@@ -31,6 +32,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.backpressure.SearchBackpressureIT.ExceptionCatchingListener;
+import org.opensearch.search.backpressure.SearchBackpressureIT.TestResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
@@ -43,7 +46,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -170,10 +172,10 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
     }
 
     public void updateQueryGroupInClusterState(String method, QueryGroup queryGroup) throws InterruptedException {
-        TestClusterUpdateListener listener = new TestClusterUpdateListener();
+        ExceptionCatchingListener listener = new ExceptionCatchingListener();
         client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(queryGroup, method), listener);
-        assertTrue(listener.latch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
-        assertEquals(0, listener.latch.getCount());
+        assertTrue(listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+        assertEquals(0, listener.getLatch().getCount());
     }
 
     public WlmStatsResponse getWlmStatsResponse(String[] queryGroupIds, Boolean breach) throws ExecutionException, InterruptedException {
@@ -193,26 +195,6 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
             for (String invalidId : invalidIds) {
                 assertFalse(res.contains(invalidId));
             }
-        }
-    }
-
-    private static class TestClusterUpdateListener implements ActionListener<TestClusterUpdateResponse> {
-        private final CountDownLatch latch;
-        private Exception exception = null;
-
-        public TestClusterUpdateListener() {
-            this.latch = new CountDownLatch(1);
-        }
-
-        @Override
-        public void onResponse(TestClusterUpdateResponse r) {
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            this.exception = e;
-            latch.countDown();
         }
     }
 
@@ -252,22 +234,8 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
         }
     }
 
-    public static class TestClusterUpdateResponse extends ActionResponse {
-        public TestClusterUpdateResponse() {}
-
-        public TestClusterUpdateResponse(StreamInput in) {}
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
-    }
-
-    public static class TestClusterUpdateTransportAction extends HandledTransportAction<
-        TestClusterUpdateRequest,
-        TestClusterUpdateResponse> {
-        public static final ActionType<TestClusterUpdateResponse> ACTION = new ActionType<>(
-            "internal::test_cluster_update_action",
-            TestClusterUpdateResponse::new
-        );
+    public static class TestClusterUpdateTransportAction extends HandledTransportAction<TestClusterUpdateRequest, TestResponse> {
+        public static final ActionType<TestResponse> ACTION = new ActionType<>("internal::test_cluster_update_action", TestResponse::new);
         private final ClusterService clusterService;
 
         @Inject
@@ -281,7 +249,7 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
         }
 
         @Override
-        protected void doExecute(Task task, TestClusterUpdateRequest request, ActionListener<TestClusterUpdateResponse> listener) {
+        protected void doExecute(Task task, TestClusterUpdateRequest request, ActionListener<TestResponse> listener) {
             clusterService.submitStateUpdateTask("query-group-persistence-service", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -305,7 +273,7 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new TestClusterUpdateResponse());
+                    listener.onResponse(new TestResponse());
                 }
             });
         }
