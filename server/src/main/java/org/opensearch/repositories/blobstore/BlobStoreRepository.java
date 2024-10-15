@@ -2806,15 +2806,72 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return blobStore().blobContainer(shardPath(indexId, shardId));
     }
 
+    /**
+     * Generates the blob path for a specific shard in the repository.
+     *
+     * <p>This method constructs the path based on the shard's index ID and shard number,
+     * taking into account the configured path type (FIXED, HASHED_PREFIX, or HASHED_INFIX)
+     * and any custom prefix. For hashed paths, it uses the FNV_1A_COMPOSITE_1 algorithm
+     * to distribute shards across the blob store.</p>
+     *
+     * <p>The method first normalizes the base path, ensuring it has at most one component
+     * and no trailing separators. It then constructs the full shard path using the
+     * normalized base path and the provided index and shard information.</p>
+     *
+     * <p>The resulting path structure depends on the path type and is generated
+     * using the {@link org.opensearch.index.remote.RemoteStoreEnums.PathType#path(PathInput, PathHashAlgorithm)} method.</p>
+     *
+     * @param indexId The ID of the index containing the shard
+     * @param shardId The ID of the shard
+     * @return A BlobPath object representing the full path to the shard in the blob store
+     * @throws IllegalArgumentException if the base path has more than one component
+     */
     private BlobPath shardPath(IndexId indexId, int shardId) {
         PathType pathType = PathType.fromCode(indexId.getShardPathType());
-        SnapshotShardPathInput shardPathInput = new SnapshotShardPathInput.Builder().basePath(basePath())
+        BlobPath normalizedBasePath = normalizeBasePath(basePath());
+
+        SnapshotShardPathInput shardPathInput = new SnapshotShardPathInput.Builder().basePath(normalizedBasePath)
             .indexUUID(indexId.getId())
             .shardId(String.valueOf(shardId))
             .fixedPrefix(snapshotShardPathPrefix)
             .build();
-        PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
+
+        PathHashAlgorithm pathHashAlgorithm = (pathType != PathType.FIXED) ? FNV_1A_COMPOSITE_1 : null;
         return pathType.path(shardPathInput, pathHashAlgorithm);
+    }
+
+    /**
+     * Normalizes the base path by ensuring it has at most one component and
+     * removing any trailing separators.
+     *
+     * <p>This method performs the following normalizations:
+     * <ul>
+     *   <li>Ensures the base path has no more than one component.</li>
+     *   <li>Removes trailing separators from the base path component.</li>
+     *   <li>Converts an empty base path (after normalization) to a clean path.</li>
+     * </ul>
+     * </p>
+     *
+     * @param originalBasePath The original base path to normalize
+     * @return A normalized BlobPath
+     * @throws IllegalArgumentException if the base path has more than one component
+     */
+    private BlobPath normalizeBasePath(BlobPath originalBasePath) {
+        String[] basePathComponents = originalBasePath.toArray();
+        if (basePathComponents.length > 1) {
+            throw new IllegalArgumentException("Base path can have maximum 1 component as BlobPath");
+        }
+
+        if (basePathComponents.length == 0) {
+            return originalBasePath;
+        }
+
+        String basePathStr = basePathComponents[0];
+        if (basePathStr.endsWith(BlobPath.SEPARATOR)) {
+            basePathStr = basePathStr.substring(0, basePathStr.length() - 1);
+        }
+
+        return basePathStr.isEmpty() ? BlobPath.cleanPath() : BlobPath.cleanPath().add(basePathStr);
     }
 
     /**

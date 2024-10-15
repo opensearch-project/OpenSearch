@@ -49,7 +49,7 @@ import java.util.Objects;
 @PublicApi(since = "1.0.0")
 public class BlobPath implements Iterable<String> {
 
-    private static final String SEPARATOR = "/";
+    public static final String SEPARATOR = "/";
 
     private final List<String> paths;
 
