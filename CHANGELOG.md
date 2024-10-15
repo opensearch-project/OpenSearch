@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jline:jline` from 3.26.3 to 3.27.0 ([#16135](https://github.com/opensearch-project/OpenSearch/pull/16135))
 - Bump `com.squareup.okio:okio` from 3.9.0 to 3.9.1 ([#16212](https://github.com/opensearch-project/OpenSearch/pull/16212))
 - Bump `lycheeverse/lychee-action` from 1.10.0 to 2.0.2 ([#16310](https://github.com/opensearch-project/OpenSearch/pull/16310))
+- Bump `com.google.code.gson:gson` from 2.10.1 to 2.11.0 ([#16308](https://github.com/opensearch-project/OpenSearch/pull/16308))
 
 ### Changed
 - Add support for docker compose v2 in TestFixturesPlugin ([#16049](https://github.com/opensearch-project/OpenSearch/pull/16049))
