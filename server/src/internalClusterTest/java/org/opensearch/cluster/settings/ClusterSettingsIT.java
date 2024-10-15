@@ -431,12 +431,26 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
             assertEquals(ex.getCause().getMessage(), "core threadpool size cannot be greater than max");
         }
 
-        // Scaling threadpool - happy case
+        // Scaling threadpool - Max value lesser than default value of 4
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.generic.max", "1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "core threadpool size cannot be greater than max");
+        }
+
+        // Scaling threadpool - happy case - transient overrides persistent
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "1").build())
-            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "5").build())
+            .setTransientSettings(
+                Settings.builder().put("cluster.thread_pool.snapshot.core", "2").put("cluster.thread_pool.snapshot.max", "2").build()
+            )
+            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "1").build())
             .get();
         assertTrue(clusterUpdateSettingsResponse.isAcknowledged());
 
