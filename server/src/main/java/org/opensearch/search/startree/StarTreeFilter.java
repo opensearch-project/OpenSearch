@@ -10,12 +10,13 @@ package org.opensearch.search.startree;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 
@@ -82,16 +83,20 @@ public class StarTreeFilter {
             // Clear the temporary bit set before reuse
             tempBitSet.clear(0, starTreeResult.maxMatchedDoc + 1);
 
-            // Iterate over the current set of matched document IDs
-            for (int entryId = bitSet.nextSetBit(0); entryId >= 0; entryId = bitSet.nextSetBit(entryId + 1)) {
-                if (ndv.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-                    final int valuesCount = ndv.valuesCount();
-                    for (int i = 0; i < valuesCount; i++) {
-                        long value = ndv.nextValue();
-                        // Compare the value with the query value
-                        if (value == queryValue) {
-                            tempBitSet.set(entryId);  // Set bit for the matching entryId
-                            break;  // No need to check other values for this entryId
+            if (bitSet.length() > 0) {
+                // Iterate over the current set of matched document IDs
+                for (int entryId = bitSet.nextSetBit(0); entryId != DocIdSetIterator.NO_MORE_DOCS; entryId = (entryId + 1 < bitSet.length())
+                    ? bitSet.nextSetBit(entryId + 1)
+                    : DocIdSetIterator.NO_MORE_DOCS) {
+                    if (ndv.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                        final int valuesCount = ndv.valuesCount();
+                        for (int i = 0; i < valuesCount; i++) {
+                            long value = ndv.nextValue();
+                            // Compare the value with the query value
+                            if (value == queryValue) {
+                                tempBitSet.set(entryId);  // Set bit for the matching entryId
+                                break;  // No need to check other values for this entryId
+                            }
                         }
                     }
                 }
@@ -119,13 +124,11 @@ public class StarTreeFilter {
             .map(Dimension::getField)
             .collect(Collectors.toList());
         boolean foundLeafNode = starTree.isLeaf();
+        assert foundLeafNode == false; // root node is never leaf
         Queue<StarTreeNode> queue = new ArrayDeque<>();
         queue.add(starTree);
         int currentDimensionId = -1;
         Set<String> remainingPredicateColumns = new HashSet<>(queryMap.keySet());
-        if (foundLeafNode) {
-            globalRemainingPredicateColumns = new HashSet<>(remainingPredicateColumns);
-        }
         int matchedDocsCountInStarTree = 0;
         int maxDocNum = -1;
         StarTreeNode starTreeNode;
@@ -180,7 +183,7 @@ public class StarTreeFilter {
                     Iterator<? extends StarTreeNode> childrenIterator = starTreeNode.getChildrenIterator();
                     while (childrenIterator.hasNext()) {
                         StarTreeNode childNode = childrenIterator.next();
-                        if (childNode.getDimensionValue() != StarTreeUtils.ALL) {
+                        if (childNode.getStarTreeNodeType() != StarTreeNodeType.STAR.getValue()) {
                             queue.add(childNode);
                             foundLeafNode |= childNode.isLeaf();
                         }
