@@ -891,6 +891,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             lastSuccessfulFetchOfPinnedTimestamps
         );
 
+        if (metadataFilesEligibleToDelete.isEmpty()) {
+            logger.debug("No metadata files are eligible to be deleted based on lastNMetadataFilesToKeep and age");
+            return;
+        }
+
         List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
             .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
             .collect(Collectors.toList());
@@ -905,7 +910,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
 
         final Set<String> metadataFilesToFilterActiveSegments = getMetadataFilesToFilterActiveSegments(
-            lastNMetadataFilesToKeep,
+            sortedMetadataFileList.indexOf(metadataFilesEligibleToDelete.get(0)),
             sortedMetadataFileList,
             allLockFiles
         );
