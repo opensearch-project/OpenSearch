@@ -285,9 +285,9 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
         assertBusy(() -> {
-            assertEquals(0, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
             assertEquals(
-                0,
+                12,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });

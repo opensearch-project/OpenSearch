@@ -946,9 +946,9 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
 
         logger.info("Snapshots Status: " + snapshots);
 
-        for (String snapshot: snapshots.keySet()) {
+        for (String snapshot : snapshots.keySet()) {
             logger.info("Restoring snapshot: {}", snapshot);
-            assertAcked(client().admin().indices().prepareClose(index));
+            assertAcked(client().admin().indices().delete(new DeleteIndexRequest(index)).get());
 
             RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin()
                 .cluster()
