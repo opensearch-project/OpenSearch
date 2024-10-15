@@ -32,8 +32,8 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.common.Nullable;
