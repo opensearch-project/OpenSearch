@@ -134,13 +134,11 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         final long delay;
         final int maxSize;
         final boolean statsTrackingEnabled;
-        final int keyValueSize;
 
-        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled, int keyValueSize) {
+        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled) {
             this.delay = delay;
             this.maxSize = maxSize;
             this.statsTrackingEnabled = statsTrackingEnabled;
-            this.keyValueSize = keyValueSize;
         }
 
         @Override
