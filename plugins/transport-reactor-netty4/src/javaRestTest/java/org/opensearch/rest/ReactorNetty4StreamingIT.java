@@ -304,11 +304,36 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
             String.format(
                 Locale.getDefault(),
                 "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"1\" } }\n{ \"name\": \"%s\"  }\n",
-                randomAlphaOfLength(5000)
+                randomAlphaOfLength(7000)
             )
         );
 
-        final Duration delay = Duration.ofMillis(1);
+        final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
+            "POST",
+            "/_bulk/stream",
+            Flux.fromStream(stream).map(s -> ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        final StreamingResponse<ByteBuffer> streamingResponse = client().streamRequest(streamingRequest);
+
+        StepVerifier.create(Flux.from(streamingResponse.getBody()).map(b -> new String(b.array(), StandardCharsets.UTF_8)))
+            .expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"1\""))
+            .expectComplete()
+            .verify();
+
+        assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(streamingResponse.getWarnings(), empty());
+    }
+
+    public void testStreamingLargeDocumentThatExceedsChunkSize() throws IOException {
+        final Stream<String> stream = Stream.of(
+            String.format(
+                Locale.getDefault(),
+                "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"1\" } }\n{ \"name\": \"%s\"  }\n",
+                randomAlphaOfLength(9000) /* the default chunk size limit is set 8k */
+            )
+        );
+
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
             "POST",
             "/_bulk/stream",
