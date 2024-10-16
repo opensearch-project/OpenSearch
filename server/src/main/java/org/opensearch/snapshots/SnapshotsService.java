@@ -962,8 +962,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
                 executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
-                final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-
                 snapshotInfoListener.whenComplete(snapshotInfo -> {
                     final SnapshotInfo cloneSnapshotInfo = new SnapshotInfo(
                         snapshot.getSnapshotId(),
@@ -1000,6 +998,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     );
                     metadataListener.whenComplete(meta -> {
+                        ShardGenerations shardGenerations = buildGenerations(newEntry, meta);
                         repository.finalizeSnapshot(
                             shardGenerations,
                             repositoryData.getGenId(),
