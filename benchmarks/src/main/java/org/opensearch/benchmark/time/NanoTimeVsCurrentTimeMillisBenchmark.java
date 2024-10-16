@@ -19,6 +19,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Fork(3)
 @Warmup(iterations = 10)
@@ -28,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 @SuppressWarnings("unused") // invoked by benchmarking framework
 public class NanoTimeVsCurrentTimeMillisBenchmark {
-    private volatile long var = 0;
+    private final AtomicLong var = new AtomicLong(0);
 
     @Benchmark
     public long currentTimeMillis() {
@@ -45,6 +46,6 @@ public class NanoTimeVsCurrentTimeMillisBenchmark {
     * */
     @Benchmark
     public long accessLongVar() {
-        return var++;
+        return var.getAndIncrement();
     }
 }
