@@ -14,7 +14,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
-import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
+import org.opensearch.index.compositeindex.CompositeIndexConstants;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -194,10 +195,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
 
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -310,10 +311,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(6, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -386,10 +387,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(6, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -528,10 +529,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -615,10 +616,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         SegmentWriteState consumerWriteState = getWriteState(DocIdSetIterator.NO_MORE_DOCS, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             consumerWriteState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -702,10 +703,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -793,10 +794,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -879,10 +880,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         );
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -957,10 +958,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(0, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -1086,10 +1087,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         );
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         builder.build(builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2)), new AtomicInteger(), docValuesConsumer);
@@ -1234,10 +1235,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
 
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         builder.build(builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2)), new AtomicInteger(), docValuesConsumer);
@@ -1352,10 +1353,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(4, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -1489,10 +1490,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         );
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         builder.build(builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2)), new AtomicInteger(), docValuesConsumer);
@@ -1618,10 +1619,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         );
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         builder.build(builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2)), new AtomicInteger(), docValuesConsumer);
@@ -1727,10 +1728,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         );
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-            Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-            Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
         );
         builder = getStarTreeBuilder(metaOut, dataOut, compositeField, getWriteState(4, writeState.segmentInfo.getId()), mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
@@ -1850,7 +1851,7 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
             null,
             dimDocIdSetIterators,
             metricDocIdSetIterators,
-            Map.of(SEGMENT_DOCS_COUNT, number),
+            Map.of(CompositeIndexConstants.SEGMENT_DOCS_COUNT, number),
             null
         );
         return starTreeValues;
