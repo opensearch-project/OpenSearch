@@ -254,7 +254,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             String dimension = dimensionsSplitOrder.get(i).getField();
             FieldInfo dimensionFieldInfo = writeState.fieldInfos.fieldInfo(dimension);
             if (dimensionFieldInfo == null) {
-                // TODO : make this better
                 dimensionFieldInfo = getFieldInfo(dimension, dimensionsSplitOrder.get(i).getDocValuesType());
             }
             dimensionReaders[i] = getSequentialDocValuesIterator(
@@ -265,6 +264,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
             if (dimensionsSplitOrder.get(i).getDocValuesType().equals(DocValuesType.SORTED_SET)) {
                 // This is needed as we need to write the ordinals and also the bytesRef associated with it
+                // as part of star tree doc values file formats
                 sortedSetDocValuesMap.put(
                     dimensionsSplitOrder.get(i).getField(),
                     fieldProducerMap.get(dimensionFieldInfo.name).getSortedSet(dimensionFieldInfo)
@@ -400,7 +400,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         appendDocumentsToStarTree(starTreeDocumentIterator);
         int numStarTreeDocument = numStarTreeDocs;
-        logger.info("Generated star tree docs : [{}] from segment docs : [{}]", numStarTreeDocument, numSegmentStarTreeDocument);
+        logger.debug("Generated star tree docs : [{}] from segment docs : [{}]", numStarTreeDocument, numSegmentStarTreeDocument);
 
         if (numStarTreeDocs == 0) {
             // serialize the star tree data
@@ -410,7 +410,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         constructStarTree(rootNode, 0, numStarTreeDocs);
         int numStarTreeDocumentUnderStarNode = numStarTreeDocs - numStarTreeDocument;
-        logger.info(
+        logger.debug(
             "Finished constructing star-tree, got [ {} ] tree nodes and [ {} ] starTreeDocument under star-node",
             numStarTreeNodes,
             numStarTreeDocumentUnderStarNode
