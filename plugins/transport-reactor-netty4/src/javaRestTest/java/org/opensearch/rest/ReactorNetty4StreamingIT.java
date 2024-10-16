@@ -308,7 +308,6 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
             )
         );
 
-        final Duration delay = Duration.ofMillis(1);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
             "POST",
             "/_bulk/stream",
@@ -335,7 +334,6 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
             )
         );
 
-        final Duration delay = Duration.ofMillis(1);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
             "POST",
             "/_bulk/stream",
