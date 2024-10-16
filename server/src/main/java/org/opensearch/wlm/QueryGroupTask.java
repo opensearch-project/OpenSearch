@@ -10,13 +10,14 @@ package org.opensearch.wlm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.CancellableTask;
 
 import java.util.Map;
-import java.util.Optional;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
@@ -24,15 +25,17 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
 /**
  * Base class to define QueryGroup tasks
  */
+@PublicApi(since = "2.18.0")
 public class QueryGroupTask extends CancellableTask {
 
     private static final Logger logger = LogManager.getLogger(QueryGroupTask.class);
     public static final String QUERY_GROUP_ID_HEADER = "queryGroupId";
     public static final Supplier<String> DEFAULT_QUERY_GROUP_ID_SUPPLIER = () -> "DEFAULT_QUERY_GROUP";
+    private final LongSupplier nanoTimeSupplier;
     private String queryGroupId;
 
     public QueryGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
+        this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT, System::nanoTime);
     }
 
     public QueryGroupTask(
@@ -44,7 +47,21 @@ public class QueryGroupTask extends CancellableTask {
         Map<String, String> headers,
         TimeValue cancelAfterTimeInterval
     ) {
+        this(id, type, action, description, parentTaskId, headers, cancelAfterTimeInterval, System::nanoTime);
+    }
+
+    public QueryGroupTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TimeValue cancelAfterTimeInterval,
+        LongSupplier nanoTimeSupplier
+    ) {
         super(id, type, action, description, parentTaskId, headers, cancelAfterTimeInterval);
+        this.nanoTimeSupplier = nanoTimeSupplier;
     }
 
     /**
@@ -64,9 +81,15 @@ public class QueryGroupTask extends CancellableTask {
      * @param threadContext current threadContext
      */
     public final void setQueryGroupId(final ThreadContext threadContext) {
-        this.queryGroupId = Optional.ofNullable(threadContext)
-            .map(threadContext1 -> threadContext1.getHeader(QUERY_GROUP_ID_HEADER))
-            .orElse(DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
+        if (threadContext != null && threadContext.getHeader(QUERY_GROUP_ID_HEADER) != null) {
+            this.queryGroupId = threadContext.getHeader(QUERY_GROUP_ID_HEADER);
+        } else {
+            this.queryGroupId = DEFAULT_QUERY_GROUP_ID_SUPPLIER.get();
+        }
+    }
+
+    public long getElapsedTime() {
+        return nanoTimeSupplier.getAsLong() - getStartTimeNanos();
     }
 
     @Override

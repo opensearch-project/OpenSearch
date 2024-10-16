@@ -35,6 +35,7 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -43,13 +44,18 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.breaker.ResponseLimitSettings;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -63,13 +69,14 @@ import static org.mockito.Mockito.when;
 
 public class RestIndicesActionTests extends OpenSearchTestCase {
 
-    public void testBuildTable() {
-        final int numIndices = randomIntBetween(3, 20);
-        final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
-        final Map<String, IndexMetadata> indicesMetadatas = new LinkedHashMap<>();
-        final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
-        final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
+    final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
+    final Map<String, IndexMetadata> indicesMetadatas = new LinkedHashMap<>();
+    final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
+    final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
 
+    @Before
+    public void setup() {
+        final int numIndices = randomIntBetween(3, 20);
         for (int i = 0; i < numIndices; i++) {
             String indexName = "index-" + i;
 
@@ -136,11 +143,65 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
                 }
             }
         }
+    }
 
-        final RestIndicesAction action = new RestIndicesAction();
-        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas);
+    public void testBuildTable() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings = Settings.builder().build();
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
+        final Table table = action.buildTable(
+            new FakeRestRequest(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            action.getTableIterator(new String[0], indicesSettings),
+            null
+        );
 
         // now, verify the table is correct
+        assertNotNull(table);
+
+        assertTableHeaders(table);
+
+        assertThat(table.getRows().size(), equalTo(indicesMetadatas.size()));
+        assertTableRows(table);
+    }
+
+    public void testBuildPaginatedTable() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings = Settings.builder().build();
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
+        final RestIndicesListAction indicesListAction = new RestIndicesListAction(responseLimitSettings);
+        List<String> indicesList = new ArrayList<>(indicesMetadatas.keySet());
+        // Using half of the indices from metadata list for a page
+        String[] indicesToBeQueried = indicesList.subList(0, indicesMetadatas.size() / 2).toArray(new String[0]);
+        PageToken pageToken = new PageToken("foo", "indices");
+        final Table table = action.buildTable(
+            new FakeRestRequest(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            indicesListAction.getTableIterator(indicesToBeQueried, indicesSettings),
+            pageToken
+        );
+
+        // verifying table
+        assertNotNull(table);
+        assertTableHeaders(table);
+        assertNotNull(table.getPageToken());
+        assertEquals(pageToken.getNextToken(), table.getPageToken().getNextToken());
+        assertEquals(pageToken.getPaginatedEntity(), table.getPageToken().getPaginatedEntity());
+
+        // Table should only contain the indices present in indicesToBeQueried
+        assertThat(table.getRows().size(), equalTo(indicesMetadatas.size() / 2));
+        assertTableRows(table);
+    }
+
+    private void assertTableHeaders(Table table) {
         List<Table.Cell> headers = table.getHeaders();
         assertThat(headers.get(0).value, equalTo("health"));
         assertThat(headers.get(1).value, equalTo("status"));
@@ -148,9 +209,10 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         assertThat(headers.get(3).value, equalTo("uuid"));
         assertThat(headers.get(4).value, equalTo("pri"));
         assertThat(headers.get(5).value, equalTo("rep"));
+    }
 
+    private void assertTableRows(Table table) {
         final List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(indicesMetadatas.size()));
 
         for (final List<Table.Cell> row : rows) {
             final String indexName = (String) row.get(2).value;

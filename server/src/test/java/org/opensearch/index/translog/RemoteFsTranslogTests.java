@@ -20,6 +20,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
@@ -32,6 +33,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -118,15 +120,15 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected RemoteFsTranslog translog;
-    private AtomicLong globalCheckpoint;
+    protected AtomicLong globalCheckpoint;
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
-    private final AtomicLong primaryTerm = new AtomicLong();
-    private final AtomicBoolean primaryMode = new AtomicBoolean(true);
+    protected final AtomicLong primaryTerm = new AtomicLong();
+    protected final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
-    private ThreadPool threadPool;
-    private final static String METADATA_DIR = "metadata";
-    private final static String DATA_DIR = "data";
+    protected ThreadPool threadPool;
+    protected final static String METADATA_DIR = "metadata";
+    protected final static String DATA_DIR = "data";
     AtomicInteger writeCalls = new AtomicInteger();
     BlobStoreRepository repository;
 
@@ -136,7 +138,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     TestTranslog.SlowDownWriteSwitch slowDown;
 
-    private LongConsumer getPersistedSeqNoConsumer() {
+    protected LongConsumer getPersistedSeqNoConsumer() {
         return seqNo -> {
             final LongConsumer consumer = persistedSeqNoConsumer.get();
             if (consumer != null) {
@@ -167,7 +169,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
     }
 
-    private RemoteFsTranslog create(Path path) throws IOException {
+    protected RemoteFsTranslog create(Path path) throws IOException {
         final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         return create(path, createRepository(), translogUUID, 0);
     }
@@ -179,6 +181,14 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         blobStoreTransferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
+        return createTranslogInstance(translogConfig, translogUUID, deletionPolicy);
+    }
+
+    protected RemoteFsTranslog createTranslogInstance(
+        TranslogConfig translogConfig,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy
+    ) throws IOException {
         return new RemoteFsTranslog(
             translogConfig,
             translogUUID,
@@ -277,7 +287,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         return loc;
     }
 
-    private Translog.Location addToTranslogAndListAndUpload(Translog translog, List<Translog.Operation> list, Translog.Operation op)
+    protected Translog.Location addToTranslogAndListAndUpload(Translog translog, List<Translog.Operation> list, Translog.Operation op)
         throws IOException {
         Translog.Location loc = translog.add(op);
         translog.ensureSynced(loc);
@@ -390,7 +400,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     }
 
-    private TranslogConfig getConfig(int gensToKeep) {
+    protected TranslogConfig getConfig(int gensToKeep) {
         Path tempDir = createTempDir();
         final TranslogConfig temp = getTranslogConfig(tempDir, gensToKeep);
         final TranslogConfig config = new TranslogConfig(
@@ -405,7 +415,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         return config;
     }
 
-    private ChannelFactory getChannelFactory() {
+    protected ChannelFactory getChannelFactory() {
         writeCalls = new AtomicInteger();
         final ChannelFactory channelFactory = (file, openOption) -> {
             FileChannel delegate = FileChannel.open(file, openOption);
@@ -493,8 +503,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 6,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
-
         }
+
     }
 
     public void testReadLocation() throws IOException {
@@ -761,7 +771,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
-
     }
 
     public void testMetadataFileDeletion() throws Exception {
@@ -910,7 +919,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
     }
 
-    private BlobPath getTranslogDirectory() {
+    protected BlobPath getTranslogDirectory() {
         return repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG.getName());
     }
 
@@ -1688,13 +1697,13 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
-        when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
+        when(mockTransfer.readMetadata(0)).thenReturn(translogTransferMetadata);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
         when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
         TranslogTransferManager finalMockTransfer = mockTransfer;
-        assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false));
+        assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0));
 
         // File not found in first attempt . File found in second attempt.
         mockTransfer = mock(TranslogTransferManager.class);
@@ -1715,7 +1724,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }).when(mockTransfer).downloadTranslog(any(), any(), any());
 
         // no exception thrown
-        RemoteFsTranslog.download(mockTransfer, location, logger, false);
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
     }
 
     // No translog data in local as well as remote, we skip creating empty translog
@@ -1728,7 +1737,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         Path[] filesBeforeDownload = FileSystemUtils.files(location);
-        RemoteFsTranslog.download(mockTransfer, location, logger, false);
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
         assertEquals(filesBeforeDownload, FileSystemUtils.files(location));
     }
 
@@ -1748,7 +1757,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         Checkpoint existingCheckpoint = Translog.readCheckpoint(location);
 
         TranslogTransferManager finalMockTransfer = mockTransfer;
-        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0);
 
         Path[] filesPostDownload = FileSystemUtils.files(location);
         assertEquals(2, filesPostDownload.length);
@@ -1784,14 +1793,91 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         TranslogTransferManager finalMockTransfer = mockTransfer;
 
         // download first time will ensure creating empty translog
-        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0);
         Path[] filesPostFirstDownload = FileSystemUtils.files(location);
 
         // download on empty translog should be a no-op
-        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0);
         Path[] filesPostSecondDownload = FileSystemUtils.files(location);
 
         assertArrayEquals(filesPostFirstDownload, filesPostSecondDownload);
+    }
+
+    public void testSyncWithGlobalCheckpointUpdate() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
+
+        // Set a global checkpoint
+        long initialGlobalCheckpoint = 1L;
+        globalCheckpoint.set(initialGlobalCheckpoint);
+
+        // Sync the translog
+        translog.sync();
+
+        // Verify that the globalCheckpointSynced is updated
+        assertEquals(initialGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
+
+        // Update global checkpoint
+        long newGlobalCheckpoint = 2L;
+        globalCheckpoint.set(newGlobalCheckpoint);
+
+        // Add a new operation and sync
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 3 }));
+        translog.sync();
+
+        // Verify that the globalCheckpointSynced is updated to the new value
+        assertEquals(newGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
+    }
+
+    public void testSyncNeededWithGlobalCheckpointUpdate() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+
+        // Set initial global checkpoint
+        long initialGlobalCheckpoint = 0L;
+        globalCheckpoint.set(initialGlobalCheckpoint);
+
+        // Sync the translog
+        translog.sync();
+
+        // Verify that sync is not needed
+        assertFalse(translog.syncNeeded());
+
+        // Update global checkpoint
+        long newGlobalCheckpoint = 1L;
+        globalCheckpoint.set(newGlobalCheckpoint);
+
+        // Verify that sync is now needed due to global checkpoint update
+        assertTrue(translog.syncNeeded());
+
+        // Sync again
+        translog.sync();
+
+        // Verify that sync is not needed after syncing
+        assertFalse(translog.syncNeeded());
+    }
+
+    public void testGlobalCheckpointUpdateDuringClose() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+
+        // Set initial global checkpoint
+        long initialGlobalCheckpoint = 0L;
+        globalCheckpoint.set(initialGlobalCheckpoint);
+
+        // Sync the translog
+        translog.sync();
+
+        // Update global checkpoint
+        long newGlobalCheckpoint = 1L;
+        globalCheckpoint.set(newGlobalCheckpoint);
+
+        // Close the translog
+        translog.close();
+
+        // Verify that the last synced checkpoint includes the updated global checkpoint
+        assertEquals(newGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
     }
 
     public class ThrowingBlobRepository extends FsRepository {
@@ -1880,6 +1966,28 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 }
             }
             super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+        }
+
+        @Override
+        public void listBlobsByPrefixInSortedOrder(
+            String blobNamePrefix,
+            int limit,
+            BlobNameSortOrder blobNameSortOrder,
+            ActionListener<List<BlobMetadata>> listener
+        ) {
+            if (fail.fail()) {
+                listener.onFailure(new RuntimeException("blob container throwing error"));
+                return;
+            }
+            if (slowDown.getSleepSeconds() > 0) {
+                try {
+                    Thread.sleep(slowDown.getSleepSeconds() * 1000L);
+                } catch (InterruptedException e) {
+                    listener.onFailure(new RuntimeException(e));
+                    return;
+                }
+            }
+            super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, listener);
         }
     }
 

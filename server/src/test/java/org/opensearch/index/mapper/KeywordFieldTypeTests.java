@@ -136,7 +136,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             new TermInSetQuery("field", terms),
             new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms)
         );
-        assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
 
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         Query expectedIndex = new TermInSetQuery("field", terms);
@@ -225,7 +225,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 new RegexpQuery(new Term("field", "foo.*")),
                 new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
             ),
-            ft.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
+            ft.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
 
         Query indexExpected = new RegexpQuery(new Term("field", "foo.*"));
@@ -267,7 +267,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true),
                 new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE)
             ),
-            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC)
+            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
 
         Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true);
@@ -308,7 +308,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 MultiTermQuery.DOC_VALUES_REWRITE
             )
         );
-        assertEquals(expected, ft.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
+        assertEquals(expected, ft.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
 
         Query indexExpected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());

@@ -8,9 +8,9 @@
 
 package org.opensearch.search.backpressure.trackers;
 
-import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.EnumMap;
 

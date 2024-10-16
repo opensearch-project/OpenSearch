@@ -135,6 +135,15 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * Controls pinned timestamp feature enablement
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED = Setting.boolSetting(
+        "cluster.remote_store.pinned_timestamps.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Controls pinned timestamp scheduler interval
      */
     public static final Setting<TimeValue> CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL = Setting.timeSetting(
@@ -155,6 +164,26 @@ public class RemoteStoreSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Controls the fixed prefix for the translog path on remote store.
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX = Setting.simpleString(
+        "cluster.remote_store.translog.path.prefix",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Controls the fixed prefix for the segments path on remote store.
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX = Setting.simpleString(
+        "cluster.remote_store.segments.path.prefix",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
@@ -163,8 +192,11 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
     private volatile boolean isTranslogMetadataEnabled;
+    private static volatile boolean isPinnedTimestampsEnabled;
     private static volatile TimeValue pinnedTimestampsSchedulerInterval;
     private static volatile TimeValue pinnedTimestampsLookbackInterval;
+    private final String translogPathFixedPrefix;
+    private final String segmentsPathFixedPrefix;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -205,6 +237,10 @@ public class RemoteStoreSettings {
 
         pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
         pinnedTimestampsLookbackInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings);
+        isPinnedTimestampsEnabled = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.get(settings);
+
+        translogPathFixedPrefix = CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.get(settings);
+        segmentsPathFixedPrefix = CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(settings);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -279,5 +315,22 @@ public class RemoteStoreSettings {
 
     public static TimeValue getPinnedTimestampsLookbackInterval() {
         return pinnedTimestampsLookbackInterval;
+    }
+
+    // Visible for testing
+    public static void setPinnedTimestampsLookbackInterval(TimeValue pinnedTimestampsLookbackInterval) {
+        RemoteStoreSettings.pinnedTimestampsLookbackInterval = pinnedTimestampsLookbackInterval;
+    }
+
+    public static boolean isPinnedTimestampsEnabled() {
+        return isPinnedTimestampsEnabled;
+    }
+
+    public String getTranslogPathFixedPrefix() {
+        return translogPathFixedPrefix;
+    }
+
+    public String getSegmentsPathFixedPrefix() {
+        return segmentsPathFixedPrefix;
     }
 }

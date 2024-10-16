@@ -34,47 +34,11 @@ import java.util.Map;
 public class TransportClusterStatsActionTests extends TransportNodesActionTests {
 
     /**
-     * By default, we send discovery nodes list to each request that is sent across from the coordinator node. This
-     * behavior is asserted in this test.
-     */
-    public void testClusterStatsActionWithRetentionOfDiscoveryNodesList() {
-        ClusterStatsRequest request = new ClusterStatsRequest();
-        request.setIncludeDiscoveryNodes(true);
-        Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
-
-        assertNotNull(combinedSentRequest);
-        combinedSentRequest.forEach((node, capturedRequestList) -> {
-            assertNotNull(capturedRequestList);
-            capturedRequestList.forEach(sentRequest -> {
-                assertNotNull(sentRequest.getDiscoveryNodes());
-                assertEquals(sentRequest.getDiscoveryNodes().length, clusterService.state().nodes().getSize());
-            });
-        });
-    }
-
-    public void testClusterStatsActionWithPreFilledConcreteNodesAndWithRetentionOfDiscoveryNodesList() {
-        ClusterStatsRequest request = new ClusterStatsRequest();
-        Collection<DiscoveryNode> discoveryNodes = clusterService.state().getNodes().getNodes().values();
-        request.setConcreteNodes(discoveryNodes.toArray(DiscoveryNode[]::new));
-        Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
-
-        assertNotNull(combinedSentRequest);
-        combinedSentRequest.forEach((node, capturedRequestList) -> {
-            assertNotNull(capturedRequestList);
-            capturedRequestList.forEach(sentRequest -> {
-                assertNotNull(sentRequest.getDiscoveryNodes());
-                assertEquals(sentRequest.getDiscoveryNodes().length, clusterService.state().nodes().getSize());
-            });
-        });
-    }
-
-    /**
      * In the optimized ClusterStats Request, we do not send the DiscoveryNodes List to each node. This behavior is
      * asserted in this test.
      */
     public void testClusterStatsActionWithoutRetentionOfDiscoveryNodesList() {
         ClusterStatsRequest request = new ClusterStatsRequest();
-        request.setIncludeDiscoveryNodes(false);
         Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
 
         assertNotNull(combinedSentRequest);
@@ -88,7 +52,6 @@ public class TransportClusterStatsActionTests extends TransportNodesActionTests 
         ClusterStatsRequest request = new ClusterStatsRequest();
         Collection<DiscoveryNode> discoveryNodes = clusterService.state().getNodes().getNodes().values();
         request.setConcreteNodes(discoveryNodes.toArray(DiscoveryNode[]::new));
-        request.setIncludeDiscoveryNodes(false);
         Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
 
         assertNotNull(combinedSentRequest);

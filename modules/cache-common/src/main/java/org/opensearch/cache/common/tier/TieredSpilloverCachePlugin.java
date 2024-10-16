@@ -65,6 +65,15 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
             if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings)) {
                 settingList.add(DISK_CACHE_ENABLED_SETTING_MAP.get(cacheType));
             }
+            settingList.add(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+            );
+            settingList.add(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+            );
+            settingList.add(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_SIZE.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+            );
         }
         return settingList;
     }

@@ -229,6 +229,7 @@ import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -1501,12 +1502,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     private StepListener<CreateIndexResponse> createRepoAndIndex(String repoName, String index, int shards) {
         final StepListener<AcknowledgedResponse> createRepositoryListener = new StepListener<>();
 
-        client().admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType(FsRepository.TYPE)
-            .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
-            .execute(createRepositoryListener);
+        Settings.Builder settings = Settings.builder().put("location", randomAlphaOfLength(10));
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, FsRepository.TYPE, settings, createRepositoryListener);
 
         final StepListener<CreateIndexResponse> createIndexResponseStepListener = new StepListener<>();
 
@@ -1926,11 +1923,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
                         }
-
-                        @Override
-                        protected void connectToNodesAndWait(ClusterState newClusterState) {
-                            // don't do anything, and don't block
-                        }
                     }
                 );
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
@@ -2016,7 +2008,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     repositoriesService,
                     transportService,
                     actionFilters,
-                    null
+                    null,
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
@@ -2073,7 +2066,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     null,
                     emptyMap(),
-                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
+                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
                     repositoriesServiceReference::get,
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
@@ -2096,7 +2089,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     rerouteService,
                     threadPool
                 );
-                nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
+                nodeConnectionsService = createTestNodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -2287,7 +2280,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
                     null,
-                    new TaskResourceTrackingService(settings, clusterSettings, threadPool)
+                    new TaskResourceTrackingService(settings, clusterSettings, threadPool),
+                    Collections.emptyList()
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
@@ -2369,7 +2363,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         snapshotsService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        DefaultRemoteStoreSettings.INSTANCE
                     )
                 );
                 actions.put(
@@ -2379,6 +2374,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         snapshotsService,
+                        repositoriesService,
                         actionFilters,
                         indexNameExpressionResolver
                     )
@@ -2412,7 +2408,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        null
                     )
                 );
                 actions.put(
@@ -2432,7 +2429,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             nodeEnv,
                             indicesService,
                             namedXContentRegistry
-                        )
+                        ),
+                        new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                     )
                 );
                 actions.put(
@@ -2454,7 +2452,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        null
                     )
                 );
 
@@ -2487,6 +2486,24 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         random()
                     );
                 }
+            }
+
+            public NodeConnectionsService createTestNodeConnectionsService(
+                Settings settings,
+                ThreadPool threadPool,
+                TransportService transportService
+            ) {
+                return new NodeConnectionsService(settings, threadPool, transportService) {
+                    @Override
+                    public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                        // just update targetsByNode to ensure disconnect runs for these nodes
+                        // we rely on disconnect to run for keeping track of pendingDisconnects and ensuring node-joins can happen
+                        for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                            this.targetsByNode.put(discoveryNode, createConnectionTarget(discoveryNode));
+                        }
+                        onCompletion.run();
+                    }
+                };
             }
 
             public ClusterInfoService getMockClusterInfoService() {
@@ -2560,10 +2577,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
                     null
                 );
+                coordinator.setNodeConnectionsService(nodeConnectionsService);
                 clusterManagerService.setClusterStatePublisher(coordinator);
-                coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();
+                coordinator.start();
                 clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();

@@ -754,6 +754,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             searchRequestContext.setTotalHits(internalSearchResponse.hits().getTotalHits());
             searchRequestContext.setShardStats(results.getNumShards(), successfulOps.get(), skippedOps.get(), failures.length);
+            searchRequestContext.setSuccessfulSearchShardIndices(
+                results.getSuccessfulResults()
+                    .map(result -> result.getSearchShardTarget().getShardId().getIndex())
+                    .collect(Collectors.toSet())
+            );
             onPhaseEnd(searchRequestContext);
             onRequestEnd(searchRequestContext);
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));

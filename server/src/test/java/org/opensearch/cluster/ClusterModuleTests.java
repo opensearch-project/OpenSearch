@@ -337,6 +337,19 @@ public class ClusterModuleTests extends ModuleTestCase {
         );
     }
 
+    public void testRerouteServiceSetForBalancedShardsAllocator() {
+        ClusterModule clusterModule = new ClusterModule(
+            Settings.EMPTY,
+            clusterService,
+            Collections.emptyList(),
+            clusterInfoService,
+            null,
+            threadContext,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
+        clusterModule.setRerouteServiceForAllocator((reason, priority, listener) -> listener.onResponse(clusterService.state()));
+    }
+
     private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {
         return new ClusterPlugin() {
             @Override

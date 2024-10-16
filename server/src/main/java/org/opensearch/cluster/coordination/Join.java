@@ -78,8 +78,8 @@ public class Join implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        sourceNode.writeTo(out);
-        targetNode.writeTo(out);
+        sourceNode.writeToWithAttribute(out);
+        targetNode.writeToWithAttribute(out);
         out.writeLong(term);
         out.writeLong(lastAcceptedTerm);
         out.writeLong(lastAcceptedVersion);
