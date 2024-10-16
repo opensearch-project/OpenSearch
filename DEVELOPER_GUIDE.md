@@ -76,6 +76,35 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 ### Install Prerequisites
 
+
+### [Optional] sdkman 
+
+[SDKman](https://sdkman.io/) is a utility that can help you manage your Java version with a handy command line interface (CLI). To install sdkman visit the site and use the curl statement at the top to get started. Once sdkman is installed you can use the following to list the current Java versions. We recommend the Adoptium's Termurin distribution of JDK to run and build OpenSearch. 
+
+
+```bash
+sdk list java
+$ Temurin      |     | 20.0.2       | tem     |            | 20.0.2-tem          
+               |     | 20.0.1       | tem     |            | 20.0.1-tem          
+               |     | 17.0.8       | tem     |            | 17.0.8-tem          
+               |     | 17.0.8.1     | tem     |            | 17.0.8.1-tem        
+               |     | 17.0.7       | tem     |            | 17.0.7-tem          
+               | >>> | 11.0.20      | tem     | installed  | 11.0.20-tem
+```
+
+After finding the appopriate jdk version you can install it with the following command. Java 17.0.8 is used as a demo here.
+
+```bash
+sdk install java 17.0.8-tem
+```
+
+Finally, to switch jdk versions in your terminal you can use the command below. It will set the appropriate JAVA_HOME varable. 
+
+```bash
+sdk use java 17.0.8-tem
+```
+
+
 #### JDK 11
 
 OpenSearch builds using Java 11 at a minimum, using the Adoptium distribution. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`. This is configured in [buildSrc/build.gradle](buildSrc/build.gradle) and [distribution/tools/java-version-checker/build.gradle](distribution/tools/java-version-checker/build.gradle).
