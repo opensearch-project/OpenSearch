@@ -53,6 +53,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -139,11 +141,24 @@ public class BootstrapTests extends OpenSearchTestCase {
 
     public void testInitExecutionOrder() throws Exception {
         AtomicInteger order = new AtomicInteger(0);
-
-        Thread mockThread = new Thread(() -> { assertEquals(0, order.getAndIncrement()); });
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        Thread mockThread = new Thread(() -> {
+            assertEquals(0, order.getAndIncrement());
+            countDownLatch.countDown();
+        });
 
         Node mockNode = mock(Node.class);
         doAnswer(invocation -> {
+            try {
+                boolean threadStarted = countDownLatch.await(1000, TimeUnit.MILLISECONDS);
+                assertTrue(
+                    "Waited for one second but the keepAliveThread isn't started, please check the execution order of"
+                        + "keepAliveThread.start and node.start",
+                    threadStarted
+                );
+            } catch (InterruptedException e) {
+                fail("Thread interrupted");
+            }
             assertEquals(1, order.getAndIncrement());
             return null;
         }).when(mockNode).start();
