@@ -189,7 +189,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     List<String> metadataFilesToBeDeleted = getMetadataFilesToBeDeleted(metadataFiles, indexDeleted);
 
                     // If index is not deleted, make sure to keep latest metadata file
-                    if (indexDeleted == false) {
+                    if (indexDeleted == false || RemoteStoreSettings.isPinnedTimestampsEnabled()) {
                         metadataFilesToBeDeleted.remove(metadataFiles.get(0));
                     }
 
