@@ -998,7 +998,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     );
                     metadataListener.whenComplete(meta -> {
-                        ShardGenerations shardGenerations = buildGenerations(newEntry, meta);
+                        ShardGenerations shardGenerations = buildGenerationsV2(newEntry, meta);
                         repository.finalizeSnapshot(
                             shardGenerations,
                             repositoryData.getGenId(),
@@ -1549,6 +1549,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }
+        return builder.build();
+    }
+
+    private static ShardGenerations buildGenerationsV2(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+        ShardGenerations.Builder builder = ShardGenerations.builder();
+        snapshot.indices().forEach(indexId -> {
+            int shardCount = metadata.index(indexId.getName()).getNumberOfShards();
+            for (int i = 0; i < shardCount; i++) {
+                builder.put(indexId, i, null);
+            }
+        });
         return builder.build();
     }
 
