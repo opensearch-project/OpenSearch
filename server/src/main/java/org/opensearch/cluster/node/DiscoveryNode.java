@@ -45,6 +45,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,9 +64,8 @@ import java.util.stream.Stream;
 
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getClusterStateRepoName;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRoutingTableRepoName;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getSegmentRepoName;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isClusterStateRepoConfigured;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRoutingTableRepoConfigured;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -510,7 +510,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      * @return true if the node contains remote store node attributes, false otherwise
      */
     public boolean isRemoteStoreNode() {
-        return getClusterStateRepoName(this.getAttributes()) != null && getSegmentRepoName(this.getAttributes()) != null;
+        return isClusterStateRepoConfigured(this.getAttributes()) && RemoteStoreNodeAttribute.isSegmentRepoConfigured(this.getAttributes());
     }
 
     /**
@@ -518,7 +518,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      * @return true if the node contains remote cluster state node attribute and remote routing table node attribute
      */
     public boolean isRemoteStatePublicationConfigured() {
-        return getClusterStateRepoName(this.getAttributes()) != null && getRoutingTableRepoName(this.getAttributes()) != null;
+        return isClusterStateRepoConfigured(this.getAttributes()) && isRoutingTableRepoConfigured(this.getAttributes());
     }
 
     /**
@@ -582,13 +582,16 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
             sb.append('}');
         }
         if (!attributes.isEmpty()) {
-            sb.append(
-                attributes.entrySet()
-                    .stream()
-                    .filter(entry -> !entry.getKey().startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)) // filter remote_store attributes
-                                                                                                         // from logging to reduce noise.
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            );
+            sb.append(attributes.entrySet().stream().filter(entry -> {
+                for (String prefix : REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX) {
+                    if (entry.getKey().startsWith(prefix)) {
+                        return false;
+                    }
+                }
+                return true;
+            }) // filter remote_store attributes
+               // from logging to reduce noise.
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         }
         return sb.toString();
     }

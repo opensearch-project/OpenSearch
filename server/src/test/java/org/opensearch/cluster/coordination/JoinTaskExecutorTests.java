@@ -688,6 +688,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                 IllegalStateException.class,
                 () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
             );
+            logger.info("message " + e.getMessage() + " " + nodeAttribute.getKey());
             assertTrue(
                 e.getMessage().equals("joining node [" + joiningNode + "] doesn't have the node attribute [" + nodeAttribute.getKey() + "]")
                     || e.getMessage()

@@ -54,6 +54,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,7 +68,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getClusterStateRepoName;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRoutingTableRepoName;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
@@ -518,7 +519,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .findFirst();
 
         if (remotePublicationNode.isPresent() && joiningNode.isRemoteStatePublicationConfigured()) {
-            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES);
+            List<String> repos = Arrays.asList(
+                getClusterStateRepoName(remotePublicationNode.get().getAttributes()),
+                getRoutingTableRepoName(remotePublicationNode.get().getAttributes())
+            );
+
+            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), repos);
         }
     }
 
