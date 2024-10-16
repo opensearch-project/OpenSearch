@@ -39,6 +39,7 @@ import org.opensearch.cluster.coordination.PeersResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -169,8 +170,13 @@ public class PeerFinderTests extends OpenSearchTestCase {
         DiscoveryNode discoveredClusterManagerNode;
         OptionalLong discoveredClusterManagerTerm = OptionalLong.empty();
 
-        TestPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector) {
-            super(settings, transportService, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts);
+        TestPeerFinder(
+            Settings settings,
+            ClusterSettings clusterSettings,
+            TransportService transportService,
+            TransportAddressConnector transportAddressConnector
+        ) {
+            super(settings, clusterSettings, transportService, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts);
         }
 
         @Override
@@ -251,8 +257,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         lastAcceptedNodes = DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build();
-
-        peerFinder = new TestPeerFinder(settings, transportService, transportAddressConnector);
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        peerFinder = new TestPeerFinder(settings, clusterSettings, transportService, transportAddressConnector);
         foundPeersFromNotification = emptyList();
     }
 

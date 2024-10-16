@@ -42,10 +42,10 @@ public class CoordinationCheckerSettingsTests extends OpenSearchSingleNodeTestCa
 
     public void testFollowerCheckTimeoutMaxValue() {
         Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "61s").build();
+        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "151s").build();
 
         assertThrows(
-            "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]",
+            "failed to parse value [151s] for setting [" + setting1.getKey() + "], must be <= [150000ms]",
             IllegalArgumentException.class,
             () -> {
                 client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
