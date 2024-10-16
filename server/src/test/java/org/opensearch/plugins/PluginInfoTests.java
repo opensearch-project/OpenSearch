@@ -37,6 +37,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.xcontent.ToXContent;
@@ -360,7 +361,8 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "dummyclass",
             "c",
             Collections.singletonList("foo"),
-            randomBoolean()
+            randomBoolean(),
+            Settings.EMPTY
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -380,7 +382,8 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "dummyClass",
             "folder",
             Collections.emptyList(),
-            false
+            false,
+            Settings.EMPTY
         );
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String prettyPrint = info.toXContent(builder, ToXContent.EMPTY_PARAMS).prettyPrint().toString();
@@ -618,7 +621,8 @@ public class PluginInfoTests extends OpenSearchTestCase {
                 "dummyclass",
                 null,
                 Collections.emptyList(),
-                randomBoolean()
+                randomBoolean(),
+                Settings.EMPTY
             )
         );
         assertThat(e.getMessage(), containsString("Exactly one range is allowed to be specified in dependencies for the plugin"));
