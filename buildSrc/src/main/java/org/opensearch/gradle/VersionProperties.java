@@ -35,6 +35,8 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -134,6 +136,37 @@ public class VersionProperties {
             throw new IllegalStateException("Failed to load version properties", e);
         }
         return props;
+    }
+
+    private static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
+        String opensearch = loadedProps.getProperty("opensearch");
+        if (opensearch == null) {
+            throw new IllegalStateException("OpenSearch version is missing from properties.");
+        }
+        if (opensearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
+            throw new IllegalStateException("Expected opensearch version to be numbers only of the form  X.Y.Z but it was: " + opensearch);
+        }
+        String qualifier = systemProperties.getProperty("build.version_qualifier", "");
+        if (qualifier.isEmpty() == false) {
+            if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
+                throw new IllegalStateException("Invalid qualifier: " + qualifier);
+            }
+            opensearch += "-" + qualifier;
+        }
+        final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
+        switch (buildSnapshotSystemProperty) {
+            case "true":
+                opensearch += "-SNAPSHOT";
+                break;
+            case "false":
+                // do nothing
+                break;
+            default:
+                throw new IllegalArgumentException(
+                    "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]"
+                );
+        }
+        loadedProps.put("opensearch", opensearch);
     }
 
     public static boolean isOpenSearchSnapshot() {

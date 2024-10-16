@@ -30,6 +30,12 @@
 
 import org.gradle.internal.jvm.Jvm
 import org.gradle.util.GradleVersion
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.IOException;
 
 plugins {
   id 'java-gradle-plugin'
@@ -287,7 +293,8 @@ if (project != rootProject) {
   }
 }
 
-// Define this here because we need it early.
+// Define this here because we need it early. This reads in a toml file, extracts the section with the header
+// [versions] and converts to a Java Properties object
 class VersionPropertiesLoader {
   static Properties loadBuildSrcVersion(File input) throws IOException {
     Properties props = new Properties();
@@ -300,8 +307,10 @@ class VersionPropertiesLoader {
       is.close()
     }
     props.forEach((key, value) -> {
-      String newValue = value.toString().replace("\"", "")
-      props.setProperty(key.toString(), newValue)
+      if (value != null && value instanceof String) {
+        String newValue = value.toString().replace("\"", "")
+        props.setProperty(key.toString(), newValue)
+      }
     });
     loadBuildSrcVersion(props, System.getProperties())
     return props
