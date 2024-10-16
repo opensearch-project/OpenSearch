@@ -29,6 +29,7 @@
  */
 
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
 
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
