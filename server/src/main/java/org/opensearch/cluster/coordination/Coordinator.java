@@ -105,6 +105,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -383,7 +384,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void handleApplyCommit(ApplyCommitRequest applyCommitRequest, ActionListener<Void> applyListener) {
+    private void handleApplyCommit(
+        ApplyCommitRequest applyCommitRequest,
+        Consumer<ClusterState> updateLastSeen,
+        ActionListener<Void> applyListener
+    ) {
         synchronized (mutex) {
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
@@ -391,6 +396,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(committedState) : committedState;
             clusterApplier.setPreCommitState(applierState);
+            updateLastSeen.accept(coordinationState.get().getLastAcceptedState());
 
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // cluster-manager node applies the committed state at the end of the publication process, not here.
