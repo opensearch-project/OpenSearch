@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
-import org.opensearch.index.codec.composite.composite99.Composite99DocValuesFormat;
 import org.opensearch.index.mapper.MapperService;
 
 /**
@@ -53,6 +52,6 @@ public class Composite912Codec extends FilterCodec {
 
     @Override
     public DocValuesFormat docValuesFormat() {
-        return new Composite99DocValuesFormat(mapperService);
+        return new Composite912DocValuesFormat(mapperService);
     }
 }

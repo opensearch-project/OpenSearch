@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.composite99;
+package org.opensearch.index.codec.composite.composite912;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
@@ -55,14 +55,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite99DocValuesWriter extends DocValuesConsumer {
+public class Composite912DocValuesWriter extends DocValuesConsumer {
     private final DocValuesConsumer delegate;
     private final SegmentWriteState state;
     private final MapperService mapperService;
     AtomicReference<MergeState> mergeState = new AtomicReference<>();
     private final Set<CompositeMappedFieldType> compositeMappedFieldTypes;
     private final Set<String> compositeFieldSet;
-    private DocValuesConsumer composite99DocValuesConsumer;
+    private DocValuesConsumer compositeDocValuesConsumer;
 
     public IndexOutput dataOut;
     public IndexOutput metaOut;
@@ -72,7 +72,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
 
-    public Composite99DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService)
+    public Composite912DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService)
         throws IOException {
 
         this.delegate = delegate;
@@ -101,24 +101,24 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             // so that all the fields are sparse numeric doc values and not dense numeric doc values
             SegmentWriteState consumerWriteState = getSegmentWriteState(segmentWriteState);
 
-            this.composite99DocValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
+            this.compositeDocValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
                 consumerWriteState,
-                Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
-                Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
-                Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
-                Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
+                Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+                Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+                Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+                Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
             );
 
             String dataFileName = IndexFileNames.segmentFileName(
                 this.state.segmentInfo.name,
                 this.state.segmentSuffix,
-                Composite99DocValuesFormat.DATA_EXTENSION
+                Composite912DocValuesFormat.DATA_EXTENSION
             );
             dataOut = this.state.directory.createOutput(dataFileName, this.state.context);
             CodecUtil.writeIndexHeader(
                 dataOut,
-                Composite99DocValuesFormat.DATA_CODEC_NAME,
-                Composite99DocValuesFormat.VERSION_CURRENT,
+                Composite912DocValuesFormat.DATA_CODEC_NAME,
+                Composite912DocValuesFormat.VERSION_CURRENT,
                 this.state.segmentInfo.getId(),
                 this.state.segmentSuffix
             );
@@ -126,13 +126,13 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             String metaFileName = IndexFileNames.segmentFileName(
                 this.state.segmentInfo.name,
                 this.state.segmentSuffix,
-                Composite99DocValuesFormat.META_EXTENSION
+                Composite912DocValuesFormat.META_EXTENSION
             );
             metaOut = this.state.directory.createOutput(metaFileName, this.state.context);
             CodecUtil.writeIndexHeader(
                 metaOut,
-                Composite99DocValuesFormat.META_CODEC_NAME,
-                Composite99DocValuesFormat.VERSION_CURRENT,
+                Composite912DocValuesFormat.META_CODEC_NAME,
+                Composite912DocValuesFormat.VERSION_CURRENT,
                 this.state.segmentInfo.getId(),
                 this.state.segmentSuffix
             );
@@ -197,12 +197,12 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             success = true;
         } finally {
             if (success) {
-                IOUtils.close(dataOut, metaOut, composite99DocValuesConsumer);
+                IOUtils.close(dataOut, metaOut, compositeDocValuesConsumer);
             } else {
-                IOUtils.closeWhileHandlingException(dataOut, metaOut, composite99DocValuesConsumer);
+                IOUtils.closeWhileHandlingException(dataOut, metaOut, compositeDocValuesConsumer);
             }
             metaOut = dataOut = null;
-            composite99DocValuesConsumer = null;
+            compositeDocValuesConsumer = null;
         }
     }
 
@@ -224,7 +224,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
                 if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
                     try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-                        starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, composite99DocValuesConsumer);
+                        starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, compositeDocValuesConsumer);
                     }
                 }
             }
@@ -313,7 +313,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             }
         }
         try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-            starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, composite99DocValuesConsumer);
+            starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
         }
     }
 

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.composite99;
+package org.opensearch.index.codec.composite.composite912;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
@@ -25,7 +25,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite99DocValuesFormat extends DocValuesFormat {
+public class Composite912DocValuesFormat extends DocValuesFormat {
     /**
      * Creates a new docvalues format.
      *
@@ -38,10 +38,10 @@ public class Composite99DocValuesFormat extends DocValuesFormat {
     private final MapperService mapperService;
 
     /** Data codec name for Composite Doc Values Format */
-    public static final String DATA_CODEC_NAME = "Composite99FormatData";
+    public static final String DATA_CODEC_NAME = "Composite912FormatData";
 
     /** Meta codec name for Composite Doc Values Format */
-    public static final String META_CODEC_NAME = "Composite99FormatMeta";
+    public static final String META_CODEC_NAME = "Composite912FormatMeta";
 
     /** Filename extension for the composite index data */
     public static final String DATA_EXTENSION = "cid";
@@ -50,10 +50,10 @@ public class Composite99DocValuesFormat extends DocValuesFormat {
     public static final String META_EXTENSION = "cim";
 
     /** Data doc values codec name for Composite Doc Values Format */
-    public static final String DATA_DOC_VALUES_CODEC = "Composite99DocValuesData";
+    public static final String DATA_DOC_VALUES_CODEC = "Composite912DocValuesData";
 
     /** Meta doc values codec name for Composite Doc Values Format */
-    public static final String META_DOC_VALUES_CODEC = "Composite99DocValuesMetadata";
+    public static final String META_DOC_VALUES_CODEC = "Composite912DocValuesMetadata";
 
     /** Filename extension for the composite index data doc values */
     public static final String DATA_DOC_VALUES_EXTENSION = "cidvd";
@@ -68,15 +68,15 @@ public class Composite99DocValuesFormat extends DocValuesFormat {
     public static final int VERSION_CURRENT = VERSION_START;
 
     // needed for SPI
-    public Composite99DocValuesFormat() {
+    public Composite912DocValuesFormat() {
         this(new Lucene90DocValuesFormat(), null);
     }
 
-    public Composite99DocValuesFormat(MapperService mapperService) {
+    public Composite912DocValuesFormat(MapperService mapperService) {
         this(new Lucene90DocValuesFormat(), mapperService);
     }
 
-    public Composite99DocValuesFormat(DocValuesFormat delegate, MapperService mapperService) {
+    public Composite912DocValuesFormat(DocValuesFormat delegate, MapperService mapperService) {
         super(delegate.getName());
         this.delegate = delegate;
         this.mapperService = mapperService;
@@ -84,11 +84,11 @@ public class Composite99DocValuesFormat extends DocValuesFormat {
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new Composite99DocValuesWriter(delegate.fieldsConsumer(state), state, mapperService);
+        return new Composite912DocValuesWriter(delegate.fieldsConsumer(state), state, mapperService);
     }
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new Composite99DocValuesReader(delegate.fieldsProducer(state), state);
+        return new Composite912DocValuesReader(delegate.fieldsProducer(state), state);
     }
 }
