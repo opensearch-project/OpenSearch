@@ -34,14 +34,10 @@ package org.opensearch.gradle;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-
-import org.tomlj.Toml;
-import org.tomlj.TomlParseResult;
-import org.tomlj.TomlTable;
 
 /**
  * Accessor for shared dependency versions used by opensearch, namely the opensearch and lucene versions.
@@ -127,31 +123,17 @@ public class VersionProperties {
         }
     }
 
-    private static void tomlVersionsToProperties(TomlTable tomlTable, Properties properties) {
-        for (String key : tomlTable.keySet()) {
-            Object value = tomlTable.get(key);
-
-            if (key.equals("versions")) {
-                TomlTable versions = (TomlTable) value;
-                for (String library : versions.keySet()) {
-                    properties.setProperty(library, versions.get(library).toString());
-                }
-            }
-        }
-    }
-
     private static Properties getVersionProperties() {
-        TomlParseResult toml = null;
-        try {
-            Path path = Path.of(System.getProperty("user.dir"), "gradle/libs.versions.toml");
-            toml = Toml.parse(path);
+        Properties props = new Properties();
+        try (InputStream propsStream = VersionProperties.class.getResourceAsStream("/version.properties")) {
+            if (propsStream == null) {
+                throw new IllegalStateException("/version.properties resource missing");
+            }
+            props.load(propsStream);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("Failed to load version properties", e);
         }
-
-        Properties properties = new Properties();
-        tomlVersionsToProperties(toml, properties);
-        return properties;
+        return props;
     }
 
     public static boolean isOpenSearchSnapshot() {
