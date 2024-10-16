@@ -1857,6 +1857,24 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(targetRoutingNumberOfShards, is(6));
     }
 
+    public void testGetIndexNumberOfRoutingShardsWhenExplicitlySetToNull() {
+        String nullValue = null;
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), nullValue)
+            .build();
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShards, is(1024));
+
+        indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), nullValue)
+            .build();
+        targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShards, is(768));
+    }
+
     public void testSoftDeletesDisabledIsRejected() {
         final IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
             request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
