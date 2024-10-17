@@ -1068,7 +1068,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     ) {
 
         long startTime = System.currentTimeMillis();
-        ClusterState currentState = clusterService.state();
         String snapshotName = snapshot.getSnapshotId().getName();
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
@@ -1146,8 +1145,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
                 executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
-                final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-
                 snapshotInfoListener.whenComplete(snapshotInfo -> {
                     final SnapshotInfo cloneSnapshotInfo = new SnapshotInfo(
                         snapshot.getSnapshotId(),
@@ -1167,17 +1164,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         throw new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2 clone, no longer cluster manager");
                     }
                     final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                    pinnedTimestampListener.whenComplete(repoData -> {
+                    final StepListener<Metadata> metadataListener = new StepListener<>();
+                    pinnedTimestampListener.whenComplete(
+                        rData -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
+                            final Metadata.Builder metaBuilder = Metadata.builder(repository.getSnapshotGlobalMetadata(newEntry.source()));
+                            for (IndexId index : newEntry.indices()) {
+                                metaBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, newEntry.source(), index), false);
+                            }
+                            return metaBuilder.build();
+                        })),
+                        e -> {
+                            logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                            stateWithoutSnapshotV2(newState);
+                            leaveRepoLoop(repositoryName);
+                            listener.onFailure(e);
+                        }
+                    );
+                    metadataListener.whenComplete(meta -> {
+                        ShardGenerations shardGenerations = buildGenerationsV2(newEntry, meta);
                         repository.finalizeSnapshot(
                             shardGenerations,
                             repositoryData.getGenId(),
-                            metadataForSnapshot(
-                                currentState.metadata(),
-                                newEntry.includeGlobalState(),
-                                false,
-                                newEntry.dataStreams(),
-                                newEntry.indices()
-                            ),
+                            metadataForSnapshot(meta, newEntry.includeGlobalState(), false, newEntry.dataStreams(), newEntry.indices()),
                             cloneSnapshotInfo,
                             repositoryData.getVersion(sourceSnapshotId),
                             state -> stateWithoutSnapshot(state, snapshot),
@@ -1221,7 +1229,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         );
                     }, e -> {
-                        logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                        logger.error("Failed to retrieve metadata for snapshot-v2 {} {} ", repositoryName, snapshotName);
                         stateWithoutSnapshotV2(newState);
                         leaveRepoLoop(repositoryName);
                         listener.onFailure(e);
@@ -1959,6 +1967,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }
+        return builder.build();
+    }
+
+    private static ShardGenerations buildGenerationsV2(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+        ShardGenerations.Builder builder = ShardGenerations.builder();
+        snapshot.indices().forEach(indexId -> {
+            int shardCount = metadata.index(indexId.getName()).getNumberOfShards();
+            for (int i = 0; i < shardCount; i++) {
+                builder.put(indexId, i, null);
+            }
+        });
         return builder.build();
     }
 
