@@ -54,6 +54,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -336,7 +337,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
                 try {
-                    bulkScorer.score(leafCollector, liveDocs);
+                    bulkScorer.score(leafCollector, liveDocs, 0, DocIdSetIterator.NO_MORE_DOCS);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -386,18 +387,43 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return weight.scorer(context);
-                }
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    return new ScorerSupplier() {
+                        private Scorer scorer;
+                        private BulkScorer bulkScorer;
 
-                @Override
-                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                    BulkScorer in = weight.bulkScorer(context);
-                    if (in != null) {
-                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
-                    } else {
-                        return null;
-                    }
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            scorer = weight.scorer(context);
+                            return scorer;
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() throws IOException {
+                            final BulkScorer in = weight.bulkScorer(context);
+
+                            if (in != null) {
+                                bulkScorer = new CancellableBulkScorer(in, cancellable::checkCancelled);
+                            } else {
+                                bulkScorer = null;
+                            }
+
+                            return bulkScorer;
+                        }
+
+                        @Override
+                        public long cost() {
+                            if (scorer != null) {
+                                return scorer.iterator().cost();
+                            } else if (bulkScorer != null) {
+                                return bulkScorer.cost();
+                            } else {
+                                // We have no prior knowledge of how many docs might match for any given query term,
+                                // so we assume that all docs could be a match.
+                                return Integer.MAX_VALUE;
+                            }
+                        }
+                    };
                 }
 
                 @Override

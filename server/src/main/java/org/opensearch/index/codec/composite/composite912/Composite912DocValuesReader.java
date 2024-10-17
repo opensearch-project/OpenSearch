@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexFileNames;
@@ -100,7 +101,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
             );
 
             // initialize data input
-            metaIn = readState.directory.openChecksumInput(metaFileName, readState.context);
+            metaIn = readState.directory.openChecksumInput(metaFileName);
             Throwable priorE = null;
             try {
                 CodecUtil.checkIndexHeader(
@@ -304,4 +305,8 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         return sortedNumeric == null ? DocValues.emptySortedNumeric() : sortedNumeric;
     }
 
+    @Override
+    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+        return delegate.getSkipper(field);
+    }
 }

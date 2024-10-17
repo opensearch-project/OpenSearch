@@ -74,8 +74,8 @@ processResources {
  *         Java version                                                      *
  *****************************************************************************/
 
-if (JavaVersion.current() < JavaVersion.VERSION_11) {
-  throw new GradleException('At least Java 11 is required to build opensearch gradle tools')
+if (JavaVersion.current() < JavaVersion.VERSION_21) {
+  throw new GradleException('At least Java 21 is required to build opensearch gradle tools')
 }
 
 sourceSets {
@@ -171,8 +171,8 @@ if (project != rootProject) {
 
   allprojects {
     java {
-        targetCompatibility = JavaVersion.VERSION_11
-        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_21
     }
   }
 

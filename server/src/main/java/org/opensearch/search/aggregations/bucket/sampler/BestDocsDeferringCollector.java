@@ -39,7 +39,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.lease.Releasable;
@@ -124,7 +124,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     // Designed to be overridden by subclasses that may score docs by criteria
     // other than Lucene score
     protected TopDocsCollector<? extends ScoreDoc> createTopDocsCollector(int size) throws IOException {
-        return TopScoreDocCollector.create(size, Integer.MAX_VALUE);
+        return new TopScoreDocCollectorManager(size, null, Integer.MAX_VALUE, false).newCollector();
     }
 
     // Can be overridden by subclasses that have a different priority queue implementation
@@ -239,7 +239,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         private LeafReaderContext readerContext;
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
-        private int currentDocId = -1;
         private Scorable currentScorer;
 
         PerSegmentCollects(LeafReaderContext readerContext) throws IOException {
@@ -274,7 +273,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                 leafCollector.setScorer(this);
 
                 currentScore = 0;
-                currentDocId = -1;
                 if (maxDocId < 0) {
                     return;
                 }
@@ -284,7 +282,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                     int rebased = scoreDoc.doc - readerContext.docBase;
                     if ((rebased >= 0) && (rebased <= maxDocId)) {
                         currentScore = scoreDoc.score;
-                        currentDocId = rebased;
                         // We stored the bucket ID in Lucene's shardIndex property
                         // for convenience.
                         leafCollector.collect(rebased, scoreDoc.shardIndex);
@@ -299,11 +296,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         @Override
         public float score() throws IOException {
             return currentScore;
-        }
-
-        @Override
-        public int docID() {
-            return currentDocId;
         }
 
         public void collect(int docId, long parentBucket) throws IOException {

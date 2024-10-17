@@ -52,6 +52,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -359,10 +360,10 @@ public class MatchQuery {
     private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
         ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency);
         for (BooleanClause clause : bq.clauses()) {
-            if ((clause.getQuery() instanceof TermQuery) == false) {
+            if ((clause.query() instanceof TermQuery) == false) {
                 return bq;
             }
-            query.add(((TermQuery) clause.getQuery()).getTerm());
+            query.add(((TermQuery) clause.query()).getTerm());
         }
         return query;
     }
@@ -829,7 +830,7 @@ public class MatchQuery {
             List<SpanQuery> clauses = new ArrayList<>();
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
-            int maxClauseCount = BooleanQuery.getMaxClauseCount();
+            int maxClauseCount = IndexSearcher.getMaxClauseCount();
             for (int i = 0; i <= articulationPoints.length; i++) {
                 int start = lastState;
                 int end = -1;
@@ -847,7 +848,7 @@ public class MatchQuery {
                         SpanQuery q = createSpanQuery(ts, field, usePrefix);
                         if (q != null) {
                             if (queries.size() >= maxClauseCount) {
-                                throw new BooleanQuery.TooManyClauses();
+                                throw new IndexSearcher.TooManyClauses();
                             }
                             queries.add(q);
                         }
@@ -861,14 +862,14 @@ public class MatchQuery {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
                     if (terms.length >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
                     if (clauses.size() >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     clauses.add(queryPos);
                 }

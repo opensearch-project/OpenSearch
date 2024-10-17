@@ -435,7 +435,7 @@ public enum FieldData {
                     return false;
                 }
                 for (int i = 0;; ++i) {
-                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
+                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_DOCS) {
                         count = i;
                         break;
                     }

@@ -175,10 +175,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
             @Nullable MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
-            Automaton automaton = new RegExp(value, syntaxFlags, matchFlags).toAutomaton(
-                RegexpQuery.DEFAULT_PROVIDER,
-                maxDeterminizedStates
-            );
+            Automaton automaton = new RegExp(value, syntaxFlags, matchFlags).toAutomaton(RegexpQuery.DEFAULT_PROVIDER);
             ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automaton);
             BytesRef valueBytes = BytesRefs.toBytesRef(this.value);
             if (byteRunAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length)) {

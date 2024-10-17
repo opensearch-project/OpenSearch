@@ -77,8 +77,8 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     @Override
     public long nextOrd() throws IOException {
         long segmentOrd = values.nextOrd();
-        if (segmentOrd == SortedSetDocValues.NO_MORE_ORDS) {
-            return SortedSetDocValues.NO_MORE_ORDS;
+        if (segmentOrd == SortedSetDocValues.NO_MORE_DOCS) {
+            return SortedSetDocValues.NO_MORE_DOCS;
         } else {
             return getGlobalOrd(segmentOrd);
         }

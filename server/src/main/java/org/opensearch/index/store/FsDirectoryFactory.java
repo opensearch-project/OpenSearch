@@ -203,11 +203,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         @Override
-        public void setPreload(boolean preload) {
-            throw new IllegalArgumentException("can't set preload on a preload-wrapper");
-        }
-
-        @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             if (useDelegate(name)) {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes

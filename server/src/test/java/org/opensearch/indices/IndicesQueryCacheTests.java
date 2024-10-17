@@ -91,10 +91,10 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new ConstantScoreWeight(this, boost) {
+            return new ConstantScoreWeight(boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                    return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
                 }
 
                 @Override

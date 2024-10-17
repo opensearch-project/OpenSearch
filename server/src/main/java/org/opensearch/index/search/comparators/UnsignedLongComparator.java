@@ -13,6 +13,7 @@ import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Numbers;
 
 import java.io.IOException;
@@ -48,6 +49,16 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
     @Override
     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
         return new UnsignedLongLeafComparator(context);
+    }
+
+    @Override
+    protected long missingValueAsComparableLong() {
+        return missingValue.longValue();
+    }
+
+    @Override
+    protected long sortableBytesToLong(byte[] bytes) {
+        return NumericUtils.sortableBytesToBigInt(bytes, 0, 0).longValue();
     }
 
     /** Leaf comparator for {@link UnsignedLongComparator} that provides skipping functionality */
@@ -88,23 +99,13 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
         }
 
         @Override
-        protected void encodeBottom(byte[] packedValue) {
-            BigIntegerPoint.encodeDimension(bottom, packedValue, 0);
+        protected long bottomAsComparableLong() {
+            return bottom.longValue();
         }
 
         @Override
-        protected void encodeTop(byte[] packedValue) {
-            BigIntegerPoint.encodeDimension(topValue, packedValue, 0);
-        }
-
-        @Override
-        protected int compareMissingValueWithBottomValue() {
-            return missingValue.compareTo(bottom);
-        }
-
-        @Override
-        protected int compareMissingValueWithTopValue() {
-            return missingValue.compareTo(topValue);
+        protected long topAsComparableLong() {
+            return topValue.longValue();
         }
     }
 }

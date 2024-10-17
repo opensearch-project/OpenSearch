@@ -488,8 +488,8 @@ public class Node implements Closeable {
                 Constants.OS_ARCH,
                 Constants.JVM_VENDOR,
                 Constants.JVM_NAME,
-                Constants.JAVA_VERSION,
-                Constants.JVM_VERSION
+                System.getProperty("java.version"),
+                Runtime.version().toString()
             );
             if (jvmInfo.getBundledJdk()) {
                 logger.info("JVM home [{}], using bundled JDK/JRE [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());

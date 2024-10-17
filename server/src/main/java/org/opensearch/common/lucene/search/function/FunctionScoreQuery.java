@@ -412,12 +412,12 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             Scorer scorer = functionScorer(context);
             if (scorer != null && minScore != null) {
                 scorer = new MinScoreScorer(this, scorer, minScore);
             }
-            return scorer;
+            return new DefaultScorerSupplier(scorer);
         }
 
         @Override
@@ -518,7 +518,7 @@ public class FunctionScoreQuery extends Query {
             CombineFunction scoreCombiner,
             boolean needsScores
         ) throws IOException {
-            super(scorer, w);
+            super(scorer);
             this.scoreMode = scoreMode;
             this.functions = functions;
             this.leafFunctions = leafFunctions;

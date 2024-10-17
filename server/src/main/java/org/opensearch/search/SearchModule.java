@@ -32,7 +32,7 @@
 
 package org.opensearch.search;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.GeoShapeType;
@@ -324,7 +324,7 @@ public class SearchModule {
      * Constructs a new SearchModule object
      * <p>
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
-     *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
+     *       When constructed, a static flag is set in Lucene {@link IndexSearcher#setMaxClauseCount} according to the settings.
      * @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
      */

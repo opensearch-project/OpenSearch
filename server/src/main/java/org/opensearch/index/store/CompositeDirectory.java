@@ -24,7 +24,6 @@ import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.utils.BlockIOContext;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
@@ -68,7 +67,7 @@ public class CompositeDirectory extends FilterDirectory {
         this.fileCache = fileCache;
         transferManager = new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
-                remoteDirectory.openInput(name, new BlockIOContext(IOContext.DEFAULT, position, length)),
+                CompositeDirectory.this.remoteDirectory.openBlockInput(name, position, length, IOContext.DEFAULT),
                 length
             ),
             fileCache

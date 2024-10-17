@@ -983,7 +983,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             try {
                 directory = engineConfig.getCodec()
                     .compoundFormat()
-                    .getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
+                    .getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READONCE);
             } catch (IOException e) {
                 logger.warn(
                     () -> new ParameterizedMessage(

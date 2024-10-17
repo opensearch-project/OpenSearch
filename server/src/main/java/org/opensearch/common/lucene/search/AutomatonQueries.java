@@ -102,7 +102,7 @@ public class AutomatonQueries {
         if (method == null) {
             method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
         }
-        return new AutomatonQuery(term, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+        return new AutomatonQuery(term, automaton, false, method);
     }
 
     /**

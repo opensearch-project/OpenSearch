@@ -7,6 +7,7 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
@@ -96,6 +97,7 @@ public class StarTreeUtils {
             true,
             IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
             docValuesType,
+            DocValuesSkipIndexType.RANGE,
             -1,
             Collections.emptyMap(),
             0,
@@ -129,6 +131,7 @@ public class StarTreeUtils {
             true,
             IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
             docValuesType,
+            DocValuesSkipIndexType.RANGE,
             -1,
             Collections.emptyMap(),
             0,

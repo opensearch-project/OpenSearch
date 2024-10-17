@@ -226,7 +226,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 return false;
             }
             Bits liveDocs = ctx.reader().getLiveDocs();
-            scorer.score(pruningCollector, liveDocs);
+            scorer.score(pruningCollector, liveDocs, 0, DocIdSetIterator.NO_MORE_DOCS);
             pruningCollector.postCollect();
             Releasables.close(pruningCollector);
         } catch (Exception e) {
@@ -554,7 +554,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 visitedOrds.set(bucketOrd, bits);
             }
             if (values.advanceExact(doc)) {
-                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS; ord = values.nextOrd()) {
                     bits.set((int) ord);
                 }
             }

@@ -13,6 +13,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
+import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 
@@ -50,6 +51,16 @@ public class HalfFloatComparator extends NumericComparator<Float> {
     @Override
     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
         return new HalfFloatLeafComparator(context);
+    }
+
+    @Override
+    protected long missingValueAsComparableLong() {
+        return NumericUtils.floatToSortableInt(missingValue);
+    }
+
+    @Override
+    protected long sortableBytesToLong(byte[] bytes) {
+        return NumericUtils.sortableBytesToInt(bytes, 0);
     }
 
     /** Leaf comparator for {@link HalfFloatComparator} that provides skipping functionality */
@@ -90,23 +101,13 @@ public class HalfFloatComparator extends NumericComparator<Float> {
         }
 
         @Override
-        protected int compareMissingValueWithBottomValue() {
-            return Float.compare(missingValue, bottom);
+        protected long bottomAsComparableLong() {
+            return NumericUtils.floatToSortableInt(bottom);
         }
 
         @Override
-        protected int compareMissingValueWithTopValue() {
-            return Float.compare(missingValue, topValue);
-        }
-
-        @Override
-        protected void encodeBottom(byte[] packedValue) {
-            HalfFloatPoint.encodeDimension(bottom, packedValue, 0);
-        }
-
-        @Override
-        protected void encodeTop(byte[] packedValue) {
-            HalfFloatPoint.encodeDimension(topValue, packedValue, 0);
+        protected long topAsComparableLong() {
+            return NumericUtils.floatToSortableInt(topValue);
         }
     }
 }

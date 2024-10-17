@@ -291,7 +291,7 @@ class MissingJavadocTask extends DefaultTask {
       opts << [ '--missing-method', String.join(',', javadocMissingMethod) ]
     }
     opts << [ '-quiet' ]
-    opts << [ '--release', 11 ]
+    opts << [ '--release', 21 ]
     opts << '-Xdoclint:all,-missing'
 
     // Temporary file that holds all javadoc options for the current task.

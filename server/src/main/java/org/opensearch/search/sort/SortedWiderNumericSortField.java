@@ -81,6 +81,16 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
                     return Double.compare(first.doubleValue(), second.doubleValue());
                 }
             }
+
+            @Override
+            protected long missingValueAsComparableLong() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            protected long sortableBytesToLong(byte[] bytes) {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
