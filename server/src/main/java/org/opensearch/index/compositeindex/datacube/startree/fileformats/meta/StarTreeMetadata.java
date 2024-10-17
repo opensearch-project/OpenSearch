@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
@@ -62,9 +63,10 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     private final String starTreeFieldType;
 
     /**
-     * List of dimension fields used in the star-tree.
+     * Map of dimension fields to their associated DocValuesType.Insertion order needs to be maintained
+     * as it dictates dimensionSplitOrder
      */
-    private final List<String> dimensionFields;
+    LinkedHashMap<String, DocValuesType> dimensionFieldsToDocValuesMap;
 
     /**
      * List of metrics, containing field names and associated metric statistics.
@@ -128,7 +130,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
             this.starTreeFieldType = this.getCompositeFieldType().getName();
             this.version = version;
             this.numberOfNodes = readNumberOfNodes();
-            this.dimensionFields = readStarTreeDimensions();
+            this.dimensionFieldsToDocValuesMap = readStarTreeDimensions();
             this.metrics = readMetricEntries();
             this.segmentAggregatedDocCount = readSegmentAggregatedDocCount();
             this.starTreeDocCount = readStarTreeDocCount();
@@ -151,7 +153,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      * @param compositeFieldName         name of the composite field. Here, name of the star-tree field.
      * @param compositeFieldType         type of the composite field. Here, STAR_TREE field.
      * @param version The version of the star tree stored in the segments.
-     * @param dimensionFields            list of dimension fields
+     * @param dimensionFieldsToDocValuesMap            map of dimensionFields to docValues
      * @param metrics              list of metric entries
      * @param segmentAggregatedDocCount  segment aggregated doc count
      * @param starTreeDocCount        the total number of star tree documents for the segment
@@ -167,7 +169,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         IndexInput meta,
         Integer version,
         Integer numberOfNodes,
-        List<String> dimensionFields,
+        LinkedHashMap<String, DocValuesType> dimensionFieldsToDocValuesMap,
         List<Metric> metrics,
         Integer segmentAggregatedDocCount,
         Integer starTreeDocCount,
@@ -183,7 +185,7 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         this.starTreeFieldType = compositeFieldType.getName();
         this.version = version;
         this.numberOfNodes = numberOfNodes;
-        this.dimensionFields = dimensionFields;
+        this.dimensionFieldsToDocValuesMap = dimensionFieldsToDocValuesMap;
         this.metrics = metrics;
         this.segmentAggregatedDocCount = segmentAggregatedDocCount;
         this.starTreeDocCount = starTreeDocCount;
@@ -202,15 +204,14 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
         return meta.readVInt();
     }
 
-    private List<String> readStarTreeDimensions() throws IOException {
+    private LinkedHashMap<String, DocValuesType> readStarTreeDimensions() throws IOException {
         int dimensionCount = readDimensionsCount();
-        List<String> dimensionFields = new ArrayList<>();
+        LinkedHashMap<String, DocValuesType> dimensionFieldsToDocValuesMap = new LinkedHashMap<>();
 
         for (int i = 0; i < dimensionCount; i++) {
-            dimensionFields.add(meta.readString());
+            dimensionFieldsToDocValuesMap.put(meta.readString(), getDocValuesType(meta, meta.readByte()));
         }
-
-        return dimensionFields;
+        return dimensionFieldsToDocValuesMap;
     }
 
     private int readMetricsCount() throws IOException {
@@ -314,8 +315,8 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      *
      * @return star-tree dimension field numbers
      */
-    public List<String> getDimensionFields() {
-        return dimensionFields;
+    public Map<String, DocValuesType> getDimensionFields() {
+        return dimensionFieldsToDocValuesMap;
     }
 
     /**
@@ -404,5 +405,24 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
      */
     public int getNumberOfNodes() {
         return numberOfNodes;
+    }
+
+    private static DocValuesType getDocValuesType(IndexInput input, byte b) throws IOException {
+        switch (b) {
+            case 0:
+                return DocValuesType.NONE;
+            case 1:
+                return DocValuesType.NUMERIC;
+            case 2:
+                return DocValuesType.BINARY;
+            case 3:
+                return DocValuesType.SORTED;
+            case 4:
+                return DocValuesType.SORTED_SET;
+            case 5:
+                return DocValuesType.SORTED_NUMERIC;
+            default:
+                throw new CorruptIndexException("invalid docvalues byte: " + b, input);
+        }
     }
 }
