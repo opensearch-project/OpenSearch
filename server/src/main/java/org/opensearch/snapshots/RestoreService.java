@@ -487,7 +487,7 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        aliases = applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder);
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
                                     if (partial) {
@@ -532,7 +532,7 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        aliases = applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder);
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
@@ -662,23 +662,25 @@ public class RestoreService implements ClusterStateApplier {
                         }
                     }
 
-                    private Set<String> applyAliasesWithRename(IndexMetadata snapshotIndexMetadata, IndexMetadata.Builder indexMdBuilder) {
-                        Set<String> aliases = new HashSet<>();
-                        Pattern renameAliasPattern = null;
-                        if (request.renameAliasPattern() != null && request.renameAliasReplacement() != null) {
-                            renameAliasPattern = Pattern.compile(request.renameAliasPattern());
-                        }
-                        for (final Map.Entry<String, AliasMetadata> alias : snapshotIndexMetadata.getAliases().entrySet()) {
-                            String aliasName = alias.getKey();
-                            if (renameAliasPattern != null) {
-                                indexMdBuilder.removeAlias(aliasName);
-                                aliasName = renameAliasPattern.matcher(aliasName).replaceAll(request.renameAliasReplacement());
-                                AliasMetadata newAlias = AliasMetadata.newAliasMetadata(alias.getValue(), aliasName);
+                    private void applyAliasesWithRename(
+                        IndexMetadata snapshotIndexMetadata,
+                        IndexMetadata.Builder indexMdBuilder,
+                        Set<String> aliases
+                    ) {
+                        if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
+                            aliases.addAll(snapshotIndexMetadata.getAliases().keySet());
+                        } else {
+                            Pattern renameAliasPattern = Pattern.compile(request.renameAliasPattern());
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotIndexMetadata.getAliases().entrySet()) {
+                                String currentAliasName = alias.getKey();
+                                indexMdBuilder.removeAlias(currentAliasName);
+                                String newAliasName = renameAliasPattern.matcher(currentAliasName)
+                                    .replaceAll(request.renameAliasReplacement());
+                                AliasMetadata newAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
                                 indexMdBuilder.putAlias(newAlias);
+                                aliases.add(newAliasName);
                             }
-                            aliases.add(aliasName);
                         }
-                        return aliases;
                     }
 
                     private String[] getIgnoreSettingsInternal() {
