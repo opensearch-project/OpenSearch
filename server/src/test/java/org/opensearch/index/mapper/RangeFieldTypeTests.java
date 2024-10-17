@@ -57,7 +57,7 @@ import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
-import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -293,7 +293,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(
             "field:[1465975790000 TO 1466062190999]",
-            ((IndexOrDocValuesQuery) ((ApproximateIndexOrDocValuesQuery) queryOnDateField).getOriginalQuery()).getIndexQuery().toString()
+            ((IndexOrDocValuesQuery) ((ApproximateScoreQuery) queryOnDateField).getOriginalQuery()).getIndexQuery().toString()
         );
     }
 

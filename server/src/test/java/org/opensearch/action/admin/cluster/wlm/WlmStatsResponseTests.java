@@ -46,7 +46,6 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
                 0,
                 1,
                 0,
-                0,
                 Map.of(
                     ResourceType.CPU,
                     new QueryGroupStats.ResourceStats(0, 0, 0),
@@ -78,10 +77,8 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
                 + "  \"node-1\" : {\n"
                 + "    \"query_groups\" : {\n"
                 + "      \"safjgagnaeekg-3r3fads\" : {\n"
-                + "        \"completions\" : 0,\n"
-                + "        \"shard_completions\" : 0,\n"
-                + "        \"rejections\" : 0,\n"
-                + "        \"failures\" : 1,\n"
+                + "        \"total_completions\" : 0,\n"
+                + "        \"total_rejections\" : 0,\n"
                 + "        \"total_cancellations\" : 0,\n"
                 + "        \"cpu\" : {\n"
                 + "          \"current_usage\" : 0.0,\n"
