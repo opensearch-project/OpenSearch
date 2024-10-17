@@ -116,8 +116,8 @@
 ---
 "Create index with setting index.number_of_routing_shards to null":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.17.99"
+      reason: "fixed in 2.18.0"
   - do:
       indices.create:
         index: test_index
