@@ -35,7 +35,7 @@ netty             = "4.1.114.Final"
 joda              = "2.12.7"
 
 # project reactor
-reactor_netty     = "1.1.22"
+reactor_netty     = "1.1.23"
 reactor           = "3.5.20"
 
 # client dependencies
