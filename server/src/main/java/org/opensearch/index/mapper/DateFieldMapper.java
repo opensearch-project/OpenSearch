@@ -492,13 +492,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                                 name(),
                                 pack(new long[] { l }).bytes,
                                 pack(new long[] { u }).bytes,
-                                new long[] { l }.length
-                            ) {
-                                @Override
-                                protected String toString(int dimension, byte[] value) {
-                                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                                }
-                            }
+                                new long[] { l }.length,
+                                ApproximatePointRangeQuery.LONG_FORMAT
+                            )
                         );
                     }
                     return query;

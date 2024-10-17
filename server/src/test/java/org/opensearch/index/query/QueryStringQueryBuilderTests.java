@@ -883,13 +883,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 DATE_FIELD_NAME,
                 pack(new long[] { lower }).bytes,
                 pack(new long[] { upper }).bytes,
-                new long[] { lower }.length
-            ) {
-                @Override
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            }
+                new long[] { lower }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
+            )
         );
     }
 

@@ -34,12 +34,15 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 
@@ -88,7 +91,11 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) {
-        return Queries.newMatchAllQuery();
+        Query query = Queries.newMatchAllQuery();
+        if (FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)) {
+            return new ApproximateScoreQuery(query, new ApproximateMatchAllQuery());
+        }
+        return query;
     }
 
     @Override

@@ -46,12 +46,9 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
             "test-index",
             pack(new long[] { l }).bytes,
             pack(new long[] { u }).bytes,
-            new long[] { l }.length
-        ) {
-            protected String toString(int dimension, byte[] value) {
-                return Long.toString(LongPoint.decodeDimension(value, 0));
-            }
-        };
+            new long[] { l }.length,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
 
         ApproximateScoreQuery query = new ApproximateScoreQuery(originalQuery, approximateQuery);
         query.resolvedQuery = approximateQuery;
