@@ -13,9 +13,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.gateway.ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ShardsBatchGatewayAllocatorTests extends OpenSearchSingleNodeTestCase {
     public void testBatchSizeValueUpdate() {
