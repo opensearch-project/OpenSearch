@@ -189,9 +189,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
+    private final RemoteClusterStateService remoteClusterStateService;
     private final RemoteStoreNodeService remoteStoreNodeService;
     private NodeConnectionsService nodeConnectionsService;
-    private final RemoteClusterStateService remoteClusterStateService;
+    private final ClusterSettings clusterSettings;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -316,6 +317,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.localNodeCommissioned = true;
         this.remoteStoreNodeService = remoteStoreNodeService;
         this.remoteClusterStateService = remoteClusterStateService;
+        this.clusterSettings = clusterSettings;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -1365,7 +1367,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final PublicationTransportHandler.PublicationContext publicationContext = publicationHandler.newPublicationContext(
                     clusterChangedEvent,
-                    coordinationState.get().isRemotePublicationEnabled(),
+                    this.isRemotePublicationEnabled(),
                     persistedStateRegistry
                 );
                 logger.debug("initialized PublicationContext using class: {}", publicationContext.getClass().toString());
@@ -1900,8 +1902,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     public boolean isRemotePublicationEnabled() {
-        if (coordinationState.get() != null) {
-            return coordinationState.get().isRemotePublicationEnabled();
+        if (remoteClusterStateService != null) {
+            return remoteClusterStateService.isRemotePublicationEnabled();
         }
         return false;
     }
