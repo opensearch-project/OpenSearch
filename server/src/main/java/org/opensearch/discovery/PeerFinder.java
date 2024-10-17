@@ -235,11 +235,6 @@ public abstract class PeerFinder {
         return localNode;
     }
 
-    private void setRequestPeersTimeout(TimeValue requestPeersTimeout) {
-        logger.info("Updating request peers timeout to {}", requestPeersTimeout);
-        this.requestPeersTimeout = requestPeersTimeout;
-    }
-
     /**
      * Invoked on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
      * Note that invocations of this method are not synchronised. By the time it is called we may have been deactivated.
@@ -510,7 +505,6 @@ public abstract class PeerFinder {
                     return Names.GENERIC;
                 }
             };
-            logger.info("request peers timeout for transport request is: {}", requestPeersTimeout);
             transportService.sendRequest(
                 discoveryNode,
                 REQUEST_PEERS_ACTION_NAME,

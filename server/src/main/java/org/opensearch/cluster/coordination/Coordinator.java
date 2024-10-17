@@ -1673,7 +1673,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.localNodeAckEvent = localNodeAckEvent;
             this.ackListener = ackListener;
             this.publishListener = publishListener;
-            logger.info("Using publish timeout: {}", publishTimeout);
+            logger.trace("Using publish timeout: {}", publishTimeout);
             this.timeoutHandler = singleNodeDiscovery ? null : transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
@@ -1688,7 +1688,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }, publishTimeout, Names.GENERIC);
 
-            logger.info("Using publish info timeout: {}", publishInfoTimeout);
             this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {

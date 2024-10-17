@@ -251,6 +251,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         lastAcceptedNodes = DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build();
+
         peerFinder = new TestPeerFinder(settings, transportService, transportAddressConnector);
         foundPeersFromNotification = emptyList();
     }

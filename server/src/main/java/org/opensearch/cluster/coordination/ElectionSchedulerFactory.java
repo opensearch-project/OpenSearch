@@ -114,10 +114,10 @@ public class ElectionSchedulerFactory {
         Property.NodeScope
     );
 
-    private TimeValue initialTimeout;
+    private final TimeValue initialTimeout;
     private final TimeValue backoffTime;
     private final TimeValue maxTimeout;
-    private TimeValue duration;
+    private final TimeValue duration;
     private final ThreadPool threadPool;
     private final Random random;
 
@@ -141,14 +141,6 @@ public class ElectionSchedulerFactory {
                 ).getFormattedMessage()
             );
         }
-    }
-
-    protected void setElectionInitialTimeout(TimeValue electionInitialTimeout) {
-        this.initialTimeout = electionInitialTimeout;
-    }
-
-    protected void setElectionDuration(TimeValue electionDuration) {
-        this.duration = electionDuration;
     }
 
     /**
@@ -208,7 +200,6 @@ public class ElectionSchedulerFactory {
 
             final long thisAttempt = attempt.getAndIncrement();
             // to overflow here would take over a million years of failed election attempts, so we won't worry about that:
-            logger.info("using initial timeout {} for maxDelayMillis calculation", initialTimeout);
             final long maxDelayMillis = Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
             final long delayMillis = toPositiveLongAtMost(random.nextLong(), maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {
@@ -223,8 +214,7 @@ public class ElectionSchedulerFactory {
                     if (isClosed.get()) {
                         logger.debug("{} not starting election", this);
                     } else {
-                        logger.debug("{} starting election", this);
-                        logger.info("{} starting election with duration {}", this, duration);
+                        logger.debug("{} starting election with duration {}", this, duration);
                         scheduleNextElection(duration, scheduledRunnable);
                         scheduledRunnable.run();
                     }

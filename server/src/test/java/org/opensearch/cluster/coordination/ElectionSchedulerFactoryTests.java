@@ -234,6 +234,7 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
             assertThat(ELECTION_INITIAL_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(initialTimeoutMillis)));
             assertThat(ELECTION_BACK_OFF_TIME_SETTING.get(settings), is(TimeValue.timeValueMillis(backOffMillis)));
             assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(maxTimeoutMillis)));
+
             assertThat(new ElectionSchedulerFactory(settings, random(), null), not(nullValue())); // doesn't throw an IAE
         }
 
@@ -245,6 +246,7 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
                 .put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), initialTimeoutMillis + "ms")
                 .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), maxTimeoutMillis + "ms")
                 .build();
+
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new ElectionSchedulerFactory(settings, random(), null)

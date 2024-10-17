@@ -111,7 +111,6 @@ public class FollowersChecker {
         "cluster.fault_detection.follower_check.retry_count",
         3,
         1,
-        10,
         Setting.Property.NodeScope
     );
 
