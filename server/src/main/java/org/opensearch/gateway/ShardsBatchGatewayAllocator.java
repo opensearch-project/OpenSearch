@@ -73,7 +73,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     public static final String ALLOCATOR_NAME = "shards_batch_gateway_allocator";
     private static final Logger logger = LogManager.getLogger(ShardsBatchGatewayAllocator.class);
     private long maxBatchSize;
-    private static final short DEFAULT_SHARD_BATCH_SIZE = 4000;
+    private static final short DEFAULT_SHARD_BATCH_SIZE = 2000;
 
     public static final String PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
         "cluster.routing.allocation.shards_batch_gateway_allocator.primary_allocator_timeout";
