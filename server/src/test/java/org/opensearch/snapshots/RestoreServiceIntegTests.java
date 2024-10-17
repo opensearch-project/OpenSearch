@@ -40,56 +40,57 @@ import java.util.concurrent.TimeUnit;
 public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
     // TODO there is certainly a better way to do this, but I don't know what it is....
     public void testRestoreToNewWithAliasAndRename() throws Exception {
-        __testRestoreWithRename(false, false, true, true, true);
+        testRestoreWithRename(false, false, true, true, true);
     }
 
     public void testRestoreToNewWithoutAliasAndWithRename() throws Exception {
-        __testRestoreWithRename(false, false, false, true, true);
+        testRestoreWithRename(false, false, false, true, true);
     }
 
     public void testRestoreToNewWithAliasAndWithoutRename() throws Exception {
-        __testRestoreWithRename(false, false, true, false, false);
+        testRestoreWithRename(false, false, true, false, false);
     }
 
     public void testRestoreToNewWithoutAliasAndRename() throws Exception {
-        __testRestoreWithRename(false, false, false, false, false);
+        testRestoreWithRename(false, false, false, false, false);
     }
 
     public void testRestoreOverExistingOpenWithAliasAndRename() throws Exception {
-        __testRestoreWithRename(true, false, true, true, true);
+        testRestoreWithRename(true, false, true, true, true);
     }
 
     public void testRestoreOverExistingOpenWithoutAliasAndWithRename() throws Exception {
-        __testRestoreWithRename(true, false, false, true, true);
+        testRestoreWithRename(true, false, false, true, true);
     }
 
     public void testRestoreOverExistingClosedWithAliasAndRename() throws Exception {
-        __testRestoreWithRename(true, true, true, true, true);
+        testRestoreWithRename(true, true, true, true, true);
     }
 
     public void testRestoreOverExistingClosedWithoutAliasAndWithRename() throws Exception {
-        __testRestoreWithRename(true, true, false, true, true);
+        testRestoreWithRename(true, true, false, true, true);
     }
 
     public void testRestoreOverExistingOpenWithoutAliasAndRename() throws Exception {
-        __testRestoreWithRename(true, false, false, false, false);
+        testRestoreWithRename(true, false, false, false, false);
     }
 
     public void testRestoreOverExistingOpenWithAliasAndWithoutRename() throws Exception {
-        __testRestoreWithRename(true, false, true, false, false);
+        testRestoreWithRename(true, false, true, false, false);
     }
 
     public void testRestoreOverExistingClosedWithoutAliasAndRename() throws Exception {
-        __testRestoreWithRename(true, true, false, false, false);
+        testRestoreWithRename(true, true, false, false, false);
     }
 
     public void testRestoreOverExistingClosedWithAliasAndWithoutRename() throws Exception {
-        __testRestoreWithRename(true, true, true, false, false);
+        testRestoreWithRename(true, true, true, false, false);
     }
 
-    private void __testRestoreWithRename(boolean exists, boolean closed, boolean includeAlias, boolean renameAliases, boolean renameIndexes)
+    private void testRestoreWithRename(boolean exists, boolean closed, boolean includeAlias, boolean renameAliases, boolean renameIndexes)
         throws Exception {
-        assert exists || !closed;
+        assert exists || !closed; // index close state doesn't exist when the index doesn't exist - so only permit one value of closed to
+                                  // avoid pointless duplicate tests
         final String indexName = "index_1";
         final String renamedIndexName = "index_2";
         final String aliasName = "alias_1";
