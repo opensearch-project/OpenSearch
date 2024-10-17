@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
@@ -215,13 +216,13 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     }
 
     /** needed for plugins BWC */
-    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+    public ClusterHealthResponse(String clusterName, Set<String> concreteIndices, ClusterState clusterState) {
         this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
     }
 
     public ClusterHealthResponse(
         String clusterName,
-        String[] concreteIndices,
+        Set<String> concreteIndices,
         ClusterState clusterState,
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
@@ -239,7 +240,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     public ClusterHealthResponse(
         String clusterName,
-        String[] concreteIndices,
+        Set<String> concreteIndices,
         ClusterHealthRequest clusterHealthRequest,
         ClusterState clusterState,
         int numberOfPendingTasks,
@@ -262,7 +263,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         String clusterName,
         ClusterState clusterState,
         ClusterSettings clusterSettings,
-        String[] concreteIndices,
+        Set<String> concreteIndices,
         String awarenessAttributeName,
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
@@ -286,7 +287,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         ClusterHealthRequest clusterHealthRequest,
         ClusterState clusterState,
         ClusterSettings clusterSettings,
-        String[] concreteIndices,
+        Set<String> concreteIndices,
         String awarenessAttributeName,
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
