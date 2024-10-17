@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  */
 public class RemoteStoreNodeAttribute {
 
-    public static final List<String> REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = List.of("remote_store");
+    public static final List<String> REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = List.of("remote_store", "remote_publication");
 
     static final Function<String, String> REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_FN = (prefix) -> prefix
         + ".state.repository";
@@ -71,8 +71,7 @@ public class RemoteStoreNodeAttribute {
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
 
     public static final String REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s.type";
-    public static final String REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s."
-        + CryptoMetadata.CRYPTO_METADATA_KEY;
+    public static final String REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s." + CryptoMetadata.CRYPTO_METADATA_KEY;
     public static final String REPOSITORY_CRYPTO_SETTINGS_PREFIX = REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT
         + "."
         + CryptoMetadata.SETTINGS_KEY;
@@ -126,12 +125,7 @@ public class RemoteStoreNodeAttribute {
         String keyProviderName = validateAttributeNonNull(node, metadataKey + "." + CryptoMetadata.KEY_PROVIDER_NAME_KEY);
         String keyProviderType = validateAttributeNonNull(node, metadataKey + "." + CryptoMetadata.KEY_PROVIDER_TYPE_KEY);
 
-        String settingsAttributeKeyPrefix = String.format(
-            Locale.getDefault(),
-            REPOSITORY_CRYPTO_SETTINGS_PREFIX,
-            prefix,
-            repositoryName
-        );
+        String settingsAttributeKeyPrefix = String.format(Locale.getDefault(), REPOSITORY_CRYPTO_SETTINGS_PREFIX, prefix, repositoryName);
 
         Map<String, String> settingsMap = node.getAttributes()
             .keySet()
@@ -167,7 +161,7 @@ public class RemoteStoreNodeAttribute {
         return settingsMap;
     }
 
-    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name,  String prefix) {
+    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name, String prefix) {
         String type = validateAttributeNonNull(
             node,
             String.format(Locale.getDefault(), REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, prefix, name)
@@ -201,7 +195,7 @@ public class RemoteStoreNodeAttribute {
 
     }
 
-    private static Tuple<String,String> getValue(Map<String, String> attributes, List<String> keys) {
+    private static Tuple<String, String> getValue(Map<String, String> attributes, List<String> keys) {
         for (String key : keys) {
             if (attributes.containsKey(key)) {
                 return new Tuple<>(attributes.get(key), key);

@@ -13,4 +13,11 @@ public class RemoteStoreAttributeConstants {
     public static final String REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.segment.repository";
     public static final String REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.translog.repository";
     public static final String REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.routing_table.repository";
+
+    public static final String REMOTE_PUBLICATION_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_publication.state.repository";
+    public static final String REMOTE_PUBLICATION_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_publication.segment.repository";
+    public static final String REMOTE_PUBLICATION_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_publication.translog.repository";
+    public static final String REMOTE_PUBLICATION_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY =
+        "remote_publication.routing_table.repository";
+
 }
