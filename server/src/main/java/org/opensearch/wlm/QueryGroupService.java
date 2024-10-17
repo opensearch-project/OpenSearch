@@ -232,6 +232,9 @@ public class QueryGroupService extends AbstractLifecycleComponent
      * @return if the QueryGroup breaches any resource limit based on the LastRecordedUsage
      */
     public boolean resourceLimitBreached(String id, QueryGroupState currentState) {
+        if (id.equals("DEFAULT_QUERY_GROUP")) {
+            return false;
+        }
         QueryGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
         if (queryGroup == null) {
             throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
