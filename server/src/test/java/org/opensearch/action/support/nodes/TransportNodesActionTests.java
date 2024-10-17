@@ -43,16 +43,19 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeService;
+import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
@@ -74,9 +77,12 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class TransportNodesActionTests extends OpenSearchTestCase {
 
@@ -198,6 +204,28 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         capturedTransportNodeRequestList.forEach(capturedRequest -> assertNull(capturedRequest.testNodesRequest.concreteNodes()));
     }
 
+    public void testCreateTransportNodesActionWithListenableHandler() {
+        TransportNodesAction action = getListenableHandlerTestTransportNodesAction();
+        assertTrue(
+            transport.getRequestHandlers()
+                .getHandler(action.actionName + "[n]")
+                .getHandler() instanceof TransportNodesAction.ListenableNodeTransportHandler
+        );
+    }
+
+    public void testMessageReceivedInListenableNodeTransportHandler() throws Exception {
+        TransportNodesAction action = getListenableHandlerTestTransportNodesAction();
+        TransportChannel transportChannel = mock(TransportChannel.class);
+        transport.getRequestHandlers()
+            .getHandler(action.actionName + "[n]")
+            .getHandler()
+            .messageReceived(new TestNodeRequest(), transportChannel, mock(Task.class));
+        ArgumentCaptor<TestNodeResponse> argCaptor = ArgumentCaptor.forClass(TestNodeResponse.class);
+        verify(transportChannel).sendResponse(argCaptor.capture());
+        TestNodeResponse response = argCaptor.getValue();
+        assertNotNull(response);
+    }
+
     private <T> List<T> mockList(Supplier<T> supplier, int size) {
         List<T> failures = new ArrayList<>(size);
         for (int i = 0; i < size; ++i) {
@@ -290,6 +318,19 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         );
     }
 
+    public TestTransportNodesAction getListenableHandlerTestTransportNodesAction() {
+        return new TestTransportNodesAction(
+            THREAD_POOL,
+            clusterService,
+            transportService,
+            new ActionFilters(Collections.emptySet()),
+            TestNodesRequest::new,
+            TestNodeRequest::new,
+            ThreadPool.Names.SAME,
+            true
+        );
+    }
+
     public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
         return new DataNodesOnlyTransportNodesAction(
             THREAD_POOL,
@@ -335,6 +376,31 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             );
         }
 
+        TestTransportNodesAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Writeable.Reader<TestNodesRequest> request,
+            Writeable.Reader<TestNodeRequest> nodeRequest,
+            String nodeExecutor,
+            boolean listenableHandler
+        ) {
+            super(
+                "indices:admin/test",
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                request,
+                nodeRequest,
+                nodeExecutor,
+                nodeExecutor,
+                listenableHandler,
+                TestNodeResponse.class
+            );
+        }
+
         @Override
         protected TestNodesResponse newResponse(
             TestNodesRequest request,
@@ -357,6 +423,11 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         @Override
         protected TestNodeResponse nodeOperation(TestNodeRequest request) {
             return new TestNodeResponse();
+        }
+
+        @Override
+        protected void nodeOperation(TestNodeRequest request, ActionListener<TestNodeResponse> actionListener) {
+            actionListener.onResponse(new TestNodeResponse());
         }
 
     }
