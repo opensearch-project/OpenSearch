@@ -34,6 +34,7 @@ package org.opensearch.monitor.fs;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -75,16 +76,48 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long free = -1;
         long available = -1;
         long fileCacheReserved = -1;
-        long fileCacheUtilized = 0;
+        long fileCacheUtilized = -1;
 
         public Path() {}
 
+        /**
+         * Please notice that this constructor will set value of <code>0</code>
+         * to <code>fileCacheReserved</code> and <code>fileCacheUtilized</code> variables.
+         *
+         * See {@link #getFileCacheReserved()}, {@link #getFileCacheUtilized()}
+         */
         public Path(String path, @Nullable String mount, long total, long free, long available) {
+            new Path(path, mount, total, free, available, 0, 0);
+        }
+
+        /**
+         * Do not assign negative values to variables <code>total</code>, <code>free</code>, <code>available</code>,
+         * <code>fileCacheReserved</code> and <code>fileCacheUtilized</code>. The only exception is value <code>-1</code>
+         * which is interpreted as an uninitialized value.
+         */
+        @InternalApi
+        public Path(
+            String path,
+            @Nullable String mount,
+            long total,
+            long free,
+            long available,
+            long fileCacheReserved,
+            long fileCacheUtilized
+        ) {
             this.path = path;
             this.mount = mount;
             this.total = total;
             this.free = free;
             this.available = available;
+            this.fileCacheReserved = fileCacheReserved;
+            this.fileCacheUtilized = fileCacheUtilized;
+
+            assert (this.total == -1 || this.total >= 0) : "Total value can not be negative";
+            assert (this.free == -1 || this.free >= 0) : "Free value can not be negative";
+            assert (this.available == -1 || this.available >= 0) : "Available value can not be negative";
+            assert (this.fileCacheReserved == -1 || this.fileCacheReserved >= 0) : "File cache reserved value can not be negative";
+            assert (this.fileCacheUtilized == -1 || this.fileCacheUtilized >= 0) : "File cache utilization value can not be negative";
         }
 
         /**
@@ -211,8 +244,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             if (fileCacheReserved != -1) {
                 builder.humanReadableField(Fields.CACHE_RESERVED_IN_BYTES, Fields.CACHE_RESERVED, getFileCacheReserved());
             }
-            if (fileCacheReserved != 0) {
-                builder.humanReadableField(Fields.CACHE_UTILIZED, Fields.CACHE_UTILIZED_IN_BYTES, getFileCacheUtilized());
+            if (fileCacheUtilized != -1) {
+                builder.humanReadableField(Fields.CACHE_UTILIZED_IN_BYTES, Fields.CACHE_UTILIZED, getFileCacheUtilized());
             }
 
             builder.endObject();
