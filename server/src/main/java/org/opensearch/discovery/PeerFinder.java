@@ -240,6 +240,7 @@ public abstract class PeerFinder {
     }
 
     private void setRequestPeersTimeout(TimeValue requestPeersTimeout) {
+        logger.info("Updating request peers timeout to {}", requestPeersTimeout);
         this.requestPeersTimeout = requestPeersTimeout;
     }
 
@@ -513,6 +514,7 @@ public abstract class PeerFinder {
                     return Names.GENERIC;
                 }
             };
+            logger.info("request peers timeout for transport request is: {}", requestPeersTimeout);
             transportService.sendRequest(
                 discoveryNode,
                 REQUEST_PEERS_ACTION_NAME,

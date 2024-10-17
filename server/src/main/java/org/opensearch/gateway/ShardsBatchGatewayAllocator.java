@@ -404,6 +404,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Iterator<ShardRouting> iterator = newShardsToBatch.values().iterator();
         assert maxBatchSize > 0 : "Shards batch size must be greater than 0";
 
+        logger.info("Using batch size {}", maxBatchSize);
         long batchSize = maxBatchSize;
         Map<ShardId, ShardEntry> perBatchShards = new HashMap<>();
         while (iterator.hasNext()) {
