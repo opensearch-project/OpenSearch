@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesProducerUtil;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
@@ -147,11 +148,9 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     private void addStarTreeSupportedFieldsFromSegment() {
         // TODO : add integ test for this
         for (FieldInfo fi : this.state.fieldInfos) {
-            if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())) {
-                segmentFieldSet.add(fi.name);
-            } else if (DocValuesType.SORTED_SET.equals(fi.getDocValuesType())) {
-                segmentFieldSet.add(fi.name);
-            } else if (fi.name.equals(DocCountFieldMapper.NAME)) {
+            if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())
+                || DocValuesType.SORTED_SET.equals(fi.getDocValuesType())
+                || fi.name.equals(DocCountFieldMapper.NAME)) {
                 segmentFieldSet.add(fi.name);
             }
         }
@@ -317,8 +316,18 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             if (mergeState.docValuesProducers[i] instanceof CompositeIndexReader) {
                 reader = (CompositeIndexReader) mergeState.docValuesProducers[i];
             } else {
-                continue;
+                Set<DocValuesProducer> dp = DocValuesProducerUtil.getSegmentDocValuesProducers(mergeState.docValuesProducers[i]);
+                for (DocValuesProducer producer : dp) {
+                    if (producer instanceof CompositeIndexReader) {
+                        reader = (CompositeIndexReader) producer;
+                        List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
+                        if (compositeFieldInfo.isEmpty() == false) {
+                            break;
+                        }
+                    }
+                }
             }
+            if (reader == null) continue;
 
             List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
             for (CompositeIndexFieldInfo fieldInfo : compositeFieldInfo) {
@@ -379,7 +388,8 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             segmentInfo,
             segmentWriteState.fieldInfos,
             segmentWriteState.segUpdates,
-            segmentWriteState.context
+            segmentWriteState.context,
+            segmentWriteState.segmentSuffix
         );
     }
 

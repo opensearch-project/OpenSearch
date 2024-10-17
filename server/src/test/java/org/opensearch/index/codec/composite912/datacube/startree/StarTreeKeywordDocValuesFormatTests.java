@@ -9,12 +9,15 @@
 package org.opensearch.index.codec.composite912.datacube.startree;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -28,10 +31,15 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils.assertStarTreeDocuments;
@@ -52,44 +60,46 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
         Document doc = new Document();
+        doc.add(new StringField("_id", "1", Field.Store.NO));
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text1")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text2")));
         iw.addDocument(doc);
         doc = new Document();
+        doc.add(new StringField("_id", "2", Field.Store.NO));
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text11")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text22")));
         iw.addDocument(doc);
-        iw.forceMerge(1);
+        iw.flush();
+        iw.deleteDocuments(new Term("_id", "2"));
+        iw.flush();
         doc = new Document();
+        doc.add(new StringField("_id", "3", Field.Store.NO));
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text1")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text2")));
         iw.addDocument(doc);
         doc = new Document();
+        doc.add(new StringField("_id", "4", Field.Store.NO));
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text11")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text22")));
         iw.addDocument(doc);
+        iw.flush();
+        iw.deleteDocuments(new Term("_id", "4"));
+        iw.flush();
         iw.forceMerge(1);
+
         iw.close();
 
         DirectoryReader ir = maybeWrapWithMergingReader(DirectoryReader.open(directory));
         TestUtil.checkReader(ir);
         assertEquals(1, ir.leaves().size());
 
-        // Segment documents
-        /**
-         * sndv dv field
-         * [1,  1,   -1]
-         * [1,  1,   -1]
-         * [2,  2,   -2]
-         * [2,  2,   -2]
-         */
         // Star tree documents
         /**
-         SortedSet dv | [ sum, value_count, min, max[sndv]] , doc_count
+         keyword1 keyword2 | [ sum, value_count, min, max[sndv]] , doc_count
          [0, 0] | [3.0, 2.0, 1.0, 2.0, 2.0]
          [1, 1] | [3.0, 2.0, 1.0, 2.0, 2.0]
          [null, 0] | [3.0, 2.0, 1.0, 2.0, 2.0]
@@ -128,6 +138,107 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         directory.close();
     }
 
+    public void testStarTreeKeywordDocValuesWithDeletions() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setMergePolicy(newLogMergePolicy());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+
+        int iterations = 3;
+        Set<String> allIds = new HashSet<>();
+        Map<String, Document> documents = new HashMap<>();
+        Map<String, Integer> map = new HashMap<>();
+        for (int iter = 0; iter < iterations; iter++) {
+            // Add 10 documents
+            for (int i = 0; i < 10; i++) {
+                String id = String.valueOf(allIds.size() + 1);
+                allIds.add(id);
+                Document doc = new Document();
+                doc.add(new StringField("_id", id, Field.Store.YES));
+                int sndvValue = random().nextInt(5) + 1;
+                doc.add(new SortedNumericDocValuesField("sndv", sndvValue));
+
+                String keyword1Value = "text" + random().nextInt(3);
+
+                doc.add(new SortedSetDocValuesField("keyword1", new BytesRef(keyword1Value)));
+                String keyword2Value = "text" + random().nextInt(3);
+
+                doc.add(new SortedSetDocValuesField("keyword2", new BytesRef(keyword2Value)));
+                map.put(keyword1Value + "-" + keyword2Value, sndvValue + map.getOrDefault(keyword1Value + "-" + keyword2Value, 0));
+                iw.addDocument(doc);
+                documents.put(id, doc);
+            }
+
+            iw.flush();
+
+            // Delete random number of documents
+            int docsToDelete = random().nextInt(5); // Delete up to 5 documents
+            for (int i = 0; i < docsToDelete; i++) {
+                if (!allIds.isEmpty()) {
+                    String idToDelete = allIds.iterator().next();
+                    iw.deleteDocuments(new Term("_id", idToDelete));
+                    allIds.remove(idToDelete);
+                    documents.remove(idToDelete);
+                }
+            }
+
+            iw.flush();
+        }
+
+        iw.forceMerge(1);
+        iw.close();
+
+        DirectoryReader ir = maybeWrapWithMergingReader(DirectoryReader.open(directory));
+        TestUtil.checkReader(ir);
+        assertEquals(1, ir.leaves().size());
+
+        // Assert star tree documents
+        for (LeafReaderContext context : ir.leaves()) {
+            SegmentReader reader = Lucene.segmentReader(context.reader());
+            CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+            List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+
+            for (CompositeIndexFieldInfo compositeIndexFieldInfo : compositeIndexFields) {
+                StarTreeValues starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(compositeIndexFieldInfo);
+                StarTreeDocument[] actualStarTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
+                    List.of(starTreeValues),
+                    List.of(
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG
+                    ),
+                    Integer.parseInt(starTreeValues.getAttributes().get(STAR_TREE_DOCS_COUNT))
+                );
+                SortedSetStarTreeValuesIterator k1 = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
+                    "keyword1"
+                );
+                SortedSetStarTreeValuesIterator k2 = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
+                    "keyword2"
+                );
+                for (StarTreeDocument starDoc : actualStarTreeDocuments) {
+                    String keyword1 = null;
+                    if (starDoc.dimensions[0] != null) {
+                        keyword1 = k1.lookupOrd(starDoc.dimensions[0]).utf8ToString();
+                    }
+
+                    String keyword2 = null;
+                    if (starDoc.dimensions[1] != null) {
+                        keyword2 = k2.lookupOrd(starDoc.dimensions[1]).utf8ToString();
+                    }
+                    double metric = (double) starDoc.metrics[0];
+                    if (map.containsKey(keyword1 + "-" + keyword2)) {
+                        assertEquals((int) map.get(keyword1 + "-" + keyword2), (int) metric);
+                    }
+                }
+            }
+        }
+
+        ir.close();
+        directory.close();
+    }
+
     public void testStarKeywordDocValuesWithMissingDocs() throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
@@ -159,17 +270,9 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         TestUtil.checkReader(ir);
         assertEquals(1, ir.leaves().size());
 
-        // Segment documents
-        /**
-         * sndv dv field
-         * [1,  1,   -1]
-         * [1,  1,   -1]
-         * [2,  2,   -2]
-         * [2,  2,   -2]
-         */
         // Star tree documents
         /**
-         * sndv dv | [ sum, value_count, min, max[sndv]] , doc_count
+         * keyword1 keyword2 | [ sum, value_count, min, max[sndv]] , doc_count
          [0, 0] | [2.0, 1.0, 2.0, 2.0, 1.0]
          [1, 1] | [2.0, 1.0, 2.0, 2.0, 1.0]
          [null, 0] | [1.0, 1.0, 1.0, 1.0, 1.0]
@@ -243,17 +346,9 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         TestUtil.checkReader(ir);
         assertEquals(1, ir.leaves().size());
 
-        // Segment documents
-        /**
-         * sndv dv field
-         * [1,  1,   -1]
-         * [1,  1,   -1]
-         * [2,  2,   -2]
-         * [2,  2,   -2]
-         */
         // Star tree documents
         /**
-         * sndv dv | [ sum, value_count, min, max[sndv]] , doc_count
+         * keyword1 keyword2 | [ sum, value_count, min, max[sndv]] , doc_count
          [0, 0] | [2.0, 1.0, 2.0, 2.0, 1.0]
          [1, 1] | [2.0, 1.0, 2.0, 2.0, 1.0]
          [null, null] | [2.0, 2.0, 1.0, 1.0, 2.0] // This is for missing doc
@@ -321,17 +416,9 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         TestUtil.checkReader(ir);
         assertEquals(1, ir.leaves().size());
 
-        // Segment documents
-        /**
-         * sndv dv field
-         * [1,  1,   -1]
-         * [1,  1,   -1]
-         * [2,  2,   -2]
-         * [2,  2,   -2]
-         */
         // Star tree documents
         /**
-         * sndv dv | [ sum, value_count, min, max[sndv]] , doc_count
+         * keyword1 keyword2 | [ sum, value_count, min, max[sndv]] , doc_count
          [null, null] | [6.0, 4.0, 1.0, 2.0, 4.0]
 
          */
@@ -389,17 +476,9 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         TestUtil.checkReader(ir);
         assertEquals(1, ir.leaves().size());
 
-        // Segment documents
-        /**
-         * sndv dv field
-         * [1,  1,   -1]
-         * [1,  1,   -1]
-         * [2,  2,   -2]
-         * [2,  2,   -2]
-         */
         // Star tree documents
         /**
-         * sndv dv | [ sum, value_count, min, max[sndv]] , doc_count
+         * keyword1 keyword2 | [ sum, value_count, min, max[sndv]] , doc_count
          [0, 0] | [2.0, 1.0, 2.0, 2.0, 1.0]
          [1, 1] | [2.0, 1.0, 2.0, 2.0, 1.0]
          [null, 0] | [1.0, 1.0, 1.0, 1.0, 1.0]

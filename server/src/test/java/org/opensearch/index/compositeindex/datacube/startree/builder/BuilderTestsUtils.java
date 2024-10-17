@@ -153,6 +153,10 @@ public class BuilderTestsUtils {
     }
 
     public static SortedSetDocValues getSortedSetMock(List<Long> dimList, List<Integer> docsWithField) {
+        return getSortedSetMock(dimList, docsWithField, 1);
+    }
+
+    public static SortedSetDocValues getSortedSetMock(List<Long> dimList, List<Integer> docsWithField, int valueCount) {
         return new SortedSetDocValues() {
             int index = -1;
 
@@ -173,7 +177,7 @@ public class BuilderTestsUtils {
 
             @Override
             public long getValueCount() {
-                return 0;
+                return valueCount;
             }
 
             @Override

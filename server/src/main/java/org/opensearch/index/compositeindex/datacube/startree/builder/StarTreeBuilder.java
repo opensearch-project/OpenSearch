@@ -10,8 +10,6 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 
@@ -49,13 +47,12 @@ public interface StarTreeBuilder extends Closeable {
      * @param starTreeValuesSubs           contains the star tree values from multiple segments
      * @param fieldNumberAcrossStarTrees   maintains the unique field number across the fields in the star tree
      * @param starTreeDocValuesConsumer    consumer of star-tree doc values
+     *
      * @throws IOException when we are unable to build star-tree
      */
     void build(
         List<StarTreeValues> starTreeValuesSubs,
         AtomicInteger fieldNumberAcrossStarTrees,
-        DocValuesConsumer starTreeDocValuesConsumer,
-        MergeState mergeState,
-        Map<String, SortedSetDocValues> fieldDocIdSetIteratorMap
+        DocValuesConsumer starTreeDocValuesConsumer
     ) throws IOException;
 }

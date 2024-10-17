@@ -32,6 +32,7 @@ import org.opensearch.index.compositeindex.CompositeIndexConstants;
 import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.KeywordDimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
@@ -349,6 +350,17 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
             0,
             dataLength
         );
+    }
+
+    protected StarTreeField getStarTreeFieldWithKeywords() {
+        Dimension d1 = new KeywordDimension("field1");
+        Dimension d2 = new KeywordDimension("field3");
+        Metric m1 = new Metric("field2", List.of(MetricStat.VALUE_COUNT, MetricStat.SUM));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(10, new HashSet<>(), getBuildMode());
+        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        return sf;
     }
 
     protected StarTreeField getStarTreeFieldWithDateDimension() {

@@ -8,10 +8,8 @@
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
-import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LongValues;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -105,12 +103,9 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     public void build(
         List<StarTreeValues> starTreeValuesSubs,
         AtomicInteger fieldNumberAcrossStarTrees,
-        DocValuesConsumer starTreeDocValuesConsumer,
-        MergeState mergeState,
-        Map<String, SortedSetDocValues> sortedSetDocValuesMap
+        DocValuesConsumer starTreeDocValuesConsumer
     ) throws IOException {
-        setSortedSetDocValuesMap(sortedSetDocValuesMap);
-        build(mergeStarTrees(starTreeValuesSubs, mergeState), fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
+        build(mergeStarTrees(starTreeValuesSubs), fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
     }
 
     /**
@@ -121,8 +116,9 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @return iterator of star tree documents
      */
     @Override
-    Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
-        return sortAndAggregateStarTreeDocuments(getSegmentsStarTreeDocuments(starTreeValuesSubs, mergeState), true);
+    Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs) throws IOException {
+        this.isMerge = true;
+        return sortAndAggregateStarTreeDocuments(getSegmentsStarTreeDocuments(starTreeValuesSubs), true);
     }
 
     /**
@@ -132,15 +128,15 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param starTreeValuesSubs StarTreeValues from multiple segments
      * @return array of star tree documents
      */
-    StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs, MergeState mergeState) throws IOException {
+    StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
-        Map<String, OrdinalMap> ordinalMaps = getOrdinalMaps(starTreeValuesSubs, mergeState);
+        Map<String, OrdinalMap> ordinalMaps = getOrdinalMaps(starTreeValuesSubs);
         int seg = 0;
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
             SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
             List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
             AtomicInteger numSegmentDocs = new AtomicInteger();
-            setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
+            setReadersAndNumSegmentDocsDuringMerge(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
             int currentDocId = 0;
             Map<String, LongValues> longValuesMap = new LinkedHashMap<>();
             for (Map.Entry<String, OrdinalMap> entry : ordinalMaps.entrySet()) {

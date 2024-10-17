@@ -447,10 +447,10 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
          * Asserting following dim / metrics [ dim1, dim2 / Sum [metric], count [metric] ]
          [0, 0] | [0.0, 1]
          [1, 1] | [10.0, 1]
+         [2, 2] | [20.0, 1]
          [3, 3] | [30.0, 1]
          [4, 4] | [40.0, 1]
          [5, 5] | [50.0, 1]
-         [null, 2] | [20.0, 1]
          */
 
         SegmentWriteState w = getWriteState(DocIdSetIterator.NO_MORE_DOCS, writeState.segmentInfo.getId());
@@ -464,7 +464,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         Map<String, SortedSetDocValues> dv = new LinkedHashMap<>();
         dv.put("field1", getSortedSetMock(dimList, docsWithField));
         dv.put("field3", getSortedSetMock(dimList2, docsWithField2));
-        builder.setSortedSetDocValuesMap(dv);
+        builder.setFlushSortedSetDocValuesMap(dv);
         builder.build(starTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
 
         List<StarTreeDocument> starTreeDocuments = builder.getStarTreeDocuments();

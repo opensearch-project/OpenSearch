@@ -132,16 +132,10 @@ public class StarTreesBuilder implements Closeable {
             }
             StarTreeField starTreeField = starTreeValuesList.get(0).getStarTreeField();
             try (StarTreeBuilder builder = getStarTreeBuilder(metaOut, dataOut, starTreeField, state, mapperService)) {
-                builder.build(
-                    starTreeValuesList,
-                    fieldNumberAcrossStarTrees,
-                    starTreeDocValuesConsumer,
-                    mergeState,
-                    fieldDocIdSetIteratorMap
-                );
+                builder.build(starTreeValuesList, fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
             }
         }
-        logger.info(
+        logger.debug(
             "Took {} ms to merge {} star-trees with star-tree fields",
             System.currentTimeMillis() - startTime,
             starTreeValuesSubsPerField.size()
