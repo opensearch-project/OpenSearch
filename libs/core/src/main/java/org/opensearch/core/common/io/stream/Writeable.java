@@ -83,7 +83,7 @@ public interface Writeable {
 
         public static void registerClassAlias(final Class<?> classInstance, final Class<?> classGeneric) {
             if (WRITER_CUSTOM_CLASS_MAP.putIfAbsent(classInstance, classGeneric) != null) {
-                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getClass() + "]");
+                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getName() + "]");
             }
         }
 
@@ -96,7 +96,7 @@ public interface Writeable {
         }
 
         /**
-         * Returns the ristered reader keyed by the unique ordinal
+         * Returns the registered reader keyed by the unique ordinal
          */
         @SuppressWarnings("unchecked")
         public static <R extends Reader<?>> R getReader(final byte b) {
