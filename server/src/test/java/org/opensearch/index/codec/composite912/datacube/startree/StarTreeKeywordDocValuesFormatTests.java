@@ -151,7 +151,7 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         for (int iter = 0; iter < iterations; iter++) {
             // Add 10 documents
             for (int i = 0; i < 10; i++) {
-                String id = String.valueOf(allIds.size() + 1);
+                String id = String.valueOf(random().nextInt() + 1);
                 allIds.add(id);
                 Document doc = new Document();
                 doc.add(new StringField("_id", id, Field.Store.YES));
