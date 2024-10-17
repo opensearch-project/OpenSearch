@@ -622,7 +622,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         DiscoveryNodes discoveryNodes = IndexShardTestUtils.getFakeDiscoveryNodes(routing);
         // To simulate that the node is remote backed
-        if (indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED) == "true") {
+        if ("true".equals(indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED))) {
             nodeSettings = Settings.builder()
                 .put("node.name", routing.currentNodeId())
                 .put("node.attr.remote_store.translog.repository", "seg_repo")
