@@ -17,6 +17,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import static org.opensearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
+import static org.opensearch.cluster.coordination.LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -173,6 +174,39 @@ public class CoordinationCheckerSettingsTests extends OpenSearchSingleNodeTestCa
             IllegalArgumentException.class,
             () -> {
                 client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
+            }
+        );
+    }
+
+    public void testLagDetectorTimeoutUpdate() {
+        Setting<TimeValue> setting1 = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
+        Settings lagDetectorTimeout = Settings.builder().put(setting1.getKey(), "30s").build();
+        try {
+            ClusterUpdateSettingsResponse response = client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(lagDetectorTimeout)
+                .execute()
+                .actionGet();
+
+            assertAcked(response);
+            assertEquals(timeValueSeconds(30), setting1.get(response.getPersistentSettings()));
+        } finally {
+            // cleanup
+            lagDetectorTimeout = Settings.builder().putNull(setting1.getKey()).build();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(lagDetectorTimeout).execute().actionGet();
+        }
+    }
+
+    public void testLagDetectorTimeoutMinValue() {
+        Setting<TimeValue> setting1 = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
+        Settings lagDetectorTimeout = Settings.builder().put(setting1.getKey(), "0s").build();
+
+        assertThrows(
+            "failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]",
+            IllegalArgumentException.class,
+            () -> {
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(lagDetectorTimeout).execute().actionGet();
             }
         );
     }

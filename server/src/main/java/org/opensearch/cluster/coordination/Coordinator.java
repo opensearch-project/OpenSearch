@@ -302,6 +302,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
         this.lagDetector = new LagDetector(
             settings,
+            clusterSettings,
             transportService.getThreadPool(),
             n -> removeNode(n, "lagging"),
             transportService::getLocalNode
