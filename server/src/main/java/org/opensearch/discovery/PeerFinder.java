@@ -40,7 +40,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -96,13 +95,12 @@ public abstract class PeerFinder {
         "discovery.request_peers_timeout",
         TimeValue.timeValueMillis(3000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     private final Settings settings;
     private TimeValue findPeersInterval;
-    private TimeValue requestPeersTimeout;
+    private final TimeValue requestPeersTimeout;
 
     private final Object mutex = new Object();
     private final TransportService transportService;
@@ -118,7 +116,6 @@ public abstract class PeerFinder {
 
     public PeerFinder(
         Settings settings,
-        ClusterSettings clusterSettings,
         TransportService transportService,
         TransportAddressConnector transportAddressConnector,
         ConfiguredHostsResolver configuredHostsResolver
@@ -126,7 +123,6 @@ public abstract class PeerFinder {
         this.settings = settings;
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING, this::setRequestPeersTimeout);
         this.transportService = transportService;
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;

@@ -33,7 +33,6 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
@@ -166,10 +165,8 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
         final long duration = ELECTION_DURATION_SETTING.get(settings).millis();
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ElectionSchedulerFactory electionSchedulerFactory = new ElectionSchedulerFactory(
             settings,
-            clusterSettings,
             random(),
             deterministicTaskQueue.getThreadPool()
         );
@@ -237,8 +234,7 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
             assertThat(ELECTION_INITIAL_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(initialTimeoutMillis)));
             assertThat(ELECTION_BACK_OFF_TIME_SETTING.get(settings), is(TimeValue.timeValueMillis(backOffMillis)));
             assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(maxTimeoutMillis)));
-            final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            assertThat(new ElectionSchedulerFactory(settings, clusterSettings, random(), null), not(nullValue())); // doesn't throw an IAE
+            assertThat(new ElectionSchedulerFactory(settings, random(), null), not(nullValue())); // doesn't throw an IAE
         }
 
         {
@@ -249,10 +245,9 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
                 .put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), initialTimeoutMillis + "ms")
                 .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), maxTimeoutMillis + "ms")
                 .build();
-            final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new ElectionSchedulerFactory(settings, clusterSettings, random(), null)
+                () -> new ElectionSchedulerFactory(settings, random(), null)
             );
             assertThat(
                 e.getMessage(),

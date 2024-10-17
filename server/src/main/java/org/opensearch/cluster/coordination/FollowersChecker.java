@@ -112,15 +112,14 @@ public class FollowersChecker {
         3,
         1,
         10,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     private final Settings settings;
 
     private TimeValue followerCheckInterval;
     private TimeValue followerCheckTimeout;
-    private int followerCheckRetryCount;
+    private final int followerCheckRetryCount;
     private final BiConsumer<DiscoveryNode, String> onNodeFailure;
     private final Consumer<FollowerCheckRequest> handleRequestAndUpdateState;
 
@@ -153,7 +152,6 @@ public class FollowersChecker {
         followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_INTERVAL_SETTING, this::setFollowerCheckInterval);
         clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_TIMEOUT_SETTING, this::setFollowerCheckTimeout);
-        clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_RETRY_COUNT_SETTING, this::setFollowerCheckRetryCount);
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(
             FOLLOWER_CHECK_ACTION_NAME,
@@ -178,10 +176,6 @@ public class FollowersChecker {
 
     private void setFollowerCheckTimeout(TimeValue followerCheckTimeout) {
         this.followerCheckTimeout = followerCheckTimeout;
-    }
-
-    private void setFollowerCheckRetryCount(int followerCheckRetryCount) {
-        this.followerCheckRetryCount = followerCheckRetryCount;
     }
 
     /**

@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -88,8 +87,7 @@ public class ElectionSchedulerFactory {
         TimeValue.timeValueMillis(100),
         TimeValue.timeValueMillis(1),
         TimeValue.timeValueSeconds(10),
-        Property.NodeScope,
-        Property.Dynamic
+        Property.NodeScope
     );
 
     public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING = Setting.timeSetting(
@@ -113,8 +111,7 @@ public class ElectionSchedulerFactory {
         TimeValue.timeValueMillis(500),
         TimeValue.timeValueMillis(1),
         TimeValue.timeValueSeconds(300),
-        Property.NodeScope,
-        Property.Dynamic
+        Property.NodeScope
     );
 
     private TimeValue initialTimeout;
@@ -124,16 +121,14 @@ public class ElectionSchedulerFactory {
     private final ThreadPool threadPool;
     private final Random random;
 
-    public ElectionSchedulerFactory(Settings settings, ClusterSettings clusterSettings, Random random, ThreadPool threadPool) {
+    public ElectionSchedulerFactory(Settings settings, Random random, ThreadPool threadPool) {
         this.random = random;
         this.threadPool = threadPool;
 
         initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(ELECTION_INITIAL_TIMEOUT_SETTING, this::setElectionInitialTimeout);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
         maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings);
         duration = ELECTION_DURATION_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(ELECTION_DURATION_SETTING, this::setElectionDuration);
 
         if (maxTimeout.millis() < initialTimeout.millis()) {
             throw new IllegalArgumentException(

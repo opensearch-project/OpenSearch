@@ -14,8 +14,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
@@ -64,52 +62,6 @@ public class CoordinationCheckerSettingsTests extends OpenSearchSingleNodeTestCa
             IllegalArgumentException.class,
             () -> {
                 client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-            }
-        );
-    }
-
-    public void testFollowerCheckRetryCountValueUpdate(){
-        Setting<Integer> setting1 = FOLLOWER_CHECK_RETRY_COUNT_SETTING;
-        Settings retrySettings = Settings.builder().put(setting1.getKey(), "5").build();
-        try {
-            ClusterUpdateSettingsResponse response = client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(retrySettings)
-                .execute()
-                .actionGet();
-
-            assertAcked(response);
-            assertThat(setting1.get(response.getPersistentSettings()), equalTo(5));
-        } finally {
-            // cleanup
-            retrySettings = Settings.builder().putNull(setting1.getKey()).build();
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(retrySettings).execute().actionGet();
-        }
-    }
-
-    public void testFollowerCheckRetryCountMaxValue(){
-        Setting<Integer> setting1 = FOLLOWER_CHECK_RETRY_COUNT_SETTING;
-        Settings countSettings = Settings.builder().put(setting1.getKey(), "12").build();
-
-        assertThrows(
-            "failed to parse value [12] for setting [" + setting1.getKey() + "], must be <= [10]",
-            IllegalArgumentException.class,
-            () -> {
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(countSettings).execute().actionGet();
-            }
-        );
-    }
-
-    public void testFollowerCheckRetryCountMinValue(){
-        Setting<Integer> setting1 = FOLLOWER_CHECK_RETRY_COUNT_SETTING;
-        Settings countSettings = Settings.builder().put(setting1.getKey(), "0").build();
-
-        assertThrows(
-            "failed to parse value [0] for setting [" + setting1.getKey() + "], must be >= [1]",
-            IllegalArgumentException.class,
-            () -> {
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(countSettings).execute().actionGet();
             }
         );
     }

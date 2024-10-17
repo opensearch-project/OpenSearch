@@ -133,8 +133,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         "cluster.publish.info_timeout",
         TimeValue.timeValueMillis(10000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     // the timeout for the publication of each value
@@ -167,7 +166,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final SeedHostsResolver configuredHostsResolver;
     private TimeValue publishTimeout;
-    private TimeValue publishInfoTimeout;
+    private final TimeValue publishInfoTimeout;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
@@ -250,9 +249,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(PUBLISH_TIMEOUT_SETTING, this::setPublishTimeout);
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(PUBLISH_INFO_TIMEOUT_SETTING, this::setPublishInfoTimeout);
         this.random = random;
-        this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, clusterSettings, random, transportService.getThreadPool());
+        this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(
             transportService,
             this::startElection,
@@ -263,7 +261,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(
             settings,
-            clusterSettings,
             transportService,
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
@@ -324,10 +321,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     protected void setPublishTimeout(TimeValue publishTimeout) {
         this.publishTimeout = publishTimeout;
-    }
-
-    protected void setPublishInfoTimeout(TimeValue publishInfoTimeout) {
-        this.publishInfoTimeout = publishInfoTimeout;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -1484,14 +1477,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         CoordinatorPeerFinder(
             Settings settings,
-            ClusterSettings clusterSettings,
             TransportService transportService,
             TransportAddressConnector transportAddressConnector,
             ConfiguredHostsResolver configuredHostsResolver
         ) {
             super(
                 settings,
-                clusterSettings,
                 transportService,
                 transportAddressConnector,
                 singleNodeDiscovery ? hostsResolver -> Collections.emptyList() : configuredHostsResolver
