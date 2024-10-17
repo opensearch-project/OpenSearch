@@ -24,3 +24,10 @@ We host development environments to support the following integrations:
 - [Splunk](./splunk/README.md).
 - [Elasticsearch](./elastic/README.md).
 - [OpenSearch](./opensearch/README.md).
+
+**Compatibility matrix**
+
+|                | Wazuh | Logstash | OpenSearch | Elastic | Splunk |
+| -------------- | ----- | -------- | ---------- | ------- | ------ |
+| v1.0           | 4.8.1 | 8.9.0    | 2.14.0     | 8.14.3  | 9.1.4  |
+| Latest version | 4.9.0 | 8.9.0    | 2.17.1     | 8.15.2  | 9.3.1  |

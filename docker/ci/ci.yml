@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # Essentially wi-dev, but doesn't expose port 9200
   wi-build:

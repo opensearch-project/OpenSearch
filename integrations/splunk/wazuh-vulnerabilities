@@ -178,11 +178,7 @@
       "type": "input.timerange",
       "options": {
         "token": "global_time",
-        "defaultValue": "-60m@m,now",
-        "queryParameters": {
-          "latest": "$global_time.latest$",
-          "earliest": "$global_time.earliest$"
-        }
+        "defaultValue": "-60m@m,now"
       },
       "title": "Global Time Range"
     }
