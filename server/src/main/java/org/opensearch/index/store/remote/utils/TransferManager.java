@@ -127,7 +127,7 @@ public class TransferManager {
                     }
                 }
             }
-            final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
+            final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.DEFAULT);
             return new FileCachedIndexInput(fileCache, request.getFilePath(), luceneIndexInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
