@@ -8,13 +8,11 @@
 
 package org.opensearch.index.codec.composite.composite912;
 
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.backward_codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.mapper.MapperService;
 
 /**
@@ -31,10 +29,6 @@ public class Composite912Codec extends FilterCodec {
     // needed for SPI - this is used in reader path
     public Composite912Codec() {
         this(COMPOSITE_INDEX_CODEC_NAME, new Lucene912Codec(), null);
-    }
-
-    public Composite912Codec(Lucene912Codec.Mode compressionMode, MapperService mapperService, Logger logger) {
-        this(COMPOSITE_INDEX_CODEC_NAME, new PerFieldMappingPostingFormatCodec(compressionMode, mapperService, logger), mapperService);
     }
 
     /**

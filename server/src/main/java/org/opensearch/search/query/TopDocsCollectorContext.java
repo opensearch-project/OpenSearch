@@ -581,7 +581,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             // artificially reducing the number of total hits and doc scores.
             ScoreDoc[] scoreDocs = topDocs.scoreDocs;
             if (terminatedAfter != null) {
-                if (totalHits.value > terminatedAfter) {
+                if (totalHits.value() > terminatedAfter) {
                     totalHits = new TotalHits(terminatedAfter, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
                 }
 

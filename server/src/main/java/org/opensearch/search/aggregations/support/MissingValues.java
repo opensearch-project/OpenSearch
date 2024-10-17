@@ -308,7 +308,7 @@ public enum MissingValues {
                     // NO_MORE_ORDS so on the next call we indicate there are no
                     // more values
                     long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                    nextMissingOrd = SortedSetDocValues.NO_MORE_DOCS;
                     return ordToReturn;
                 }
             }
@@ -376,7 +376,7 @@ public enum MissingValues {
                     // NO_MORE_ORDS so on the next call we indicate there are no
                     // more values
                     long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                    nextMissingOrd = SortedSetDocValues.NO_MORE_DOCS;
                     return ordToReturn;
                 }
             }
