@@ -340,7 +340,9 @@ public class ClusterModuleTests extends ModuleTestCase {
 
         assertTrue(
             customXEntries.stream()
-                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.getPreferredName().equals(QueryGroupMetadata.TYPE))
+                .anyMatch(
+                    entry -> entry.categoryClass == Metadata.Custom.class && entry.name.getPreferredName().equals(QueryGroupMetadata.TYPE)
+                )
         );
     }
 
