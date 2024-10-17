@@ -12,6 +12,7 @@ import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
@@ -69,6 +70,14 @@ public class RemoteStoreNodeAttribute {
         + CryptoMetadata.SETTINGS_KEY;
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
 
+    public static final String REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s.type";
+    public static final String REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s."
+        + CryptoMetadata.CRYPTO_METADATA_KEY;
+    public static final String REPOSITORY_CRYPTO_SETTINGS_PREFIX = REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT
+        + "."
+        + CryptoMetadata.SETTINGS_KEY;
+    public static final String REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "%s.repository.%s.settings.";
+
     private final RepositoriesMetadata repositoriesMetadata;
 
     public static List<String> SUPPORTED_DATA_REPO_NAME_ATTRIBUTES = constructRemotePrefix(
@@ -98,17 +107,17 @@ public class RemoteStoreNodeAttribute {
         return attributeValue;
     }
 
-    private String validateAttributeNonNull(DiscoveryNode node, List<String> attributeKeys) {
-        String attributeValue = getValue(node.getAttributes(), attributeKeys);
-        if (attributeValue == null || attributeValue.isEmpty()) {
+    private Tuple<String, String> validateAttributeNonNull(DiscoveryNode node, List<String> attributeKeys) {
+        Tuple<String, String> attributeValue = getValue(node.getAttributes(), attributeKeys);
+        if (attributeValue == null || attributeValue.v1() == null || attributeValue.v1().isEmpty()) {
             throw new IllegalStateException("joining node [" + node + "] doesn't have the node attribute [" + attributeKeys.get(0) + "]");
         }
 
         return attributeValue;
     }
 
-    private CryptoMetadata buildCryptoMetadata(DiscoveryNode node, String repositoryName) {
-        String metadataKey = String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT, repositoryName);
+    private CryptoMetadata buildCryptoMetadata(DiscoveryNode node, String repositoryName, String prefix) {
+        String metadataKey = String.format(Locale.getDefault(), REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT, prefix, repositoryName);
         boolean isRepoEncrypted = node.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(metadataKey));
         if (isRepoEncrypted == false) {
             return null;
@@ -119,7 +128,8 @@ public class RemoteStoreNodeAttribute {
 
         String settingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
-            REMOTE_STORE_REPOSITORY_CRYPTO_SETTINGS_PREFIX,
+            REPOSITORY_CRYPTO_SETTINGS_PREFIX,
+            prefix,
             repositoryName
         );
 
@@ -135,10 +145,11 @@ public class RemoteStoreNodeAttribute {
         return new CryptoMetadata(keyProviderName, keyProviderType, settings.build());
     }
 
-    private Map<String, String> validateSettingsAttributesNonNull(DiscoveryNode node, String repositoryName) {
+    private Map<String, String> validateSettingsAttributesNonNull(DiscoveryNode node, String repositoryName, String prefix) {
         String settingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
-            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            prefix,
             repositoryName
         );
         Map<String, String> settingsMap = node.getAttributes()
@@ -156,17 +167,17 @@ public class RemoteStoreNodeAttribute {
         return settingsMap;
     }
 
-    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
+    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name,  String prefix) {
         String type = validateAttributeNonNull(
             node,
-            String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name)
+            String.format(Locale.getDefault(), REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, prefix, name)
         );
-        Map<String, String> settingsMap = validateSettingsAttributesNonNull(node, name);
+        Map<String, String> settingsMap = validateSettingsAttributesNonNull(node, name, prefix);
 
         Settings.Builder settings = Settings.builder();
         settingsMap.forEach(settings::put);
 
-        CryptoMetadata cryptoMetadata = buildCryptoMetadata(node, name);
+        CryptoMetadata cryptoMetadata = buildCryptoMetadata(node, name, prefix);
 
         // Repository metadata built here will always be for a system repository.
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
@@ -175,11 +186,11 @@ public class RemoteStoreNodeAttribute {
     }
 
     private RepositoriesMetadata buildRepositoriesMetadata(DiscoveryNode node) {
-        Set<String> repositoryNames = getValidatedRepositoryNames(node);
+        Map<String, String> repositoryNamesWithPrefix = getValidatedRepositoryNames(node);
         List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
 
-        for (String repositoryName : repositoryNames) {
-            repositoryMetadataList.add(buildRepositoryMetadata(node, repositoryName));
+        for (Map.Entry<String, String> repository : repositoryNamesWithPrefix.entrySet()) {
+            repositoryMetadataList.add(buildRepositoryMetadata(node, repository.getKey(), repository.getValue()));
         }
 
         return new RepositoriesMetadata(repositoryMetadataList);
@@ -190,17 +201,17 @@ public class RemoteStoreNodeAttribute {
 
     }
 
-    private static String getValue(Map<String, String> attributes, List<String> keys) {
+    private static Tuple<String,String> getValue(Map<String, String> attributes, List<String> keys) {
         for (String key : keys) {
             if (attributes.containsKey(key)) {
-                return attributes.get(key);
+                return new Tuple<>(attributes.get(key), key);
             }
         }
         return null;
     }
 
-    private Set<String> getValidatedRepositoryNames(DiscoveryNode node) {
-        Set<String> repositoryNames = new HashSet<>();
+    private Map<String, String> getValidatedRepositoryNames(DiscoveryNode node) {
+        Set<Tuple<String, String>> repositoryNames = new HashSet<>();
         if (containsKey(node.getAttributes(), REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY)
             || containsKey(node.getAttributes(), REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY));
@@ -213,7 +224,13 @@ public class RemoteStoreNodeAttribute {
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
         }
 
-        return repositoryNames;
+        Map<String, String> repoNamesWithPrefix = new HashMap<>();
+        repositoryNames.forEach(t -> {
+            String[] attrKeyParts = t.v2().split("\\.");
+            repoNamesWithPrefix.put(t.v1(), attrKeyParts[0]);
+        });
+
+        return repoNamesWithPrefix;
     }
 
     public static boolean isRemoteStoreAttributePresent(Settings settings) {
