@@ -22,6 +22,33 @@ jobs:
         with:
           token: ${{ steps.github_app_token.outputs.token }}
 
+
+      # Rebase Strategy
+      - name: Rebase PR branch onto base branch
+        run: |
+          git fetch origin
+          git checkout ${{ github.head_ref }}
+          git rebase origin/${{ github.base_ref }} || git rebase --abort
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Resolving merge conflicts
+      - name: Attempt to resolve conflicts
+        run: |
+          git merge --strategy-option theirs || git merge --abort
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit the changes after resolving conflicts
+        if: success()
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Resolve merge conflicts automatically"
+          branch: ${{ github.head_ref }}
+          commit_user_name: dependabot[bot]
+          commit_user_email: support@github.com
+          commit_options: '--signoff'
+
       # See please https://docs.gradle.org/8.10/userguide/upgrading_version_8.html#minimum_daemon_jvm_version
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -68,3 +95,4 @@ jobs:
           commit_user_name: dependabot[bot]
           commit_user_email: support@github.com
           commit_options: '--signoff'
+
