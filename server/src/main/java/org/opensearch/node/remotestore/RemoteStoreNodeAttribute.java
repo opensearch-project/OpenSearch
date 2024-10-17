@@ -38,6 +38,10 @@ import java.util.stream.Collectors;
 public class RemoteStoreNodeAttribute {
 
     public static final List<String> REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = List.of("remote_store", "remote_publication");
+    public static final String REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.state.repository";
+    public static final String REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.segment.repository";
+    public static final String REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.translog.repository";
+    public static final String REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.routing_table.repository";
 
     static final Function<String, String> REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_FN = (prefix) -> prefix
         + ".state.repository";
@@ -46,19 +50,17 @@ public class RemoteStoreNodeAttribute {
     static Function<String, String> REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_FN = (prefix) -> prefix + ".segment.repository";
     static Function<String, String> REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_FN = (prefix) -> prefix + ".translog.repository";
 
-    public static final List<String> REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX
-        .stream()
+    public static final List<String> REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
         .map(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_FN)
         .collect(Collectors.toList());
 
-    public static final List<String> REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX
-        .stream()
+    public static final List<String> REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
         .map(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_FN)
         .collect(Collectors.toList());
-    public static final List<String> REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
+    public static final List<String> REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
         .map(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_FN)
         .collect(Collectors.toList());
-    public static final List<String> REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
+    public static final List<String> REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
         .map(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_FN)
         .collect(Collectors.toList());
 
@@ -206,16 +208,16 @@ public class RemoteStoreNodeAttribute {
 
     private Map<String, String> getValidatedRepositoryNames(DiscoveryNode node) {
         Set<Tuple<String, String>> repositoryNames = new HashSet<>();
-        if (containsKey(node.getAttributes(), REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY)
-            || containsKey(node.getAttributes(), REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
-            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY));
-            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY));
-            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY));
-        } else if (containsKey(node.getAttributes(), REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
-            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        if (containsKey(node.getAttributes(), REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS)
+            || containsKey(node.getAttributes(), REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS)) {
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS));
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS));
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS));
+        } else if (containsKey(node.getAttributes(), REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS)) {
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS));
         }
-        if (containsKey(node.getAttributes(), REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
-            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        if (containsKey(node.getAttributes(), REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS)) {
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS));
         }
 
         Map<String, String> repoNamesWithPrefix = new HashMap<>();
@@ -259,7 +261,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean hasSegmentRepoConfigured(Settings settings) {
-        for (String prefix : REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + prefix).isEmpty() == false) {
                 return true;
             }
@@ -268,7 +270,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean hasTranslogRepoConfigured(Settings settings) {
-        for (String prefix : REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + prefix).isEmpty() == false) {
                 return true;
             }
@@ -277,7 +279,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isRemoteClusterStateConfigured(Settings settings) {
-        for (String prefix : REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + prefix).isEmpty() == false) {
                 return true;
             }
@@ -286,7 +288,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getRemoteStoreSegmentRepo(Settings settings) {
-        for (String prefix : REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix) != null) {
                 return settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix);
             }
@@ -295,7 +297,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getRemoteStoreTranslogRepo(Settings settings) {
-        for (String prefix : REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix) != null) {
                 return settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix);
             }
@@ -308,7 +310,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     private static boolean isRemoteRoutingTableAttributePresent(Settings settings) {
-        for (String prefix : REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + prefix).isEmpty() == false) {
                 return true;
             }
@@ -351,7 +353,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getClusterStateRepoName(Map<String, String> repos) {
-        for (String prefix : REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (repos.get(prefix) != null) {
                 return repos.get(prefix);
             }
@@ -360,7 +362,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getRoutingTableRepoName(Map<String, String> repos) {
-        for (String prefix : REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (repos.get(prefix) != null) {
                 return repos.get(prefix);
             }
@@ -369,7 +371,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getSegmentRepoName(Map<String, String> repos) {
-        for (String prefix : REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (repos.get(prefix) != null) {
                 return repos.get(prefix);
             }
@@ -378,7 +380,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getTranslogRepoName(Map<String, String> repos) {
-        for (String prefix : REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (repos.get(prefix) != null) {
                 return repos.get(prefix);
             }
@@ -387,7 +389,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getClusterStateRepoName(Settings settings) {
-        for (String prefix : REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix) != null) {
                 return settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix);
             }
@@ -396,7 +398,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static String getRoutingTableRepoName(Settings settings) {
-        for (String prefix : REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+        for (String prefix : REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS) {
             if (settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix) != null) {
                 return settings.get(Node.NODE_ATTRIBUTES.getKey() + prefix);
             }
@@ -405,15 +407,15 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isClusterStateRepoConfigured(Map<String, String> attributes) {
-        return containsKey(attributes, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY);
+        return containsKey(attributes, REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS);
     }
 
     public static boolean isRoutingTableRepoConfigured(Map<String, String> attributes) {
-        return containsKey(attributes, REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
+        return containsKey(attributes, REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS);
     }
 
     public static boolean isSegmentRepoConfigured(Map<String, String> attributes) {
-        return containsKey(attributes, REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
+        return containsKey(attributes, REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS);
     }
 
     @Override
