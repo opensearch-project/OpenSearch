@@ -45,7 +45,6 @@ import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -183,14 +182,7 @@ public class Reindexer {
     }
 
     static RestClient buildRestClient(RemoteInfo remoteInfo, ReindexSslConfig sslConfig, long taskId, List<Thread> threadCollector) {
-        return buildRestClient(
-            remoteInfo,
-            sslConfig,
-            taskId,
-            threadCollector,
-            Optional.empty(),
-            CryptoServicesRegistrar.isInApprovedOnlyMode()
-        );
+        return buildRestClient(remoteInfo, sslConfig, taskId, threadCollector, Optional.empty());
     }
 
     /**
@@ -207,8 +199,7 @@ public class Reindexer {
         ReindexSslConfig sslConfig,
         long taskId,
         List<Thread> threadCollector,
-        Optional<HttpRequestInterceptor> restInterceptor,
-        boolean isFipsEnabled
+        Optional<HttpRequestInterceptor> restInterceptor
     ) {
         Header[] clientHeaders = new Header[remoteInfo.getHeaders().size()];
         int i = 0;
@@ -235,16 +226,11 @@ public class Reindexer {
             }
             // Stick the task id in the thread name so we can track down tasks from stack traces
             AtomicInteger threads = new AtomicInteger();
-            c.setThreadFactory((Runnable r) -> {
-                Runnable runnable = () -> {
-                    if (isFipsEnabled) {
-                        CryptoServicesRegistrar.setApprovedOnlyMode(true);
-                    }
-                    r.run();
-                };
-                var thread = new Thread(runnable, "os-client-" + taskId + "-" + threads.getAndIncrement());
-                threadCollector.add(thread);
-                return thread;
+            c.setThreadFactory(r -> {
+                String name = "es-client-" + taskId + "-" + threads.getAndIncrement();
+                Thread t = new Thread(r, name);
+                threadCollector.add(t);
+                return t;
             });
             // Limit ourselves to one reactor thread because for now the search process is single threaded.
             c.setIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
@@ -327,14 +313,7 @@ public class Reindexer {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 assert sslConfig != null : "Reindex ssl config must be set";
-                RestClient restClient = buildRestClient(
-                    remoteInfo,
-                    sslConfig,
-                    task.getId(),
-                    createdThreads,
-                    this.interceptor,
-                    CryptoServicesRegistrar.isInApprovedOnlyMode()
-                );
+                RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads, this.interceptor);
                 return new RemoteScrollableHitSource(
                     logger,
                     backoffPolicy,
