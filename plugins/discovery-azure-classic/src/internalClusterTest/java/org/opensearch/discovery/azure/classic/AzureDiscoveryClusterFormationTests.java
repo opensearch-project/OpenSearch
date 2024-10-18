@@ -41,6 +41,8 @@ import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
@@ -53,8 +55,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.rules.ExternalResource;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -104,14 +104,6 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
     }
 
     private static Path keyStoreFile;
-
-    @ClassRule
-    public static final ExternalResource MUTE_IN_FIPS_JVM = new ExternalResource() {
-        @Override
-        protected void before() {
-            assumeFalse("Can't run in a FIPS JVM because none of the supported Keystore types can be used", inFipsJvm());
-        }
-    };
 
     @BeforeClass
     public static void setupKeyStore() throws IOException {
@@ -278,14 +270,14 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
 
     private static SSLContext getSSLContext() throws Exception {
         char[] passphrase = "keypass".toCharArray();
-        KeyStore ks = KeyStore.getInstance("JKS");
+        KeyStore ks = KeyStoreFactory.getInstance(KeyStoreType.JKS);
         try (InputStream stream = AzureDiscoveryClusterFormationTests.class.getResourceAsStream("/test-node.jks")) {
             assertNotNull("can't find keystore file", stream);
             ks.load(stream, passphrase);
         }
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, passphrase);
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         tmf.init(ks);
         SSLContext ssl = SSLContext.getInstance(getProtocol());
         ssl.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
