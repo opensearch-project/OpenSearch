@@ -121,7 +121,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             nodeInfos.add(nodeResponse.nodeInfo());
             nodeStats.add(nodeResponse.nodeStats());
             this.versions.add(nodeResponse.nodeInfo().getVersion());
-            if (this.plugins != null) {
+            if (requestedMetrics.contains(ClusterStatsRequest.Metric.PLUGINS)) {
                 this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
             }
 
@@ -131,7 +131,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             if (!seenAddresses.add(inetAddress)) {
                 continue;
             }
-            if (this.fs != null && nodeResponse.nodeStats().getFs() != null) {
+            if (requestedMetrics.contains(ClusterStatsRequest.Metric.FS) != null && nodeResponse.nodeStats().getFs() != null) {
                 this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
             }
         }

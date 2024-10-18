@@ -103,22 +103,22 @@ public class ClusterStatsIndices implements ToXContentFragment {
                     }
                 }
 
-                if (docs != null) {
+                if (indicesMetrics.contains(IndexMetric.DOCS)) {
                     docs.add(r.getAggregatedNodeLevelStats().commonStats.docs);
                 }
-                if (store != null) {
+                if (indicesMetrics.contains(IndexMetric.STORE)) {
                     store.add(r.getAggregatedNodeLevelStats().commonStats.store);
                 }
-                if (fieldData != null) {
+                if (indicesMetrics.contains(IndexMetric.FIELDDATA)) {
                     fieldData.add(r.getAggregatedNodeLevelStats().commonStats.fieldData);
                 }
-                if (queryCache != null) {
+                if (indicesMetrics.contains(IndexMetric.QUERY_CACHE)) {
                     queryCache.add(r.getAggregatedNodeLevelStats().commonStats.queryCache);
                 }
-                if (completion != null) {
+                if (indicesMetrics.contains(IndexMetric.COMPLETION)) {
                     completion.add(r.getAggregatedNodeLevelStats().commonStats.completion);
                 }
-                if (segments != null) {
+                if (indicesMetrics.contains(IndexMetric.SEGMENTS)) {
                     segments.add(r.getAggregatedNodeLevelStats().commonStats.segments);
                 }
             } else {
@@ -136,23 +136,23 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
                     if (shardStats.getShardRouting().primary()) {
                         indexShardStats.primaries++;
-                        if (docs != null) {
+                        if (indicesMetrics.contains(IndexMetric.DOCS)) {
                             docs.add(shardCommonStats.docs);
                         }
                     }
-                    if (store != null) {
+                    if (indicesMetrics.contains(IndexMetric.STORE)) {
                         store.add(shardCommonStats.store);
                     }
-                    if (fieldData != null) {
+                    if (indicesMetrics.contains(IndexMetric.FIELDDATA)) {
                         fieldData.add(shardCommonStats.fieldData);
                     }
-                    if (queryCache != null) {
+                    if (indicesMetrics.contains(IndexMetric.QUERY_CACHE)) {
                         queryCache.add(shardCommonStats.queryCache);
                     }
-                    if (completion != null) {
+                    if (indicesMetrics.contains(IndexMetric.COMPLETION)) {
                         completion.add(shardCommonStats.completion);
                     }
-                    if (segments != null) {
+                    if (indicesMetrics.contains(IndexMetric.SEGMENTS)) {
                         segments.add(shardCommonStats.segments);
                     }
                 }
