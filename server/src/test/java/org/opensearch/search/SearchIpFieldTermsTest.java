@@ -131,10 +131,13 @@ public class SearchIpFieldTermsTest extends OpenSearchSingleNodeTestCase {
 
     // Generate a random IPv4 address
     private String generateRandomIPv4() {
-        return String.join(".", String.valueOf(random().nextInt(256)),
+        return String.join(
+            ".",
             String.valueOf(random().nextInt(256)),
             String.valueOf(random().nextInt(256)),
-            String.valueOf(random().nextInt(256)));
+            String.valueOf(random().nextInt(256)),
+            String.valueOf(random().nextInt(256))
+        );
     }
 
     // Generate a random IPv6 address
