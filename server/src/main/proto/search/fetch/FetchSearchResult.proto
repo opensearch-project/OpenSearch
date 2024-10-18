@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package org.opensearch.proto.search.fetch;
+
+import "search/SearchHits.proto";
+
+option java_outer_classname = "FetchSearchResultProtoDef";
+
+message FetchSearchResultProto {
+  org.opensearch.proto.search.SearchHitsProto hits = 1;
+  int64 counter = 2;
+}
