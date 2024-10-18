@@ -40,7 +40,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.equalTo;
