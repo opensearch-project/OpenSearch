@@ -30,12 +30,6 @@
 
 import org.gradle.internal.jvm.Jvm
 import org.gradle.util.GradleVersion
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.IOException;
 
 plugins {
   id 'java-gradle-plugin'
@@ -63,7 +57,7 @@ if (project == rootProject) {
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../gradle/libs.versions.toml'))
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project)
 version = props.getProperty("opensearch")
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
@@ -293,54 +287,22 @@ if (project != rootProject) {
   }
 }
 
-// Define this here because we need it early. This reads in a toml file, extracts the section with the header
-// [versions] and converts to a Java Properties object
+// Define this here because we need it early. It uses VersionCatalogsExtension to extract all versions
+// and converts to a Java Properties object
 class VersionPropertiesLoader {
-  static Properties loadBuildSrcVersion(File input) throws IOException {
+  static Properties loadBuildSrcVersion(Project project) throws IOException {
     Properties props = new Properties();
-    InputStream is = new FileInputStream(input)
-    InputStream versionsStream = getSectionAsStream(is, "versions");
-    try {
-      props.load(versionsStream)
-    } finally {
-      versionsStream.close()
-      is.close()
+
+    var catalogs = project.extensions.getByType(VersionCatalogsExtension)
+    var libs = catalogs.named("libs")
+    libs.getVersionAliases().forEach {
+       libs.findVersion(it).ifPresent { v ->
+         // Gradle replaces '_' with '.' so 'google_http_client' becomes 'google.http.client' instead
+         props.setProperty(it.replaceAll("[.]", "_"), v.requiredVersion)
+       }
     }
-    props.forEach((key, value) -> {
-      if (value != null && value instanceof String) {
-        String newValue = value.toString().replace("\"", "")
-        props.setProperty(key.toString(), newValue)
-      }
-    });
     loadBuildSrcVersion(props, System.getProperties())
     return props
-  }
-
-  static InputStream getSectionAsStream(InputStream is, String startSection) throws IOException {
-    BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-    StringBuilder section = new StringBuilder();
-
-    String line;
-    boolean inSection = false;
-
-    while ((line = reader.readLine()) != null) {
-      line = line.trim();
-
-      if (line.equals("[" + startSection + "]")) {
-        inSection = true;
-        continue;
-      }
-
-      if (inSection && line.startsWith("[") && line.endsWith("]")) {
-        break;
-      }
-      if (inSection) {
-        section.append(line).append("\n");
-      }
-    }
-
-    reader.close();
-    return new ByteArrayInputStream(section.toString().getBytes());
   }
 
   protected static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
