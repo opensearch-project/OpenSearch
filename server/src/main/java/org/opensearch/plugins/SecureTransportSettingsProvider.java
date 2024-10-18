@@ -43,7 +43,7 @@ public interface SecureTransportSettingsProvider {
      * @return a boolean indicating if dual mode is enabled
      */
     default boolean isDualModeEnabled(Settings settings) {
-
+        return NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED.get(settings);
     }
 
     /**
