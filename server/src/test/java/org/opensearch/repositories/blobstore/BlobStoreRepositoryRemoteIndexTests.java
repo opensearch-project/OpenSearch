@@ -431,6 +431,13 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             );
         }
 
+        // Modify repo-1 settings. This should go through
+        updateRepository(
+            client,
+            "test-repo-1",
+            Settings.builder().put(snapshotRepoSettings1).put("max_snapshot_bytes_per_sec", "10k").build()
+        );
+
         // Disable shallow snapshot V2 setting on test-repo-1
         updateRepository(
             client,
