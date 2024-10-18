@@ -9,7 +9,6 @@
 package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportAdapterProvider;
@@ -47,22 +46,12 @@ public interface SecureTransportSettingsProvider {
         return Optional.of(new DefaultSecureTransportParameters(settings));
     }
 
+    /**
+     * Dynamic parameters that can be provided by the {@link SecureTransportSettingsProvider}
+     */
     @ExperimentalApi
     interface SecureTransportParameters {
         boolean dualModeEnabled();
-    }
-
-    class DefaultSecureTransportParameters implements SecureTransportParameters {
-        private final Settings settings;
-
-        DefaultSecureTransportParameters(Settings settings) {
-            this.settings = settings;
-        }
-
-        @Override
-        public boolean dualModeEnabled() {
-            return NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED.get(settings);
-        }
     }
 
     /**
