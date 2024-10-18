@@ -131,7 +131,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             if (!seenAddresses.add(inetAddress)) {
                 continue;
             }
-            if (requestedMetrics.contains(ClusterStatsRequest.Metric.FS) != null && nodeResponse.nodeStats().getFs() != null) {
+            if (requestedMetrics.contains(ClusterStatsRequest.Metric.FS) && nodeResponse.nodeStats().getFs() != null) {
                 this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
             }
         }
