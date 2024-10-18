@@ -142,7 +142,7 @@ public class SecureNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
 
-            final boolean dualModeEnabled = NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED.get(settings);
+            final boolean dualModeEnabled = secureTransportSettingsProvider.isDualModeEnabled(settings);
             if (dualModeEnabled) {
                 logger.info("SSL Dual mode enabled, using port unification handler");
                 final ChannelHandler portUnificationHandler = new DualModeSslHandler(
@@ -258,7 +258,7 @@ public class SecureNetty4Transport extends Netty4Transport {
         public SSLClientChannelInitializer(DiscoveryNode node) {
             this.node = node;
 
-            final boolean dualModeEnabled = NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED.get(settings);
+            final boolean dualModeEnabled = secureTransportSettingsProvider.isDualModeEnabled(settings);
             hostnameVerificationEnabled = NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION.get(settings);
             hostnameVerificationResolveHostName = NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME.get(settings);
 

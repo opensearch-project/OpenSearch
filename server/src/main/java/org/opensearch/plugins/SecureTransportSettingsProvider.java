@@ -9,6 +9,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportAdapterProvider;
@@ -34,6 +35,15 @@ public interface SecureTransportSettingsProvider {
      */
     default Collection<TransportAdapterProvider<Transport>> getTransportAdapterProviders(Settings settings) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns true if dual mode is enabled. Dual mode domains support both encrypted and non-encrypted traffic
+     * @param settings settings
+     * @return a boolean indicating if dual mode is enabled
+     */
+    default boolean isDualModeEnabled(Settings settings) {
+
     }
 
     /**
