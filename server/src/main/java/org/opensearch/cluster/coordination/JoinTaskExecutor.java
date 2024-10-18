@@ -191,6 +191,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
         );
 
+        Optional<DiscoveryNode> remotePublicationDN = currentNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteStatePublicationEnabled)
+            .findFirst();
+        if (remotePublicationDN.isPresent()) {
+            repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(remotePublicationDN.get(), repositoriesMetadata);
+        }
+
         assert nodesBuilder.isLocalNodeElectedClusterManager();
 
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
@@ -222,10 +231,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (remoteDN.isEmpty() && node.isRemoteStoreNode()) {
                         // This is hit only on cases where we encounter first remote node
                         logger.info("Updating system repository now for remote store");
-                        repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
-                            node,
-                            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
-                        );
+                        repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(node, repositoriesMetadata);
+                    }
+                    if (remotePublicationDN.isEmpty() && node.isRemoteStatePublicationEnabled()) {
+                        // This is hit only on cases where we encounter first remote publication node
+                        logger.info("Updating system repository now for remote publication store");
+                        repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(node, repositoriesMetadata);
                     }
 
                     nodesChanged = true;
