@@ -81,6 +81,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -743,7 +744,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         + " in the name as this delimiter is used to create pinning entity"
                 );
             }
-            if (repositoryWithShallowV2Exists(repositories)) {
+            if (repositoryWithShallowV2Exists(repositories, repositoryName)) {
                 throw new RepositoryException(
                     repositoryName,
                     "setting "
@@ -777,8 +778,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static boolean repositoryWithShallowV2Exists(Map<String, Repository> repositories) {
-        return repositories.values().stream().anyMatch(repo -> SHALLOW_SNAPSHOT_V2.get(repo.getMetadata().settings()));
+    private static boolean repositoryWithShallowV2Exists(Map<String, Repository> repositories, String repositoryName) {
+        return repositories.values()
+            .stream()
+            .anyMatch(
+                repository -> SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings())
+                    && !Objects.equals(repository.getMetadata().name(), repositoryName)
+            );
     }
 
     private static boolean pinnedTimestampExistsWithDifferentRepository(
