@@ -71,6 +71,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -331,9 +332,17 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testQueryGroupMetadataRegister() {
         List<NamedWriteableRegistry.Entry> customEntries = ClusterModule.getNamedWriteables();
+        List<NamedXContentRegistry.Entry> customXEntries = ClusterModule.getNamedXWriteables();
         assertTrue(
             customEntries.stream()
                 .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(QueryGroupMetadata.TYPE))
+        );
+
+        assertTrue(
+            customXEntries.stream()
+                .anyMatch(
+                    entry -> entry.categoryClass == Metadata.Custom.class && entry.name.getPreferredName().equals(QueryGroupMetadata.TYPE)
+                )
         );
     }
 
