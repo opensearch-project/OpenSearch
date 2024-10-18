@@ -38,12 +38,30 @@ public interface SecureTransportSettingsProvider {
     }
 
     /**
-     * Returns true if dual mode is enabled. Dual mode domains support both encrypted and non-encrypted traffic
+     * Returns parameters that can be dynamically provided by a plugin providing a {@link SecureTransportSettingsProvider}
+     * implementation
      * @param settings settings
-     * @return a boolean indicating if dual mode is enabled
+     * @return an instance of {@link SecureTransportParameters}
      */
-    default boolean isDualModeEnabled(Settings settings) {
-        return NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED.get(settings);
+    default Optional<SecureTransportParameters> parameters(Settings settings) {
+        return Optional.of(new DefaultSecureTransportParameters(settings));
+    }
+
+    interface SecureTransportParameters {
+        boolean dualModeEnabled();
+    }
+
+    class DefaultSecureTransportParameters implements SecureTransportParameters {
+        private final Settings settings;
+
+        DefaultSecureTransportParameters(Settings settings) {
+            this.settings = settings;
+        }
+
+        @Override
+        public boolean dualModeEnabled() {
+            return NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED.get(settings);
+        }
     }
 
     /**
