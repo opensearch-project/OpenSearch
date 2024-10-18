@@ -45,8 +45,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.hc.core5.http.Header;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -125,16 +123,6 @@ public abstract class RestClientTestCase extends RandomizedTest {
             map.put(name, values);
         }
         values.add(value);
-    }
-
-    @BeforeClass
-    public static void setFipsJvm() {
-        boolean isFipsEnabled = Boolean.parseBoolean(System.getProperty("tests.fips.enabled", "false"));
-        CryptoServicesRegistrar.setApprovedOnlyMode(isFipsEnabled);
-    }
-
-    public static boolean inFipsJvm() {
-        return CryptoServicesRegistrar.isInApprovedOnlyMode();
     }
 
 }

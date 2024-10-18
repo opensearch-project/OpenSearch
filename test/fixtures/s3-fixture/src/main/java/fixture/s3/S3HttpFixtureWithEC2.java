@@ -90,9 +90,9 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
     protected String buildCredentialResponse(final String ec2AccessKey, final String ec2SessionToken) {
         return "{"
             + "\"AccessKeyId\": \"" + ec2AccessKey + "\","
-            + "\"Expiration\": \"" + ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME) + "\","
+            + "\"Expiration\": \"" + ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ISO_INSTANT) + "\","
             + "\"RoleArn\": \"arn\","
-            + "\"SecretAccessKey\": \"secret\","
+            + "\"SecretAccessKey\": \"secret_key\","
             + "\"Token\": \"" + ec2SessionToken + "\""
             + "}";
     }

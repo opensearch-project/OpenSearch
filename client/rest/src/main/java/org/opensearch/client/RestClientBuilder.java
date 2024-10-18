@@ -48,7 +48,6 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.util.Timeout;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -332,20 +331,9 @@ public final class RestClientBuilder {
                 .setTlsStrategy(tlsStrategy)
                 .build();
 
-            var inFipsJvm = CryptoServicesRegistrar.isInApprovedOnlyMode();
-
             HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
                 .setDefaultRequestConfig(requestConfigBuilder.build())
                 .setConnectionManager(connectionManager)
-                .setThreadFactory((Runnable r) -> {
-                    Runnable runnable = () -> {
-                        if (inFipsJvm) {
-                            CryptoServicesRegistrar.setApprovedOnlyMode(true);
-                        }
-                        r.run();
-                    };
-                    return new Thread(runnable, "os-client-dispatcher");
-                })
                 .setTargetAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
                 .disableAutomaticRetries();
             if (httpClientConfigCallback != null) {

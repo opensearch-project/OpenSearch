@@ -39,7 +39,6 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.crypto.KeyStoreFactory;
 import org.opensearch.common.crypto.KeyStoreType;
 import org.junit.AfterClass;
@@ -60,7 +59,6 @@ import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -80,17 +78,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true)));
         httpsServer.createContext("/", new ResponseHandler());
-        var inFipsJvm = inFipsJvm();
-        Executor executor = Executors.newFixedThreadPool(1, (Runnable r) -> {
-            Runnable runnable = () -> {
-                if (inFipsJvm) {
-                    CryptoServicesRegistrar.setApprovedOnlyMode(true);
-                }
-                r.run();
-            };
-            return new Thread(runnable, "test-httpserver-dispatcher");
-        });
-        httpsServer.setExecutor(executor);
         httpsServer.start();
     }
 

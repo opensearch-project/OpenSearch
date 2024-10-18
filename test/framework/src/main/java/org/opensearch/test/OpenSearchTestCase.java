@@ -254,8 +254,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
-    public static final String FIPS_SYSPROP = "tests.fips.enabled";
-
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
@@ -362,12 +360,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
-
-    @BeforeClass
-    public static void setFipsJvm() throws Exception {
-        var runInApprovedMode = Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
-        CryptoServicesRegistrar.setApprovedOnlyMode(runInApprovedMode);
-    }
 
     @BeforeClass
     public static void setFileSystem() throws Exception {
