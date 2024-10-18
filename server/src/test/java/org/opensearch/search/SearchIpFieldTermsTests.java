@@ -27,7 +27,7 @@ import java.util.Objects;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchIpFieldTermsTest extends OpenSearchSingleNodeTestCase {
+public class SearchIpFieldTermsTests extends OpenSearchSingleNodeTestCase {
 
     public static final boolean IPv4_ONLY = true;
     static String defaultIndexName = "test";
