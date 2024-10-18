@@ -37,7 +37,6 @@ import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
@@ -73,7 +72,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -99,17 +97,6 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         SSLContext sslContext = buildServerSslContext();
         server = HttpsServer.create(address, 0);
         server.setHttpsConfigurator(new ClientAuthHttpsConfigurator(sslContext));
-        var inFipsJvm = inFipsJvm();
-        Executor executor = Executors.newFixedThreadPool(1, (Runnable r) -> {
-            Runnable runnable = () -> {
-                if (inFipsJvm) {
-                    CryptoServicesRegistrar.setApprovedOnlyMode(true);
-                }
-                r.run();
-            };
-            return new Thread(runnable, "test-httpserver-dispatcher");
-        });
-        server.setExecutor(executor);
         server.start();
         server.createContext("/", http -> {
             assert http instanceof HttpsExchange;

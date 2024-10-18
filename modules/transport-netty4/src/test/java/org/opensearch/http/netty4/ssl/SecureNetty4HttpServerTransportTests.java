@@ -123,9 +123,9 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 try {
-                    final KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.PKCS_12);
+                    final KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.JKS);
                     keyStore.load(
-                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.p12"),
+                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.jks"),
                         "password".toCharArray()
                     );
 

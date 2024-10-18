@@ -78,12 +78,21 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
-                // security manager
+                // security settings
+                enableFips(),
                 allowSecurityManagerOption(),
                 loadJavaSecurityProperties(config),
                 javaLocaleProviders()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+    }
+
+    private static String enableFips() {
+        var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
+        if (cryptoStandard != null && cryptoStandard.equals("FIPS-140-2")) {
+            return "-Dorg.bouncycastle.fips.approved_only=true";
+        }
+        return "";
     }
 
     private static String loadJavaSecurityProperties(final Path config) {

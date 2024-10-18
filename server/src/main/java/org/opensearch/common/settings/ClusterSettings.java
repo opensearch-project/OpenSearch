@@ -673,7 +673,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
                 ClusterManagerTaskThrottler.BASE_DELAY_SETTINGS,
                 ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,
-                FipsSettings.FIPS_ENABLED,
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
 
