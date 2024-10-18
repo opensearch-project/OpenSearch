@@ -626,14 +626,9 @@ public class MetadataCreateIndexService {
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
         final boolean isSystem = validateDotIndex(request.index(), isHiddenAfterTemplates);
 
-        // remove the setting it's temporary and is only relevant once we create the index
-        final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
-        settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        final Settings indexSettings = settingsBuilder.build();
-
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
-        tmpImdBuilder.settings(indexSettings);
+        tmpImdBuilder.settings(aggregatedIndexSettings);
         tmpImdBuilder.system(isSystem);
         addRemoteStoreCustomMetadata(tmpImdBuilder, true);
 

@@ -300,7 +300,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.NotCopyableOnResize
     );
 
     /**
