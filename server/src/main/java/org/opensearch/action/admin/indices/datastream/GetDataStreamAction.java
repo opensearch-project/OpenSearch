@@ -336,7 +336,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 ClusterStateHealth streamHealth = new ClusterStateHealth(
                     state,
-                    dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)
+                    dataStream.getIndices().stream().map(Index::getName).collect(Collectors.toSet())
                 );
                 dataStreamInfos.add(new Response.DataStreamInfo(dataStream, streamHealth.getStatus(), indexTemplate));
             }
