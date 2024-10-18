@@ -47,6 +47,7 @@ public interface SecureTransportSettingsProvider {
         return Optional.of(new DefaultSecureTransportParameters(settings));
     }
 
+    @ExperimentalApi
     interface SecureTransportParameters {
         boolean dualModeEnabled();
     }
