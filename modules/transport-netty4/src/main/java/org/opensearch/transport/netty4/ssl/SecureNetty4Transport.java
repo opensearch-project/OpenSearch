@@ -57,7 +57,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Optional;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
@@ -143,13 +142,9 @@ public class SecureNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
 
-            boolean dualModeEnabled = false;
-            Optional<SecureTransportSettingsProvider.SecureTransportParameters> parameters = secureTransportSettingsProvider.parameters(
-                settings
-            );
-            if (parameters.isPresent()) {
-                dualModeEnabled = parameters.get().dualModeEnabled();
-            }
+            final boolean dualModeEnabled = secureTransportSettingsProvider.parameters(settings)
+                .map(SecureTransportSettingsProvider.SecureTransportParameters::dualModeEnabled)
+                .orElse(false);
             if (dualModeEnabled) {
                 final ChannelHandler portUnificationHandler = new DualModeSslHandler(
                     settings,
@@ -264,13 +259,9 @@ public class SecureNetty4Transport extends Netty4Transport {
         public SSLClientChannelInitializer(DiscoveryNode node) {
             this.node = node;
 
-            boolean dualModeEnabled = false;
-            Optional<SecureTransportSettingsProvider.SecureTransportParameters> parameters = secureTransportSettingsProvider.parameters(
-                settings
-            );
-            if (parameters.isPresent()) {
-                dualModeEnabled = parameters.get().dualModeEnabled();
-            }
+            final boolean dualModeEnabled = secureTransportSettingsProvider.parameters(settings)
+                .map(SecureTransportSettingsProvider.SecureTransportParameters::dualModeEnabled)
+                .orElse(false);
             hostnameVerificationEnabled = NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION.get(settings);
             hostnameVerificationResolveHostName = NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME.get(settings);
 
