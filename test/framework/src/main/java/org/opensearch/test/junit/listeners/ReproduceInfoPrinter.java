@@ -193,9 +193,6 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("runtime.java", Integer.toString(Runtime.version().version().get(0)));
-            appendOpt(OpenSearchTestCase.FIPS_SYSPROP, System.getProperty(OpenSearchTestCase.FIPS_SYSPROP));
-            appendOpt("org.bouncycastle.jca.enable_jks", "true");
-            appendOpt("org.bouncycastle.rsa.allow_multi_use", "true");
             return this;
         }
 

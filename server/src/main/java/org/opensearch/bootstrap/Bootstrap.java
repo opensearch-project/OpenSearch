@@ -40,7 +40,6 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cli.KeyStoreAwareCommand;
@@ -52,7 +51,6 @@ import org.opensearch.common.inject.CreationException;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.IfConfig;
-import org.opensearch.common.settings.FipsSettings;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -197,14 +195,9 @@ final class Bootstrap {
             BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
         );
 
-        var isFipsEnabled = FipsSettings.FIPS_ENABLED.get(settings);
-        try {
-            var isRunningInFipsMode = CryptoServicesRegistrar.setApprovedOnlyMode(isFipsEnabled);
-            if (isRunningInFipsMode) {
-                LogManager.getLogger(Bootstrap.class).info("running in FIPS mode");
-            }
-        } catch (Exception e) {
-            throw new BootstrapException(e);
+        var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
+        if (cryptoStandard != null && cryptoStandard.equals("FIPS-140-2")) {
+            LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-2 mode");
         }
 
         // initialize probes before the security manager is installed
