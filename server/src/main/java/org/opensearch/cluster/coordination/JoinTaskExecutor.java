@@ -185,7 +185,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // for every set of node join task which we can optimize to not compute if cluster state already has
         // repository information.
         Optional<DiscoveryNode> remoteDN = currentNodes.getNodes().values().stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
-        DiscoveryNode dn = remoteDN.orElseGet(() -> (currentNodes.getNodes().values()).stream().findFirst().get());
+        Optional<DiscoveryNode> remotePublicationDN = currentNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteStatePublicationEnabled)
+            .findFirst();
+        DiscoveryNode dn = remoteDN.or(() -> remotePublicationDN)
+            .orElseGet(() -> (currentNodes.getNodes().values()).stream().findFirst().get());
         RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
             dn,
             currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
@@ -222,6 +228,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (remoteDN.isEmpty() && node.isRemoteStoreNode()) {
                         // This is hit only on cases where we encounter first remote node
                         logger.info("Updating system repository now for remote store");
+                        repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+                            node,
+                            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+                        );
+                    } else if (remotePublicationDN.isEmpty() && node.isRemoteStatePublicationEnabled()) {
+                        // This is hit only on cases where we encounter first remote node
+                        logger.info("Updating system repository now for remote publication store");
                         repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
                             node,
                             currentState.getMetadata().custom(RepositoriesMetadata.TYPE)

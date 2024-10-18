@@ -14,6 +14,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.remotemigration.MigrationBaseTestCase;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -97,23 +98,26 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
             .put(stateRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, true)
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, ROUTING_TABLE_REPO_NAME)
-            .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
+            .put(routingTableRepoTypeAttributeKey, FsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
         return builder;
     }
 
     public Settings.Builder remoteWithRoutingTableNodeSetting() {
         // Remote Cluster with Routing table
+
         return Settings.builder()
             .put(
-                buildRemoteStoreNodeAttributes(
+                remoteStoreClusterSettings(
                     REPOSITORY_NAME,
                     segmentRepoPath,
+                    ReloadableFsRepository.TYPE,
                     REPOSITORY_2_NAME,
                     translogRepoPath,
+                    ReloadableFsRepository.TYPE,
                     REPOSITORY_NAME,
                     segmentRepoPath,
-                    false
+                    ReloadableFsRepository.TYPE
                 )
             )
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true);
