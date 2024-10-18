@@ -27,10 +27,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -68,35 +66,38 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
     }
 
     public Settings.Builder remotePublishConfiguredNodeSetting() {
+        String remoteStoreNodeAttributePrefix = "remote_publication";
         String stateRepoSettingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
-            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            "node.attr." + REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            remoteStoreNodeAttributePrefix,
             REPOSITORY_NAME
         );
         String prefixModeVerificationSuffix = BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING.getKey();
         String stateRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
-            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            "node.attr." + REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            remoteStoreNodeAttributePrefix,
             REPOSITORY_NAME
         );
         String routingTableRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
-            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            "node.attr." + REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
             ROUTING_TABLE_REPO_NAME
         );
         String routingTableRepoSettingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
-            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            "node.attr." + REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             ROUTING_TABLE_REPO_NAME
         );
 
         Settings.Builder builder = Settings.builder()
-            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
+            .put("node.attr." + "remote_publication.state.repository", REPOSITORY_NAME)
             .put(stateRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
             .put(stateRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, true)
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, ROUTING_TABLE_REPO_NAME)
+            .put("node.attr." + "remote_publication.routing_table.repository", ROUTING_TABLE_REPO_NAME)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
         return builder;

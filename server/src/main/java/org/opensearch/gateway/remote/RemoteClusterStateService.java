@@ -61,7 +61,6 @@ import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
-import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -1069,9 +1068,8 @@ public class RemoteClusterStateService implements Closeable {
 
     public void start() {
         assert isRemoteClusterStateConfigured(settings) == true : "Remote cluster state is not enabled";
-        final String remoteStoreRepo = settings.get(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
-        );
+        final String remoteStoreRepo = RemoteStoreNodeAttribute.getClusterStateRepoName(settings);
+
         assert remoteStoreRepo != null : "Remote Cluster State repository is not configured";
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
