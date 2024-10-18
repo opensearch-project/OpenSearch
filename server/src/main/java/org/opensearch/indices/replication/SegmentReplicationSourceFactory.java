@@ -53,6 +53,10 @@ public class SegmentReplicationSourceFactory {
 
     private DiscoveryNode getPrimaryNode(ShardId shardId) {
         ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
-        return clusterService.state().nodes().get(primaryShard.currentNodeId());
+        DiscoveryNode node = clusterService.state().nodes().get(primaryShard.currentNodeId());
+        if (node == null) {
+            throw new IllegalStateException("Cannot replicate, primary shard for " + shardId + " is not allocated on any node");
+        }
+        return node;
     }
 }
