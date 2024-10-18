@@ -449,8 +449,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
                         addEstimateAndMaybeBreak(estimatedMergeSize);
                         estimatedTotalSize += estimatedMergeSize;
-                        numReducePhases.incrementAndGet();
-                        newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases.get());
+                        newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases.incrementAndGet());
                     } catch (Exception t) {
                         onMergeFailure(t);
                         return;
