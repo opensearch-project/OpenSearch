@@ -67,7 +67,9 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
+public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB>
+    implements
+        WithFieldName {
 
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
@@ -218,6 +220,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     /**
      * @return the name of the field that will be queried
      */
+    @Override
     public String fieldName() {
         return fieldName;
     }

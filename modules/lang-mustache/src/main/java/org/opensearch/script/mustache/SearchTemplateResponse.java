@@ -120,7 +120,10 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
-            response.toXContent(builder, params);
+            builder.startObject();
+            response.innerToXContent(builder, params);
+            builder.field(MultiSearchTemplateResponse.Fields.STATUS, response.status().getStatus());
+            builder.endObject();
         } else {
             builder.startObject();
             // we can assume the template is always json as we convert it before compiling it

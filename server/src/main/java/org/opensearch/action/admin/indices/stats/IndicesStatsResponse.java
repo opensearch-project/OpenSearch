@@ -64,12 +64,12 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     private Map<ShardRouting, ShardStats> shardStatsMap;
 
-    IndicesStatsResponse(StreamInput in) throws IOException {
+    public IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, (size) -> new ShardStats[size]);
     }
 
-    IndicesStatsResponse(
+    public IndicesStatsResponse(
         ShardStats[] shards,
         int totalShards,
         int successfulShards,

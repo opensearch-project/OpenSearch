@@ -27,7 +27,6 @@ import java.util.function.Consumer;
 
 public class SearchTaskSettings {
     private final List<CancellationSettingsListener> listeners = new ArrayList<>();
-    private final ClusterSettings clusterSettings;
 
     private static class Defaults {
         private static final double CANCELLATION_RATIO = 0.1;
@@ -49,8 +48,14 @@ public class SearchTaskSettings {
     public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
         "search_backpressure.search_task.cancellation_ratio",
         Defaults.CANCELLATION_RATIO,
-        0.0,
-        1.0,
+        value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_ratio must be > 0");
+            }
+            if (value > 1.0) {
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_ratio must be <= 1.0");
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -63,7 +68,11 @@ public class SearchTaskSettings {
     public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
         "search_backpressure.search_task.cancellation_rate",
         Defaults.CANCELLATION_RATE,
-        0.0,
+        value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("search_backpressure.search_task.cancellation_rate must be > 0");
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -166,7 +175,6 @@ public class SearchTaskSettings {
         this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
         this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
-        this.clusterSettings = clusterSettings;
 
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);

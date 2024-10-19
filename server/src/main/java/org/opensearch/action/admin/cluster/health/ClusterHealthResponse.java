@@ -237,6 +237,26 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 
+    public ClusterHealthResponse(
+        String clusterName,
+        String[] concreteIndices,
+        ClusterHealthRequest clusterHealthRequest,
+        ClusterState clusterState,
+        int numberOfPendingTasks,
+        int numberOfInFlightFetch,
+        TimeValue taskMaxWaitingTime
+    ) {
+        this.clusterName = clusterName;
+        this.numberOfPendingTasks = numberOfPendingTasks;
+        this.numberOfInFlightFetch = numberOfInFlightFetch;
+        this.taskMaxWaitingTime = taskMaxWaitingTime;
+        this.clusterStateHealth = clusterHealthRequest.isApplyLevelAtTransportLayer()
+            ? new ClusterStateHealth(clusterState, concreteIndices, clusterHealthRequest.level())
+            : new ClusterStateHealth(clusterState, concreteIndices);
+        this.clusterHealthStatus = clusterStateHealth.getStatus();
+        this.delayedUnassignedShards = clusterStateHealth.getDelayedUnassignedShards();
+    }
+
     // Awareness Attribute health
     public ClusterHealthResponse(
         String clusterName,
@@ -256,6 +276,29 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             numberOfPendingTasks,
             numberOfInFlightFetch,
             delayedUnassignedShards,
+            taskMaxWaitingTime
+        );
+        this.clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, awarenessAttributeName);
+    }
+
+    public ClusterHealthResponse(
+        String clusterName,
+        ClusterHealthRequest clusterHealthRequest,
+        ClusterState clusterState,
+        ClusterSettings clusterSettings,
+        String[] concreteIndices,
+        String awarenessAttributeName,
+        int numberOfPendingTasks,
+        int numberOfInFlightFetch,
+        TimeValue taskMaxWaitingTime
+    ) {
+        this(
+            clusterName,
+            concreteIndices,
+            clusterHealthRequest,
+            clusterState,
+            numberOfPendingTasks,
+            numberOfInFlightFetch,
             taskMaxWaitingTime
         );
         this.clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, awarenessAttributeName);

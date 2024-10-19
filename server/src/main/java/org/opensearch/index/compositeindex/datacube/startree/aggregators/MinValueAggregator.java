@@ -7,7 +7,7 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 /**
  * Min value aggregator for star tree
@@ -16,8 +16,8 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  */
 class MinValueAggregator extends StatelessDoubleValueAggregator {
 
-    public MinValueAggregator(StarTreeNumericType starTreeNumericType) {
-        super(starTreeNumericType, null);
+    public MinValueAggregator(FieldValueConverter fieldValueConverter) {
+        super(fieldValueConverter, null);
     }
 
     @Override

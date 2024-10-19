@@ -1,0 +1,340 @@
+---
+"Test set search backpressure mode":
+  - skip:
+      version: "- 2.3.99"
+      reason: "Introduced in 2.4.0"
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search_backpressure.mode: "monitor_only"
+
+  - match: {persistent: {search_backpressure: {mode: "monitor_only"}}}
+
+---
+"Test set invalid search backpressure mode":
+  - skip:
+      version: "- 2.7.99"
+      reason: "Fixed in 2.8.0"
+
+  - do:
+      catch: bad_request
+      cluster.put_settings:
+        body:
+          persistent:
+            search_backpressure.mode: "monitor-only"
+
+  - match: {error.root_cause.0.type: "illegal_argument_exception"}
+  - match: { error.root_cause.0.reason: "Invalid SearchBackpressureMode: monitor-only" }
+  - match: { status: 400 }
+
+---
+"Test setting search backpressure cancellation settings":
+  - skip:
+      version: "- 2.17.99"
+      reason: "Fixed in 2.18.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_burst: 11
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.cancellation_burst: "11"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_rate: 0.1
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.cancellation_rate: "0.1"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_ratio: 0.2
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.cancellation_ratio: "0.2"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_burst: 12
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.cancellation_burst: "12"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_rate: 0.3
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.cancellation_rate: "0.3"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_ratio: 0.4
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.cancellation_ratio: "0.4"}
+
+---
+"Test setting invalid search backpressure cancellation_rate and cancellation_ratio":
+  - skip:
+      version: "- 2.17.99"
+      reason: "Fixed in 2.18.0"
+
+  - do:
+      catch: /search_backpressure.search_task.cancellation_rate must be > 0/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_rate: 0.0
+
+  - do:
+      catch: /search_backpressure.search_task.cancellation_ratio must be > 0/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cancellation_ratio: 0.0
+
+  - do:
+      catch: /search_backpressure.search_shard_task.cancellation_rate must be > 0/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_rate: 0.0
+
+  - do:
+      catch: /search_backpressure.search_shard_task.cancellation_ratio must be > 0/
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cancellation_ratio: 0.0
+
+---
+"Test setting search backpressure node settings":
+  - skip:
+      version: "- 2.3.99"
+      reason: "Introduced in 2.4.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.node_duress.num_successive_breaches: 10
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.node_duress.num_successive_breaches: "10"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.node_duress.cpu_threshold: 0.85
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.node_duress.cpu_threshold: "0.85"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.node_duress.heap_threshold: 0.75
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.node_duress.heap_threshold: "0.75"}
+
+
+---
+"Test setting search backpressure search_task settings":
+  - skip:
+      version: "- 2.3.99"
+      reason: "Introduced in 2.4.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.elapsed_time_millis_threshold: 50000
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.elapsed_time_millis_threshold: "50000"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.heap_percent_threshold: 0.01
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.heap_percent_threshold: "0.01"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.total_heap_percent_threshold: 0.08
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.total_heap_percent_threshold: "0.08"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.heap_variance: 3.0
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.heap_variance: "3.0"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.heap_moving_average_window_size: 50
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.heap_moving_average_window_size: "50"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_task.cpu_time_millis_threshold: 40000
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_task.cpu_time_millis_threshold: "40000"}
+
+---
+"Test setting search backpressure search_shard_task settings":
+  - skip:
+      version: "- 2.3.99"
+      reason: "Introduced in 2.4.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.elapsed_time_millis_threshold: 50000
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.elapsed_time_millis_threshold: "50000"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.heap_percent_threshold: 0.01
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.heap_percent_threshold: "0.01"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.total_heap_percent_threshold: 0.08
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.total_heap_percent_threshold: "0.08"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.heap_variance: 3.0
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.heap_variance: "3.0"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.heap_moving_average_window_size: 50
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.heap_moving_average_window_size: "50"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search_backpressure.search_shard_task.cpu_time_millis_threshold: 40000
+  - is_true: acknowledged
+
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+  - match: {transient.search_backpressure.search_shard_task.cpu_time_millis_threshold: "40000"}

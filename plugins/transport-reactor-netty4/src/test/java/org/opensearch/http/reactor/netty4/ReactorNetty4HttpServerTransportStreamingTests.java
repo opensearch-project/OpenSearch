@@ -191,7 +191,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
                         } catch (final IOException ex) {
                             throw new UncheckedIOException(ex);
                         }
-                    }).collect(Collectors.joining(""))));
+                    }).collect(Collectors.joining("\r\n", "", "\r\n"))));
                 } finally {
                     response.release();
                 }

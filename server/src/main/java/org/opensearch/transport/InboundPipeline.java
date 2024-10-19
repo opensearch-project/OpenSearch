@@ -38,11 +38,9 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.transport.nativeprotocol.NativeInboundBytesHandler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -62,9 +60,8 @@ public class InboundPipeline implements Releasable {
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
-    private final BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler;
-    private final List<InboundBytesHandler> protocolBytesHandlers;
-    private InboundBytesHandler currentHandler;
+    private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
+    private final InboundBytesHandler bytesHandler;
 
     public InboundPipeline(
         Version version,
@@ -73,7 +70,7 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         Supplier<CircuitBreaker> circuitBreaker,
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
-        BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler
+        BiConsumer<TcpChannel, InboundMessage> messageHandler
     ) {
         this(
             statsTracker,
@@ -89,23 +86,20 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         InboundDecoder decoder,
         InboundAggregator aggregator,
-        BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler
+        BiConsumer<TcpChannel, InboundMessage> messageHandler
     ) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
-        this.protocolBytesHandlers = List.of(new NativeInboundBytesHandler(pending, decoder, aggregator, statsTracker));
+        this.bytesHandler = new InboundBytesHandler(pending, decoder, aggregator, statsTracker);
         this.messageHandler = messageHandler;
     }
 
     @Override
     public void close() {
         isClosed = true;
-        if (currentHandler != null) {
-            currentHandler.close();
-            currentHandler = null;
-        }
+        bytesHandler.close();
         Releasables.closeWhileHandlingException(decoder, aggregator);
         Releasables.closeWhileHandlingException(pending);
         pending.clear();
@@ -127,22 +121,6 @@ public class InboundPipeline implements Releasable {
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
-
-        // If we don't have a current handler, we should try to find one based on the protocol of the incoming bytes.
-        if (currentHandler == null) {
-            for (InboundBytesHandler handler : protocolBytesHandlers) {
-                if (handler.canHandleBytes(reference)) {
-                    currentHandler = handler;
-                    break;
-                }
-            }
-        }
-
-        // If we have a current handler determined based on protocol, we should continue to use it for the fragmented bytes.
-        if (currentHandler != null) {
-            currentHandler.doHandleBytes(channel, reference, messageHandler);
-        } else {
-            throw new IllegalStateException("No bytes handler found for the incoming transport protocol");
-        }
+        bytesHandler.doHandleBytes(channel, reference, messageHandler);
     }
 }

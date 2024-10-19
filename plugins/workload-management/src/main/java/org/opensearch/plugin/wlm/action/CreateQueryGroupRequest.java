@@ -40,7 +40,7 @@ public class CreateQueryGroupRequest extends ActionRequest {
      * Constructor for CreateQueryGroupRequest
      * @param queryGroup - A {@link QueryGroup} object
      */
-    public CreateQueryGroupRequest(QueryGroup queryGroup) {
+    CreateQueryGroupRequest(QueryGroup queryGroup) {
         this.queryGroup = queryGroup;
     }
 
@@ -48,7 +48,7 @@ public class CreateQueryGroupRequest extends ActionRequest {
      * Constructor for CreateQueryGroupRequest
      * @param in - A {@link StreamInput} object
      */
-    public CreateQueryGroupRequest(StreamInput in) throws IOException {
+    CreateQueryGroupRequest(StreamInput in) throws IOException {
         super(in);
         queryGroup = new QueryGroup(in);
     }

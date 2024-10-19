@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
 
     /**
-     * Test case to verify the serialization and deserialization of CreateQueryGroupResponse.
+     * Test case to verify serialization and deserialization of CreateQueryGroupResponse.
      */
     public void testSerialization() throws IOException {
         CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
@@ -42,11 +42,11 @@ public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
         List<QueryGroup> listTwo = new ArrayList<>();
         listOne.add(responseGroup);
         listTwo.add(otherResponseGroup);
-        QueryGroupTestUtils.assertEqualQueryGroups(listOne, listTwo);
+        QueryGroupTestUtils.assertEqualQueryGroups(listOne, listTwo, false);
     }
 
     /**
-     * Test case to verify the toXContent method of CreateQueryGroupResponse.
+     * Test case to validate the toXContent method of CreateQueryGroupResponse.
      */
     public void testToXContentCreateQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
@@ -56,10 +56,10 @@ public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
             + "  \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
             + "  \"name\" : \"query_group_one\",\n"
             + "  \"resiliency_mode\" : \"monitor\",\n"
-            + "  \"updated_at\" : 4513232413,\n"
             + "  \"resource_limits\" : {\n"
             + "    \"memory\" : 0.3\n"
-            + "  }\n"
+            + "  },\n"
+            + "  \"updated_at\" : 4513232413\n"
             + "}";
         assertEquals(expected, actual);
     }

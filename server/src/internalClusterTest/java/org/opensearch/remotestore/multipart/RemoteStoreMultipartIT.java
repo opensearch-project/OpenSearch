@@ -31,7 +31,6 @@ import java.util.stream.Stream;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -119,19 +118,12 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
         internalCluster().startNode(clusterSettings.build());
         Client client = client();
         logger.info("-->  updating repository");
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository(REPOSITORY_NAME)
-                .setType(MockFsRepositoryPlugin.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put("location", repositoryLocation)
-                        .put("compress", compress)
-                        .put("max_remote_upload_bytes_per_sec", "1kb")
-                        .put("chunk_size", 100, ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", repositoryLocation)
+            .put("compress", compress)
+            .put("max_remote_upload_bytes_per_sec", "1kb")
+            .put("chunk_size", 100, ByteSizeUnit.BYTES);
+        createRepository(REPOSITORY_NAME, MockFsRepositoryPlugin.TYPE, settings);
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureGreen();

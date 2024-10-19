@@ -96,7 +96,7 @@ public final class CorruptionUtils {
             long checksumAfterCorruption;
             long actualChecksumAfterCorruption;
 
-            try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
+            try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getFileName().toString(), IOContext.READONCE)) {
                 assertThat(input.getFilePointer(), is(0L));
                 input.seek(input.length() - CodecUtil.footerLength());
                 checksumAfterCorruption = input.getChecksum();

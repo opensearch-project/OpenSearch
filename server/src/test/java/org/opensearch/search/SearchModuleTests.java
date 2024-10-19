@@ -41,6 +41,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -69,6 +70,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.ExplainPhase;
 import org.opensearch.search.fetch.subphase.highlight.CustomHighlighter;
@@ -498,6 +500,67 @@ public class SearchModuleTests extends OpenSearchTestCase {
         searchPlugins.add(plugin1);
         searchPlugins.add(plugin2);
         expectThrows(IllegalStateException.class, () -> new SearchModule(Settings.EMPTY, searchPlugins));
+    }
+
+    public void testRegisterConcurrentSearchRequestDecidersNoExternalPlugins() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        assertEquals(searchModule.getConcurrentSearchRequestDeciderFactories().size(), 0);
+    }
+
+    public void testRegisterConcurrentSearchRequestDecidersExternalPluginsWithNoDeciders() {
+        SearchPlugin plugin1 = new SearchPlugin() {
+            @Override
+            public Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
+                return Optional.of(mock(ExecutorServiceProvider.class));
+            }
+        };
+        SearchPlugin plugin2 = new SearchPlugin() {
+        };
+
+        List<SearchPlugin> searchPlugins = new ArrayList<>();
+        searchPlugins.add(plugin1);
+        searchPlugins.add(plugin2);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, searchPlugins);
+
+        assertEquals(searchModule.getConcurrentSearchRequestDeciderFactories().size(), 0);
+    }
+
+    public void testRegisterConcurrentSearchRequestDecidersExternalPluginsWithDeciders() {
+        SearchPlugin pluginDecider1 = new SearchPlugin() {
+            @Override
+            public Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
+                return Optional.of(mock(ExecutorServiceProvider.class));
+            }
+
+            @Override
+            public Optional<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactory() {
+                return Optional.of(new ConcurrentSearchRequestDecider.Factory() {
+                    @Override
+                    public Optional<ConcurrentSearchRequestDecider> create(IndexSettings indexSettings) {
+                        return Optional.of(mock(ConcurrentSearchRequestDecider.class));
+                    }
+                });
+            }
+        };
+
+        SearchPlugin pluginDecider2 = new SearchPlugin() {
+            @Override
+            public Optional<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactory() {
+                return Optional.of(new ConcurrentSearchRequestDecider.Factory() {
+                    @Override
+                    public Optional<ConcurrentSearchRequestDecider> create(IndexSettings indexSettings) {
+                        return Optional.of(mock(ConcurrentSearchRequestDecider.class));
+                    }
+                });
+            }
+        };
+
+        List<SearchPlugin> searchPlugins = new ArrayList<>();
+        searchPlugins.add(pluginDecider1);
+        searchPlugins.add(pluginDecider2);
+
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, searchPlugins);
+        assertEquals(searchModule.getConcurrentSearchRequestDeciderFactories().size(), 2);
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {

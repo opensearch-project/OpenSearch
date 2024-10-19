@@ -18,7 +18,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -43,6 +42,8 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.QueryGroupService;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,19 +81,20 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     private final SearchBackpressureSettings settings;
     private final TaskResourceTrackingService taskResourceTrackingService;
     private final ThreadPool threadPool;
-    private final LongSupplier timeNanosSupplier;
 
     private final NodeDuressTrackers nodeDuressTrackers;
     private final Map<Class<? extends SearchBackpressureTask>, TaskResourceUsageTrackers> taskTrackers;
 
     private final Map<Class<? extends SearchBackpressureTask>, SearchBackpressureState> searchBackpressureStates;
     private final TaskManager taskManager;
+    private final QueryGroupService queryGroupService;
 
     public SearchBackpressureService(
         SearchBackpressureSettings settings,
         TaskResourceTrackingService taskResourceTrackingService,
         ThreadPool threadPool,
-        TaskManager taskManager
+        TaskManager taskManager,
+        QueryGroupService queryGroupService
     ) {
         this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
             {
@@ -132,7 +134,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 settings.getClusterSettings(),
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             ),
-            taskManager
+            taskManager,
+            queryGroupService
         );
     }
 
@@ -144,15 +147,16 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         NodeDuressTrackers nodeDuressTrackers,
         TaskResourceUsageTrackers searchTaskTrackers,
         TaskResourceUsageTrackers searchShardTaskTrackers,
-        TaskManager taskManager
+        TaskManager taskManager,
+        QueryGroupService queryGroupService
     ) {
         this.settings = settings;
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
         this.threadPool = threadPool;
-        this.timeNanosSupplier = timeNanosSupplier;
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.taskManager = taskManager;
+        this.queryGroupService = queryGroupService;
 
         this.searchBackpressureStates = Map.of(
             SearchTask.class,
@@ -160,14 +164,16 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 timeNanosSupplier,
                 getSettings().getSearchTaskSettings().getCancellationRateNanos(),
                 getSettings().getSearchTaskSettings().getCancellationBurst(),
-                getSettings().getSearchTaskSettings().getCancellationRatio()
+                getSettings().getSearchTaskSettings().getCancellationRatio(),
+                getSettings().getSearchTaskSettings().getCancellationRate()
             ),
             SearchShardTask.class,
             new SearchBackpressureState(
                 timeNanosSupplier,
                 getSettings().getSearchShardTaskSettings().getCancellationRateNanos(),
                 getSettings().getSearchShardTaskSettings().getCancellationBurst(),
-                getSettings().getSearchShardTaskSettings().getCancellationRatio()
+                getSettings().getSearchShardTaskSettings().getCancellationRatio(),
+                getSettings().getSearchShardTaskSettings().getCancellationRate()
             )
         );
         this.settings.getSearchTaskSettings().addListener(searchBackpressureStates.get(SearchTask.class));
@@ -346,6 +352,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             .stream()
             .filter(type::isInstance)
             .map(type::cast)
+            .filter(queryGroupService::shouldSBPHandle)
             .collect(Collectors.toUnmodifiableList());
     }
 
