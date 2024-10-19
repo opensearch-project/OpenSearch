@@ -276,6 +276,8 @@ public class RemoteStoreNodeAttribute {
 
     @Override
     public String toString() {
-        return super.toString();
+        StringBuilder sb = new StringBuilder();
+        sb.append('{').append(this.repositoriesMetadata).append('}');
+        return sb.toString();
     }
 }
