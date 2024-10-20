@@ -808,7 +808,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            String cause = "index list filter is supported only when a single 'repository' is passed, but found 'repository' param = [_all]";
+            String cause =
+                "index list filter is supported only when a single 'repository' is passed, but found 'repository' param = [_all]";
             assertTrue(ex.getMessage().contains(cause));
         });
 
@@ -840,7 +841,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            String cause = "index list filter is supported only when a single 'snapshot' is passed, but found 'snapshot' param = [[test-snap-1, test-snap-2]]";
+            String cause =
+                "index list filter is supported only when a single 'snapshot' is passed, but found 'snapshot' param = [[test-snap-1, test-snap-2]]";
             assertTrue(ex.getMessage().contains(cause));
         });
 
@@ -918,8 +920,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .put("wait_after_unblock", 200)
         );
 
-
-
         logger.info("Create indices");
         String index1 = "test-idx-1";
         String index2 = "test-idx-2";
@@ -937,11 +937,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("Create completed snapshot");
         String completedSnapshot = "test-completed-snapshot";
         String blockedNode = blockNodeWithIndex(repositoryName, index1);
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, completedSnapshot)
-            .setWaitForCompletion(false)
-            .get();
+        client().admin().cluster().prepareCreateSnapshot(repositoryName, completedSnapshot).setWaitForCompletion(false).get();
         waitForBlock(blockedNode, repositoryName, TimeValue.timeValueSeconds(60));
         unblockNode(repositoryName, blockedNode);
         waitForCompletion(repositoryName, completedSnapshot, TimeValue.timeValueSeconds(60));
@@ -955,11 +951,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("Create in-progress snapshot");
         String inProgressSnapshot = "test-in-progress-snapshot";
         blockedNode = blockNodeWithIndex(repositoryName, index1);
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, inProgressSnapshot)
-            .setWaitForCompletion(false)
-            .get();
+        client().admin().cluster().prepareCreateSnapshot(repositoryName, inProgressSnapshot).setWaitForCompletion(false).get();
         waitForBlock(blockedNode, repositoryName, TimeValue.timeValueSeconds(60));
         List<SnapshotStatus> snapshotStatuses = client().admin()
             .cluster()
@@ -981,7 +973,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             CircuitBreakingException exception = expectThrows(
                 CircuitBreakingException.class,
-                () -> client().admin().cluster().prepareSnapshotStatus(repositoryName).setSnapshots(inProgressSnapshot).execute().actionGet()
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(inProgressSnapshot)
+                    .execute()
+                    .actionGet()
             );
             assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
             assertTrue(
@@ -993,7 +990,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             CircuitBreakingException exception = expectThrows(
                 CircuitBreakingException.class,
-                () -> client().admin().cluster().prepareSnapshotStatus(repositoryName).setSnapshots(inProgressSnapshot).setIndices(index1, index2).execute().actionGet()
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(inProgressSnapshot)
+                    .setIndices(index1, index2)
+                    .execute()
+                    .actionGet()
             );
             assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
             assertTrue(
@@ -1013,12 +1016,18 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .prepareSnapshotStatus(repositoryName)
                 .setSnapshots(inProgressSnapshot)
                 .get()
-                .getSnapshots().get(0);
+                .getSnapshots()
+                .get(0);
             assertEquals(3, inProgressSnapshotStatus.getShards().size());
 
             CircuitBreakingException exception = expectThrows(
                 CircuitBreakingException.class,
-                () -> client().admin().cluster().prepareSnapshotStatus(repositoryName).setSnapshots(inProgressSnapshot, completedSnapshot).execute().actionGet()
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(inProgressSnapshot, completedSnapshot)
+                    .execute()
+                    .actionGet()
             );
             assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
             assertTrue(

@@ -151,7 +151,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         final ClusterState state,
         final ActionListener<SnapshotsStatusResponse> listener
     ) throws Exception {
-        requestSetup(request);
+        setupForRequest(request);
 
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
@@ -193,13 +193,12 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
 
     }
 
-    private void requestSetup(SnapshotsStatusRequest request) {
+    private void setupForRequest(SnapshotsStatusRequest request) {
         requestedIndexNames = new HashSet<>(Arrays.asList(request.indices()));
         requestUsesIndexFilter = requestedIndexNames.isEmpty() == false;
         totalShardsRequiredInResponse = 0;
         maximumAllowedShardCount = clusterService.getClusterSettings().get(MAX_SHARDS_ALLOWED_IN_STATUS_API);
     }
-
 
     /*
     * To get the node IDs of the relevant (according to the index filter) shards which are part of current snapshots
@@ -207,7 +206,8 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
     * the current snapshots to the total count (irrespective of index-filter)
     * If this count exceeds the limit, CircuitBreakingException is thrown
     * */
-    private Set<String> getNodeIdsOfCurrentSnapshots(final SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshots) throws CircuitBreakingException {
+    private Set<String> getNodeIdsOfCurrentSnapshots(final SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshots)
+        throws CircuitBreakingException {
         Set<String> nodesIdsOfCurrentSnapshotShards = new HashSet<>();
         int totalShardsAcrossCurrentSnapshots = 0;
 
@@ -217,7 +217,8 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                 // index-filter is allowed only for a single snapshot, which has to be this one
                 // first check if any requested indices are missing from this current snapshot
 
-                final Set<String> indicesInCurrentSnapshot = currentSnapshotEntry.indices().stream()
+                final Set<String> indicesInCurrentSnapshot = currentSnapshotEntry.indices()
+                    .stream()
                     .map(IndexId::getName)
                     .collect(Collectors.toSet());
 
@@ -226,7 +227,13 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                     .collect(Collectors.toSet());
 
                 if (indicesNotFound.isEmpty() == false) {
-                    handleIndexNotFound(requestedIndexNames, indicesNotFound, request, currentSnapshotEntry.snapshot().getSnapshotId().getName(), false);
+                    handleIndexNotFound(
+                        requestedIndexNames,
+                        indicesNotFound,
+                        request,
+                        currentSnapshotEntry.snapshot().getSnapshotId().getName(),
+                        false
+                    );
                 }
                 // the actual no. of shards contributed by this current snapshot will now be calculated
             } else {
@@ -234,7 +241,8 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                 totalShardsAcrossCurrentSnapshots = currentSnapshotEntry.shards().size();
             }
 
-            for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardStatusEntry : currentSnapshotEntry.shards().entrySet()) {
+            for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardStatusEntry : currentSnapshotEntry.shards()
+                .entrySet()) {
                 SnapshotsInProgress.ShardSnapshotStatus shardStatus = shardStatusEntry.getValue();
                 boolean indexPresentInFilter = requestedIndexNames.contains(shardStatusEntry.getKey().getIndexName());
 
@@ -261,7 +269,8 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             // index-filter is allowed only for a single snapshot. If index-filter is being used and limit got exceeded,
             // this snapshot is current and its relevant indices contribute more shards than the limit
 
-            // if index-filter is not being used and limit got exceed, there could be more shards required in response coming from completed snapshots
+            // if index-filter is not being used and limit got exceed, there could be more shards required in response coming from completed
+            // snapshots
             // but since the limit is already exceeded, we can fail request here
             boolean couldInvolveMoreShards = requestUsesIndexFilter == false;
             handleMaximumAllowedShardCountExceeded(request.repository(), totalShardsRequiredInResponse, couldInvolveMoreShards);
@@ -669,16 +678,28 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             // remove unavailable indices from the set to be processed
             indicesToProcess.removeAll(indicesNotFound);
         } else {
-            String cause = "indices [" + indices + "] missing in snapshot [" + snapshotName + "] of repository [" + request.repository() + "]";
+            String cause = "indices ["
+                + indices
+                + "] missing in snapshot ["
+                + snapshotName
+                + "] of repository ["
+                + request.repository()
+                + "]";
             throw new IndexNotFoundException(indices, new IllegalArgumentException(cause));
         }
     }
 
-    private void handleMaximumAllowedShardCountExceeded(String repositoryName, int totalContributingShards, boolean couldInvolveMoreShards) throws CircuitBreakingException {
+    private void handleMaximumAllowedShardCountExceeded(String repositoryName, int totalContributingShards, boolean couldInvolveMoreShards)
+        throws CircuitBreakingException {
         String shardCount = "[" + totalContributingShards + (couldInvolveMoreShards ? "+" : "") + "]";
-        String message = "[" + repositoryName + "] Total shard count " + shardCount + " is more than the maximum allowed value of shard count [" +
-            maximumAllowedShardCount + "] for snapshot status request. Try narrowing down the request by using a snapshot list or " +
-            "an index list for a singular snapshot.";
+        String message = "["
+            + repositoryName
+            + "] Total shard count "
+            + shardCount
+            + " is more than the maximum allowed value of shard count ["
+            + maximumAllowedShardCount
+            + "] for snapshot status request. Try narrowing down the request by using a snapshot list or "
+            + "an index list for a singular snapshot.";
 
         throw new CircuitBreakingException(message, CircuitBreaker.Durability.PERMANENT);
     }

@@ -127,7 +127,8 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         }
         if (indices.length != 0) {
             if (repository.equals("_all")) {
-                String error = "index list filter is supported only when a single 'repository' is passed, but found 'repository' param = [_all]";
+                String error =
+                    "index list filter is supported only when a single 'repository' is passed, but found 'repository' param = [_all]";
                 validationException = addValidationError(error, validationException);
             }
             if (snapshots.length != 1) {
