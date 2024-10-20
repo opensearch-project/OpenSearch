@@ -101,9 +101,9 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
 
     private Set<String> requestedIndexNames;
 
-    private final long maximumAllowedShardCount;
+    private long maximumAllowedShardCount;
 
-    private int totalShardsRequiredInResponse = 0;
+    private int totalShardsRequiredInResponse;
 
     private boolean requestUsesIndexFilter;
 
@@ -128,7 +128,6 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         );
         this.repositoriesService = repositoriesService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
-        this.maximumAllowedShardCount = clusterService.getClusterSettings().get(MAX_SHARDS_ALLOWED_IN_STATUS_API);
     }
 
     @Override
@@ -152,9 +151,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         final ClusterState state,
         final ActionListener<SnapshotsStatusResponse> listener
     ) throws Exception {
-        // determine if the request uses an index filter
-        requestedIndexNames = new HashSet<>(Arrays.asList(request.indices()));
-        requestUsesIndexFilter = requestedIndexNames.isEmpty() == false;
+        requestSetup(request);
 
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
@@ -194,6 +191,13 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             buildResponse(snapshotsInProgress, request, currentSnapshots, null, listener);
         }
 
+    }
+
+    private void requestSetup(SnapshotsStatusRequest request) {
+        requestedIndexNames = new HashSet<>(Arrays.asList(request.indices()));
+        requestUsesIndexFilter = requestedIndexNames.isEmpty() == false;
+        totalShardsRequiredInResponse = 0;
+        maximumAllowedShardCount = clusterService.getClusterSettings().get(MAX_SHARDS_ALLOWED_IN_STATUS_API);
     }
 
 
