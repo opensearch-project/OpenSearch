@@ -555,6 +555,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .filter(
                 node -> node.isRemoteStoreNode()
                     && RemoteStoreNodeAttribute.getRoutingTableRepoName(node.getAttributes()) != null
+                    && node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
                     && node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
             )
             .findFirst();
