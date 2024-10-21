@@ -159,6 +159,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             request.repository(),
             Arrays.asList(request.snapshots())
         );
+
         if (currentSnapshots.isEmpty()) {
             buildResponse(snapshotsInProgress, request, currentSnapshots, null, listener);
             return;
@@ -212,7 +213,10 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         int totalShardsAcrossCurrentSnapshots = 0;
 
         for (SnapshotsInProgress.Entry currentSnapshotEntry : currentSnapshots) {
-
+            if (currentSnapshotEntry.remoteStoreIndexShallowCopyV2()) {
+                // skip current shallow v2 snapshots
+                continue;
+            }
             if (requestUsesIndexFilter) {
                 // index-filter is allowed only for a single snapshot, which has to be this one
                 // first check if any requested indices are missing from this current snapshot
@@ -236,7 +240,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                     );
                 }
                 // the actual no. of shards contributed by this current snapshot will now be calculated
-            } else if (currentSnapshotEntry.remoteStoreIndexShallowCopyV2() == false) {
+            } else {
                 // all shards of this current snapshot are required in response
                 totalShardsAcrossCurrentSnapshots += currentSnapshotEntry.shards().size();
             }
@@ -246,7 +250,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                 SnapshotsInProgress.ShardSnapshotStatus shardStatus = shardStatusEntry.getValue();
                 boolean indexPresentInFilter = requestedIndexNames.contains(shardStatusEntry.getKey().getIndexName());
 
-                if (requestUsesIndexFilter && indexPresentInFilter && currentSnapshotEntry.remoteStoreIndexShallowCopyV2() == false) {
+                if (requestUsesIndexFilter && indexPresentInFilter) {
                     // count only those shards whose index belongs to the index-filter
                     totalShardsAcrossCurrentSnapshots++;
 
