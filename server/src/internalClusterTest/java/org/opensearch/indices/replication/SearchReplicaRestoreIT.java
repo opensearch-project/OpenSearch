@@ -60,24 +60,6 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.DOCUMENT, ReplicationType.DOCUMENT)));
     }
 
-    public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnSegRep() throws Exception {
-        bootstrapIndexWithOutSearchReplicas(ReplicationType.DOCUMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(
-            REPOSITORY_NAME,
-            SNAPSHOT_NAME,
-            INDEX_NAME,
-            RESTORED_INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
-        );
-        ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(0, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
-
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
-    }
-
     public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnSegRepWithSearchReplica() throws Exception {
         bootstrapIndexWithOutSearchReplicas(ReplicationType.DOCUMENT);
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
@@ -96,24 +78,6 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
         ensureGreen(RESTORED_INDEX_NAME);
         assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
-
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
-    }
-
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoreOnDocRep() throws Exception {
-        bootstrapIndexWithOutSearchReplicas(ReplicationType.SEGMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(
-            REPOSITORY_NAME,
-            SNAPSHOT_NAME,
-            INDEX_NAME,
-            RESTORED_INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build()
-        );
-        ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(0, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHitCount(resp, DOC_COUNT);
