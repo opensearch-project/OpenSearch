@@ -98,46 +98,74 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
+public class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
 
-    private final transient int docId;
+    protected transient int docId;
 
     private static final float DEFAULT_SCORE = Float.NaN;
-    private float score = DEFAULT_SCORE;
-
-    private final Text id;
-
-    private final NestedIdentity nestedIdentity;
-
-    private long version = -1;
-    private long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-    private long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-
-    private BytesReference source;
-
-    private Map<String, DocumentField> documentFields;
-    private final Map<String, DocumentField> metaFields;
-
-    private Map<String, HighlightField> highlightFields = null;
-
-    private SearchSortValues sortValues = SearchSortValues.EMPTY;
-
-    private Map<String, Float> matchedQueries = new HashMap<>();
-
-    private Explanation explanation;
+    protected float score = DEFAULT_SCORE;
 
     @Nullable
-    private SearchShardTarget shard;
+    protected Text id;
+
+    @Nullable
+    protected NestedIdentity nestedIdentity;
+
+    protected long version = -1;
+    protected long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    protected long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+
+    @Nullable
+    protected BytesReference source;
+
+    protected Map<String, DocumentField> documentFields;
+    protected Map<String, DocumentField> metaFields;
+
+    @Nullable
+    protected Map<String, HighlightField> highlightFields = null;
+
+    protected SearchSortValues sortValues = SearchSortValues.EMPTY;
+
+    protected Map<String, Float> matchedQueries = new HashMap<>();
+
+    @Nullable
+    protected Explanation explanation;
+
+    @Nullable
+    protected SearchShardTarget shard;
 
     // These two fields normally get set when setting the shard target, so they hold the same values as the target thus don't get
     // serialized over the wire. When parsing hits back from xcontent though, in most of the cases (whenever explanation is disabled)
     // we can't rebuild the shard target object so we need to set these manually for users retrieval.
-    private transient String index;
-    private transient String clusterAlias;
+    protected transient String index;
+    protected transient String clusterAlias;
 
     private Map<String, Object> sourceAsMap;
 
-    private Map<String, SearchHits> innerHits;
+    @Nullable
+    protected Map<String, SearchHits> innerHits;
+
+    public SearchHit(SearchHit hit) {
+        this.docId = hit.docId;
+        this.id = hit.id;
+        this.nestedIdentity = hit.nestedIdentity;
+        this.version = hit.version;
+        this.seqNo = hit.seqNo;
+        this.primaryTerm = hit.primaryTerm;
+        this.source = hit.source;
+        this.documentFields = hit.documentFields;
+        this.metaFields = hit.metaFields;
+        this.highlightFields = hit.highlightFields;
+        this.sortValues = hit.sortValues;
+        this.matchedQueries = hit.matchedQueries;
+        this.explanation = hit.explanation;
+        this.shard = hit.shard;
+        this.index = hit.index;
+        this.clusterAlias = hit.clusterAlias;
+        this.innerHits = hit.innerHits;
+        this.score = hit.score;
+        this.sourceAsMap = hit.sourceAsMap;
+    }
 
     // used only in tests
     public SearchHit(int docId) {
@@ -236,7 +264,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
+    protected SearchHit() {}
+
+    protected static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -993,7 +1023,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
+        if (!(obj instanceof SearchHit)) {
             return false;
         }
         SearchHit other = (SearchHit) obj;
@@ -1057,7 +1087,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             this.child = child;
         }
 
-        NestedIdentity(StreamInput in) throws IOException {
+        public NestedIdentity(StreamInput in) throws IOException {
             field = in.readOptionalText();
             offset = in.readInt();
             child = in.readOptionalWriteable(NestedIdentity::new);
