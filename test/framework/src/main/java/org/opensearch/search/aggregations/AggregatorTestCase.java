@@ -91,11 +91,16 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.opensearch.index.cache.query.DisabledQueryCache;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.CompositeDataCubeFieldType;
+import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -117,6 +122,7 @@ import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
@@ -135,12 +141,14 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTr
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -155,6 +163,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -331,6 +340,35 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return aggregator;
     }
 
+    protected CountingAggregator createCountingAggregator(
+        Query query,
+        QueryBuilder queryBuilder,
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        CompositeIndexFieldInfo starTree,
+        List<Dimension> supportedDimensions,
+        MultiBucketConsumer bucketConsumer,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext;
+        if (starTree != null) {
+            searchContext = createSearchContextWithStarTreeContext(
+                indexSearcher,
+                indexSettings,
+                query,
+                queryBuilder,
+                starTree,
+                supportedDimensions,
+                bucketConsumer,
+                fieldTypes
+            );
+        } else {
+            searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        }
+        return new CountingAggregator(new AtomicInteger(), createAggregator(aggregationBuilder, searchContext));
+    }
+
     /**
      * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
      */
@@ -342,6 +380,49 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         return createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+    }
+
+    protected SearchContext createSearchContextWithStarTreeContext(
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        Query query,
+        QueryBuilder queryBuilder,
+        CompositeIndexFieldInfo starTree,
+        List<Dimension> supportedDimensions,
+        MultiBucketConsumer bucketConsumer,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext = createSearchContext(
+            indexSearcher,
+            indexSettings,
+            query,
+            bucketConsumer,
+            new NoneCircuitBreakerService(),
+            fieldTypes
+        );
+
+        // Mock SearchContextAggregations
+        SearchContextAggregations searchContextAggregations = mock(SearchContextAggregations.class);
+        AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
+        when(searchContext.aggregations()).thenReturn(searchContextAggregations);
+        when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+
+        CompositeDataCubeFieldType compositeMappedFieldType = mock(CompositeDataCubeFieldType.class);
+        when(compositeMappedFieldType.name()).thenReturn(starTree.getField());
+        when(compositeMappedFieldType.getCompositeIndexType()).thenReturn(starTree.getType());
+        Set<CompositeMappedFieldType> compositeFieldTypes = Set.of(compositeMappedFieldType);
+
+        when((compositeMappedFieldType).getDimensions()).thenReturn(supportedDimensions);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
+        when(searchContext.mapperService()).thenReturn(mapperService);
+
+        SearchSourceBuilder sb = new SearchSourceBuilder().query(queryBuilder);
+        StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(searchContext, sb);
+
+        when(searchContext.getStarTreeQueryContext()).thenReturn(starTreeQueryContext);
+        return searchContext;
     }
 
     protected SearchContext createSearchContext(
@@ -647,6 +728,67 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
             internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
         }
+        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        return internalAgg;
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceStarTree(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        AggregationBuilder builder,
+        CompositeIndexFieldInfo compositeIndexFieldInfo,
+        List<Dimension> supportedDimensions,
+        int maxBucket,
+        boolean hasNested,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        query = query.rewrite(searcher);
+        final IndexReaderContext ctx = searcher.getTopReaderContext();
+        final PipelineTree pipelines = builder.buildPipelineTree();
+        List<InternalAggregation> aggs = new ArrayList<>();
+        if (hasNested) {
+            query = Queries.filtered(query, Queries.newNonNestedFilter());
+        }
+
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        CountingAggregator countingAggregator = createCountingAggregator(
+            query,
+            queryBuilder,
+            builder,
+            searcher,
+            indexSettings,
+            compositeIndexFieldInfo,
+            supportedDimensions,
+            bucketConsumer,
+            fieldTypes
+        );
+
+        countingAggregator.preCollection();
+        searcher.search(query, countingAggregator);
+        countingAggregator.postCollection();
+        aggs.add(countingAggregator.buildTopLevel());
+        if (compositeIndexFieldInfo != null) {
+            assertEquals(0, countingAggregator.collectCounter.get());
+        }
+
+        MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+            countingAggregator.context().bigArrays(),
+            getMockScriptService(),
+            reduceBucketConsumer,
+            pipelines
+        );
+
+        @SuppressWarnings("unchecked")
+        A internalAgg = (A) aggs.get(0).reduce(aggs, context);
         doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
         return internalAgg;
     }
