@@ -82,6 +82,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
@@ -226,7 +227,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         private final ActionListener<FieldCapabilitiesIndexResponse> listener;
         private final GroupShardsIterator<ShardIterator> shardsIt;
 
-        private volatile int shardIndex = 0;
+        private final AtomicInteger shardIndex = new AtomicInteger(0);
 
         private AsyncShardsAction(FieldCapabilitiesIndexRequest request, ActionListener<FieldCapabilitiesIndexResponse> listener) {
             this.listener = listener;
@@ -263,11 +264,11 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
 
         private ShardRouting nextRoutingOrNull(Exception failure) {
-            if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
+            if (shardsIt.size() == 0 || shardIndex.get() >= shardsIt.size()) {
                 return null;
             }
             ShardRouting next = FailAwareWeightedRouting.getInstance()
-                .findNext(shardsIt.get(shardIndex), clusterService.state(), failure, this::moveToNextShard);
+                .findNext(shardsIt.get(shardIndex.get()), clusterService.state(), failure, this::moveToNextShard);
 
             if (next != null) {
                 return next;
@@ -277,7 +278,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
 
         private void moveToNextShard() {
-            ++shardIndex;
+            shardIndex.incrementAndGet();
         }
 
         private void tryNext(@Nullable final Exception lastFailure, boolean canMatchShard) {
