@@ -735,7 +735,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @throws IOException throws an exception if we are unable to add the doc
      */
     private void appendToStarTree(StarTreeDocument starTreeDocument) throws IOException {
-
         appendStarTreeDocument(starTreeDocument);
         numStarTreeDocs++;
     }
