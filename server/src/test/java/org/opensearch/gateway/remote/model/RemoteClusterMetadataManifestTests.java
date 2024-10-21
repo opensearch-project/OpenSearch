@@ -20,6 +20,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
@@ -37,11 +38,13 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V0;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST;
@@ -214,18 +217,20 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
     }
 
     public void testSerDe() throws IOException {
-        ClusterMetadataManifest manifest = getClusterMetadataManifest();
-        RemoteClusterMetadataManifest remoteObjectForUpload = new RemoteClusterMetadataManifest(
-            manifest,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
-        try (InputStream inputStream = remoteObjectForUpload.serialize()) {
-            remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());
-            assertThat(inputStream.available(), greaterThan(0));
-            ClusterMetadataManifest readManifest = remoteObjectForUpload.deserialize(inputStream);
-            assertThat(readManifest, is(manifest));
+        for (int codecVersion : ClusterMetadataManifest.CODEC_VERSIONS) {
+            ClusterMetadataManifest manifest = getClusterMetadataManifestForCodecVersion(codecVersion);
+            RemoteClusterMetadataManifest remoteObjectForUpload = new RemoteClusterMetadataManifest(
+                manifest,
+                clusterUUID,
+                compressor,
+                namedXContentRegistry
+            );
+            try (InputStream inputStream = remoteObjectForUpload.serialize()) {
+                remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());
+                assertThat(inputStream.available(), greaterThan(0));
+                ClusterMetadataManifest readManifest = remoteObjectForUpload.deserialize(inputStream);
+                validateManifest(manifest, readManifest);
+            }
         }
 
         String blobName = "/usr/local/manifest__1__2__3__4__5__6";
@@ -261,9 +266,13 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
     }
 
     private ClusterMetadataManifest getClusterMetadataManifest() {
-        return ClusterMetadataManifest.builder()
-            .opensearchVersion(Version.CURRENT)
-            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+        return getClusterMetadataManifestForCodecVersion(MANIFEST_CURRENT_CODEC_VERSION);
+    }
+
+    private ClusterMetadataManifest getClusterMetadataManifestForCodecVersion(int codecVersion) {
+        ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder();
+        builder.opensearchVersion(Version.CURRENT)
+            .codecVersion(codecVersion)
             .nodeId("test-node")
             .clusterUUID("test-uuid")
             .previousClusterUUID("_NA_")
@@ -272,6 +281,64 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             .stateVersion(VERSION)
             .committed(true)
             .coordinationMetadata(new UploadedMetadataAttribute("test-attr", "uploaded-file"))
-            .build();
+            .indices(List.of(new UploadedIndexMetadata("test-index", "tst-idx", "uploaded-index-file", codecVersion)))
+            .clusterUUIDCommitted(true);
+
+        if (codecVersion == CODEC_V1) {
+            builder.globalMetadataFileName("global-metadata-file-name");
+        }
+        if (codecVersion >= CODEC_V2) {
+            builder.coordinationMetadata(new UploadedMetadataAttribute("uploaded_coordination", "coordination-metadata-file"));
+            builder.settingMetadata(new UploadedMetadataAttribute("uploaded_settings", "settings-metadata-file"));
+            builder.templatesMetadata(new UploadedMetadataAttribute("uploaded_templates", "templates-metadata-file"));
+            builder.customMetadataMap(Map.of("uploaded_custom", new UploadedMetadataAttribute("uploaded_custom", "custom-metadata-file")));
+            builder.routingTableVersion(1L);
+            builder.indicesRouting(List.of(new UploadedIndexMetadata("test-index", "tst-idx", "uploaded_routing", "routing--")));
+            builder.discoveryNodesMetadata(new UploadedMetadataAttribute("uploaded_discovery", "discovery-metadata-file"));
+            builder.clusterBlocksMetadata(new UploadedMetadataAttribute("uploaded_blocks", "blocks-metadata-file"));
+            builder.metadataVersion(1L);
+            builder.transientSettingsMetadata(
+                new UploadedMetadataAttribute("uploaded_transient_settings", "transient-settings-metadata-file")
+            );
+            builder.hashesOfConsistentSettings(new UploadedMetadataAttribute("uploaded_hashes_settings", "hashes-settings-metadata-file"));
+            builder.clusterStateCustomMetadataMap(
+                Map.of("uploaded_custom", new UploadedMetadataAttribute("uploaded_custom", "custom-metadata-file"))
+            );
+        }
+
+        return builder.build();
+    }
+
+    private void validateManifest(ClusterMetadataManifest writeManifest, ClusterMetadataManifest readManifest) {
+        assertThat(readManifest.getOpensearchVersion(), is(writeManifest.getOpensearchVersion()));
+        assertThat(readManifest.getCodecVersion(), is(writeManifest.getCodecVersion()));
+        assertThat(readManifest.getNodeId(), is(writeManifest.getNodeId()));
+        assertThat(readManifest.getClusterUUID(), is(writeManifest.getClusterUUID()));
+        assertThat(readManifest.getPreviousClusterUUID(), is(writeManifest.getPreviousClusterUUID()));
+        assertThat(readManifest.getStateUUID(), is(writeManifest.getStateUUID()));
+        assertThat(readManifest.getClusterTerm(), is(writeManifest.getClusterTerm()));
+        assertThat(readManifest.getStateVersion(), is(writeManifest.getStateVersion()));
+        assertThat(readManifest.isCommitted(), is(writeManifest.isCommitted()));
+        assertThat(readManifest.getPreviousClusterUUID(), is(writeManifest.getPreviousClusterUUID()));
+        assertThat(readManifest.isClusterUUIDCommitted(), is(writeManifest.isClusterUUIDCommitted()));
+        assertThat(readManifest.getIndices(), is(writeManifest.getIndices()));
+        if (writeManifest.getCodecVersion() == CODEC_V1) {
+            assertThat(readManifest.getGlobalMetadataFileName(), is(writeManifest.getGlobalMetadataFileName()));
+        }
+        if (writeManifest.getCodecVersion() >= CODEC_V2) {
+            assertThat(readManifest.getCoordinationMetadata(), is(writeManifest.getCoordinationMetadata()));
+            assertThat(readManifest.getSettingsMetadata(), is(writeManifest.getSettingsMetadata()));
+            assertThat(readManifest.getTemplatesMetadata(), is(writeManifest.getTemplatesMetadata()));
+            assertThat(readManifest.getCustomMetadataMap(), is(writeManifest.getCustomMetadataMap()));
+            assertThat(readManifest.getRoutingTableVersion(), is(writeManifest.getRoutingTableVersion()));
+            assertThat(readManifest.getIndicesRouting(), is(writeManifest.getIndicesRouting()));
+            assertThat(readManifest.getDiscoveryNodesMetadata(), is(writeManifest.getDiscoveryNodesMetadata()));
+            assertThat(readManifest.getClusterBlocksMetadata(), is(writeManifest.getClusterBlocksMetadata()));
+            assertThat(readManifest.getMetadataVersion(), is(writeManifest.getMetadataVersion()));
+            assertThat(readManifest.getDiffManifest(), is(writeManifest.getDiffManifest()));
+            assertThat(readManifest.getTransientSettingsMetadata(), is(writeManifest.getTransientSettingsMetadata()));
+            assertThat(readManifest.getHashesOfConsistentSettings(), is(writeManifest.getHashesOfConsistentSettings()));
+            assertThat(readManifest.getClusterStateCustomMap(), is(writeManifest.getClusterStateCustomMap()));
+        }
     }
 }

@@ -1216,12 +1216,18 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER_V0 = new ConstructingObjectParser<>(
             "uploaded_index_metadata",
-            fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields))
+            fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields), CODEC_V0)
         );
 
         private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER_V2 = new ConstructingObjectParser<>(
             "uploaded_index_metadata",
-            fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields), componentPrefix(fields))
+            fields -> new UploadedIndexMetadata(
+                indexName(fields),
+                indexUUID(fields),
+                uploadedFilename(fields),
+                componentPrefix(fields),
+                CODEC_V2
+            )
         );
 
         private static final ConstructingObjectParser<UploadedIndexMetadata, Void> CURRENT_PARSER = PARSER_V2;
@@ -1304,6 +1310,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         public String getComponentPrefix() {
             return componentPrefix;
+        }
+
+        protected void setCodecVersion(long codecVersion) {
+            this.codecVersion = codecVersion;
         }
 
         @Override
