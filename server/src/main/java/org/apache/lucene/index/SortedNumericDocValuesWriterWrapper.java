@@ -18,7 +18,7 @@ import org.apache.lucene.util.Counter;
  *
  * @opensearch.experimental
  */
-public class SortedNumericDocValuesWriterWrapper {
+public class SortedNumericDocValuesWriterWrapper extends DocValuesWriterWrapper<SortedNumericDocValues> {
 
     private final SortedNumericDocValuesWriter sortedNumericDocValuesWriter;
 
@@ -47,6 +47,7 @@ public class SortedNumericDocValuesWriterWrapper {
      *
      * @return the {@link SortedNumericDocValues} instance
      */
+    @Override
     public SortedNumericDocValues getDocValues() {
         return sortedNumericDocValuesWriter.getDocValues();
     }

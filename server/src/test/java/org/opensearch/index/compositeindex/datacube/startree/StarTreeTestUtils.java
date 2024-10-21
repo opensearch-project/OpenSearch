@@ -99,6 +99,7 @@ public class StarTreeTestUtils {
     ) throws IOException {
         Long[] dims = new Long[dimensionReaders.length];
         int i = 0;
+
         for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
             dimensionDocValueIterator.nextEntry(currentDocId);
             Long val = dimensionDocValueIterator.value(currentDocId);

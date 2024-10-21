@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesProducerUtil;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
@@ -21,6 +22,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -34,6 +36,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.CompositeInde
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
 
@@ -71,6 +74,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     private final AtomicInteger fieldNumberAcrossCompositeFields;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
+    private final Map<String, SortedSetDocValues> fieldDocIdSetIteratorMap = new HashMap<>();
 
     public Composite912DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService)
         throws IOException {
@@ -82,14 +86,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
-        // TODO : add integ test for this
-        for (FieldInfo fi : this.state.fieldInfos) {
-            if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())) {
-                segmentFieldSet.add(fi.name);
-            } else if (fi.name.equals(DocCountFieldMapper.NAME)) {
-                segmentFieldSet.add(fi.name);
-            }
-        }
+        addStarTreeSupportedFieldsFromSegment();
         for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
             compositeFieldSet.addAll(type.fields());
         }
@@ -148,6 +145,17 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         segmentHasCompositeFields = Collections.disjoint(segmentFieldSet, compositeFieldSet) == false;
     }
 
+    private void addStarTreeSupportedFieldsFromSegment() {
+        // TODO : add integ test for this
+        for (FieldInfo fi : this.state.fieldInfos) {
+            if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())
+                || DocValuesType.SORTED_SET.equals(fi.getDocValuesType())
+                || fi.name.equals(DocCountFieldMapper.NAME)) {
+                segmentFieldSet.add(fi.name);
+            }
+        }
+    }
+
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         delegate.addNumericField(field, valuesProducer);
@@ -179,6 +187,15 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     @Override
     public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         delegate.addSortedSetField(field, valuesProducer);
+        // Perform this only during flush flow
+        if (mergeState.get() == null && segmentHasCompositeFields) {
+            createCompositeIndicesIfPossible(valuesProducer, field);
+        }
+        if (mergeState.get() != null) {
+            if (compositeFieldSet.contains(field.name)) {
+                fieldDocIdSetIteratorMap.put(field.name, valuesProducer.getSortedSet(field));
+            }
+        }
     }
 
     @Override
@@ -235,6 +252,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
      * Add empty doc values for fields not present in segment
      */
     private void addDocValuesForEmptyField(String compositeField) {
+        // special case for doc count
         if (compositeField.equals(DocCountFieldMapper.NAME)) {
             fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
                 @Override
@@ -243,14 +261,27 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                 }
             });
         } else {
-            fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
-                @Override
-                public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
-                    return DocValues.emptySortedNumeric();
-                }
-            });
+            if (isSortedSetField(compositeField)) {
+                fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                    @Override
+                    public SortedSetDocValues getSortedSet(FieldInfo field) {
+                        return DocValues.emptySortedSet();
+                    }
+                });
+            } else {
+                fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                    @Override
+                    public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                        return DocValues.emptySortedNumeric();
+                    }
+                });
+            }
         }
         compositeFieldSet.remove(compositeField);
+    }
+
+    private boolean isSortedSetField(String field) {
+        return mapperService.fieldType(field) instanceof KeywordFieldMapper.KeywordFieldType;
     }
 
     @Override
@@ -285,8 +316,18 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             if (mergeState.docValuesProducers[i] instanceof CompositeIndexReader) {
                 reader = (CompositeIndexReader) mergeState.docValuesProducers[i];
             } else {
-                continue;
+                Set<DocValuesProducer> dp = DocValuesProducerUtil.getSegmentDocValuesProducers(mergeState.docValuesProducers[i]);
+                for (DocValuesProducer producer : dp) {
+                    if (producer instanceof CompositeIndexReader) {
+                        reader = (CompositeIndexReader) producer;
+                        List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
+                        if (compositeFieldInfo.isEmpty() == false) {
+                            break;
+                        }
+                    }
+                }
             }
+            if (reader == null) continue;
 
             List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
             for (CompositeIndexFieldInfo fieldInfo : compositeFieldInfo) {
@@ -313,7 +354,14 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             }
         }
         try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-            starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
+            starTreesBuilder.buildDuringMerge(
+                metaOut,
+                dataOut,
+                starTreeSubsPerField,
+                compositeDocValuesConsumer,
+                mergeState,
+                fieldDocIdSetIteratorMap
+            );
         }
     }
 
@@ -340,7 +388,8 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             segmentInfo,
             segmentWriteState.fieldInfos,
             segmentWriteState.segUpdates,
-            segmentWriteState.context
+            segmentWriteState.context,
+            segmentWriteState.segmentSuffix
         );
     }
 
