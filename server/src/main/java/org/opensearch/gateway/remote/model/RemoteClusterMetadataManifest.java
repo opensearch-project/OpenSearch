@@ -123,7 +123,8 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
 
     @Override
     public InputStream serialize() throws IOException {
-        return CLUSTER_METADATA_MANIFEST_FORMAT.serialize(
+        ChecksumBlobStoreFormat<ClusterMetadataManifest> blobStoreFormat = getClusterMetadataManifestBlobStoreFormatForUpload();
+        return blobStoreFormat.serialize(
             clusterMetadataManifest,
             generateBlobFileName(),
             getCompressor(),
@@ -133,7 +134,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
 
     @Override
     public ClusterMetadataManifest deserialize(final InputStream inputStream) throws IOException {
-        ChecksumBlobStoreFormat<ClusterMetadataManifest> blobStoreFormat = getClusterMetadataManifestBlobStoreFormat();
+        ChecksumBlobStoreFormat<ClusterMetadataManifest> blobStoreFormat = getClusterMetadataManifestBlobStoreFormatForDownload();
         return blobStoreFormat.deserialize(blobName, getNamedXContentRegistry(), Streams.readFully(inputStream));
     }
 
@@ -151,8 +152,17 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
         }
     }
 
-    private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat() {
+    private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormatForDownload() {
         long codecVersion = getManifestCodecVersion();
+        return getClusterMetadataManifestBlobStoreFormat(codecVersion);
+    }
+
+    private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormatForUpload() {
+        long codecVersion = clusterMetadataManifest.getCodecVersion();
+        return getClusterMetadataManifestBlobStoreFormat(codecVersion);
+    }
+
+    private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat(long codecVersion) {
         if (codecVersion == ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V3) {

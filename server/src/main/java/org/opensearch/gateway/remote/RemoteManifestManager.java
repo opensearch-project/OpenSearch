@@ -105,6 +105,7 @@ public class RemoteManifestManager {
     ) {
         synchronized (this) {
             ClusterMetadataManifest.Builder manifestBuilder = ClusterMetadataManifest.builder();
+            uploadedMetadataResult.uploadedIndexMetadata.forEach(md -> md.setCodecVersion(codecVersion));
             manifestBuilder.clusterTerm(clusterState.term())
                 .stateVersion(clusterState.getVersion())
                 .clusterUUID(clusterState.metadata().clusterUUID())
