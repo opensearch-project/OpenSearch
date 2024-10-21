@@ -42,6 +42,7 @@ import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
@@ -57,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -185,11 +187,30 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // for every set of node join task which we can optimize to not compute if cluster state already has
         // repository information.
         Optional<DiscoveryNode> remoteDN = currentNodes.getNodes().values().stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
-        DiscoveryNode dn = remoteDN.orElseGet(() -> (currentNodes.getNodes().values()).stream().findFirst().get());
-        RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
-            dn,
-            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
-        );
+        Optional<DiscoveryNode> remotePublicationDN = currentNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteStatePublicationEnabled)
+            .findFirst();
+        RepositoriesMetadata existingrepositoriesMetadata = currentState.getMetadata().custom(RepositoriesMetadata.TYPE);
+        Map<String, RepositoryMetadata> repositories = new LinkedHashMap<>();
+        if (existingrepositoriesMetadata != null) {
+            existingrepositoriesMetadata.repositories().forEach(r -> repositories.put(r.name(), r));
+        }
+        if (remoteDN.isPresent()) {
+            RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+                remoteDN.get(),
+                existingrepositoriesMetadata
+            );
+            repositoriesMetadata.repositories().forEach(r -> repositories.put(r.name(), r));
+        }
+        if (remotePublicationDN.isPresent()) {
+            RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+                remotePublicationDN.get(),
+                existingrepositoriesMetadata
+            );
+            repositoriesMetadata.repositories().forEach(r -> repositories.put(r.name(), r));
+        }
 
         assert nodesBuilder.isLocalNodeElectedClusterManager();
 
@@ -222,10 +243,20 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (remoteDN.isEmpty() && node.isRemoteStoreNode()) {
                         // This is hit only on cases where we encounter first remote node
                         logger.info("Updating system repository now for remote store");
-                        repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+                        RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
                             node,
-                            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+                            existingrepositoriesMetadata
                         );
+                        repositoriesMetadata.repositories().forEach(r -> repositories.put(r.name(), r));
+                    }
+                    if (remotePublicationDN.isEmpty() && node.isRemoteStatePublicationEnabled()) {
+                        // This is hit only on cases where we encounter first remote publication node
+                        logger.info("Updating system repository now for remote publication store");
+                        RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+                            node,
+                            existingrepositoriesMetadata
+                        );
+                        repositoriesMetadata.repositories().forEach(r -> repositories.put(r.name(), r));
                     }
 
                     nodesChanged = true;
@@ -241,7 +272,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             }
             results.success(joinTask);
         }
-
+        RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(new ArrayList<>(repositories.values()));
         if (nodesChanged) {
             rerouteService.reroute(
                 "post-join reroute",
