@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.pagination;
+package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -27,9 +27,9 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
+import static org.opensearch.action.pagination.PageParams.PARAM_DESC_SORT_VALUE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
-import static org.opensearch.rest.pagination.PageParams.PARAM_DESC_SORT_VALUE;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 
 public class IndexPaginationStrategyTests extends OpenSearchTestCase {
