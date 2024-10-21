@@ -41,6 +41,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -124,8 +125,20 @@ public class SnapshotsStatusRequest extends ClusterManagerNodeRequest<SnapshotsS
         if (snapshots == null) {
             validationException = addValidationError("snapshots is null", validationException);
         }
-        if (indices.length != 0 && snapshots.length != 1) {
-            validationException = addValidationError("index list filter is supported only for a single snapshot", validationException);
+        if (indices.length != 0) {
+            if (repository.equals("_all")) {
+                String error =
+                    "index list filter is supported only when a single 'repository' is passed, but found 'repository' param = [_all]";
+                validationException = addValidationError(error, validationException);
+            }
+            if (snapshots.length != 1) {
+                // snapshot param was '_all' (length = 0) or a list of snapshots (length > 1)
+                String snapshotParamValue = snapshots.length == 0 ? "_all" : Arrays.toString(snapshots);
+                String error = "index list filter is supported only when a single 'snapshot' is passed, but found 'snapshot' param = ["
+                    + snapshotParamValue
+                    + "]";
+                validationException = addValidationError(error, validationException);
+            }
         }
         return validationException;
     }
