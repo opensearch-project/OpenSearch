@@ -593,7 +593,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     throw new IllegalStateException(reason);
                 }
                 if (joiningNode.isRemoteStoreNode()) {
-                    Optional<DiscoveryNode> remoteDN = existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+                    Optional<DiscoveryNode> remoteDN = remoteRoutingTableNode.isPresent()
+                        ? remoteRoutingTableNode
+                        : existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
                     remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode, reposToSkip));
                 }
             }
