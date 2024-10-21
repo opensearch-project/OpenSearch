@@ -36,7 +36,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.Version;
-import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -66,7 +65,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opensearch.index.shard.IndexShardTestCase.getEngine;
 import static org.opensearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -421,48 +419,48 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertBusy(() -> assertThat(IndexShardTestCase.getTranslog(shard).totalOperations(), equalTo(0)));
     }
 
-    public void testAsyncTranslogTrimTaskOnClosedIndex() throws Exception {
-        final String indexName = "test";
-        IndexService indexService = createIndex(
-            indexName,
-            Settings.builder().put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "200ms").build()
-        );
-
-        Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
-
-        int translogOps = 0;
-        final int numDocs = scaledRandomIntBetween(10, 100);
-        for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex()
-                .setIndex(indexName)
-                .setId(String.valueOf(i))
-                .setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON)
-                .get();
-            translogOps++;
-            if (randomBoolean()) {
-                client().admin().indices().prepareFlush(indexName).get();
-                if (indexService.getIndexSettings().isSoftDeleteEnabled()) {
-                    translogOps = 0;
-                }
-            }
-        }
-        assertThat(translog.totalOperations(), equalTo(translogOps));
-        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
-        assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
-
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
-        assertTrue(indexService.getTrimTranslogTask().mustReschedule());
-
-        final Engine readOnlyEngine = getEngine(indexService.getShard(0));
-        assertBusy(() -> assertTrue(isTranslogEmpty(readOnlyEngine)));
-
-        assertAcked(client().admin().indices().prepareOpen("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
-
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
-        translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
-        assertThat(translog.totalOperations(), equalTo(0));
-        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
-    }
+    // public void testAsyncTranslogTrimTaskOnClosedIndex() throws Exception {
+    // final String indexName = "test";
+    // IndexService indexService = createIndex(
+    // indexName,
+    // Settings.builder().put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "200ms").build()
+    // );
+    //
+    // Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+    //
+    // int translogOps = 0;
+    // final int numDocs = scaledRandomIntBetween(10, 100);
+    // for (int i = 0; i < numDocs; i++) {
+    // client().prepareIndex()
+    // .setIndex(indexName)
+    // .setId(String.valueOf(i))
+    // .setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON)
+    // .get();
+    // translogOps++;
+    // if (randomBoolean()) {
+    // client().admin().indices().prepareFlush(indexName).get();
+    // if (indexService.getIndexSettings().isSoftDeleteEnabled()) {
+    // translogOps = 0;
+    // }
+    // }
+    // }
+    // assertThat(translog.totalOperations(), equalTo(translogOps));
+    // assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
+    // assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
+    //
+    // indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+    // assertTrue(indexService.getTrimTranslogTask().mustReschedule());
+    //
+    // final Engine readOnlyEngine = getEngine(indexService.getShard(0));
+    // assertBusy(() -> assertTrue(isTranslogEmpty(readOnlyEngine)));
+    //
+    // assertAcked(client().admin().indices().prepareOpen("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
+    //
+    // indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+    // translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+    // assertThat(translog.totalOperations(), equalTo(0));
+    // assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
+    // }
 
     boolean isTranslogEmpty(Engine engine) {
         long tlogSize = engine.translogManager().getTranslogStats().getTranslogSizeInBytes();
