@@ -36,6 +36,10 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.sandbox.search.MultiRangeQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -47,6 +51,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -58,6 +63,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -263,29 +269,66 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return query;
         }
 
+        // @TODO check strings, byterefs, inetaddresses for concrete and masks
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            InetAddress[] addresses = new InetAddress[values.size()];
-            int i = 0;
-            for (Object value : values) {
-                InetAddress address;
+            List<InetAddress> concreteIPs = new ArrayList<>();
+            List<Query> ranges = new ArrayList<>();
+            IpMultiRangeQueryBuilder multiRange = new IpMultiRangeQueryBuilder(name());
+            boolean multiRangeIsEmpty = true;
+            for (final Object value : values) {
                 if (value instanceof InetAddress) {
-                    address = (InetAddress) value;
+                    concreteIPs.add((InetAddress) value);
                 } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
-                    }
-                    if (value.toString().contains("/")) {
+                    final String strVal = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+                    if (strVal.contains("/")) {
                         // the `terms` query contains some prefix queries, so we cannot create a set query
                         // and need to fall back to a disjunction of `term` queries
-                        return super.termsQuery(values, context);
+                        // Query query = termQuery(strVal, context);
+                        final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(strVal);
+                        PointRangeQuery query = (PointRangeQuery) InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+
+                        // would be great to have union on ranges over bare points
+                        // ranges.add(query);
+                        multiRange.add(query.getLowerPoint(), query.getUpperPoint());
+                        multiRangeIsEmpty = false;
+                    } else {
+                        concreteIPs.add(InetAddresses.forString(strVal));
                     }
-                    address = InetAddresses.forString(value.toString());
                 }
-                addresses[i++] = address;
             }
-            return InetAddressPoint.newSetQuery(name(), addresses);
+            if (!multiRangeIsEmpty) {
+                ranges.add(multiRange.build());
+            }
+            if (!concreteIPs.isEmpty()) {
+                Supplier<Query> pointsQuery;
+                pointsQuery = () -> concreteIPs.size() == 1
+                    ? InetAddressPoint.newExactQuery(name(), concreteIPs.iterator().next())
+                    : InetAddressPoint.newSetQuery(name(), concreteIPs.toArray(new InetAddress[0]));
+                if (hasDocValues()) {
+                    List<BytesRef> set = new ArrayList<>(concreteIPs.size());
+                    for (final InetAddress address : concreteIPs) {
+                        set.add(new BytesRef(InetAddressPoint.encode(address)));
+                    }
+                    Query dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), set);
+                    if (!isSearchable()) {
+                        pointsQuery = () -> dvQuery;
+                    } else {
+                        Supplier<Query> wrap = pointsQuery;
+                        pointsQuery = () -> new IndexOrDocValuesQuery(wrap.get(), dvQuery);
+                    }
+                }
+                ranges.add(pointsQuery.get());
+            }
+            if (ranges.size() == 1) {
+                return ranges.iterator().next(); // CSQ?
+            }
+            BooleanQuery.Builder union = new BooleanQuery.Builder();
+            for (Query q : ranges) {
+                union.add(q, BooleanClause.Occur.SHOULD);
+            }
+            return new ConstantScoreQuery(union.build());
         }
 
         @Override
@@ -436,6 +479,30 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             return DocValueFormat.IP;
+        }
+    }
+
+    /**
+     * Union over IP address ranges
+     */
+    public static class IpMultiRangeQueryBuilder extends MultiRangeQuery.Builder {
+        public IpMultiRangeQueryBuilder(String field) {
+            super(field, InetAddressPoint.BYTES, 1);
+        }
+
+        public IpMultiRangeQueryBuilder add(InetAddress lower, InetAddress upper) {
+            add(new MultiRangeQuery.RangeClause(InetAddressPoint.encode(lower), InetAddressPoint.encode(upper)));
+            return this;
+        }
+
+        @Override
+        public MultiRangeQuery build() {
+            return new MultiRangeQuery(field, numDims, bytesPerDim, clauses) {
+                @Override
+                protected String toString(int dimension, byte[] value) {
+                    return NetworkAddress.format(InetAddressPoint.decode(value));
+                }
+            };
         }
     }
 
