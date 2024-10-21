@@ -242,7 +242,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
                 assert canAdvance : "Cannot advance to document ID " + bit + " in values iterator.";
 
                 // Iterate over values for the current document ID
-                for (int i = 0, count = valuesIterator.valuesCount(); i < count; i++) {
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
                     long value = valuesIterator.nextValue();
                     // Assert that the value is as expected using the provided consumer
                     docCount += value;

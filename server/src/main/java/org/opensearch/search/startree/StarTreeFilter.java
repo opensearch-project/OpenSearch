@@ -89,7 +89,7 @@ public class StarTreeFilter {
                     ? bitSet.nextSetBit(entryId + 1)
                     : DocIdSetIterator.NO_MORE_DOCS) {
                     if (ndv.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-                        final int valuesCount = ndv.valuesCount();
+                        final int valuesCount = ndv.entryValueCount();
                         for (int i = 0; i < valuesCount; i++) {
                             long value = ndv.nextValue();
                             // Compare the value with the query value
@@ -207,7 +207,7 @@ public class StarTreeFilter {
     /**
      * Helper class to wrap the result from traversing the star tree.
      * */
-    public static class StarTreeResult {
+    private static class StarTreeResult {
         public final DocIdSetBuilder matchedDocIds;
         public final Set<String> remainingPredicateColumns;
         public final int numOfMatchedDocs;

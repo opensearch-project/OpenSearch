@@ -184,7 +184,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                 }
 
                 // Iterate over the values for the current entryId
-                for (int i = 0; i < sumValuesIterator.valuesCount(); i++) {
+                for (int i = 0; i < sumValuesIterator.entryValueCount(); i++) {
                     kahanSummation.add(NumericUtils.sortableLongToDouble(sumValuesIterator.nextValue()));
                     counts.increment(0, countValueIterator.nextValue()); // Apply the consumer operation (e.g., max, sum)
                 }

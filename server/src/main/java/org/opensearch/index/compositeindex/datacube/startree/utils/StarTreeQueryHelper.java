@@ -212,7 +212,7 @@ public class StarTreeQueryHelper {
                 }
 
                 // Iterate over the values for the current entryId
-                for (int i = 0, count = valuesIterator.valuesCount(); i < count; i++) {
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
                     long value = valuesIterator.nextValue();
                     valueConsumer.accept(value); // Apply the consumer operation (e.g., max, sum)
                 }

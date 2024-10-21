@@ -30,7 +30,7 @@ public class SortedNumericStarTreeValuesIterator extends StarTreeValuesIterator 
         return ((SortedNumericDocValues) docIdSetIterator).nextValue();
     }
 
-    public int valuesCount() throws IOException {
+    public int entryValueCount() throws IOException {
         return ((SortedNumericDocValues) docIdSetIterator).docValueCount();
     }
 

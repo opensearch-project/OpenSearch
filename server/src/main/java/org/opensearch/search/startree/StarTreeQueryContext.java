@@ -76,5 +76,4 @@ public class StarTreeQueryContext {
             starTreeValues[ctx.ord] = values;
         }
     }
-
 }
