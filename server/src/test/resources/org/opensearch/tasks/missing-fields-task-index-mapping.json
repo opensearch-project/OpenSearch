@@ -34,9 +34,6 @@
           "start_time_in_millis": {
             "type": "long"
           },
-          "cancellation_time_millis": {
-            "type": "long"
-          },
           "type": {
             "type": "keyword"
           },
@@ -48,10 +45,6 @@
             "type": "text"
           },
           "headers": {
-            "type" : "object",
-            "enabled" : false
-          },
-          "resource_stats": {
             "type" : "object",
             "enabled" : false
           }
