@@ -32,11 +32,65 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_CRYPTO_SETTINGS_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.test.RemoteStoreAttributeConstants.REMOTE_PUBLICATION_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.test.RemoteStoreAttributeConstants.REMOTE_PUBLICATION_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.test.RemoteStoreAttributeConstants.REMOTE_PUBLICATION_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
 
     static private final String KEY_ARN = "arn:aws:kms:us-east-1:123456789:key/6e9aa906-2cc3-4924-8ded-f385c78d9dcf";
     static private final String REGION = "us-east-1";
+
+    public void testCryptoMetadataForPublication() throws UnknownHostException {
+        String repoName = "remote-store-A";
+        String prefix = "remote_publication";
+        String repoTypeSettingKey = String.format(Locale.ROOT, REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, prefix, repoName);
+        String repoSettingsKey = String.format(Locale.ROOT, REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, prefix, repoName);
+        String repoCryptoMetadataKey = String.format(Locale.ROOT, REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT, prefix, repoName);
+        String repoCryptoMetadataSettingsKey = String.format(Locale.ROOT, REPOSITORY_CRYPTO_SETTINGS_PREFIX, prefix, repoName);
+        Map<String, String> attr = Map.of(
+            REMOTE_PUBLICATION_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_PUBLICATION_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_PUBLICATION_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            repoTypeSettingKey,
+            "s3",
+            repoSettingsKey,
+            "abc",
+            repoSettingsKey + "base_path",
+            "xyz",
+            repoCryptoMetadataKey + ".key_provider_name",
+            "store-test",
+            repoCryptoMetadataKey + ".key_provider_type",
+            "aws-kms",
+            repoCryptoMetadataSettingsKey + ".region",
+            REGION,
+            repoCryptoMetadataSettingsKey + ".key_arn",
+            KEY_ARN
+        );
+        DiscoveryNode node = new DiscoveryNode(
+            "C",
+            new TransportAddress(InetAddress.getByName("localhost"), 9876),
+            attr,
+            emptySet(),
+            Version.CURRENT
+        );
+
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        assertEquals(remoteStoreNodeAttribute.getRepositoriesMetadata().repositories().size(), 1);
+        RepositoryMetadata repositoryMetadata = remoteStoreNodeAttribute.getRepositoriesMetadata().repositories().get(0);
+        Settings.Builder settings = Settings.builder();
+        settings.put("region", REGION);
+        settings.put("key_arn", KEY_ARN);
+        CryptoMetadata cryptoMetadata = new CryptoMetadata("store-test", "aws-kms", settings.build());
+        assertEquals(cryptoMetadata, repositoryMetadata.cryptoMetadata());
+    }
 
     public void testCryptoMetadata() throws UnknownHostException {
         String repoName = "remote-store-A";
