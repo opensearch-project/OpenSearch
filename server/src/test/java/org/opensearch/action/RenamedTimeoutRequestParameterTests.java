@@ -11,6 +11,8 @@ package org.opensearch.action;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.breaker.ResponseLimitSettings;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -129,7 +131,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testCatIndices() {
-        RestIndicesAction action = new RestIndicesAction();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings settings = Settings.builder().build();
+        ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
     }
@@ -201,7 +206,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testCatSegments() {
-        RestSegmentsAction action = new RestSegmentsAction();
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings = Settings.builder().build();
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        RestSegmentsAction action = new RestSegmentsAction(responseLimitSettings);
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
     }

@@ -59,7 +59,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private final Set<String> requestedMetrics = new HashSet<>();
 
     public NodesStatsRequest() {
-        super((String[]) null);
+        super(false, (String[]) null);
     }
 
     public NodesStatsRequest(StreamInput in) throws IOException {
@@ -90,7 +90,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * for all nodes will be returned.
      */
     public NodesStatsRequest(String... nodesIds) {
-        super(nodesIds);
+        super(false, nodesIds);
     }
 
     /**
@@ -251,7 +251,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SEGMENT_REPLICATION_BACKPRESSURE("segment_replication_backpressure"),
         REPOSITORIES("repositories"),
         ADMISSION_CONTROL("admission_control"),
-        CACHE_STATS("caches");
+        CACHE_STATS("caches"),
+        REMOTE_STORE("remote_store");
 
         private String metricName;
 

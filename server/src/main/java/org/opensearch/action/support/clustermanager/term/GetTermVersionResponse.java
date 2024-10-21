@@ -8,6 +8,7 @@
 
 package org.opensearch.action.support.clustermanager.term;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.core.action.ActionResponse;
@@ -25,18 +26,34 @@ public class GetTermVersionResponse extends ActionResponse {
 
     private final ClusterStateTermVersion clusterStateTermVersion;
 
+    private final boolean isStatePresentInRemote;
+
     public GetTermVersionResponse(ClusterStateTermVersion clusterStateTermVersion) {
         this.clusterStateTermVersion = clusterStateTermVersion;
+        this.isStatePresentInRemote = false;
+    }
+
+    public GetTermVersionResponse(ClusterStateTermVersion clusterStateTermVersion, boolean canDownloadFromRemote) {
+        this.clusterStateTermVersion = clusterStateTermVersion;
+        this.isStatePresentInRemote = canDownloadFromRemote;
     }
 
     public GetTermVersionResponse(StreamInput in) throws IOException {
         super(in);
         this.clusterStateTermVersion = new ClusterStateTermVersion(in);
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            this.isStatePresentInRemote = in.readOptionalBoolean();
+        } else {
+            this.isStatePresentInRemote = false;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterStateTermVersion.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalBoolean(isStatePresentInRemote);
+        }
     }
 
     public ClusterStateTermVersion getClusterStateTermVersion() {
@@ -47,4 +64,7 @@ public class GetTermVersionResponse extends ActionResponse {
         return clusterStateTermVersion != null && clusterStateTermVersion.equals(new ClusterStateTermVersion(clusterState));
     }
 
+    public boolean isStatePresentInRemote() {
+        return isStatePresentInRemote;
+    }
 }

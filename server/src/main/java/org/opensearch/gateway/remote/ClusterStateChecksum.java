@@ -12,8 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.DiffableStringMap;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -22,11 +24,15 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.translog.BufferedChecksumStreamOutput;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import com.jcraft.jzlib.JZlib;
 
@@ -37,6 +43,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  */
 public class ClusterStateChecksum implements ToXContentFragment, Writeable {
 
+    public static final int COMPONENT_SIZE = 11;
     static final String ROUTING_TABLE_CS = "routing_table";
     static final String NODES_CS = "discovery_nodes";
     static final String BLOCKS_CS = "blocks";
@@ -65,62 +72,103 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
     long indicesChecksum;
     long clusterStateChecksum;
 
-    public ClusterStateChecksum(ClusterState clusterState) {
+    public ClusterStateChecksum(ClusterState clusterState, ThreadPool threadpool) {
+        long start = threadpool.relativeTimeInNanos();
+        ExecutorService executorService = threadpool.executor(ThreadPool.Names.REMOTE_STATE_CHECKSUM);
+        CountDownLatch latch = new CountDownLatch(COMPONENT_SIZE);
+
+        executeChecksumTask((stream) -> {
+            clusterState.routingTable().writeVerifiableTo(stream);
+            return null;
+        }, checksum -> routingTableChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            clusterState.nodes().writeVerifiableTo(stream);
+            return null;
+        }, checksum -> nodesChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            clusterState.coordinationMetadata().writeVerifiableTo(stream);
+            return null;
+        }, checksum -> coordinationMetadataChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            Settings.writeSettingsToStream(clusterState.metadata().persistentSettings(), stream);
+            return null;
+        }, checksum -> settingMetadataChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            Settings.writeSettingsToStream(clusterState.metadata().transientSettings(), stream);
+            return null;
+        }, checksum -> transientSettingsMetadataChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            clusterState.metadata().templatesMetadata().writeVerifiableTo(stream);
+            return null;
+        }, checksum -> templatesMetadataChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            stream.writeStringCollection(clusterState.metadata().customs().keySet());
+            return null;
+        }, checksum -> customMetadataMapChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(stream);
+            return null;
+        }, checksum -> hashesOfConsistentSettingsChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            stream.writeMapValues(
+                clusterState.metadata().indices(),
+                (checksumStream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) checksumStream)
+            );
+            return null;
+        }, checksum -> indicesChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            clusterState.blocks().writeVerifiableTo(stream);
+            return null;
+        }, checksum -> blocksChecksum = checksum, executorService, latch);
+
+        executeChecksumTask((stream) -> {
+            stream.writeStringCollection(clusterState.customs().keySet());
+            return null;
+        }, checksum -> clusterStateCustomsChecksum = checksum, executorService, latch);
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
+        }
+        createClusterStateChecksum();
+        logger.debug("Checksum execution time {}", TimeValue.nsecToMSec(threadpool.relativeTimeInNanos() - start));
+    }
+
+    private void executeChecksumTask(
+        CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> checksumTask,
+        Consumer<Long> checksumConsumer,
+        ExecutorService executorService,
+        CountDownLatch latch
+    ) {
+        executorService.execute(() -> {
+            try {
+                long checksum = createChecksum(checksumTask);
+                checksumConsumer.accept(checksum);
+                latch.countDown();
+            } catch (IOException e) {
+                throw new RemoteStateTransferException("Failed to execute checksum task", e);
+            }
+        });
+    }
+
+    private long createChecksum(CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> task) throws IOException {
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out)
         ) {
-            clusterState.routingTable().writeVerifiableTo(checksumOut);
-            routingTableChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            clusterState.nodes().writeVerifiableTo(checksumOut);
-            nodesChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            clusterState.coordinationMetadata().writeVerifiableTo(checksumOut);
-            coordinationMetadataChecksum = checksumOut.getChecksum();
-
-            // Settings create sortedMap by default, so no explicit sorting required here.
-            checksumOut.reset();
-            Settings.writeSettingsToStream(clusterState.metadata().persistentSettings(), checksumOut);
-            settingMetadataChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            Settings.writeSettingsToStream(clusterState.metadata().transientSettings(), checksumOut);
-            transientSettingsMetadataChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            clusterState.metadata().templatesMetadata().writeVerifiableTo(checksumOut);
-            templatesMetadataChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            checksumOut.writeStringCollection(clusterState.metadata().customs().keySet());
-            customMetadataMapChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(checksumOut);
-            hashesOfConsistentSettingsChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            checksumOut.writeMapValues(
-                clusterState.metadata().indices(),
-                (stream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) stream)
-            );
-            indicesChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            clusterState.blocks().writeVerifiableTo(checksumOut);
-            blocksChecksum = checksumOut.getChecksum();
-
-            checksumOut.reset();
-            checksumOut.writeStringCollection(clusterState.customs().keySet());
-            clusterStateCustomsChecksum = checksumOut.getChecksum();
-        } catch (IOException e) {
-            logger.error("Failed to create checksum for cluster state.", e);
-            throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
+            task.apply(checksumOut);
+            return checksumOut.getChecksum();
         }
-        createClusterStateChecksum();
     }
 
     private void createClusterStateChecksum() {

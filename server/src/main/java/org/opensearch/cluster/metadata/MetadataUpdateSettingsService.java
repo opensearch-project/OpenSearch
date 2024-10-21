@@ -140,6 +140,7 @@ public class MetadataUpdateSettingsService {
 
         validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
         validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings(), clusterService.getSettings());
+        final int defaultReplicaCount = clusterService.getClusterSettings().get(Metadata.DEFAULT_REPLICA_COUNT_SETTING);
 
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
@@ -248,7 +249,10 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
-                        final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
+                        final int updatedNumberOfReplicas = openSettings.getAsInt(
+                            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                            defaultReplicaCount
+                        );
                         if (preserveExisting == false) {
                             for (Index index : request.indices()) {
                                 if (index.getName().charAt(0) != '.') {
@@ -329,15 +333,13 @@ public class MetadataUpdateSettingsService {
                                 /*
                                  * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
                                  * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
-                                 * there is a not value provided on the source of the index creation. A user can update this setting though,
-                                 * including updating it to null, indicating that they want to use the default value. In this case, we again
-                                 * have to provide an explicit value for the setting to the default (one).
+                                 * there is no value provided on the source of the index creation or "cluster.default_number_of_replicas" is
+                                 * not set. A user can update this setting though, including updating it to null, indicating that they want to
+                                 * use the value configured by cluster settings or a default value 1. In this case, we again have to provide
+                                 * an explicit value for the setting.
                                  */
                                 if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
-                                    indexSettings.put(
-                                        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                                        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY)
-                                    );
+                                    indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, defaultReplicaCount);
                                 }
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(

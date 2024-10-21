@@ -18,6 +18,7 @@ import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
@@ -239,7 +240,9 @@ class S3AsyncService implements Closeable {
                 RetryPolicy.builder()
                     .numRetries(clientSettings.maxRetries)
                     .throttlingBackoffStrategy(
-                        clientSettings.throttleRetries ? BackoffStrategy.defaultThrottlingStrategy() : BackoffStrategy.none()
+                        clientSettings.throttleRetries
+                            ? BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD)
+                            : BackoffStrategy.none()
                     )
                     .build()
             )

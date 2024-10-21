@@ -139,6 +139,7 @@ configure([
   project(":plugins:analysis-icu"),
   project(":plugins:analysis-kuromoji"),
   project(":plugins:analysis-nori"),
+  project(":plugins:analysis-phonenumber"),
   project(":plugins:analysis-phonetic"),
   project(":plugins:analysis-smartcn"),
   project(":plugins:analysis-stempel"),

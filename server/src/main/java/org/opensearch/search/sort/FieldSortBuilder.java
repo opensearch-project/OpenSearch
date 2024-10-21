@@ -66,6 +66,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
+import org.opensearch.index.query.WithFieldName;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchSortValuesAndFormats;
@@ -87,7 +88,7 @@ import static org.opensearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  *
  * @opensearch.internal
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements WithFieldName {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldSortBuilder.class);
 
     public static final String NAME = "field_sort";
@@ -187,6 +188,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /** Returns the document field this sort should be based on. */
     public String getFieldName() {
         return this.fieldName;
+    }
+
+    @Override
+    public String fieldName() {
+        return getFieldName();
     }
 
     /**

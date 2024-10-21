@@ -51,8 +51,12 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
+import static org.opensearch.index.mapper.ObjectMapper.Nested.isParent;
 import static org.hamcrest.Matchers.containsString;
 
 public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
@@ -502,10 +506,10 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .startObject("startree")
             .field("type", "star_tree")
             .startObject("config")
-            .startArray("ordered_dimensions")
-            .startObject()
-            .field("name", "node")
+            .startObject("date_dimension")
+            .field("name", "@timestamp")
             .endObject()
+            .startArray("ordered_dimensions")
             .startObject()
             .field("name", "status")
             .endObject()
@@ -522,8 +526,8 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .startObject("properties")
-            .startObject("node")
-            .field("type", "integer")
+            .startObject("@timestamp")
+            .field("type", "date")
             .endObject()
             .startObject("status")
             .field("type", "integer")
@@ -561,11 +565,54 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
         assertEquals("star_tree", starTreeMapper.fieldType().typeName());
         // Check that field in properties was parsed correctly as well
-        mapper = documentMapper.root().getMapper("node");
+        mapper = documentMapper.root().getMapper("@timestamp");
         assertNotNull(mapper);
-        assertEquals("integer", mapper.typeName());
+        assertEquals("date", mapper.typeName());
 
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+    }
+
+    public void testNestedIsParent() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("a")
+            .field("type", "nested")
+            .startObject("properties")
+            .field("b1", Collections.singletonMap("type", "keyword"))
+            .startObject("b2")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("c")
+            .field("type", "nested")
+            .startObject("properties")
+            .field("d", Collections.singletonMap("type", "keyword"))
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        DocumentMapper documentMapper = createIndex("test").mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Mockito.when(mapperService.getObjectMapper(("a"))).thenReturn(documentMapper.objectMappers().get("a"));
+        Mockito.when(mapperService.getObjectMapper(("a.b2"))).thenReturn(documentMapper.objectMappers().get("a.b2"));
+        Mockito.when(mapperService.getObjectMapper(("a.b2.c"))).thenReturn(documentMapper.objectMappers().get("a.b2.c"));
+
+        assertTrue(isParent(documentMapper.objectMappers().get("a"), documentMapper.objectMappers().get("a.b2.c"), mapperService));
+        assertTrue(isParent(documentMapper.objectMappers().get("a"), documentMapper.objectMappers().get("a.b2"), mapperService));
+        assertTrue(isParent(documentMapper.objectMappers().get("a.b2"), documentMapper.objectMappers().get("a.b2.c"), mapperService));
+
+        assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a"), mapperService));
+        assertFalse(isParent(documentMapper.objectMappers().get("a.b2"), documentMapper.objectMappers().get("a"), mapperService));
+        assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a.b2"), mapperService));
     }
 
     @Override

@@ -18,6 +18,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValuesWriterWrapper;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.NumericUtils;
@@ -34,6 +35,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.FieldValueConverter;
@@ -51,6 +53,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
@@ -81,7 +84,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     protected int totalSegmentDocs;
     protected int numStarTreeNodes;
     protected final int maxLeafDocuments;
-
+    List<Dimension> dimensionsSplitOrder = new ArrayList<>();
     protected final InMemoryTreeNode rootNode = getNewNode();
 
     protected final StarTreeField starTreeField;
@@ -111,9 +114,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         this.starTreeField = starTreeField;
         StarTreeFieldConfiguration starTreeFieldSpec = starTreeField.getStarTreeConfig();
-
-        List<Dimension> dimensionsSplitOrder = starTreeField.getDimensionsOrder();
-        this.numDimensions = dimensionsSplitOrder.size();
+        int numDims = 0;
+        for (Dimension dim : starTreeField.getDimensionsOrder()) {
+            numDims += dim.getNumSubDimensions();
+            dimensionsSplitOrder.add(dim);
+        }
+        this.numDimensions = numDims;
 
         this.skipStarNodeCreationForDimensions = new HashSet<>();
         this.totalSegmentDocs = writeState.segmentInfo.maxDoc();
@@ -121,9 +127,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         Set<String> skipStarNodeCreationForDimensions = starTreeFieldSpec.getSkipStarNodeCreationInDims();
 
-        for (int i = 0; i < numDimensions; i++) {
+        for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
             if (skipStarNodeCreationForDimensions.contains(dimensionsSplitOrder.get(i).getField())) {
-                this.skipStarNodeCreationForDimensions.add(i);
+                // add the dimension indices
+                for (int dimIndex = 0; dimIndex < dimensionsSplitOrder.get(i).getNumSubDimensions(); dimIndex++) {
+                    this.skipStarNodeCreationForDimensions.add(i + dimIndex);
+                }
             }
         }
 
@@ -174,6 +183,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
     /**
      * Generates the configuration required to perform aggregation for all the metrics on a field
+     * Each metric field is associated with a metric reader
      *
      * @return list of MetricAggregatorInfo
      */
@@ -182,22 +192,20 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
         for (Metric metric : this.starTreeField.getMetrics()) {
-            for (MetricStat metricStat : metric.getBaseMetrics()) {
-                SequentialDocValuesIterator metricReader;
-                FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
-                if (metricStat.equals(MetricStat.DOC_COUNT)) {
-                    // _doc_count is numeric field , so we convert to sortedNumericDocValues and get iterator
-                    metricReader = getIteratorForNumericField(fieldProducerMap, metricFieldInfo, DocCountFieldMapper.NAME);
-                } else {
-                    if (metricFieldInfo == null) {
-                        metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
-                    }
-                    metricReader = new SequentialDocValuesIterator(
-                        fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
-                    );
+            SequentialDocValuesIterator metricReader;
+            FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
+            if (metric.getField().equals(DocCountFieldMapper.NAME)) {
+                metricReader = getIteratorForNumericField(fieldProducerMap, metricFieldInfo, DocCountFieldMapper.NAME);
+            } else {
+                if (metric.getBaseMetrics().isEmpty()) continue;
+                if (metricFieldInfo == null) {
+                    metricFieldInfo = getFieldInfo(metric.getField(), DocValuesType.SORTED_NUMERIC);
                 }
-                metricReaders.add(metricReader);
+                metricReader = new SequentialDocValuesIterator(
+                    new SortedNumericStarTreeValuesIterator(fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo))
+                );
             }
+            metricReaders.add(metricReader);
         }
         return metricReaders;
     }
@@ -221,14 +229,14 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         List<SequentialDocValuesIterator> metricReaders = getMetricReaders(writeState, fieldProducerMap);
         List<Dimension> dimensionsSplitOrder = starTreeField.getDimensionsOrder();
         SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[dimensionsSplitOrder.size()];
-        for (int i = 0; i < numDimensions; i++) {
+        for (int i = 0; i < dimensionReaders.length; i++) {
             String dimension = dimensionsSplitOrder.get(i).getField();
             FieldInfo dimensionFieldInfo = writeState.fieldInfos.fieldInfo(dimension);
             if (dimensionFieldInfo == null) {
                 dimensionFieldInfo = getFieldInfo(dimension, DocValuesType.SORTED_NUMERIC);
             }
             dimensionReaders[i] = new SequentialDocValuesIterator(
-                fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
+                new SortedNumericStarTreeValuesIterator(fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo))
             );
         }
         Iterator<StarTreeDocument> starTreeDocumentIterator = sortAndAggregateSegmentDocuments(dimensionReaders, metricReaders);
@@ -287,7 +295,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
     }
 
-    private void serializeStarTree(int numSegmentStarTreeDocument, int numStarTreeDocs) throws IOException {
+    private void serializeStarTree(int numSegmentStarTreeDocuments, int numStarTreeDocs) throws IOException {
         // serialize the star tree data
         long dataFilePointer = dataOut.getFilePointer();
         StarTreeWriter starTreeWriter = new StarTreeWriter();
@@ -299,7 +307,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             starTreeField,
             metricAggregatorInfos,
             numStarTreeNodes,
-            numSegmentStarTreeDocument,
+            numSegmentStarTreeDocuments,
             numStarTreeDocs,
             dataFilePointer,
             totalStarTreeDataLength
@@ -310,19 +318,20 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         throws IOException {
         List<SortedNumericDocValuesWriterWrapper> dimensionWriters = new ArrayList<>();
         List<SortedNumericDocValuesWriterWrapper> metricWriters = new ArrayList<>();
-        FieldInfo[] dimensionFieldInfoList = new FieldInfo[starTreeField.getDimensionsOrder().size()];
+        FieldInfo[] dimensionFieldInfoList = new FieldInfo[numDimensions];
         FieldInfo[] metricFieldInfoList = new FieldInfo[metricAggregatorInfos.size()];
-        for (int i = 0; i < dimensionFieldInfoList.length; i++) {
-            final FieldInfo fi = getFieldInfo(
-                fullyQualifiedFieldNameForStarTreeDimensionsDocValues(
-                    starTreeField.getName(),
-                    starTreeField.getDimensionsOrder().get(i).getField()
-                ),
-                DocValuesType.SORTED_NUMERIC,
-                fieldNumberAcrossStarTrees.getAndIncrement()
-            );
-            dimensionFieldInfoList[i] = fi;
-            dimensionWriters.add(new SortedNumericDocValuesWriterWrapper(fi, Counter.newCounter()));
+        int dimIndex = 0;
+        for (Dimension dim : dimensionsSplitOrder) {
+            for (String name : dim.getSubDimensionNames()) {
+                final FieldInfo fi = getFieldInfo(
+                    fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeField.getName(), name),
+                    DocValuesType.SORTED_NUMERIC,
+                    fieldNumberAcrossStarTrees.getAndIncrement()
+                );
+                dimensionFieldInfoList[dimIndex] = fi;
+                dimensionWriters.add(new SortedNumericDocValuesWriterWrapper(fi, Counter.newCounter()));
+                dimIndex++;
+            }
         }
         for (int i = 0; i < metricAggregatorInfos.size(); i++) {
 
@@ -368,7 +377,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             }
         }
 
-        addStarTreeDocValueFields(docValuesConsumer, dimensionWriters, dimensionFieldInfoList, starTreeField.getDimensionsOrder().size());
+        addStarTreeDocValueFields(docValuesConsumer, dimensionWriters, dimensionFieldInfoList, numDimensions);
         addStarTreeDocValueFields(docValuesConsumer, metricWriters, metricFieldInfoList, metricAggregatorInfos.size());
     }
 
@@ -400,25 +409,53 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     ) throws IOException {
         Long[] dims = new Long[numDimensions];
         int i = 0;
-        for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
-            dimensionDocValueIterator.nextDoc(currentDocId);
-            Long val = dimensionDocValueIterator.value(currentDocId);
+        for (SequentialDocValuesIterator dimensionValueIterator : dimensionReaders) {
+            dimensionValueIterator.nextEntry(currentDocId);
+            Long val = dimensionValueIterator.value(currentDocId);
             dims[i] = val;
             i++;
         }
         i = 0;
         Object[] metrics = new Object[metricReaders.size()];
-        for (SequentialDocValuesIterator metricDocValuesIterator : metricReaders) {
-            metricDocValuesIterator.nextDoc(currentDocId);
+        for (SequentialDocValuesIterator metricValuesIterator : metricReaders) {
+            metricValuesIterator.nextEntry(currentDocId);
             // As part of merge, we traverse the star tree doc values
             // The type of data stored in metric fields is different from the
             // actual indexing field they're based on
-            metrics[i] = metricAggregatorInfos.get(i)
-                .getValueAggregators()
-                .toAggregatedValueType(metricDocValuesIterator.value(currentDocId));
+            metrics[i] = metricAggregatorInfos.get(i).getValueAggregators().toAggregatedValueType(metricValuesIterator.value(currentDocId));
             i++;
         }
         return new StarTreeDocument(dims, metrics);
+    }
+
+    /**
+     * Sets dimensions / metric readers nnd numSegmentDocs
+     */
+    protected void setReadersAndNumSegmentDocs(
+        SequentialDocValuesIterator[] dimensionReaders,
+        List<SequentialDocValuesIterator> metricReaders,
+        AtomicInteger numSegmentDocs,
+        StarTreeValues starTreeValues
+    ) {
+        List<String> dimensionNames = starTreeValues.getStarTreeField().getDimensionNames();
+        for (int i = 0; i < numDimensions; i++) {
+            dimensionReaders[i] = new SequentialDocValuesIterator(starTreeValues.getDimensionValuesIterator(dimensionNames.get(i)));
+        }
+        // get doc id set iterators for metrics
+        for (Metric metric : starTreeValues.getStarTreeField().getMetrics()) {
+            for (MetricStat metricStat : metric.getBaseMetrics()) {
+                String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                    starTreeValues.getStarTreeField().getName(),
+                    metric.getField(),
+                    metricStat.getTypeName()
+                );
+                metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricValuesIterator(metricFullName)));
+            }
+        }
+
+        numSegmentDocs.set(
+            Integer.parseInt(starTreeValues.getAttributes().getOrDefault(SEGMENT_DOCS_COUNT, String.valueOf(DocIdSetIterator.NO_MORE_DOCS)))
+        );
     }
 
     /**
@@ -499,10 +536,11 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     Long[] getStarTreeDimensionsFromSegment(int currentDocId, SequentialDocValuesIterator[] dimensionReaders) throws IOException {
         Long[] dimensions = new Long[numDimensions];
-        for (int i = 0; i < numDimensions; i++) {
+        AtomicInteger dimIndex = new AtomicInteger(0);
+        for (int i = 0; i < dimensionReaders.length; i++) {
             if (dimensionReaders[i] != null) {
                 try {
-                    dimensionReaders[i].nextDoc(currentDocId);
+                    dimensionReaders[i].nextEntry(currentDocId);
                 } catch (IOException e) {
                     logger.error("unable to iterate to next doc", e);
                     throw new RuntimeException("unable to iterate to next doc", e);
@@ -510,10 +548,15 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     logger.error("unable to read the dimension values from the segment", e);
                     throw new IllegalStateException("unable to read the dimension values from the segment", e);
                 }
-                dimensions[i] = dimensionReaders[i].value(currentDocId);
+                dimensionsSplitOrder.get(i).setDimensionValues(dimensionReaders[i].value(currentDocId), value -> {
+                    dimensions[dimIndex.getAndIncrement()] = value;
+                });
             } else {
                 throw new IllegalStateException("dimension readers are empty");
             }
+        }
+        if (dimIndex.get() != numDimensions) {
+            throw new IllegalStateException("Values are not set for all dimensions");
         }
         return dimensions;
     }
@@ -526,11 +569,20 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     private Object[] getStarTreeMetricsFromSegment(int currentDocId, List<SequentialDocValuesIterator> metricsReaders) throws IOException {
         Object[] metrics = new Object[numMetrics];
-        for (int i = 0; i < numMetrics; i++) {
-            SequentialDocValuesIterator metricStatReader = metricsReaders.get(i);
-            if (metricStatReader != null) {
+        int metricIndex = 0;
+        for (int i = 0; i < starTreeField.getMetrics().size(); i++) {
+            Metric metric = starTreeField.getMetrics().get(i);
+            if (metric.getBaseMetrics().isEmpty()) continue;
+            SequentialDocValuesIterator metricReader = metricsReaders.get(i);
+            if (metricReader != null) {
                 try {
-                    metricStatReader.nextDoc(currentDocId);
+                    metricReader.nextEntry(currentDocId);
+                    Object metricValue = metricReader.value(currentDocId);
+
+                    for (MetricStat metricStat : metric.getBaseMetrics()) {
+                        metrics[metricIndex] = metricValue;
+                        metricIndex++;
+                    }
                 } catch (IOException e) {
                     logger.error("unable to iterate to next doc", e);
                     throw new RuntimeException("unable to iterate to next doc", e);
@@ -538,9 +590,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     logger.error("unable to read the metric values from the segment", e);
                     throw new IllegalStateException("unable to read the metric values from the segment", e);
                 }
-                metrics[i] = metricStatReader.value(currentDocId);
             } else {
-                throw new IllegalStateException("metric readers are empty");
+                throw new IllegalStateException("metric reader is empty for metric: " + metric.getField());
             }
         }
         return metrics;
@@ -672,7 +723,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         SequentialDocValuesIterator sequentialDocValuesIterator;
         assert fieldProducerMap.containsKey(fieldInfo.name);
         sequentialDocValuesIterator = new SequentialDocValuesIterator(
-            DocValues.singleton(fieldProducerMap.get(fieldInfo.name).getNumeric(fieldInfo))
+            new SortedNumericStarTreeValuesIterator(DocValues.singleton(fieldProducerMap.get(fieldInfo.name).getNumeric(fieldInfo)))
         );
         return sequentialDocValuesIterator;
     }
@@ -684,6 +735,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @throws IOException throws an exception if we are unable to add the doc
      */
     private void appendToStarTree(StarTreeDocument starTreeDocument) throws IOException {
+
         appendStarTreeDocument(starTreeDocument);
         numStarTreeDocs++;
     }

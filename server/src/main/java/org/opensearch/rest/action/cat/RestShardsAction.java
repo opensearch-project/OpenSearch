@@ -106,6 +106,11 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean isRequestLimitCheckSupported() {
+        return true;
+    }
+
+    @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final CatShardsRequest shardsRequest = new CatShardsRequest();
@@ -114,6 +119,7 @@ public class RestShardsAction extends AbstractCatAction {
         shardsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
         shardsRequest.setIndices(indices);
         parseDeprecatedMasterTimeoutParameter(shardsRequest, request);
+        shardsRequest.setRequestLimitCheckSupported(isRequestLimitCheckSupported());
         return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
             public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {

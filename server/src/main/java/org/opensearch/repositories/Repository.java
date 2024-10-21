@@ -193,7 +193,7 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryUpdatePriority  priority for the cluster state update task
      * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
      */
-    void finalizeSnapshot(
+    default void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
         Metadata clusterMetadata,
@@ -202,7 +202,9 @@ public interface Repository extends LifecycleComponent {
         Function<ClusterState, ClusterState> stateTransformer,
         Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
-    );
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Deletes snapshots

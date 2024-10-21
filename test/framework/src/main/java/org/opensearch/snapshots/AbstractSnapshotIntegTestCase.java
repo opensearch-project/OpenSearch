@@ -666,6 +666,16 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         }
     }
 
+    protected ActionFuture<AcknowledgedResponse> deleteSnapshotBlockedOnClusterManager(String repoName, String snapshotName) {
+        blockClusterManagerFromDeletingIndexNFile(repoName);
+        return deleteSnapshot(repoName, snapshotName);
+    }
+
+    protected ActionFuture<AcknowledgedResponse> deleteSnapshot(String repoName, String snapshotName) {
+        logger.info("--> Deleting snapshot [{}] to repo [{}]", snapshotName, repoName);
+        return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
+    }
+
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
         throws InterruptedException {
         blockDataNode(repoName, dataNode);

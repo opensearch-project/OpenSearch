@@ -46,6 +46,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -166,6 +167,12 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(false); // hasParentField
         }
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeString(type());
+        source().writeVerifiableTo(out);
+        out.writeBoolean(routingRequired);
     }
 
     @Override

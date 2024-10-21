@@ -12,6 +12,7 @@ import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -41,7 +42,7 @@ import java.util.Optional;
  *              "updated_at": 4513232415
  * }
  */
-@ExperimentalApi
+@PublicApi(since = "2.18.0")
 public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXContentObject {
 
     public static final String _ID_STRING = "_id";

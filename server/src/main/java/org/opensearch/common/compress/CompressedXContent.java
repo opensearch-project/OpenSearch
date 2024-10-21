@@ -44,6 +44,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -167,6 +168,10 @@ public final class CompressedXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(crc32);
         out.writeByteArray(bytes);
+    }
+
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeInt(crc32);
     }
 
     @Override

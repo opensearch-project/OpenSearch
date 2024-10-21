@@ -43,6 +43,7 @@ import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.WithFieldName;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationInitializationException;
@@ -60,7 +61,9 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB> {
+public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB>
+    implements
+        WithFieldName {
 
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
@@ -301,6 +304,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     public String field() {
         return field;
+    }
+
+    @Override
+    public String fieldName() {
+        return field();
     }
 
     /**

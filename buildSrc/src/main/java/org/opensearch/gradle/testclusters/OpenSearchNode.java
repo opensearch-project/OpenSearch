@@ -116,7 +116,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList("path.repo", "discovery.seed_providers", "discovery.seed_hosts");
+    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
+        "path.repo",
+        "discovery.seed_providers",
+        "discovery.seed_hosts",
+        "indices.breaker.total.use_real_memory"
+    );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;
     private static final List<String> MESSAGES_WE_DONT_CARE_ABOUT = Arrays.asList(

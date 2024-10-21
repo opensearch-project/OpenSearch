@@ -225,6 +225,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> searchPipelineSource = null;
 
+    private String searchPipeline;
+
     /**
      * Constructs a new search source builder.
      */
@@ -305,6 +307,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (in.readBoolean()) {
                 derivedFields = in.readList(DerivedField::new);
             }
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            searchPipeline = in.readOptionalString();
         }
     }
 
@@ -393,6 +398,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (hasDerivedFields) {
                 out.writeList(derivedFields);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalString(searchPipeline);
         }
     }
 
@@ -1129,10 +1137,25 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * @return a search pipeline name defined within the search source (see {@link org.opensearch.search.pipeline.SearchPipelineService})
+     */
+    public String pipeline() {
+        return searchPipeline;
+    }
+
+    /**
      * Define a search pipeline to process this search request and/or its response. See {@link org.opensearch.search.pipeline.SearchPipelineService}.
      */
     public SearchSourceBuilder searchPipelineSource(Map<String, Object> searchPipelineSource) {
         this.searchPipelineSource = searchPipelineSource;
+        return this;
+    }
+
+    /**
+     * Define a search pipeline name to process this search request and/or its response. See {@link org.opensearch.search.pipeline.SearchPipelineService}.
+     */
+    public SearchSourceBuilder pipeline(String searchPipeline) {
+        this.searchPipeline = searchPipeline;
         return this;
     }
 
@@ -1233,6 +1256,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.derivedFieldsObject = derivedFieldsObject;
         rewrittenBuilder.derivedFields = derivedFields;
+        rewrittenBuilder.searchPipeline = searchPipeline;
         return rewrittenBuilder;
     }
 
@@ -1300,6 +1324,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     sort(parser.text());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     profile = parser.booleanValue();
+                } else if (SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    searchPipeline = parser.text();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -1629,6 +1655,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         }
 
+        if (searchPipeline != null) {
+            builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipeline);
+        }
+
         return builder;
     }
 
@@ -1906,7 +1936,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             trackTotalHitsUpTo,
             pointInTimeBuilder,
             derivedFieldsObject,
-            derivedFields
+            derivedFields,
+            searchPipeline
         );
     }
 
@@ -1951,7 +1982,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(derivedFieldsObject, other.derivedFieldsObject)
-            && Objects.equals(derivedFields, other.derivedFields);
+            && Objects.equals(derivedFields, other.derivedFields)
+            && Objects.equals(searchPipeline, other.searchPipeline);
     }
 
     @Override

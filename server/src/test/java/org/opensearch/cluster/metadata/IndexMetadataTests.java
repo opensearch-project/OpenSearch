@@ -199,7 +199,30 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             ),
             randomNonNegativeLong()
         );
-
+        String mappings = "    {\n"
+            + "        \"_doc\": {\n"
+            + "            \"properties\": {\n"
+            + "                \"actiongroups\": {\n"
+            + "                    \"type\": \"text\",\n"
+            + "                    \"fields\": {\n"
+            + "                        \"keyword\": {\n"
+            + "                            \"type\": \"keyword\",\n"
+            + "                            \"ignore_above\": 256\n"
+            + "                        }\n"
+            + "                    }\n"
+            + "                },\n"
+            + "                \"allowlist\": {\n"
+            + "                    \"type\": \"text\",\n"
+            + "                    \"fields\": {\n"
+            + "                        \"keyword\": {\n"
+            + "                            \"type\": \"keyword\",\n"
+            + "                            \"ignore_above\": 256\n"
+            + "                        }\n"
+            + "                    }\n"
+            + "                }\n"
+            + "            }\n"
+            + "        }\n"
+            + "    }";
         IndexMetadata metadata1 = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
@@ -220,11 +243,13 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .putRolloverInfo(info1)
             .putRolloverInfo(info2)
             .putInSyncAllocationIds(0, Set.of("1", "2", "3"))
+            .putMapping(mappings)
             .build();
 
         BytesStreamOutput out = new BytesStreamOutput();
         BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
         metadata1.writeVerifiableTo(checksumOut);
+        assertNotNull(metadata1.toString());
 
         IndexMetadata metadata2 = IndexMetadata.builder(metadata1.getIndex().getName())
             .settings(
@@ -246,6 +271,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .putRolloverInfo(info2)
             .putRolloverInfo(info1)
             .putInSyncAllocationIds(0, Set.of("3", "1", "2"))
+            .putMapping(mappings)
             .build();
 
         BytesStreamOutput out2 = new BytesStreamOutput();

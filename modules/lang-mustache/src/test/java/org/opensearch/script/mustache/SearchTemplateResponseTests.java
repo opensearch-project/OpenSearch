@@ -234,6 +234,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .endObject()
             .endArray()
             .endObject()
+            .field("status", 200)
             .endObject();
 
         XContentBuilder actualResponse = MediaTypeRegistry.contentBuilder(contentType);

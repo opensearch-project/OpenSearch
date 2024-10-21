@@ -85,6 +85,7 @@ import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
@@ -781,7 +782,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX,
+
+                // Snapshot related Settings
                 BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
+                BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
@@ -794,11 +798,22 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
                 WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
+                WorkloadManagementSettings.WLM_MODE_SETTING,
+                WorkloadManagementSettings.QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING,
+                WorkloadManagementSettings.QUERYGROUP_SERVICE_DURESS_STREAK_SETTING,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
                 // Composite index settings
-                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING
+                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
+
+                // Settings to be used for limiting rest requests
+                ResponseLimitSettings.CAT_INDICES_RESPONSE_LIMIT_SETTING,
+                ResponseLimitSettings.CAT_SHARDS_RESPONSE_LIMIT_SETTING,
+                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING,
+
+                // Thread pool Settings
+                ThreadPool.CLUSTER_THREAD_POOL_SIZE_SETTING
             )
         )
     );

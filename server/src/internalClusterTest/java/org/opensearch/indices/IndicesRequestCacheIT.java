@@ -84,6 +84,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -586,6 +587,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
             .build();
         String index = "index";
         assertAcked(
@@ -599,12 +601,13 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         );
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         client.prepareIndex(index).setId("1").setRouting("1").setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
-        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge(index).setFlush(true).get();
-        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refreshAndWaitForReplication();
 
         indexRandomForConcurrentSearch(index);
+
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge(index).setFlush(true).get();
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
 
         assertCacheState(client, index, 0, 0);
 
@@ -823,7 +826,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         SearchResponse resp = client.prepareSearch(index)
             .setRequestCache(true)
             .setQuery(timeoutQueryBuilder)
-            .setTimeout(TimeValue.ZERO)
+            .setTimeout(new TimeValue(5, TimeUnit.MILLISECONDS))
             .get();
         assertTrue(resp.isTimedOut());
         RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);

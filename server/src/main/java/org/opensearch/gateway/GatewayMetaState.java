@@ -67,13 +67,13 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
-import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
+import java.io.IOError;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -109,6 +109,8 @@ public class GatewayMetaState implements Closeable {
      * cluster-manager-eligible node then it does not win any elections until it has received a fresh cluster state.
      */
     public static final String STALE_STATE_CONFIG_NODE_ID = "STALE_STATE_CONFIG";
+
+    private final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     private PersistedStateRegistry persistedStateRegistry;
 
@@ -176,15 +178,11 @@ public class GatewayMetaState implements Closeable {
                             );
                             if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
                                 // Load state from remote
-                                final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
-                                    // Remote Metadata should always override local disk Metadata
-                                    // if local disk Metadata's cluster uuid is UNKNOWN_UUID
-                                    ClusterState.builder(clusterState).metadata(Metadata.EMPTY_METADATA).build(),
-                                    lastKnownClusterUUID,
-                                    false,
-                                    new String[] {}
+                                clusterState = restoreClusterStateWithRetries(
+                                    remoteStoreRestoreService,
+                                    clusterState,
+                                    lastKnownClusterUUID
                                 );
-                                clusterState = remoteRestoreResult.getClusterState();
                             }
                         }
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
@@ -257,6 +255,50 @@ public class GatewayMetaState implements Closeable {
             }
             persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(currentTerm, clusterState));
         }
+    }
+
+    private ClusterState restoreClusterStateWithRetries(
+        RemoteStoreRestoreService remoteStoreRestoreService,
+        ClusterState clusterState,
+        String lastKnownClusterUUID
+    ) {
+        int maxAttempts = 5;
+        int delayInMills = 200;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                logger.info("Attempt {} to restore cluster state", attempt);
+                return restoreClusterState(remoteStoreRestoreService, clusterState, lastKnownClusterUUID);
+            } catch (Exception e) {
+                if (attempt == maxAttempts) {
+                    // Throw an Error so that the process is halted.
+                    throw new IOError(e);
+                }
+                try {
+                    TimeUnit.MILLISECONDS.sleep(delayInMills);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt(); // Restore interrupted status
+                    throw new RuntimeException(ie);
+                }
+                delayInMills = delayInMills * 2;
+            }
+        }
+        // This statement will never be reached.
+        return null;
+    }
+
+    ClusterState restoreClusterState(
+        RemoteStoreRestoreService remoteStoreRestoreService,
+        ClusterState clusterState,
+        String lastKnownClusterUUID
+    ) {
+        return remoteStoreRestoreService.restore(
+            // Remote Metadata should always override local disk Metadata
+            // if local disk Metadata's cluster uuid is UNKNOWN_UUID
+            ClusterState.builder(clusterState).metadata(Metadata.EMPTY_METADATA).build(),
+            lastKnownClusterUUID,
+            false,
+            new String[] {}
+        ).getClusterState();
     }
 
     // exposed so it can be overridden by tests

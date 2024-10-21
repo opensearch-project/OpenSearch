@@ -5236,7 +5236,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else if (segmentsNFile != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentsNFile, IOContext.DEFAULT)
+                        storeDirectory.openInput(segmentsNFile, IOContext.READONCE)
                     )
                 ) {
                     long commitGeneration = SegmentInfos.generationFromSegmentsFileName(segmentsNFile);
@@ -5310,7 +5310,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Visible for testing
     boolean localDirectoryContains(Directory localDirectory, String file, long checksum) throws IOException {
-        try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
+        try (IndexInput indexInput = localDirectory.openInput(file, IOContext.READONCE)) {
             if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
                 return true;
             } else {

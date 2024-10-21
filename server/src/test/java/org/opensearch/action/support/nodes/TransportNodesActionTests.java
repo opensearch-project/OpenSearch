@@ -61,6 +61,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,6 +71,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
@@ -163,6 +165,36 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             assertTrue(clusterService.state().nodes().get(nodeTarget).isDataNode());
         }
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
+    }
+
+    public void testTransportNodesActionWithDiscoveryNodesIncluded() {
+        String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
+        TestNodesRequest request = new TestNodesRequest(true, nodeIds);
+        getTestTransportNodesAction().new AsyncAction(null, request, new PlainActionFuture<>()).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+        List<TestNodeRequest> capturedTransportNodeRequestList = capturedRequests.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .map(capturedRequest -> (TestNodeRequest) capturedRequest.request)
+            .collect(Collectors.toList());
+        assertEquals(nodeIds.length, capturedTransportNodeRequestList.size());
+        capturedTransportNodeRequestList.forEach(
+            capturedRequest -> assertEquals(nodeIds.length, capturedRequest.testNodesRequest.concreteNodes().length)
+        );
+    }
+
+    public void testTransportNodesActionWithDiscoveryNodesReset() {
+        String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
+        TestNodesRequest request = new TestNodesRequest(false, nodeIds);
+        getTestTransportNodesAction().new AsyncAction(null, request, new PlainActionFuture<>()).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+        List<TestNodeRequest> capturedTransportNodeRequestList = capturedRequests.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .map(capturedRequest -> (TestNodeRequest) capturedRequest.request)
+            .collect(Collectors.toList());
+        assertEquals(nodeIds.length, capturedTransportNodeRequestList.size());
+        capturedTransportNodeRequestList.forEach(capturedRequest -> assertNull(capturedRequest.testNodesRequest.concreteNodes()));
     }
 
     private <T> List<T> mockList(Supplier<T> supplier, int size) {
@@ -313,7 +345,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
         @Override
         protected TestNodeRequest newNodeRequest(TestNodesRequest request) {
-            return new TestNodeRequest();
+            return new TestNodeRequest(request);
         }
 
         @Override
@@ -356,6 +388,10 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }
+
+        TestNodesRequest(boolean includeDiscoveryNodes, String... nodesIds) {
+            super(includeDiscoveryNodes, nodesIds);
+        }
     }
 
     private static class TestNodesResponse extends BaseNodesResponse<TestNodeResponse> {
@@ -384,10 +420,24 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
     }
 
     private static class TestNodeRequest extends BaseNodeRequest {
+
+        protected TestNodesRequest testNodesRequest;
+
         TestNodeRequest() {}
+
+        TestNodeRequest(TestNodesRequest testNodesRequest) {
+            this.testNodesRequest = testNodesRequest;
+        }
 
         TestNodeRequest(StreamInput in) throws IOException {
             super(in);
+            testNodesRequest = new TestNodesRequest(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            testNodesRequest.writeTo(out);
         }
     }
 

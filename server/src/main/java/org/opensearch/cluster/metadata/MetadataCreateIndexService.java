@@ -1232,7 +1232,7 @@ public class MetadataCreateIndexService {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
-            if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings)) {
+            if (indexSettings.get(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey()) != null) {
                 routingNumShards = IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings);
             } else {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);

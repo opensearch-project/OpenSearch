@@ -424,7 +424,7 @@ public class RemoteDirectory extends Directory {
     }
 
     private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             try {
                 return checksumOfChecksum(indexInput, SEGMENT_CHECKSUM_BYTES);
             } catch (Exception e) {
