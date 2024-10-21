@@ -8,14 +8,21 @@
 
 package org.opensearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexResponse;
 import org.opensearch.action.bulk.BulkRequest;
@@ -31,77 +38,125 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.junit.After;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
-    // TODO there is certainly a better way to do this, but I don't know what it is....
-    public void testRestoreToNewWithAliasAndRename() throws Exception {
-        testRestoreWithRename(false, false, true, true, true);
+    private final String indexName = "index_1";
+    private final String renamedIndexName = "index_2";
+    private final String aliasName = "alias_1";
+    private final String renamedAliasName = "alias_2";
+    private final String repoName = "repo_1";
+    private final String snapShotName = "snap_1";
+    private final int waitInSeconds = 60;
+    private boolean exists;
+    private boolean closed;
+    private boolean includeAlias;
+    private boolean renameAliases;
+    private boolean renameIndexes;
+
+    public RestoreServiceIntegTests(TestCase testCase) {
+        this.exists = testCase.exists;
+        this.closed = testCase.closed;
+        this.includeAlias = testCase.includeAlias;
+        this.renameAliases = testCase.renameAliases;
+        this.renameIndexes = testCase.renameIndexes;
     }
 
-    public void testRestoreToNewWithoutAliasAndWithRename() throws Exception {
-        testRestoreWithRename(false, false, false, true, true);
+    public static class TestCase {
+        public boolean exists;
+        public boolean closed;
+        public boolean includeAlias;
+        public boolean renameAliases;
+        public boolean renameIndexes;
+
+        public TestCase(boolean exists, boolean closed, boolean includeAlias, boolean renameAliases, boolean renameIndexes) {
+            this.exists = exists;
+            this.closed = closed;
+            this.includeAlias = includeAlias;
+            this.renameAliases = renameAliases;
+            this.renameIndexes = renameIndexes;
+        }
+
+        public String toString() {
+            return String.join(
+                " and ",
+                new String[] {
+                    exists ? "target index exists and is" + (closed ? "closed" : "open") : "doesn't exist",
+                    includeAlias ? "including aliases" : "not including aliases",
+                    renameIndexes ? "renaming indexes" : "not renaming indexes",
+                    renameAliases ? "renaming aliases" : "not renaming aliases" }
+            );
+        }
     }
 
-    public void testRestoreToNewWithAliasAndWithoutRename() throws Exception {
-        testRestoreWithRename(false, false, true, false, false);
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { new TestCase(false, false, true, true, true) },
+            new Object[] { new TestCase(false, false, false, true, true) },
+            new Object[] { new TestCase(false, false, true, false, false) },
+            new Object[] { new TestCase(false, false, false, false, false) },
+            new Object[] { new TestCase(true, false, true, true, true) },
+            new Object[] { new TestCase(true, false, false, true, true) },
+            new Object[] { new TestCase(true, true, true, true, true) },
+            new Object[] { new TestCase(true, true, false, true, true) },
+            new Object[] { new TestCase(true, false, false, false, false) },
+            new Object[] { new TestCase(true, false, true, false, false) },
+            new Object[] { new TestCase(true, true, false, false, false) },
+            new Object[] { new TestCase(true, true, true, false, false) }
+        );
     }
 
-    public void testRestoreToNewWithoutAliasAndRename() throws Exception {
-        testRestoreWithRename(false, false, false, false, false);
+    @After
+    public void cleanup() throws InterruptedException {
+        final CountDownLatch allDeleted = new CountDownLatch(3);
+        for (String indexName : new String[] { indexName, renamedIndexName }) {
+            final StepListener<IndicesExistsResponse> existsIndexResponseStepListener = new StepListener<>();
+            client().admin().indices().exists(new IndicesExistsRequest(indexName), existsIndexResponseStepListener);
+            continueOrDie(existsIndexResponseStepListener, resp -> {
+                if (resp.isExists()) {
+                    final StepListener<AcknowledgedResponse> deleteIndexResponseStepListener = new StepListener<>();
+                    client().admin().indices().delete(new DeleteIndexRequest(indexName), deleteIndexResponseStepListener);
+                    continueOrDie(deleteIndexResponseStepListener, ignored -> allDeleted.countDown());
+                } else {
+                    allDeleted.countDown();
+                }
+            });
+        }
+
+        final StepListener<GetSnapshotsResponse> snapStatusResponseStepListener = new StepListener<>();
+        client().admin().cluster().getSnapshots(new GetSnapshotsRequest(repoName), snapStatusResponseStepListener);
+        continueOrDie(snapStatusResponseStepListener, resp -> {
+            if (resp.getSnapshots().stream().anyMatch(s -> s.snapshotId().getName().equals(snapShotName))) {
+                final StepListener<AcknowledgedResponse> deleteSnapResponseStepListener = new StepListener<>();
+                client().admin()
+                    .cluster()
+                    .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapShotName), deleteSnapResponseStepListener);
+                continueOrDie(deleteSnapResponseStepListener, ignored -> allDeleted.countDown());
+            } else {
+                allDeleted.countDown();
+            }
+        });
+
+        allDeleted.await(waitInSeconds, TimeUnit.SECONDS);
     }
 
-    public void testRestoreOverExistingOpenWithAliasAndRename() throws Exception {
-        testRestoreWithRename(true, false, true, true, true);
-    }
+    public void testRestoreWithRename() throws Exception {
 
-    public void testRestoreOverExistingOpenWithoutAliasAndWithRename() throws Exception {
-        testRestoreWithRename(true, false, false, true, true);
-    }
-
-    public void testRestoreOverExistingClosedWithAliasAndRename() throws Exception {
-        testRestoreWithRename(true, true, true, true, true);
-    }
-
-    public void testRestoreOverExistingClosedWithoutAliasAndWithRename() throws Exception {
-        testRestoreWithRename(true, true, false, true, true);
-    }
-
-    public void testRestoreOverExistingOpenWithoutAliasAndRename() throws Exception {
-        testRestoreWithRename(true, false, false, false, false);
-    }
-
-    public void testRestoreOverExistingOpenWithAliasAndWithoutRename() throws Exception {
-        testRestoreWithRename(true, false, true, false, false);
-    }
-
-    public void testRestoreOverExistingClosedWithoutAliasAndRename() throws Exception {
-        testRestoreWithRename(true, true, false, false, false);
-    }
-
-    public void testRestoreOverExistingClosedWithAliasAndWithoutRename() throws Exception {
-        testRestoreWithRename(true, true, true, false, false);
-    }
-
-    private void testRestoreWithRename(boolean exists, boolean closed, boolean includeAlias, boolean renameAliases, boolean renameIndexes)
-        throws Exception {
-        assert exists || !closed; // index close state doesn't exist when the index doesn't exist - so only permit one value of closed to
-                                  // avoid pointless duplicate tests
-        final String indexName = "index_1";
-        final String renamedIndexName = "index_2";
-        final String aliasName = "alias_1";
-        final String renamedAliasName = "alias_2";
-        final String repoName = "repo_1";
-        final String snapShotName = "snap_1";
-        final boolean expectSuccess = !exists || closed;
+        assert this.exists || !this.closed; // index close state doesn't exist when the index doesn't exist - so only permit one value of
+                                            // closed to avoid pointless duplicate tests
+        final boolean expectSuccess = !this.exists || this.closed;
         final int documents = randomIntBetween(1, 100);
 
         this.createIndex(indexName);
-        if (exists && renameIndexes) {
+        if (this.exists && this.renameIndexes) {
             this.createIndex(renamedIndexName);
         }
 
@@ -138,16 +193,16 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
             });
         });
 
-        isDocumentFinished.await(1, TimeUnit.MINUTES);
+        isDocumentFinished.await(waitInSeconds, TimeUnit.SECONDS);
 
-        if (closed) {
+        if (this.closed) {
             final CountDownLatch isClosed = new CountDownLatch(1);
             final StepListener<CloseIndexResponse> closeIndexResponseStepListener = new StepListener<>();
-            final String indexToClose = renameIndexes ? renamedIndexName : indexName;
+            final String indexToClose = this.renameIndexes ? renamedIndexName : indexName;
             client().admin().indices().close(new CloseIndexRequest(indexToClose), closeIndexResponseStepListener);
 
             continueOrDie(closeIndexResponseStepListener, ignored -> { isClosed.countDown(); });
-            isClosed.await(1, TimeUnit.MINUTES);
+            isClosed.await(waitInSeconds, TimeUnit.SECONDS);
         }
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
@@ -162,7 +217,7 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
 
         final CountDownLatch isRestorable = new CountDownLatch(1);
 
-        if (!exists && !renameIndexes) {
+        if (!this.exists && !this.renameIndexes) {
             final StepListener<AcknowledgedResponse> deleteIndexResponseStepListener = new StepListener<>();
             continueOrDie(createSnapshotResponseStepListener, ignored -> {
                 client().admin().indices().delete(new DeleteIndexRequest(indexName), deleteIndexResponseStepListener);
@@ -172,16 +227,16 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
             continueOrDie(createSnapshotResponseStepListener, ignored -> isRestorable.countDown());
         }
 
-        isRestorable.await(1, TimeUnit.MINUTES);
+        isRestorable.await(waitInSeconds, TimeUnit.SECONDS);
 
         final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new StepListener<>();
         final CountDownLatch isRestored = new CountDownLatch(1);
-        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repoName, snapShotName).includeAliases(includeAlias)
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repoName, snapShotName).includeAliases(this.includeAlias)
             .waitForCompletion(true);
-        if (renameAliases) {
+        if (this.renameAliases) {
             restoreSnapshotRequest = restoreSnapshotRequest.renameAliasPattern("1").renameAliasReplacement("2");
         }
-        if (renameIndexes) {
+        if (this.renameIndexes) {
             restoreSnapshotRequest = restoreSnapshotRequest.renamePattern("1").renameReplacement("2");
         }
         client().admin().cluster().restoreSnapshot(restoreSnapshotRequest, restoreSnapshotResponseStepListener);
@@ -196,22 +251,22 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
             }
         });
 
-        isRestored.await(1, TimeUnit.MINUTES);
+        isRestored.await(waitInSeconds, TimeUnit.SECONDS);
 
         if (expectSuccess) {
-            final String indexToSearch = renameIndexes ? renamedIndexName : indexName;
-            final String aliasToSearch = renameAliases ? renamedAliasName : aliasName;
+            final String indexToSearch = this.renameIndexes ? renamedIndexName : indexName;
+            final String aliasToSearch = this.renameAliases ? renamedAliasName : aliasName;
 
-            if (closed) {
+            if (this.closed) {
                 final CountDownLatch isOpened = new CountDownLatch(1);
                 final StepListener<OpenIndexResponse> openIndexResponseStepListener = new StepListener<>();
                 client().admin().indices().open(new OpenIndexRequest(indexToSearch).waitForActiveShards(1), openIndexResponseStepListener);
                 continueOrDie(openIndexResponseStepListener, ignored -> { isOpened.countDown(); });
 
-                isOpened.await(1, TimeUnit.MINUTES);
+                isOpened.await(waitInSeconds, TimeUnit.SECONDS);
             }
 
-            final CountDownLatch isSearchDone = new CountDownLatch(includeAlias ? 2 : 1);
+            final CountDownLatch isSearchDone = new CountDownLatch(this.includeAlias ? 2 : 1);
             final StepListener<SearchResponse> searchIndexResponseListener = new StepListener<>();
             final StepListener<SearchResponse> searchAliasResponseListener = new StepListener<>();
             client().search(
@@ -219,7 +274,7 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
                 searchIndexResponseListener
             );
             continueOrDie(searchIndexResponseListener, ignored -> { isSearchDone.countDown(); });
-            if (includeAlias) {
+            if (this.includeAlias) {
                 client().search(
                     new SearchRequest(aliasToSearch).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                     searchAliasResponseListener
@@ -227,10 +282,10 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
                 continueOrDie(searchAliasResponseListener, ignored -> { isSearchDone.countDown(); });
             }
 
-            isSearchDone.await(1, TimeUnit.MINUTES);
+            isSearchDone.await(waitInSeconds, TimeUnit.SECONDS);
 
             assertEquals(documents, Objects.requireNonNull(searchIndexResponseListener.result().getHits().getTotalHits()).value);
-            if (includeAlias) {
+            if (this.includeAlias) {
                 assertEquals(documents, Objects.requireNonNull(searchAliasResponseListener.result().getHits().getTotalHits()).value);
             }
         }
