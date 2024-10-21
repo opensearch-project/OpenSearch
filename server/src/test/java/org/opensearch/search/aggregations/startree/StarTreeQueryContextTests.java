@@ -10,11 +10,10 @@ package org.opensearch.search.aggregations.startree;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.FixedBitSet;
-import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -47,7 +46,6 @@ public class StarTreeQueryContextTests extends OpenSearchTestCase {
         when(mockLeafReaderContext.ord).thenReturn(1);
     }
 
-
     public void testConstructorWithValidNumSegmentsCache() {
         // Initialize context with valid numSegmentsCache
         int numSegmentsCache = 3;
@@ -62,7 +60,6 @@ public class StarTreeQueryContextTests extends OpenSearchTestCase {
         assertEquals(numSegmentsCache, context.getStarTreeValues().length);
     }
 
-
     public void testConstructorWithNegativeNumSegmentsCache() {
         // Initialize context with invalid numSegmentsCache (-1)
         context = new StarTreeQueryContext(mockStarTree, queryMap, -1);
@@ -70,7 +67,6 @@ public class StarTreeQueryContextTests extends OpenSearchTestCase {
         // Verify that the starTreeValues array is not initialized
         assertNull(context.getStarTreeValues());
     }
-
 
     public void testGetStarTreeValues_WithValidContext() {
         // Initialize context with a cache of size 3
@@ -88,7 +84,6 @@ public class StarTreeQueryContextTests extends OpenSearchTestCase {
         assertEquals(fixedBitSet, result);
     }
 
-
     public void testGetStarTreeValues_WithNullCache() {
         // Initialize context with no cache (numSegmentsCache is -1)
         context = new StarTreeQueryContext(mockStarTree, queryMap, -1);
@@ -99,7 +94,7 @@ public class StarTreeQueryContextTests extends OpenSearchTestCase {
         // Verify that the result is null since there's no cache
         assertNull(result);
     }
-    
+
     public void testSetStarTreeValues() {
         // Initialize context with a cache of size 3
         context = new StarTreeQueryContext(mockStarTree, queryMap, 3);

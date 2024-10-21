@@ -141,8 +141,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             SearchContext context = searchService.createContext(reader, request, null, true);
             StarTreeQueryContext actualContext = context.getStarTreeQueryContext();
 
-
-
             if (expectedContext == null) {
                 assertThat(context.getStarTreeQueryContext(), nullValue());
             } else {
