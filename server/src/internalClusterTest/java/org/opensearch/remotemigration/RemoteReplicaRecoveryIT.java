@@ -28,6 +28,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
 
+    private final String INDEX_NAME = "replica-recovery";
+
     protected int maximumNumberOfShards() {
         return 1;
     }
@@ -44,7 +46,6 @@ public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
     Brings up new replica copies on remote and docrep nodes, when primary is on a remote node
     Live indexing is happening meanwhile
     */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13473")
     public void testReplicaRecovery() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String primaryNode = internalCluster().startNode();
@@ -53,13 +54,13 @@ public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // create shard with 0 replica and 1 shard
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).setMapping("field", "type=text").get();
-        String replicaNode = internalCluster().startNode();
-        ensureGreen("test");
-        AsyncIndexingService asyncIndexingService = new AsyncIndexingService("test");
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping("field", "type=text").get();
+        internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+        AsyncIndexingService asyncIndexingService = new AsyncIndexingService(INDEX_NAME);
         asyncIndexingService.startIndexing();
 
-        refresh("test");
+        refresh(INDEX_NAME);
 
         // add remote node in mixed mode cluster
         setAddRemote(true);
@@ -77,7 +78,7 @@ public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
         client().admin()
             .cluster()
             .prepareReroute()
-            .add(new MoveAllocationCommand("test", 0, primaryNode, remoteNode))
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, primaryNode, remoteNode))
             .execute()
             .actionGet();
 
@@ -89,42 +90,38 @@ public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
         client().admin()
             .indices()
             .updateSettings(
-                new UpdateSettingsRequest("test").settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 3)
-                        .put("index.routing.allocation.exclude._name", remoteNode)
-                        .build()
-                )
+                new UpdateSettingsRequest(INDEX_NAME).settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 3).build())
             )
             .get();
 
         waitForRelocation();
         asyncIndexingService.stopIndexing();
-        refresh("test");
+        refreshAndWaitForReplication(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
 
         // segrep lag should be zero
         assertBusy(() -> {
             SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
                 .indices()
-                .prepareSegmentReplicationStats("test")
+                .prepareSegmentReplicationStats(INDEX_NAME)
                 .setDetailed(true)
                 .execute()
                 .actionGet();
-            SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get("test").get(0);
+            SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0);
             assertEquals(segmentReplicationStatsResponse.getReplicationStats().size(), 1);
             perGroupStats.getReplicaStats().stream().forEach(e -> assertEquals(e.getCurrentReplicationLagMillis(), 0));
         }, 20, TimeUnit.SECONDS);
 
         OpenSearchAssertions.assertHitCount(
-            client().prepareSearch("test").setTrackTotalHits(true).get(),
+            client().prepareSearch(INDEX_NAME).setTrackTotalHits(true).get(),
             asyncIndexingService.getIndexedDocs()
         );
         OpenSearchAssertions.assertHitCount(
-            client().prepareSearch("test")
+            client().prepareSearch(INDEX_NAME)
                 .setTrackTotalHits(true)// extra paranoia ;)
                 .setQuery(QueryBuilders.termQuery("auto", true))
                 .get(),
-            asyncIndexingService.getIndexedDocs()
+            asyncIndexingService.getSingleIndexedDocs()
         );
 
     }
