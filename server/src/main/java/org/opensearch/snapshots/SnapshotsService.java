@@ -844,7 +844,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         deleteOrphanTimestamps(pinnedEntities, orphanPinnedEntities);
     }
 
-    private boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
+    static boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
         Tuple<String, String> tokens = getRepoSnapshotUUIDTuple(pinnedEntity);
         return Objects.equals(tokens.v1(), repoName) && snapshotUUIDs.contains(tokens.v2()) == false;
     }
@@ -931,7 +931,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static Tuple<String, String> getRepoSnapshotUUIDTuple(String pinningEntity) {
         String[] tokens = pinningEntity.split(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER);
-        return new Tuple<>(tokens[0], tokens[1]);
+        String snapUUID = String.join(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER, Arrays.copyOfRange(tokens, 1, tokens.length));
+        return new Tuple<>(tokens[0], snapUUID);
     }
 
     private void cloneSnapshotPinnedTimestamp(
