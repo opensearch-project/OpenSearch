@@ -661,4 +661,8 @@ public class AggregatorFactories {
             return new PipelineTree(subTrees, aggregators);
         }
     }
+
+    public AggregatorFactory[] getFactories() {
+        return factories;
+    }
 }

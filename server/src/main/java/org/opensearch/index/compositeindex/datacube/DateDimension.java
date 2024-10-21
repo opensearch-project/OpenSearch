@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.time.DateUtils;
@@ -168,5 +169,9 @@ public class DateDimension implements Dimension {
      */
     public static List<DateTimeUnitRounding> getSortedDateTimeUnits(List<DateTimeUnitRounding> dateTimeUnits) {
         return dateTimeUnits.stream().sorted(new DateTimeUnitComparator()).collect(Collectors.toList());
+    }
+
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 }
