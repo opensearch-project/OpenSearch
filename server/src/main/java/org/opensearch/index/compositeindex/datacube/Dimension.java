@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
 
@@ -42,4 +43,6 @@ public interface Dimension extends ToXContent {
      * Returns the list of dimension fields that represent the dimension
      */
     List<String> getSubDimensionNames();
+
+    DocValuesType getDocValuesType();
 }
