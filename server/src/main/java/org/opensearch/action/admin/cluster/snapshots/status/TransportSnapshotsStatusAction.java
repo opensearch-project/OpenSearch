@@ -236,9 +236,9 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                     );
                 }
                 // the actual no. of shards contributed by this current snapshot will now be calculated
-            } else {
+            } else if (currentSnapshotEntry.remoteStoreIndexShallowCopyV2() == false) {
                 // all shards of this current snapshot are required in response
-                totalShardsAcrossCurrentSnapshots = currentSnapshotEntry.shards().size();
+                totalShardsAcrossCurrentSnapshots += currentSnapshotEntry.shards().size();
             }
 
             for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardStatusEntry : currentSnapshotEntry.shards()
@@ -246,9 +246,11 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                 SnapshotsInProgress.ShardSnapshotStatus shardStatus = shardStatusEntry.getValue();
                 boolean indexPresentInFilter = requestedIndexNames.contains(shardStatusEntry.getKey().getIndexName());
 
-                if (indexPresentInFilter) {
+                if (requestUsesIndexFilter && indexPresentInFilter && currentSnapshotEntry.remoteStoreIndexShallowCopyV2() == false) {
                     // count only those shards whose index belongs to the index-filter
                     totalShardsAcrossCurrentSnapshots++;
+
+                    // for non-index filter case, we already counted all the shards of this current snapshot (non-shallow v2)
                 }
 
                 if (shardStatus.nodeId() != null) {
