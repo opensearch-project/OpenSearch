@@ -39,7 +39,6 @@ import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
-import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.threadpool.ThreadPool;
@@ -862,9 +861,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps();
 
+        Set<Long> pinnedTimestamps = new HashSet<>(pinnedTimestampsState.v2());
+        pinnedTimestamps.add(pinnedTimestampsState.v1());
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             sortedMetadataFileList,
-            pinnedTimestampsState.v2(),
+            pinnedTimestamps,
             metadataFilePinnedTimestampMap,
             MetadataFilenameUtils::getTimestamp,
             MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
@@ -895,11 +896,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         if (metadataFilesEligibleToDelete.isEmpty()) {
             logger.debug("No metadata files are eligible to be deleted based on lastNMetadataFilesToKeep and age");
             return;
-        }
-
-        // If pinned timestamps are enabled, make sure to not delete last metadata file.
-        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
-            metadataFilesEligibleToDelete.remove(sortedMetadataFileList.get(0));
         }
 
         List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
