@@ -52,7 +52,7 @@ public class TransportUpdateQueryGroupAction extends TransportClusterManagerNode
         QueryGroupPersistenceService queryGroupPersistenceService
     ) {
         super(
-            CreateQueryGroupAction.NAME,
+            UpdateQueryGroupAction.NAME,
             transportService,
             queryGroupPersistenceService.getClusterService(),
             threadPool,
