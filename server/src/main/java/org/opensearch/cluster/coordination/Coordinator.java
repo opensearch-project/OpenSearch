@@ -320,7 +320,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.remoteClusterStateService = remoteClusterStateService;
     }
 
-    protected void setPublishTimeout(TimeValue publishTimeout) {
+    private void setPublishTimeout(TimeValue publishTimeout) {
         this.publishTimeout = publishTimeout;
     }
 

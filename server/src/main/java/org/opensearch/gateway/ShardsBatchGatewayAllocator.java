@@ -909,7 +909,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         return batchIdToStoreShardBatch.size();
     }
 
-    protected void setMaxBatchSize(long maxBatchSize) {
+    private void setMaxBatchSize(long maxBatchSize) {
         this.maxBatchSize = maxBatchSize;
     }
 
