@@ -443,6 +443,13 @@ public class MetadataCreateIndexService {
 
             // The backing index may have a different name or prefix than the data stream name.
             final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
+            // Do not apply any templates to system indices
+            // Using applyCreateIndexRequestWithV1Templates with empty list instead of applyCreateIndexRequestWithV2Template with null
+            // template as applyCreateIndexRequestWithV2Template has assertions when template is null
+            if (systemIndices.isSystemIndex(name)) {
+                return applyCreateIndexRequestWithV1Templates(currentState, request, silent, Collections.emptyList(), metadataTransformer);
+            }
+
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
