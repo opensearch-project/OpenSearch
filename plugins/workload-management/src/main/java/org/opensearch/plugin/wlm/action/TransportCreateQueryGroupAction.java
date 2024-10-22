@@ -9,7 +9,6 @@
 package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -19,7 +18,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
-import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -53,18 +51,24 @@ public class TransportCreateQueryGroupAction extends TransportClusterManagerNode
         IndexNameExpressionResolver indexNameExpressionResolver,
         QueryGroupPersistenceService queryGroupPersistenceService
     ) {
-        super(CreateQueryGroupAction.NAME,
+        super(
+            CreateQueryGroupAction.NAME,
             transportService,
             queryGroupPersistenceService.getClusterService(),
             threadPool,
             actionFilters,
             CreateQueryGroupRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver
+        );
         this.queryGroupPersistenceService = queryGroupPersistenceService;
     }
 
     @Override
-    protected void clusterManagerOperation(CreateQueryGroupRequest request, ClusterState clusterState, ActionListener<CreateQueryGroupResponse> listener) {
+    protected void clusterManagerOperation(
+        CreateQueryGroupRequest request,
+        ClusterState clusterState,
+        ActionListener<CreateQueryGroupResponse> listener
+    ) {
         queryGroupPersistenceService.persistInClusterStateMetadata(request.getQueryGroup(), listener);
     }
 
