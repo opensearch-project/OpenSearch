@@ -206,6 +206,7 @@ import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.IngestPlugin;
+import org.opensearch.plugins.LabelingPlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.plugins.NetworkPlugin;
@@ -221,6 +222,7 @@ import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TaskManagerClientPlugin;
 import org.opensearch.plugins.TelemetryAwarePlugin;
 import org.opensearch.plugins.TelemetryPlugin;
+import org.opensearch.querygroup.LabelingService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
@@ -1215,6 +1217,8 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 queryGroupService
             );
+
+            final LabelingService labelingService = new LabelingService(pluginsService.filterPlugins(LabelingPlugin.class));
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
             RepositoriesModule repositoriesModule = new RepositoriesModule(
