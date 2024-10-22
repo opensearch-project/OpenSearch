@@ -299,8 +299,15 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void runTasks(TaskInputs taskInputs) {
-        final String longSummary = logger.isTraceEnabled() ? taskInputs.taskSummaryGenerator.apply(true) : "";
-        final String shortSummary = taskInputs.taskSummaryGenerator.apply(false);
+        final String longSummary;
+        final String shortSummary;
+        if (taskInputs.updateTasks.size() <= 1000) {
+            longSummary = taskInputs.taskSummaryGenerator.apply(true);
+            shortSummary = longSummary;
+        } else {
+            longSummary = logger.isTraceEnabled() ? taskInputs.taskSummaryGenerator.apply(true) : "";
+            shortSummary = taskInputs.taskSummaryGenerator.apply(false);
+        }
 
         if (!lifecycle.started()) {
             logger.debug("processing [{}]: ignoring, cluster-manager service not started", shortSummary);
