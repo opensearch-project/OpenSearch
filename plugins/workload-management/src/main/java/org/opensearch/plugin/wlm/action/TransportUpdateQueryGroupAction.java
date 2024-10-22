@@ -38,8 +38,10 @@ public class TransportUpdateQueryGroupAction extends TransportClusterManagerNode
      * Constructor for TransportUpdateQueryGroupAction
      *
      * @param actionName - action name
+     * @param threadPool - {@link ThreadPool} object
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
+     * @param indexNameExpressionResolver - {@link IndexNameExpressionResolver} object
      * @param queryGroupPersistenceService - a {@link QueryGroupPersistenceService} object
      */
     @Inject
