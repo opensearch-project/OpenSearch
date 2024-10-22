@@ -39,6 +39,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * A request to get cluster level stats.
@@ -48,10 +50,29 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
+    private final Set<Metric> requestedMetrics = new HashSet<>();
+    private final Set<IndexMetric> indexMetricsRequested = new HashSet<>();
+    private Boolean computeAllMetrics = true;
+
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
             useAggregatedNodeLevelResponses = in.readOptionalBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            computeAllMetrics = in.readOptionalBoolean();
+            final long longMetricsFlags = in.readLong();
+            for (Metric metric : Metric.values()) {
+                if ((longMetricsFlags & (1 << metric.getIndex())) != 0) {
+                    requestedMetrics.add(metric);
+                }
+            }
+            final long longIndexMetricFlags = in.readLong();
+            for (IndexMetric indexMetric : IndexMetric.values()) {
+                if ((longIndexMetricFlags & (1 << indexMetric.getIndex())) != 0) {
+                    indexMetricsRequested.add(indexMetric);
+                }
+            }
         }
     }
 
@@ -73,12 +94,133 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         this.useAggregatedNodeLevelResponses = useAggregatedNodeLevelResponses;
     }
 
+    public boolean computeAllMetrics() {
+        return computeAllMetrics;
+    }
+
+    public void computeAllMetrics(boolean computeAllMetrics) {
+        this.computeAllMetrics = computeAllMetrics;
+    }
+
+    /**
+     * Add Metric
+     */
+    public ClusterStatsRequest addMetric(Metric metric) {
+        requestedMetrics.add(metric);
+        return this;
+    }
+
+    /**
+     * Get the names of requested metrics
+     */
+    public Set<Metric> requestedMetrics() {
+        return new HashSet<>(requestedMetrics);
+    }
+
+    /**
+     * Add IndexMetric
+     */
+    public ClusterStatsRequest addIndexMetric(IndexMetric indexMetric) {
+        indexMetricsRequested.add(indexMetric);
+        return this;
+    }
+
+    public Set<IndexMetric> indicesMetrics() {
+        return new HashSet<>(indexMetricsRequested);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
             out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalBoolean(computeAllMetrics);
+            long longMetricFlags = 0;
+            for (Metric metric : requestedMetrics) {
+                longMetricFlags |= (1 << metric.getIndex());
+            }
+            out.writeLong(longMetricFlags);
+            long longIndexMetricFlags = 0;
+            for (IndexMetric indexMetric : indexMetricsRequested) {
+                longIndexMetricFlags |= (1 << indexMetric.getIndex());
+            }
+            out.writeLong(longIndexMetricFlags);
+        }
     }
 
+    /**
+     * An enumeration of the "core" sections of metrics that may be requested
+     * from the cluster stats endpoint.
+     */
+    @PublicApi(since = "2.18.0")
+    public enum Metric {
+        OS("os", 0),
+        JVM("jvm", 1),
+        FS("fs", 2),
+        PROCESS("process", 3),
+        INGEST("ingest", 4),
+        PLUGINS("plugins", 5),
+        NETWORK_TYPES("network_types", 6),
+        DISCOVERY_TYPES("discovery_types", 7),
+        PACKAGING_TYPES("packaging_types", 8),
+        INDICES("indices", 9);
+
+        private String metricName;
+
+        private int index;
+
+        Metric(String name, int index) {
+            this.metricName = name;
+            this.index = index;
+        }
+
+        public String metricName() {
+            return this.metricName;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+    }
+
+    /**
+     * An enumeration of the "core" sections of indices metrics that may be requested
+     * from the cluster stats endpoint.
+     *
+     * When no value is provided for param index_metric, default filter is set to _all.
+     */
+    @PublicApi(since = "2.18.0")
+    public enum IndexMetric {
+        // Metrics computed from ShardStats
+        SHARDS("shards", 0),
+        DOCS("docs", 1),
+        STORE("store", 2),
+        FIELDDATA("fielddata", 3),
+        QUERY_CACHE("query_cache", 4),
+        COMPLETION("completion", 5),
+        SEGMENTS("segments", 6),
+        // Metrics computed from ClusterState
+        ANALYSIS("analysis", 7),
+        MAPPINGS("mappings", 8);
+
+        private String metricName;
+
+        private int index;
+
+        IndexMetric(String name, int index) {
+            this.metricName = name;
+            this.index = index;
+        }
+
+        public String metricName() {
+            return this.metricName;
+        }
+
+        public int getIndex() {
+            return this.index;
+        }
+    }
 }
