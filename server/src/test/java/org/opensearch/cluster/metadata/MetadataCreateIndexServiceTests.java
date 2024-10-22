@@ -183,7 +183,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
@@ -2520,6 +2524,62 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build()
             );
         }
+    }
+
+    public void testApplyCreateIndexRequestWithNoTemplates() throws Exception {
+        BiConsumer<Metadata.Builder, IndexMetadata> mockMetadataTransformer = mock(BiConsumer.class);
+        SystemIndices mockSystemIndices = mock(SystemIndices.class);
+        when(mockSystemIndices.isSystemIndex(anyString())).thenReturn(true);
+
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(Metadata.EMPTY_METADATA)
+            .build();
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        MetadataCreateIndexService metadataCreateIndexService = spy(
+            new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                mockSystemIndices,
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            )
+        );
+
+        metadataCreateIndexService.applyCreateIndexRequest(clusterState, request, false, mockMetadataTransformer);
+        verify(metadataCreateIndexService).applyCreateIndexRequestWithNoTemplates(
+            eq(clusterState),
+            eq(request),
+            eq(false),
+            eq(mockMetadataTransformer)
+        );
+
+        verify(metadataCreateIndexService).applyCreateIndexRequestWithV1Templates(
+            eq(clusterState),
+            eq(request),
+            eq(false),
+            eq(Collections.emptyList()),
+            eq(mockMetadataTransformer)
+        );
+
+        threadPool.shutdown();
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

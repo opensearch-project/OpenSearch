@@ -698,7 +698,7 @@ public class MetadataCreateIndexService {
         return applyCreateIndexRequestWithV1Templates(currentState, request, silent, Collections.emptyList(), metadataTransformer);
     }
 
-    private ClusterState applyCreateIndexRequestWithV1Templates(
+    public ClusterState applyCreateIndexRequestWithV1Templates(
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
