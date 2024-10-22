@@ -519,7 +519,7 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
     }
 
     @Override
-    protected XContentBuilder getExpandedMapping() throws IOException {
+    protected XContentBuilder getMapping() throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
             b.startObject("startree");

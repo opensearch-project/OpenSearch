@@ -33,13 +33,10 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils.assertStarTreeDocuments;
 
@@ -244,7 +241,11 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
     }
 
     @Override
-    protected XContentBuilder getExpandedMapping() throws IOException {
+    protected XContentBuilder getMapping() throws IOException {
+        return getExpandedMapping();
+    }
+
+    public static XContentBuilder getExpandedMapping() throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
             b.startObject("startree");

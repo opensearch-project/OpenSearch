@@ -86,7 +86,7 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
         final Logger testLogger = LogManager.getLogger(StarTreeDocValuesFormatTests.class);
 
         try {
-            createMapperService(getExpandedMapping());
+            mapperService = createMapperService(getMapping());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -94,7 +94,7 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
         return codec;
     }
 
-    private void createMapperService(XContentBuilder builder) throws IOException {
+    public static MapperService createMapperService(XContentBuilder builder) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -104,7 +104,7 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).putMapping(builder.toString()).build();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        mapperService = MapperTestUtils.newMapperServiceWithHelperAnalyzer(
+        MapperService mapperService = MapperTestUtils.newMapperServiceWithHelperAnalyzer(
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
             createTempDir(),
             settings,
@@ -112,11 +112,12 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
             "test"
         );
         mapperService.merge(indexMetadata, MapperService.MergeReason.INDEX_TEMPLATE);
+        return mapperService;
     }
 
-    abstract XContentBuilder getExpandedMapping() throws IOException;
+    abstract XContentBuilder getMapping() throws IOException;
 
-    XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    public static XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         buildFields.accept(builder);
         return builder.endObject().endObject();
