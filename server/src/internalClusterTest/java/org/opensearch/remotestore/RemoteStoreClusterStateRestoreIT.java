@@ -493,7 +493,6 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
     private void verifyRestoredRepositories(Path repoPath) {
         RepositoriesMetadata repositoriesMetadata = clusterService().state().metadata().custom(RepositoriesMetadata.TYPE);
-        assertEquals(3, repositoriesMetadata.repositories().size());
         // routing repo added
         assertEquals(4, repositoriesMetadata.repositories().size()); // includes remote store repo as well
         assertTrue(SYSTEM_REPOSITORY_SETTING.get(repositoriesMetadata.repository(REPOSITORY_NAME).settings()));

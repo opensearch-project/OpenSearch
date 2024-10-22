@@ -66,7 +66,7 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
     }
 
     public Settings.Builder remotePublishConfiguredNodeSetting() {
-        String remoteStoreNodeAttributePrefix = "remote_publication";
+        String remoteStoreNodeAttributePrefix = "remote_store";
         String stateRepoSettingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
             "node.attr." + REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
@@ -83,21 +83,23 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
         String routingTableRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
             "node.attr." + REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            remoteStoreNodeAttributePrefix,
             ROUTING_TABLE_REPO_NAME
         );
         String routingTableRepoSettingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
             "node.attr." + REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            remoteStoreNodeAttributePrefix,
             ROUTING_TABLE_REPO_NAME
         );
 
         Settings.Builder builder = Settings.builder()
-            .put("node.attr." + "remote_publication.state.repository", REPOSITORY_NAME)
+            .put("node.attr." + "remote_store.state.repository", REPOSITORY_NAME)
             .put(stateRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
             .put(stateRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, true)
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put("node.attr." + "remote_publication.routing_table.repository", ROUTING_TABLE_REPO_NAME)
+            .put("node.attr." + "remote_store.routing_table.repository", ROUTING_TABLE_REPO_NAME)
             .put(routingTableRepoTypeAttributeKey, ReloadableFsRepository.TYPE)
             .put(routingTableRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
         return builder;
