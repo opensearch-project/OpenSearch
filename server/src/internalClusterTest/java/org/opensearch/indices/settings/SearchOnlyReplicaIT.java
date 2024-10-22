@@ -126,6 +126,8 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .put("index.refresh_interval", "40ms") // set lower interval so replica attempts replication cycles after primary is
+                                                       // removed.
                 .build()
         );
         ensureYellow(TEST_INDEX);
