@@ -149,7 +149,6 @@ configure([
   project(":plugins:store-smb"),
   project(":plugins:transport-nio"),
   project(":plugins:crypto-kms"),
-  project(":plugins:workload-management"),
   project(":qa:die-with-dignity"),
   project(":qa:wildfly"),
   project(":test:external-modules:test-delayed-aggs"),
