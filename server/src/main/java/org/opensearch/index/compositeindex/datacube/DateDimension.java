@@ -175,4 +175,8 @@ public class DateDimension implements Dimension {
     public static List<DateTimeUnitRounding> getSortedDateTimeUnits(List<DateTimeUnitRounding> dateTimeUnits) {
         return dateTimeUnits.stream().sorted(new DateTimeUnitComparator()).collect(Collectors.toList());
     }
+
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_NUMERIC;
+    }
 }

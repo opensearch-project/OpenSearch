@@ -82,5 +82,4 @@ public class ReadDimension implements Dimension {
     public int hashCode() {
         return Objects.hash(field);
     }
-
 }

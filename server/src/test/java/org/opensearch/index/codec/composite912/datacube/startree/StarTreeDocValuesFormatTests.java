@@ -9,11 +9,14 @@
 package org.opensearch.index.codec.composite912.datacube.startree;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -29,8 +32,15 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
+import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils.assertStarTreeDocuments;
 
 /**
@@ -133,6 +143,100 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
                     reader.maxDoc()
                 );
                 assertStarTreeDocuments(starTreeDocuments, expectedStarTreeDocuments);
+            }
+        }
+        ir.close();
+        directory.close();
+    }
+
+    public void testStarTreeDocValuesWithDeletions() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setMergePolicy(newLogMergePolicy());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+
+        int iterations = 3;
+        Map<String, Integer> map = new HashMap<>();
+        List<String> allIds = new ArrayList<>();
+        for (int iter = 0; iter < iterations; iter++) {
+            // Add 10 documents
+            for (int i = 0; i < 10; i++) {
+                String id = String.valueOf(random().nextInt() + i);
+                allIds.add(id);
+                Document doc = new Document();
+                doc.add(new StringField("_id", id, Field.Store.YES));
+                int fieldValue = random().nextInt(5) + 1;
+                doc.add(new SortedNumericDocValuesField("field", fieldValue));
+
+                int sndvValue = random().nextInt(3);
+
+                doc.add(new SortedNumericDocValuesField("sndv", sndvValue));
+                int dvValue = random().nextInt(3);
+
+                doc.add(new SortedNumericDocValuesField("dv", dvValue));
+                map.put(sndvValue + "-" + dvValue, fieldValue + map.getOrDefault(sndvValue + "-" + dvValue, 0));
+                iw.addDocument(doc);
+            }
+            iw.flush();
+        }
+        iw.commit();
+        // Delete random number of documents
+        int docsToDelete = random().nextInt(9); // Delete up to 9 documents
+        for (int i = 0; i < docsToDelete; i++) {
+            if (!allIds.isEmpty()) {
+                String idToDelete = allIds.remove(random().nextInt(allIds.size() - 1));
+                iw.deleteDocuments(new Term("_id", idToDelete));
+                allIds.remove(idToDelete);
+            }
+        }
+        iw.flush();
+        iw.commit();
+        iw.forceMerge(1);
+        iw.close();
+
+        DirectoryReader ir = DirectoryReader.open(directory);
+        TestUtil.checkReader(ir);
+        assertEquals(1, ir.leaves().size());
+
+        // Assert star tree documents
+        for (LeafReaderContext context : ir.leaves()) {
+            SegmentReader reader = Lucene.segmentReader(context.reader());
+            CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+            List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+
+            for (CompositeIndexFieldInfo compositeIndexFieldInfo : compositeIndexFields) {
+                StarTreeValues starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(compositeIndexFieldInfo);
+                StarTreeDocument[] actualStarTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
+                    List.of(starTreeValues),
+                    List.of(
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG
+                    ),
+                    Integer.parseInt(starTreeValues.getAttributes().get(STAR_TREE_DOCS_COUNT))
+                );
+                for (StarTreeDocument starDoc : actualStarTreeDocuments) {
+                    Long sndvVal = null;
+                    if (starDoc.dimensions[0] != null) {
+                        sndvVal = starDoc.dimensions[0];
+                    }
+                    Long dvVal = null;
+                    if (starDoc.dimensions[1] != null) {
+                        dvVal = starDoc.dimensions[1];
+                    }
+                    if (starDoc.metrics[0] != null) {
+                        double metric = (double) starDoc.metrics[0];
+                        if (map.containsKey(sndvVal + "-" + dvVal)) {
+                            assertEquals((long) map.get(sndvVal + "-" + dvVal), (long) metric);
+                        }
+                    }
+                }
             }
         }
         ir.close();

@@ -77,4 +77,9 @@ public class NumericDimension implements Dimension {
     public int hashCode() {
         return Objects.hash(field);
     }
+
+    @Override
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_NUMERIC;
+    }
 }

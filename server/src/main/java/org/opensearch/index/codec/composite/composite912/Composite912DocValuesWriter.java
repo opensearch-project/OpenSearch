@@ -38,7 +38,6 @@ import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.StarTreeMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -238,12 +237,8 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         }
         // we have all the required fields to build composite fields
         if (compositeFieldSet.isEmpty()) {
-            for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
-                if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
-                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-                        starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, compositeDocValuesConsumer);
-                    }
-                }
+            try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, compositeDocValuesConsumer);
             }
         }
     }
@@ -316,10 +311,12 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             if (mergeState.docValuesProducers[i] instanceof CompositeIndexReader) {
                 reader = (CompositeIndexReader) mergeState.docValuesProducers[i];
             } else {
-                Set<DocValuesProducer> dp = DocValuesProducerUtil.getSegmentDocValuesProducers(mergeState.docValuesProducers[i]);
-                for (DocValuesProducer producer : dp) {
-                    if (producer instanceof CompositeIndexReader) {
-                        reader = (CompositeIndexReader) producer;
+                Set<DocValuesProducer> docValuesProducers = DocValuesProducerUtil.getSegmentDocValuesProducers(
+                    mergeState.docValuesProducers[i]
+                );
+                for (DocValuesProducer docValuesProducer : docValuesProducers) {
+                    if (docValuesProducer instanceof CompositeIndexReader) {
+                        reader = (CompositeIndexReader) docValuesProducer;
                         List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
                         if (compositeFieldInfo.isEmpty() == false) {
                             break;
@@ -328,7 +325,6 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                 }
             }
             if (reader == null) continue;
-
             List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
             for (CompositeIndexFieldInfo fieldInfo : compositeFieldInfo) {
                 if (fieldInfo.getType().equals(CompositeMappedFieldType.CompositeFieldType.STAR_TREE)) {
@@ -336,17 +332,6 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                     if (compositeIndexValues instanceof StarTreeValues) {
                         StarTreeValues starTreeValues = (StarTreeValues) compositeIndexValues;
                         List<StarTreeValues> fieldsList = starTreeSubsPerField.getOrDefault(fieldInfo.getField(), new ArrayList<>());
-                        if (starTreeField == null) {
-                            starTreeField = starTreeValues.getStarTreeField();
-                        }
-                        // assert star tree configuration is same across segments
-                        else {
-                            if (starTreeField.equals(starTreeValues.getStarTreeField()) == false) {
-                                throw new IllegalArgumentException(
-                                    "star tree field configuration must match the configuration of the field being merged"
-                                );
-                            }
-                        }
                         fieldsList.add(starTreeValues);
                         starTreeSubsPerField.put(fieldInfo.getField(), fieldsList);
                     }

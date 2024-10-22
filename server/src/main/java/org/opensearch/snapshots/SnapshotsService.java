@@ -617,12 +617,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 );
                                 return;
                             }
-                            listener.onResponse(snapshotInfo);
+                            cleanOrphanTimestamp(repositoryName, repositoryData);
                             logger.info("created snapshot-v2 [{}] in repository [{}]", repositoryName, snapshotName);
+                            listener.onResponse(snapshotInfo);
                             // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
                             // can get queued . This is triggering them.
                             runNextQueuedOperation(repositoryData, repositoryName, true);
-                            cleanOrphanTimestamp(repositoryName, repositoryData);
                         }
 
                         @Override
@@ -657,17 +657,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (orphanPinnedEntities.isEmpty()) {
             return;
         }
-
         logger.info("Found {} orphan timestamps. Cleaning it up now", orphanPinnedEntities.size());
-        if (tryEnterRepoLoop(repoName)) {
-            deleteOrphanTimestamps(pinnedEntities, orphanPinnedEntities);
-            leaveRepoLoop(repoName);
-        } else {
-            logger.info("Concurrent snapshot create/delete is happening. Skipping clean up of orphan timestamps");
-        }
+        deleteOrphanTimestamps(pinnedEntities, orphanPinnedEntities);
     }
 
-    private boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
+    static boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
         Tuple<String, String> tokens = getRepoSnapshotUUIDTuple(pinnedEntity);
         return Objects.equals(tokens.v1(), repoName) && snapshotUUIDs.contains(tokens.v2()) == false;
     }
@@ -754,7 +748,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static Tuple<String, String> getRepoSnapshotUUIDTuple(String pinningEntity) {
         String[] tokens = pinningEntity.split(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER);
-        return new Tuple<>(tokens[0], tokens[1]);
+        String snapUUID = String.join(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER, Arrays.copyOfRange(tokens, 1, tokens.length));
+        return new Tuple<>(tokens[0], snapUUID);
     }
 
     private void cloneSnapshotPinnedTimestamp(
