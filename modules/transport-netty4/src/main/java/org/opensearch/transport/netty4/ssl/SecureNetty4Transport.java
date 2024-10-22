@@ -267,6 +267,7 @@ public class SecureNetty4Transport extends Netty4Transport {
 
             connectionTestResult = SSLConnectionTestResult.SSL_AVAILABLE;
             if (dualModeEnabled) {
+                logger.info("SSL Dual mode enabled, using port unification handler");
                 SecureConnectionTestUtil sslConnectionTestUtil = new SecureConnectionTestUtil(
                     node.getAddress().getAddress(),
                     node.getAddress().getPort()
