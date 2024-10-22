@@ -37,7 +37,6 @@ public class TransportCreateQueryGroupAction extends TransportClusterManagerNode
     /**
      * Constructor for TransportCreateQueryGroupAction
      *
-     * @param actionName - action name
      * @param threadPool - {@link ThreadPool} object
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
@@ -46,7 +45,6 @@ public class TransportCreateQueryGroupAction extends TransportClusterManagerNode
      */
     @Inject
     public TransportCreateQueryGroupAction(
-        String actionName,
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
