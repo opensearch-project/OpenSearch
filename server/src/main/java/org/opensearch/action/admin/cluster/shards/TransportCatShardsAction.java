@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
@@ -27,6 +28,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.Objects;
 
 import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.SHARDS;
@@ -40,6 +42,13 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
 
     private final NodeClient client;
     private final ResponseLimitSettings responseLimitSettings;
+    private static final IndicesStatsResponse EMPTY_INDICES_STATS_RESPONSE = new IndicesStatsResponse(
+        new ShardStats[0],
+        0,
+        0,
+        0,
+        Collections.emptyList()
+    );
 
     @Inject
     public TransportCatShardsAction(
@@ -108,6 +117,12 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                                 : paginationStrategy.getRequestedEntities()
                         );
                         catShardsResponse.setPageToken(Objects.isNull(paginationStrategy) ? null : paginationStrategy.getResponseToken());
+                        // For paginated queries, if strategy outputs no shards to be returned, avoid fetching IndicesStats.
+                        if (shouldSkipIndicesStatsRequest(paginationStrategy)) {
+                            catShardsResponse.setIndicesStatsResponse(EMPTY_INDICES_STATS_RESPONSE);
+                            cancellableListener.onResponse(catShardsResponse);
+                            return;
+                        }
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                         indicesStatsRequest.setShouldCancelOnTimeout(true);
                         indicesStatsRequest.all();
@@ -158,5 +173,9 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                 listener.onFailure(new ResponseLimitBreachedException("Too many shards requested.", limit, SHARDS));
             }
         }
+    }
+
+    private boolean shouldSkipIndicesStatsRequest(ShardPaginationStrategy paginationStrategy) {
+        return Objects.nonNull(paginationStrategy) && paginationStrategy.getRequestedEntities().isEmpty();
     }
 }
