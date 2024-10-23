@@ -72,7 +72,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     public static final String ALLOCATOR_NAME = "shards_batch_gateway_allocator";
     private static final Logger logger = LogManager.getLogger(ShardsBatchGatewayAllocator.class);
-    private final long maxBatchSize;
+    private long maxBatchSize;
     private static final short DEFAULT_SHARD_BATCH_SIZE = 2000;
 
     public static final String PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
@@ -93,7 +93,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         DEFAULT_SHARD_BATCH_SIZE,
         1,
         10000,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -172,6 +173,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         this.batchStartedAction = batchStartedAction;
         this.batchStoreAction = batchStoreAction;
         this.maxBatchSize = GATEWAY_ALLOCATOR_BATCH_SIZE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(GATEWAY_ALLOCATOR_BATCH_SIZE, this::setMaxBatchSize);
         this.primaryShardsBatchGatewayAllocatorTimeout = PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING, this::setPrimaryBatchAllocatorTimeout);
         this.replicaShardsBatchGatewayAllocatorTimeout = REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(settings);
@@ -402,6 +404,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Iterator<ShardRouting> iterator = newShardsToBatch.values().iterator();
         assert maxBatchSize > 0 : "Shards batch size must be greater than 0";
 
+        logger.debug("Using async fetch batch size {}", maxBatchSize);
         long batchSize = maxBatchSize;
         Map<ShardId, ShardEntry> perBatchShards = new HashMap<>();
         while (iterator.hasNext()) {
@@ -904,6 +907,10 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     public int getNumberOfStoreShardBatches() {
         return batchIdToStoreShardBatch.size();
+    }
+
+    private void setMaxBatchSize(long maxBatchSize) {
+        this.maxBatchSize = maxBatchSize;
     }
 
     protected void setPrimaryBatchAllocatorTimeout(TimeValue primaryShardsBatchGatewayAllocatorTimeout) {

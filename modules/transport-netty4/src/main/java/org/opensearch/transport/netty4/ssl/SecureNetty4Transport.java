@@ -146,6 +146,7 @@ public class SecureNetty4Transport extends Netty4Transport {
                 .map(SecureTransportSettingsProvider.SecureTransportParameters::dualModeEnabled)
                 .orElse(false);
             if (dualModeEnabled) {
+                logger.info("SSL Dual mode enabled, using port unification handler");
                 final ChannelHandler portUnificationHandler = new DualModeSslHandler(
                     settings,
                     secureTransportSettingsProvider,
