@@ -142,7 +142,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         "cluster.publish.timeout",
         TimeValue.timeValueMillis(30000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private final Settings settings;
@@ -165,7 +166,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final Random random;
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final SeedHostsResolver configuredHostsResolver;
-    private final TimeValue publishTimeout;
+    private TimeValue publishTimeout;
     private final TimeValue publishInfoTimeout;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
@@ -248,6 +249,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(PUBLISH_TIMEOUT_SETTING, this::setPublishTimeout);
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
@@ -302,6 +304,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
         this.lagDetector = new LagDetector(
             settings,
+            clusterSettings,
             transportService.getThreadPool(),
             n -> removeNode(n, "lagging"),
             transportService::getLocalNode
@@ -318,6 +321,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.remoteStoreNodeService = remoteStoreNodeService;
         this.remoteClusterStateService = remoteClusterStateService;
         this.clusterSettings = clusterSettings;
+    }
+
+    private void setPublishTimeout(TimeValue publishTimeout) {
+        this.publishTimeout = publishTimeout;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -1670,7 +1677,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.localNodeAckEvent = localNodeAckEvent;
             this.ackListener = ackListener;
             this.publishListener = publishListener;
-
             this.timeoutHandler = singleNodeDiscovery ? null : transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
