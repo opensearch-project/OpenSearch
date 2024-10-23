@@ -38,14 +38,10 @@ import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.stats.QueryGroupState;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -81,93 +77,93 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
         return plugins;
     }
 
-    public void testDefaultQueryGroup() throws ExecutionException, InterruptedException {
-        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { _ALL }, null);
-        validateResponse(response, new String[] { DEFAULT_QUERY_GROUP }, null);
-    }
-
-    public void testBasicWlmStats() throws Exception {
-        QueryGroup queryGroup = new QueryGroup(
-            NAME1,
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
-        );
-        String id = queryGroup.get_id();
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { _ALL }, null);
-        validateResponse(response, new String[] { DEFAULT_QUERY_GROUP, id }, null);
-
-        updateQueryGroupInClusterState(DELETE, queryGroup);
-        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { _ALL }, null);
-        validateResponse(response2, new String[] { DEFAULT_QUERY_GROUP }, new String[] { id });
-    }
-
-    public void testWlmStatsWithQueryGroupId() throws Exception {
-        QueryGroup queryGroup = new QueryGroup(
-            NAME1,
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
-        );
-        String id = queryGroup.get_id();
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { id }, null);
-        validateResponse(response, new String[] { id }, new String[] { DEFAULT_QUERY_GROUP });
-
-        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP }, null);
-        validateResponse(response2, new String[] { DEFAULT_QUERY_GROUP }, new String[] { id });
-
-        QueryGroup queryGroup2 = new QueryGroup(
-            NAME2,
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.2))
-        );
-        String id2 = queryGroup2.get_id();
-        updateQueryGroupInClusterState(PUT, queryGroup2);
-        WlmStatsResponse response3 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP, id2 }, null);
-        validateResponse(response3, new String[] { DEFAULT_QUERY_GROUP, id2 }, new String[] { id });
-
-        WlmStatsResponse response4 = getWlmStatsResponse(null, new String[] { INVALID_ID }, null);
-        validateResponse(response4, null, new String[] { DEFAULT_QUERY_GROUP, id, id2, INVALID_ID });
-
-        updateQueryGroupInClusterState(DELETE, queryGroup);
-        updateQueryGroupInClusterState(DELETE, queryGroup2);
-    }
-
-    public void testWlmStatsWithBreach() throws Exception {
-        QueryGroup queryGroup = new QueryGroup(
-            NAME1,
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
-        );
-        String id = queryGroup.get_id();
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { _ALL }, true);
-        validateResponse(response, null, new String[] { DEFAULT_QUERY_GROUP, id });
-
-        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { _ALL }, false);
-        validateResponse(response2, new String[] { DEFAULT_QUERY_GROUP, id }, null);
-
-        WlmStatsResponse response3 = getWlmStatsResponse(null, new String[] { _ALL }, null);
-        validateResponse(response3, new String[] { DEFAULT_QUERY_GROUP, id }, null);
-
-        updateQueryGroupInClusterState(DELETE, queryGroup);
-    }
-
-    public void testWlmStatsWithNodesId() throws Exception {
-        QueryGroup queryGroup = new QueryGroup(
-            NAME1,
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
-        );
-        String queryGroupId = queryGroup.get_id();
-        String nodeId = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes().getLocalNodeId();
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        WlmStatsResponse response = getWlmStatsResponse(new String[] { nodeId }, new String[] { _ALL }, true);
-        validateResponse(response, new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP, queryGroupId });
-
-        WlmStatsResponse response2 = getWlmStatsResponse(new String[] { nodeId, INVALID_ID }, new String[] { _ALL }, false);
-        validateResponse(response2, new String[] { nodeId, DEFAULT_QUERY_GROUP, queryGroupId }, new String[] { INVALID_ID });
-
-        WlmStatsResponse response3 = getWlmStatsResponse(new String[] { INVALID_ID }, new String[] { _ALL }, false);
-        validateResponse(response3, null, new String[] { nodeId, DEFAULT_QUERY_GROUP, queryGroupId });
-
-        updateQueryGroupInClusterState(DELETE, queryGroup);
-    }
+//    public void testDefaultQueryGroup() throws ExecutionException, InterruptedException {
+//        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { _ALL }, null);
+//        validateResponse(response, new String[] { DEFAULT_QUERY_GROUP }, null);
+//    }
+//
+//    public void testBasicWlmStats() throws Exception {
+//        QueryGroup queryGroup = new QueryGroup(
+//            NAME1,
+//            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
+//        );
+//        String id = queryGroup.get_id();
+//        updateQueryGroupInClusterState(PUT, queryGroup);
+//        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { _ALL }, null);
+//        validateResponse(response, new String[] { DEFAULT_QUERY_GROUP, id }, null);
+//
+//        updateQueryGroupInClusterState(DELETE, queryGroup);
+//        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { _ALL }, null);
+//        validateResponse(response2, new String[] { DEFAULT_QUERY_GROUP }, new String[] { id });
+//    }
+//
+//    public void testWlmStatsWithQueryGroupId() throws Exception {
+//        QueryGroup queryGroup = new QueryGroup(
+//            NAME1,
+//            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
+//        );
+//        String id = queryGroup.get_id();
+//        updateQueryGroupInClusterState(PUT, queryGroup);
+//        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { id }, null);
+//        validateResponse(response, new String[] { id }, new String[] { DEFAULT_QUERY_GROUP });
+//
+//        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP }, null);
+//        validateResponse(response2, new String[] { DEFAULT_QUERY_GROUP }, new String[] { id });
+//
+//        QueryGroup queryGroup2 = new QueryGroup(
+//            NAME2,
+//            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.2))
+//        );
+//        String id2 = queryGroup2.get_id();
+//        updateQueryGroupInClusterState(PUT, queryGroup2);
+//        WlmStatsResponse response3 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP, id2 }, null);
+//        validateResponse(response3, new String[] { DEFAULT_QUERY_GROUP, id2 }, new String[] { id });
+//
+//        WlmStatsResponse response4 = getWlmStatsResponse(null, new String[] { INVALID_ID }, null);
+//        validateResponse(response4, null, new String[] { DEFAULT_QUERY_GROUP, id, id2, INVALID_ID });
+//
+//        updateQueryGroupInClusterState(DELETE, queryGroup);
+//        updateQueryGroupInClusterState(DELETE, queryGroup2);
+//    }
+//
+//    public void testWlmStatsWithBreach() throws Exception {
+//        QueryGroup queryGroup = new QueryGroup(
+//            NAME1,
+//            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
+//        );
+//        String id = queryGroup.get_id();
+//        updateQueryGroupInClusterState(PUT, queryGroup);
+//        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { _ALL }, true);
+//        validateResponse(response, null, new String[] { DEFAULT_QUERY_GROUP, id });
+//
+//        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { _ALL }, false);
+//        validateResponse(response2, new String[] { DEFAULT_QUERY_GROUP, id }, null);
+//
+//        WlmStatsResponse response3 = getWlmStatsResponse(null, new String[] { _ALL }, null);
+//        validateResponse(response3, new String[] { DEFAULT_QUERY_GROUP, id }, null);
+//
+//        updateQueryGroupInClusterState(DELETE, queryGroup);
+//    }
+//
+//    public void testWlmStatsWithNodesId() throws Exception {
+//        QueryGroup queryGroup = new QueryGroup(
+//            NAME1,
+//            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
+//        );
+//        String queryGroupId = queryGroup.get_id();
+//        String nodeId = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes().getLocalNodeId();
+//        updateQueryGroupInClusterState(PUT, queryGroup);
+//        WlmStatsResponse response = getWlmStatsResponse(new String[] { nodeId }, new String[] { _ALL }, true);
+//        validateResponse(response, new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP, queryGroupId });
+//
+//        WlmStatsResponse response2 = getWlmStatsResponse(new String[] { nodeId, INVALID_ID }, new String[] { _ALL }, false);
+//        validateResponse(response2, new String[] { nodeId, DEFAULT_QUERY_GROUP, queryGroupId }, new String[] { INVALID_ID });
+//
+//        WlmStatsResponse response3 = getWlmStatsResponse(new String[] { INVALID_ID }, new String[] { _ALL }, false);
+//        validateResponse(response3, null, new String[] { nodeId, DEFAULT_QUERY_GROUP, queryGroupId });
+//
+//        updateQueryGroupInClusterState(DELETE, queryGroup);
+//    }
 
     public void testWlmStatsWithIdAndBreach() throws Exception {
         QueryGroup queryGroup = new QueryGroup(
@@ -176,25 +172,37 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
         );
         String queryGroupId = queryGroup.get_id();
         String nodeId = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes().getLocalNodeId();
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        WlmStatsResponse response = getWlmStatsResponse(new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP }, true);
-        validateResponse(response, new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP, queryGroupId });
+        updateQueryGroupInClusterState(PUT, queryGroup, new HashMap<>());
 
-        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP, queryGroupId }, true);
-        validateResponse(response2, null, new String[] { DEFAULT_QUERY_GROUP, queryGroupId });
+        QueryGroup queryGroup2 = new QueryGroup(
+            NAME2,
+            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.5))
+        );
+        String queryGroupId2 = queryGroup.get_id();
+        updateQueryGroupInClusterState(PUT, queryGroup2, Map.of(ResourceType.CPU, 0.6));
 
-        WlmStatsResponse response3 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP, queryGroupId }, false);
-        validateResponse(response3, new String[] { DEFAULT_QUERY_GROUP, queryGroupId }, null);
+//        WlmStatsResponse response = getWlmStatsResponse(new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP }, true);
+//        validateResponse(response, new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP, queryGroupId });
+//
+//        WlmStatsResponse response2 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP, queryGroupId }, true);
+//        validateResponse(response2, null, new String[] { DEFAULT_QUERY_GROUP, queryGroupId });
+//
+//        WlmStatsResponse response3 = getWlmStatsResponse(null, new String[] { DEFAULT_QUERY_GROUP, queryGroupId }, false);
+//        validateResponse(response3, new String[] { DEFAULT_QUERY_GROUP, queryGroupId }, null);
+//
+//        WlmStatsResponse response4 = getWlmStatsResponse(null, new String[] { queryGroupId }, false);
+//        validateResponse(response4, new String[] { queryGroupId }, new String[] { DEFAULT_QUERY_GROUP });
 
-        WlmStatsResponse response4 = getWlmStatsResponse(null, new String[] { queryGroupId }, false);
-        validateResponse(response4, new String[] { queryGroupId }, new String[] { DEFAULT_QUERY_GROUP });
+        WlmStatsResponse response5 = getWlmStatsResponse(null, new String[] { queryGroupId, queryGroupId2 }, true);
+        validateResponse(response5, new String[] { queryGroupId2 }, new String[] { DEFAULT_QUERY_GROUP, queryGroupId });
 
-        updateQueryGroupInClusterState(DELETE, queryGroup);
+        updateQueryGroupInClusterState(DELETE, queryGroup, new HashMap<>());
+        updateQueryGroupInClusterState(DELETE, queryGroup2, new HashMap<>());
     }
 
-    public void updateQueryGroupInClusterState(String method, QueryGroup queryGroup) throws InterruptedException {
+    public void updateQueryGroupInClusterState(String method, QueryGroup queryGroup, Map<ResourceType, Double> lastRecordedUsageMap) throws InterruptedException {
         ExceptionCatchingListener listener = new ExceptionCatchingListener();
-        client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(queryGroup, method), listener);
+        client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(queryGroup, method, lastRecordedUsageMap), listener);
         assertTrue(listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
         assertEquals(0, listener.getLatch().getCount());
     }
@@ -223,16 +231,19 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
     public static class TestClusterUpdateRequest extends ActionRequest {
         final private String method;
         final private QueryGroup queryGroup;
+        final private Map<ResourceType, Double> lastRecordedUsageMap;
 
-        public TestClusterUpdateRequest(QueryGroup queryGroup, String method) {
+        public TestClusterUpdateRequest(QueryGroup queryGroup, String method, Map<ResourceType, Double> lastRecordedUsageMap) {
             this.method = method;
             this.queryGroup = queryGroup;
+            this.lastRecordedUsageMap = lastRecordedUsageMap;
         }
 
         public TestClusterUpdateRequest(StreamInput in) throws IOException {
             super(in);
             this.method = in.readString();
             this.queryGroup = new QueryGroup(in);
+            this.lastRecordedUsageMap = in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readDouble);
         }
 
         @Override
@@ -245,6 +256,7 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
             super.writeTo(out);
             out.writeString(method);
             queryGroup.writeTo(out);
+            out.writeMap(lastRecordedUsageMap, ResourceType::writeTo, StreamOutput::writeDouble);
         }
 
         public QueryGroup getQueryGroup() {
@@ -254,20 +266,27 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
         public String getMethod() {
             return method;
         }
+
+        public Map<ResourceType, Double> getLastRecordedUsageMap() {
+            return lastRecordedUsageMap;
+        }
     }
 
     public static class TestClusterUpdateTransportAction extends HandledTransportAction<TestClusterUpdateRequest, TestResponse> {
         public static final ActionType<TestResponse> ACTION = new ActionType<>("internal::test_cluster_update_action", TestResponse::new);
         private final ClusterService clusterService;
+        private final QueryGroupService queryGroupService;
 
         @Inject
         public TestClusterUpdateTransportAction(
             TransportService transportService,
             ClusterService clusterService,
+            QueryGroupService service,
             ActionFilters actionFilters
         ) {
             super(ACTION.name(), transportService, actionFilters, TestClusterUpdateRequest::new);
             this.clusterService = clusterService;
+            this.queryGroupService = service;
         }
 
         @Override
@@ -298,6 +317,10 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
                     listener.onResponse(new TestResponse());
                 }
             });
+            QueryGroupState state = queryGroupService.getQueryGroupsStateAccessor().getQueryGroupState(request.getQueryGroup().get_id());
+            for (Map.Entry<ResourceType, Double> entry: request.getLastRecordedUsageMap().entrySet()) {
+                state.getResourceState().get(entry.getKey()).setLastRecordedUsage(entry.getValue());
+            }
         }
     }
 

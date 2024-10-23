@@ -326,6 +326,10 @@ public class QueryGroupService extends AbstractLifecycleComponent
         return deletedQueryGroups;
     }
 
+    public QueryGroupsStateAccessor getQueryGroupsStateAccessor() {
+        return queryGroupsStateAccessor;
+    }
+
     /**
      * This method determines whether the task should be accounted by SBP if both features co-exist
      * @param t QueryGroupTask
