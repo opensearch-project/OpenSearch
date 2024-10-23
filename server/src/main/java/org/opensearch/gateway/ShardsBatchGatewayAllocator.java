@@ -308,8 +308,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                         logger.trace("scheduling reroute after existing shards allocator timed out for primary shards");
                         assert rerouteService != null;
                         rerouteService.reroute(
-                            "reroute after existing shards allocator timed out",
-                            Priority.HIGH,
+                            "reroute after existing shards allocator [P] timed out",
+                            Priority.NORMAL,
                             ActionListener.wrap(
                                 r -> logger.trace("reroute after existing shards allocator timed out completed"),
                                 e -> logger.debug("reroute after existing shards allocator timed out failed", e)
@@ -343,8 +343,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                         logger.trace("scheduling reroute after existing shards allocator timed out for replica shards");
                         assert rerouteService != null;
                         rerouteService.reroute(
-                            "reroute after existing shards allocator timed out",
-                            Priority.HIGH,
+                            "reroute after existing shards allocator [R] timed out",
+                            Priority.NORMAL,
                             ActionListener.wrap(
                                 r -> logger.trace("reroute after existing shards allocator timed out completed"),
                                 e -> logger.debug("reroute after existing shards allocator timed out failed", e)
