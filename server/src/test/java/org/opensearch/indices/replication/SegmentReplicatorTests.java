@@ -10,7 +10,13 @@ package org.opensearch.indices.replication;
 
 import org.apache.lucene.store.IOContext;
 import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -19,10 +25,12 @@ import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,6 +52,48 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .build();
+
+    public void testReplicationWithUnassignedPrimary() throws Exception {
+        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
+        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        SegmentReplicator replicator = new SegmentReplicator(threadPool);
+
+        ClusterService cs = mock(ClusterService.class);
+        IndexShardRoutingTable.Builder shardRoutingTable = new IndexShardRoutingTable.Builder(replica.shardId());
+        shardRoutingTable.addShard(replica.routingEntry());
+        shardRoutingTable.addShard(primary.routingEntry().moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test")));
+
+        when(cs.state()).thenReturn(buildClusterState(replica, shardRoutingTable));
+        replicator.setSourceFactory(new SegmentReplicationSourceFactory(mock(TransportService.class), mock(RecoverySettings.class), cs));
+        expectThrows(IllegalStateException.class, () -> replicator.startReplication(replica));
+        closeShards(replica, primary);
+    }
+
+    public void testReplicationWithUnknownPrimaryNode() throws Exception {
+        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
+        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        SegmentReplicator replicator = new SegmentReplicator(threadPool);
+
+        ClusterService cs = mock(ClusterService.class);
+        IndexShardRoutingTable.Builder shardRoutingTable = new IndexShardRoutingTable.Builder(replica.shardId());
+        shardRoutingTable.addShard(replica.routingEntry());
+        shardRoutingTable.addShard(primary.routingEntry());
+
+        when(cs.state()).thenReturn(buildClusterState(replica, shardRoutingTable));
+        replicator.setSourceFactory(new SegmentReplicationSourceFactory(mock(TransportService.class), mock(RecoverySettings.class), cs));
+        expectThrows(IllegalStateException.class, () -> replicator.startReplication(replica));
+        closeShards(replica, primary);
+    }
+
+    private ClusterState buildClusterState(IndexShard replica, IndexShardRoutingTable.Builder indexShard) {
+        return ClusterState.builder(clusterService.state())
+            .routingTable(
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(replica.shardId().getIndex()).addIndexShard(indexShard.build()).build())
+                    .build()
+            )
+            .build();
+    }
 
     public void testStartReplicationWithoutSourceFactory() {
         ThreadPool threadpool = mock(ThreadPool.class);
