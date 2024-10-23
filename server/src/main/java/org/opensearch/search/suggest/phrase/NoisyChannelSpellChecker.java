@@ -45,8 +45,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.apache.lucene.analysis.shingle.ShingleFilter.DEFAULT_TOKEN_TYPE;
-
 /**
  * Spell checker based on a noisy channel
  *
@@ -93,7 +91,7 @@ final class NoisyChannelSpellChecker {
             public void nextToken() throws IOException {
                 anyTokens = true;
                 BytesRef term = fillBytesRef(termsRef);
-                if (requireUnigram && DEFAULT_TOKEN_TYPE.equals(typeAttribute.type())) {
+                if (requireUnigram && ShingleFilter.DEFAULT_TOKEN_TYPE.equals(typeAttribute.type())) {
                     return;
                 }
                 anyUnigram = true;
