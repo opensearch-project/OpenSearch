@@ -38,7 +38,7 @@ public class CatShardsResponse extends ActionResponse {
     public CatShardsResponse(StreamInput in) throws IOException {
         super(in);
         indicesStatsResponse = new IndicesStatsResponse(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             nodes = DiscoveryNodes.readFrom(in, null);
             responseShards = in.readList(ShardRouting::new);
             if (in.readBoolean()) {
@@ -50,7 +50,7 @@ public class CatShardsResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indicesStatsResponse.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             nodes.writeToWithAttribute(out);
             out.writeList(responseShards);
             out.writeBoolean(pageToken != null);
