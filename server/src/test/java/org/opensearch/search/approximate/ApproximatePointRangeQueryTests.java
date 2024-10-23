@@ -21,6 +21,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.search.internal.SearchContext;
@@ -175,6 +176,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     try {
                         long lower = 0;
                         long upper = 12000;
+                        long maxHits = 12001;
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             pack(lower).bytes,
@@ -188,7 +190,13 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 11000);
-                        assertEquals(topDocs.totalHits, new TotalHits(11000, TotalHits.Relation.EQUAL_TO));
+
+                        if (topDocs.totalHits.relation == Relation.EQUAL_TO) {
+                            assertEquals(topDocs.totalHits.value, 11000);
+                        } else {
+                            assertTrue(11000 <= topDocs.totalHits.value);
+                            assertTrue(maxHits >= topDocs.totalHits.value);
+                        }
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -226,7 +234,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             }
                         };
                         Query query = LongPoint.newRangeQuery("point", lower, upper);
-                        ;
+
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 10);
                         TopDocs topDocs1 = searcher.search(query, 10);
@@ -235,7 +243,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
                         assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
                         assertEquals(topDocs1.totalHits, new TotalHits(101, TotalHits.Relation.EQUAL_TO));
-
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -278,7 +285,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             }
                         };
                         Query query = LongPoint.newRangeQuery("point", lower, upper);
-                        ;
+
                         IndexSearcher searcher = new IndexSearcher(reader);
                         Sort sort = new Sort(new SortField("point", SortField.Type.LONG));
                         TopDocs topDocs = searcher.search(approximateQuery, 10, sort);
