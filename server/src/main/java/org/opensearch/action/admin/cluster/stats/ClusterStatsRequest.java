@@ -59,7 +59,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
             useAggregatedNodeLevelResponses = in.readOptionalBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             computeAllMetrics = in.readOptionalBoolean();
             final long longMetricsFlags = in.readLong();
             for (Metric metric : Metric.values()) {
@@ -135,7 +135,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
             out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalBoolean(computeAllMetrics);
             long longMetricFlags = 0;
             for (Metric metric : requestedMetrics) {
@@ -154,7 +154,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      * An enumeration of the "core" sections of metrics that may be requested
      * from the cluster stats endpoint.
      */
-    @PublicApi(since = "3.0.0")
+    @PublicApi(since = "2.18.0")
     public enum Metric {
         OS("os", 0),
         JVM("jvm", 1),
@@ -192,7 +192,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      *
      * When no value is provided for param index_metric, default filter is set to _all.
      */
-    @PublicApi(since = "3.0.0")
+    @PublicApi(since = "2.18.0")
     public enum IndexMetric {
         // Metrics computed from ShardStats
         SHARDS("shards", 0),

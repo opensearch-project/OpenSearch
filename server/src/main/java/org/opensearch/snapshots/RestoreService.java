@@ -112,6 +112,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
@@ -496,9 +497,7 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
-                                            aliases.add(alias);
-                                        }
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
                                     if (partial) {
@@ -543,9 +542,7 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
-                                            aliases.add(alias);
-                                        }
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
@@ -671,6 +668,27 @@ public class RestoreService implements ClusterStateApplier {
                                         + renamedIndex.getKey()
                                         + "] because of conflict with an alias with the same name"
                                 );
+                            }
+                        }
+                    }
+
+                    private void applyAliasesWithRename(
+                        IndexMetadata snapshotIndexMetadata,
+                        IndexMetadata.Builder indexMdBuilder,
+                        Set<String> aliases
+                    ) {
+                        if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
+                            aliases.addAll(snapshotIndexMetadata.getAliases().keySet());
+                        } else {
+                            Pattern renameAliasPattern = Pattern.compile(request.renameAliasPattern());
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotIndexMetadata.getAliases().entrySet()) {
+                                String currentAliasName = alias.getKey();
+                                indexMdBuilder.removeAlias(currentAliasName);
+                                String newAliasName = renameAliasPattern.matcher(currentAliasName)
+                                    .replaceAll(request.renameAliasReplacement());
+                                AliasMetadata newAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
+                                indexMdBuilder.putAlias(newAlias);
+                                aliases.add(newAliasName);
                             }
                         }
                     }
