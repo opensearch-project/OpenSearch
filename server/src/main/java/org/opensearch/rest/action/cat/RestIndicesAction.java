@@ -205,13 +205,19 @@ public class RestIndicesAction extends AbstractListAction {
                                     groupedListener.onResponse(getSettingsResponse);
                                     groupedListener.onResponse(clusterStateResponse);
 
-                                    sendIndicesStatsRequest(
-                                        indicesToBeQueried,
-                                        subRequestIndicesOptions,
-                                        includeUnloadedSegments,
-                                        client,
-                                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                                    );
+                                    // For paginated queries, if strategy outputs no indices to be returned,
+                                    // avoid fetching indices stats.
+                                    if (shouldSkipIndicesStatsRequest(paginationStrategy)) {
+                                        groupedListener.onResponse(IndicesStatsResponse.getEmptyResponse());
+                                    } else {
+                                        sendIndicesStatsRequest(
+                                            indicesToBeQueried,
+                                            subRequestIndicesOptions,
+                                            includeUnloadedSegments,
+                                            client,
+                                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                        );
+                                    }
 
                                     sendClusterHealthRequest(
                                         indicesToBeQueried,
@@ -1084,6 +1090,10 @@ public class RestIndicesAction extends AbstractListAction {
                 return new Tuple<>(index, indexSettingsMap.get(index));
             }
         };
+    }
+
+    private boolean shouldSkipIndicesStatsRequest(IndexPaginationStrategy paginationStrategy) {
+        return Objects.nonNull(paginationStrategy) && paginationStrategy.getRequestedEntities().isEmpty();
     }
 
 }
