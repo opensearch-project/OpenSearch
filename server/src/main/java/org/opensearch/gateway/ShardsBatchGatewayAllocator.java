@@ -951,7 +951,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         this.replicaShardsBatchGatewayAllocatorTimeout = replicaShardsBatchGatewayAllocatorTimeout;
     }
 
-    private void setFollowUpRerouteTaskPriority(Priority followUpRerouteTaskPriority) {
+    protected void setFollowUpRerouteTaskPriority(Priority followUpRerouteTaskPriority) {
         this.followUpRerouteTaskPriority = followUpRerouteTaskPriority;
     }
 }
