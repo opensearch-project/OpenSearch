@@ -43,7 +43,6 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.pagination.IndexPaginationStrategy;
 import org.opensearch.action.pagination.PageToken;
 import org.opensearch.action.support.GroupedActionListener;
@@ -105,13 +104,6 @@ public class RestIndicesAction extends AbstractListAction {
         "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
-    private static final IndicesStatsResponse EMPTY_INDICES_STATS_RESPONSE = new IndicesStatsResponse(
-        new ShardStats[0],
-        0,
-        0,
-        0,
-        Collections.emptyList()
-    );
 
     private final ResponseLimitSettings responseLimitSettings;
 
@@ -223,7 +215,7 @@ public class RestIndicesAction extends AbstractListAction {
                                     // For paginated queries, if strategy outputs no indices to be returned,
                                     // avoid fetching indices stats.
                                     if (shouldSkipIndicesStatsRequest(paginationStrategy)) {
-                                        groupedListener.onResponse(EMPTY_INDICES_STATS_RESPONSE);
+                                        groupedListener.onResponse(IndicesStatsResponse.getEmptyResponse());
                                     } else {
                                         sendIndicesStatsRequest(
                                             indicesToBeQueried,
