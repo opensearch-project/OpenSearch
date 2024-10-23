@@ -77,6 +77,8 @@ public class SnapshotRequestsTests extends OpenSearchTestCase {
         builder.field("allow_no_indices", indicesOptions.allowNoIndices());
         builder.field("rename_pattern", "rename-from");
         builder.field("rename_replacement", "rename-to");
+        builder.field("rename_alias_pattern", "alias-rename-from");
+        builder.field("rename_alias_replacement", "alias-rename-to");
         boolean partial = randomBoolean();
         builder.field("partial", partial);
         builder.startObject("settings").field("set1", "val1").endObject();
@@ -103,6 +105,8 @@ public class SnapshotRequestsTests extends OpenSearchTestCase {
         assertArrayEquals(request.indices(), new String[] { "foo", "bar", "baz" });
         assertEquals("rename-from", request.renamePattern());
         assertEquals("rename-to", request.renameReplacement());
+        assertEquals("alias-rename-from", request.renameAliasPattern());
+        assertEquals("alias-rename-to", request.renameAliasReplacement());
         assertEquals(partial, request.partial());
         assertArrayEquals(request.ignoreIndexSettings(), new String[] { "set2", "set3" });
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable
