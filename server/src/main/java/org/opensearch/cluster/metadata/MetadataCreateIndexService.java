@@ -687,7 +687,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
     }
 
-    public ClusterState applyCreateIndexRequestWithNoTemplates(
+    ClusterState applyCreateIndexRequestWithNoTemplates(
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
@@ -698,7 +698,7 @@ public class MetadataCreateIndexService {
         return applyCreateIndexRequestWithV1Templates(currentState, request, silent, Collections.emptyList(), metadataTransformer);
     }
 
-    public ClusterState applyCreateIndexRequestWithV1Templates(
+    ClusterState applyCreateIndexRequestWithV1Templates(
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
