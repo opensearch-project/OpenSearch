@@ -2562,7 +2562,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
                 boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
                 boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
-                if (isSnapshotV2 && remoteStoreIndexShallowCopy && snapshots.entries().size() > 0) {
+                List<SnapshotsInProgress.Entry> entriesForThisRepo = snapshots.entries()
+                    .stream()
+                    .filter(entry -> Objects.equals(entry.repository(), repoName))
+                    .collect(Collectors.toList());
+                if (isSnapshotV2 && remoteStoreIndexShallowCopy && entriesForThisRepo.isEmpty() == false) {
                     throw new ConcurrentSnapshotExecutionException(
                         repoName,
                         String.join(",", snapshotNames),
