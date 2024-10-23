@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -105,7 +106,7 @@ public class IndexAbstractionResolver {
 
             // we always need to check for date math expressions
             final String dateMathName = indexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
-            if (dateMathName != indexAbstraction) {
+            if (!Objects.equals(dateMathName, indexAbstraction)) {
                 assert dateMathName.equals(indexAbstraction) == false;
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
