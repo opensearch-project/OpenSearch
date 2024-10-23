@@ -26,8 +26,8 @@ public class ClusterStatsIT extends AbstractRollingTestCase {
     public void testClusterStats() throws IOException {
         Response response = client().performRequest(new Request("GET", "/_cluster/stats"));
         validateClusterStatsWithFilterResponse(response, nodeStatsMetrics, indicesStatsMetrics);
-        if (AbstractRollingTestCase.UPGRADE_FROM_VERSION.onOrAfter(Version.V_3_0_0) || (
-            CLUSTER_TYPE == ClusterType.UPGRADED && Version.CURRENT.onOrAfter(Version.V_3_0_0))) {
+        if (AbstractRollingTestCase.UPGRADE_FROM_VERSION.onOrAfter(Version.V_2_18_0) || (
+            CLUSTER_TYPE == ClusterType.UPGRADED && Version.CURRENT.onOrAfter(Version.V_2_18_0))) {
             response = client().performRequest(new Request("GET", "/_cluster/stats/os/nodes/_all"));
             validateClusterStatsWithFilterResponse(response, List.of("os"), Collections.emptyList());
             response = client().performRequest(new Request("GET", "/_cluster/stats/indices/mappings/nodes/_all"));
