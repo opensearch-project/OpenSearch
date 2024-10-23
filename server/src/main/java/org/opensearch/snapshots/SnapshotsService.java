@@ -802,10 +802,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                             cleanOrphanTimestamp(repositoryName, repositoryData);
                             logger.info("created snapshot-v2 [{}] in repository [{}]", repositoryName, snapshotName);
+                            leaveRepoLoop(repositoryName);
                             listener.onResponse(snapshotInfo);
-                            // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
-                            // can get queued . This is triggering them.
-                            runNextQueuedOperation(repositoryData, repositoryName, true);
                         }
 
                         @Override
@@ -1204,10 +1202,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         return;
                                     }
                                     logger.info("snapshot-v2 clone [{}] completed successfully", snapshot);
+                                    leaveRepoLoop(repositoryName);
                                     listener.onResponse(null);
-                                    // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
-                                    // can get queued . This is triggering them.
-                                    runNextQueuedOperation(repositoryData, repositoryName, true);
                                 }
 
                                 @Override
@@ -3032,6 +3028,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
+                boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
+                boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
+                List<SnapshotsInProgress.Entry> entriesForThisRepo = snapshots.entries()
+                    .stream()
+                    .filter(entry -> Objects.equals(entry.repository(), repoName))
+                    .collect(Collectors.toList());
+                if (isSnapshotV2 && remoteStoreIndexShallowCopy && entriesForThisRepo.isEmpty() == false) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repoName,
+                        String.join(",", snapshotNames),
+                        "cannot delete snapshots in v2 repo while a snapshot is in progress"
+                    );
+                }
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(
                     snapshotEntries.stream().map(e -> e.snapshot().getSnapshotId()).collect(Collectors.toList()),
                     repositoryData,

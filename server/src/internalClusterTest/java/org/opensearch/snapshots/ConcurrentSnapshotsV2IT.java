@@ -529,14 +529,13 @@ public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
         awaitNumberOfSnapshotsInProgress(1);
 
         ActionFuture<AcknowledgedResponse> a = startDeleteSnapshot(repoName, "snapshot-v1");
+        expectThrows(ConcurrentSnapshotExecutionException.class, a::actionGet);
 
         unblockNode(repoName, clusterManagerName);
         CreateSnapshotResponse csr = snapshotFuture.actionGet();
         assertTrue(csr.getSnapshotInfo().getPinnedTimestamp() != 0);
-        assertTrue(a.actionGet().isAcknowledged());
         List<SnapshotInfo> snapInfo = client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots();
-        assertEquals(1, snapInfo.size());
-        assertThat(snapInfo, contains(csr.getSnapshotInfo()));
+        assertEquals(2, snapInfo.size());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/16205")
