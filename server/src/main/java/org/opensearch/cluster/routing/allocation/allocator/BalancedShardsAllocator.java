@@ -294,7 +294,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     private void updateWeightFunction() {
-        weightFunction = new WeightFunction(this.indexBalanceFactor, this.shardBalanceFactor, this.preferPrimaryShardRebalanceBuffer);
+        weightFunction = new WeightFunction(
+            this.indexBalanceFactor,
+            this.shardBalanceFactor,
+            this.preferPrimaryShardRebalanceBuffer,
+            this.preferPrimaryShardBalance
+        );
     }
 
     /**
@@ -303,9 +308,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      */
     private void setPreferPrimaryShardBalance(boolean preferPrimaryShardBalance) {
         this.preferPrimaryShardBalance = preferPrimaryShardBalance;
-        this.weightFunction.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
-        this.weightFunction.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
-        this.weightFunction.updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+        this.weightFunction.updatePrimaryShardBalanceConstraints(preferPrimaryShardBalance);
     }
 
     private void setPreferPrimaryShardRebalance(boolean preferPrimaryShardRebalance) {
@@ -492,7 +495,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private AllocationConstraints constraints;
         private RebalanceConstraints rebalanceConstraints;
 
-        WeightFunction(float indexBalance, float shardBalance, float preferPrimaryBalanceBuffer) {
+        WeightFunction(float indexBalance, float shardBalance, float preferPrimaryBalanceBuffer, boolean preferPrimaryShardBalance) {
             float sum = indexBalance + shardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -506,6 +509,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.rebalanceConstraints = new RebalanceConstraints(rebalanceParameter);
             // Enable index shard per node breach constraint
             updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, true);
+            // Set primary shard balance constraints
+            updatePrimaryShardBalanceConstraints(preferPrimaryShardBalance);
         }
 
         public float weightWithAllocationConstraints(ShardsBalancer balancer, ModelNode node, String index) {
@@ -530,6 +535,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         void updateRebalanceConstraint(String constraint, boolean add) {
             this.rebalanceConstraints.updateRebalanceConstraint(constraint, add);
+        }
+
+        void updatePrimaryShardBalanceConstraints(boolean preferPrimaryShardBalance) {
+            updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+            updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+            updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
         }
     }
 
