@@ -216,14 +216,24 @@ public class QueryGroupService extends AbstractLifecycleComponent
             }
         }
         if (existingStateMap != null) {
-            existingStateMap.forEach((queryGroupId, currentState) -> {
+            for (Map.Entry<String, QueryGroupState> entry : existingStateMap.entrySet()) {
+                String queryGroupId = entry.getKey();
+                QueryGroupState currentState = entry.getValue();
                 boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
                 if (shouldInclude) {
                     if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
                         statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
                     }
                 }
-            });
+            }
+            // existingStateMap.forEach((queryGroupId, currentState) -> {
+            // boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
+            // if (shouldInclude) {
+            // if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
+            // statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+            // }
+            // }
+            // });
         }
         return new QueryGroupStats(statsHolderMap);
     }
@@ -232,6 +242,9 @@ public class QueryGroupService extends AbstractLifecycleComponent
      * @return if the QueryGroup breaches any resource limit based on the LastRecordedUsage
      */
     public boolean resourceLimitBreached(String id, QueryGroupState currentState) {
+        if (id.equals("DEFAULT_QUERY_GROUP")) {
+            return false;
+        }
         QueryGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
         if (queryGroup == null) {
             throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
@@ -321,6 +334,10 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
     public Set<QueryGroup> getDeletedQueryGroups() {
         return deletedQueryGroups;
+    }
+
+    public QueryGroupsStateAccessor getQueryGroupsStateAccessor() {
+        return queryGroupsStateAccessor;
     }
 
     /**
