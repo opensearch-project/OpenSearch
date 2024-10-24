@@ -52,6 +52,7 @@ import org.opensearch.nio.NioGroup;
 import org.opensearch.nio.NioSelector;
 import org.opensearch.nio.NioSocketChannel;
 import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpTransport;
@@ -86,6 +87,32 @@ public class NioTransport extends TcpTransport {
         NamedWriteableRegistry namedWriteableRegistry,
         CircuitBreakerService circuitBreakerService,
         NioGroupFactory groupFactory,
+        Tracer tracer
+    ) {
+        this(
+            settings,
+            version,
+            threadPool,
+            networkService,
+            pageCacheRecycler,
+            namedWriteableRegistry,
+            circuitBreakerService,
+            groupFactory,
+            null,
+            tracer
+        );
+    }
+
+    protected NioTransport(
+        Settings settings,
+        Version version,
+        ThreadPool threadPool,
+        NetworkService networkService,
+        PageCacheRecycler pageCacheRecycler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        CircuitBreakerService circuitBreakerService,
+        NioGroupFactory groupFactory,
+        SecureTransportSettingsProvider secureTransportSettingsProvider,
         Tracer tracer
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
