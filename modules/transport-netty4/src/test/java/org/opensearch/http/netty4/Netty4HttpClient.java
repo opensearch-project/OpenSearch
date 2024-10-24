@@ -315,13 +315,11 @@ public class Netty4HttpClient implements Closeable {
 
         private final CountDownLatch latch;
         private final Collection<FullHttpResponse> content;
-        private final boolean secure;
         private Http2SettingsHandler settingsHandler;
 
         CountDownLatchHandlerHttp2(final CountDownLatch latch, final Collection<FullHttpResponse> content, final boolean secure) {
             this.latch = latch;
             this.content = content;
-            this.secure = secure;
         }
 
         @Override
