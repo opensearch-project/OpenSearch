@@ -172,11 +172,10 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             sourceRemoteTranslogRepository = in.readOptionalString();
         }
-        // TODO: change to V_2_18_0 once this is backported into that version
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             renameAliasPattern = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             renameAliasReplacement = in.readOptionalString();
         }
     }
@@ -215,11 +214,10 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalString(sourceRemoteTranslogRepository);
         }
-        // TODO: change to V_2_18_0 once this is backported into that version
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(renameAliasPattern);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(renameAliasReplacement);
         }
     }
