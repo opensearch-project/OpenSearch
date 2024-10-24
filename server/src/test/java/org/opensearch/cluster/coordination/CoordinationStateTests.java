@@ -67,7 +67,6 @@ import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.gateway.remote.ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -962,7 +961,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .previousClusterUUID(randomAlphaOfLength(10))
             .clusterUUIDCommitted(true)
             .build();
-        when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION)).thenReturn(
+        when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID)).thenReturn(
             new RemoteClusterStateManifestInfo(manifest, "path/to/manifest")
         );
 
@@ -975,8 +974,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, remoteStateSettings());
         coordinationState.handlePrePublish(clusterState);
-        Mockito.verify(remoteClusterStateService, Mockito.times(1))
-            .writeFullMetadata(clusterState, previousClusterUUID, MANIFEST_CURRENT_CODEC_VERSION);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID);
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         when(remoteClusterStateService.markLastStateAsCommitted(any(), any(), eq(false))).thenReturn(

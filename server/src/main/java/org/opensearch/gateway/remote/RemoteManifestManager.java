@@ -100,8 +100,7 @@ public class RemoteManifestManager {
         String previousClusterUUID,
         ClusterStateDiffManifest clusterDiffManifest,
         ClusterStateChecksum clusterStateChecksum,
-        boolean committed,
-        int codecVersion
+        boolean committed
     ) {
         synchronized (this) {
             ClusterMetadataManifest.Builder manifestBuilder = ClusterMetadataManifest.builder();
@@ -112,7 +111,7 @@ public class RemoteManifestManager {
                 .opensearchVersion(Version.CURRENT)
                 .nodeId(nodeId)
                 .committed(committed)
-                .codecVersion(codecVersion)
+                .codecVersion(ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION)
                 .indices(uploadedMetadataResult.uploadedIndexMetadata)
                 .previousClusterUUID(previousClusterUUID)
                 .clusterUUIDCommitted(clusterState.metadata().clusterUUIDCommitted())

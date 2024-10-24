@@ -753,12 +753,8 @@ public class GatewayMetaState implements Closeable {
             }
             try {
                 final RemoteClusterStateManifestInfo manifestDetails;
-                // Decide the codec version
-                int codecVersion = ClusterMetadataManifest.getCodecForVersion(clusterState.nodes().getMinNodeVersion());
-                assert codecVersion >= 0 : codecVersion;
-                logger.info("codec version is {}", codecVersion);
 
-                if (shouldWriteFullClusterState(clusterState, codecVersion)) {
+                if (shouldWriteFullClusterState(clusterState)) {
                     final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
                         clusterState.getClusterName().value(),
                         clusterState.metadata().clusterUUID()
@@ -775,7 +771,7 @@ public class GatewayMetaState implements Closeable {
                             clusterState.metadata().clusterUUID()
                         );
                     }
-                    manifestDetails = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID, codecVersion);
+                    manifestDetails = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
                 } else {
                     assert verifyManifestAndClusterState(lastAcceptedManifest, lastAcceptedState) == true
                         : "Previous manifest and previous ClusterState are not in sync";
@@ -820,13 +816,11 @@ public class GatewayMetaState implements Closeable {
             return true;
         }
 
-        private boolean shouldWriteFullClusterState(ClusterState clusterState, int codecVersion) {
-            assert lastAcceptedManifest == null || lastAcceptedManifest.getCodecVersion() <= codecVersion;
+        private boolean shouldWriteFullClusterState(ClusterState clusterState) {
             if (lastAcceptedState == null
                 || lastAcceptedManifest == null
                 || (remoteClusterStateService.isRemotePublicationEnabled() == false && lastAcceptedState.term() != clusterState.term())
-                || lastAcceptedManifest.getOpensearchVersion() != Version.CURRENT
-                || lastAcceptedManifest.getCodecVersion() != codecVersion) {
+                || lastAcceptedManifest.getOpensearchVersion() != Version.CURRENT) {
                 return true;
             }
             return false;
