@@ -65,6 +65,13 @@ dependencies {
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+
+  // TODO: ${versions.grpc}
+  api 'io.grpc:grpc-netty:1.61.0'
+  api 'io.grpc:grpc-api:1.61.0'
+  api 'io.grpc:grpc-protobuf:1.61.0'
+  api 'io.grpc:grpc-stub:1.61.0'
+  api 'io.grpc:grpc-core:1.61.0'
 }
 
 restResources {
