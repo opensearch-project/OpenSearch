@@ -153,3 +153,20 @@ done
 opensearch-certutil ca --pem --out ${PWD}/ca1-b.zip --days 9999 --ca-dn "CN=Test CA 1"
 unzip ca1-b.zip
 mv ca ca1-b
+
+# 16. Create empty KeyStore
+
+```bash
+keytool -genkeypair \
+        -alias temp \
+        -storetype JKS \
+        -keyalg rsa \
+        -storepass storePassword \
+        -keypass secretPassword \
+        -keystore cert-all/empty.jks \
+        -dname "CN=foo,DC=example,DC=com"
+keytool -delete \
+        -alias temp \
+        -storepass storePassword \
+        -keystore cert-all/empty.jks
+```

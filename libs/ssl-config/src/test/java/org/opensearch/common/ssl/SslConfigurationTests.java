@@ -42,10 +42,12 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import org.mockito.Mockito;
 
 import static org.opensearch.common.ssl.SslConfigurationLoader.DEFAULT_CIPHERS;
+import static org.opensearch.common.ssl.SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -202,6 +204,30 @@ public class SslConfigurationTests extends OpenSearchTestCase {
         Mockito.verify(trustConfig).createTrustManager();
         Mockito.verify(keyConfig).createKeyManager();
         Mockito.verifyNoMoreInteractions(trustConfig, keyConfig);
+    }
+
+    public void testNotSupportedProtocolsInFipsJvm() {
+        assumeTrue("Test in FIPS JVM", inFipsJvm());
+        final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
+        final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
+        final String protocol = randomFrom(List.of("TLSv1.1", "TLSv1", "SSLv3", "SSLv2Hello", "SSLv2"));
+        final SslConfiguration configuration = new SslConfiguration(
+            trustConfig,
+            keyConfig,
+            randomFrom(SslVerificationMode.values()),
+            randomFrom(SslClientAuthenticationMode.values()),
+            DEFAULT_CIPHERS,
+            Collections.singletonList(protocol)
+        );
+
+        Mockito.when(trustConfig.createTrustManager()).thenReturn(null);
+        Mockito.when(keyConfig.createKeyManager()).thenReturn(null);
+        var message = String.format(
+            Locale.ROOT,
+            "in FIPS mode only the following SSL/TLS protocols are allowed: [%s]",
+            FIPS_APPROVED_PROTOCOLS
+        );
+        assertThrows(message, SslConfigException.class, configuration::createSslContext);
     }
 
 }

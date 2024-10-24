@@ -164,9 +164,10 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.systemProperty("tests.seed", BuildParams.getTestSeed());
             }
 
+            var securityFile = BuildParams.isInFipsJvm() ? "fips_java.security" : "java.security";
             test.systemProperty(
                 "java.security.properties",
-                project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/fips_java.security"
+                project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/" + securityFile
             );
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability

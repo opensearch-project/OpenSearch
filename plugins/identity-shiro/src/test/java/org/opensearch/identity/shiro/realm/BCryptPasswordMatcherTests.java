@@ -41,4 +41,29 @@ public class BCryptPasswordMatcherTests extends OpenSearchTestCase {
 
         assertThat(result, equalTo(false));
     }
+
+    public void testEmptyPassword() {
+        final UsernamePasswordToken token = mock(UsernamePasswordToken.class);
+        when(token.getPassword()).thenReturn("".toCharArray());
+        final AuthenticationInfo info = mock(AuthenticationInfo.class);
+
+        assertThrows(
+            "Password cannot be empty or null",
+            IllegalStateException.class,
+            () -> new BCryptPasswordMatcher().doCredentialsMatch(token, info)
+        );
+    }
+
+    public void testEmptyHash() {
+        final UsernamePasswordToken token = mock(UsernamePasswordToken.class);
+        when(token.getPassword()).thenReturn("HashedPassword".toCharArray());
+        final AuthenticationInfo info = mock(AuthenticationInfo.class);
+        when(info.getCredentials()).thenReturn("");
+
+        assertThrows(
+            "Hash cannot be empty or null",
+            IllegalStateException.class,
+            () -> new BCryptPasswordMatcher().doCredentialsMatch(token, info)
+        );
+    }
 }

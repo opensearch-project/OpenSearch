@@ -59,6 +59,10 @@ public class PemUtilsTests extends OpenSearchTestCase {
     private static final Supplier<char[]> TESTNODE_PASSWORD = "testnode"::toCharArray;
     private static final Supplier<char[]> STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="::toCharArray; // has to be at least 112 bit long.
 
+    public void testInstantiateWithDefaultConstructor() {
+        assertThrows("Utility class should not be instantiated", IllegalStateException.class, PemUtils::new);
+    }
+
     public void testReadPKCS8RsaKey() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         Key key = getKeyFromKeystore("RSA", KeyStoreType.JKS);
