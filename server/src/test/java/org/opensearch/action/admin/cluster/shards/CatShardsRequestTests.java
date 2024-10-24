@@ -95,7 +95,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
         catShardsRequest.setCancelAfterTimeInterval(TimeValue.timeValueMillis(randomIntBetween(1, 5)));
         catShardsRequest.setIndices(new String[2]);
 
-        Version version = VersionUtils.getPreviousVersion(Version.CURRENT);
+        Version version = VersionUtils.getPreviousVersion(Version.V_2_18_0);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             catShardsRequest.writeTo(out);
