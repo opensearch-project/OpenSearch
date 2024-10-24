@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -47,6 +48,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpServerChannel;
+import org.opensearch.http.nio.ssl.SslUtils;
 import org.opensearch.nio.BytesChannelContext;
 import org.opensearch.nio.ChannelFactory;
 import org.opensearch.nio.Config;
@@ -56,10 +58,14 @@ import org.opensearch.nio.NioSelector;
 import org.opensearch.nio.NioSocketChannel;
 import org.opensearch.nio.ServerChannelContext;
 import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nio.NioGroupFactory;
 import org.opensearch.transport.nio.PageAllocator;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -97,6 +103,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     private volatile NioGroup nioGroup;
     private ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory;
+    private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
 
     public NioHttpServerTransport(
         Settings settings,
@@ -108,6 +115,34 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         Dispatcher dispatcher,
         NioGroupFactory nioGroupFactory,
         ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        this(
+            settings,
+            networkService,
+            bigArrays,
+            pageCacheRecycler,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            nioGroupFactory,
+            clusterSettings,
+            null,
+            tracer
+        );
+    }
+
+    public NioHttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        NioGroupFactory nioGroupFactory,
+        ClusterSettings clusterSettings,
+        @Nullable SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
         Tracer tracer
     ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracer);
@@ -127,6 +162,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         this.reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
         this.tcpSendBufferSize = Math.toIntExact(SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings).getBytes());
         this.tcpReceiveBufferSize = Math.toIntExact(SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
+        this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
 
         logger.debug(
             "using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}],"
@@ -178,8 +214,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         return httpServerChannel;
     }
 
-    protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
-        return new HttpChannelFactory();
+    protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() throws SSLException {
+        return new HttpChannelFactory(secureHttpTransportSettingsProvider);
     }
 
     protected void acceptChannel(NioSocketChannel socketChannel) {
@@ -187,8 +223,9 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     }
 
     private class HttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
+        private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
 
-        private HttpChannelFactory() {
+        private HttpChannelFactory(@Nullable SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider) {
             super(
                 tcpNoDelay,
                 tcpKeepAlive,
@@ -199,17 +236,25 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 tcpSendBufferSize,
                 tcpReceiveBufferSize
             );
+            this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
         }
 
         @Override
-        public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
+        public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
+            SSLEngine engine = null;
+            if (secureHttpTransportSettingsProvider != null) {
+                engine = secureHttpTransportSettingsProvider.buildSecureHttpServerEngine(settings, NioHttpServerTransport.this)
+                    .orElseGet(SslUtils::createDefaultServerSSLEngine);
+            }
+
             NioHttpChannel httpChannel = new NioHttpChannel(channel);
             HttpReadWriteHandler handler = new HttpReadWriteHandler(
                 httpChannel,
                 NioHttpServerTransport.this,
                 handlingSettings,
                 selector.getTaskScheduler(),
-                threadPool::relativeTimeInMillis
+                threadPool::relativeTimeInMillis,
+                engine
             );
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
             SocketChannelContext context = new BytesChannelContext(
@@ -244,6 +289,5 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             httpServerChannel.setContext(context);
             return httpServerChannel;
         }
-
     }
 }
