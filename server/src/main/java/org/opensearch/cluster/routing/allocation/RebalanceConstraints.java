@@ -42,8 +42,8 @@ public class RebalanceConstraints {
         this.constraints.get(constraint).setEnable(enable);
     }
 
-    public long weight(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
-        Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index);
+    public long weight(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index, long primaryConstraintThreshold) {
+        Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index, primaryConstraintThreshold);
         return params.weight(constraints);
     }
 }
