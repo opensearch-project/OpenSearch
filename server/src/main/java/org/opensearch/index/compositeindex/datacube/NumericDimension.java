@@ -52,6 +52,11 @@ public class NumericDimension implements Dimension {
     }
 
     @Override
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_NUMERIC;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(CompositeDataCubeFieldType.NAME, field);
@@ -71,10 +76,5 @@ public class NumericDimension implements Dimension {
     @Override
     public int hashCode() {
         return Objects.hash(field);
-    }
-
-    @Override
-    public DocValuesType getDocValuesType() {
-        return DocValuesType.SORTED_NUMERIC;
     }
 }

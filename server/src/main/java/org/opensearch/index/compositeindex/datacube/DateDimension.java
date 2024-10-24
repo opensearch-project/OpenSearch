@@ -100,6 +100,11 @@ public class DateDimension implements Dimension {
     }
 
     @Override
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_NUMERIC;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("date_dimension");
         builder.field(CompositeDataCubeFieldType.NAME, this.getField());
@@ -169,9 +174,5 @@ public class DateDimension implements Dimension {
      */
     public static List<DateTimeUnitRounding> getSortedDateTimeUnits(List<DateTimeUnitRounding> dateTimeUnits) {
         return dateTimeUnits.stream().sorted(new DateTimeUnitComparator()).collect(Collectors.toList());
-    }
-
-    public DocValuesType getDocValuesType() {
-        return DocValuesType.SORTED_NUMERIC;
     }
 }

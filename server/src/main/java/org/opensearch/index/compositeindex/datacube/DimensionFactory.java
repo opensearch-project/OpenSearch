@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.compositeindex.datacube.DateDimension.CALENDAR_INTERVALS;
+import static org.opensearch.index.compositeindex.datacube.KeywordDimension.KEYWORD;
 
 /**
  * Dimension factory class mainly used to parse and create dimension from the mappings
@@ -43,6 +44,8 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NumericDimension.NUMERIC:
                 return new NumericDimension(name);
+            case KEYWORD:
+                return new KeywordDimension(name);
             default:
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "unsupported field type associated with dimension [%s] as part of star tree field", name)
@@ -56,16 +59,23 @@ public class DimensionFactory {
         Map<String, Object> dimensionMap,
         Mapper.TypeParser.ParserContext c
     ) {
-        if (builder.getSupportedDataCubeDimensionType().isPresent()
-            && builder.getSupportedDataCubeDimensionType().get().equals(DimensionType.DATE)) {
-            return parseAndCreateDateDimension(name, dimensionMap, c);
-        } else if (builder.getSupportedDataCubeDimensionType().isPresent()
-            && builder.getSupportedDataCubeDimensionType().get().equals(DimensionType.NUMERIC)) {
+        if (builder.getSupportedDataCubeDimensionType().isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
+            );
+        }
+        switch (builder.getSupportedDataCubeDimensionType().get()) {
+            case DATE:
+                return parseAndCreateDateDimension(name, dimensionMap, c);
+            case NUMERIC:
                 return new NumericDimension(name);
-            }
-        throw new IllegalArgumentException(
-            String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
-        );
+            case KEYWORD:
+                return new KeywordDimension(name);
+            default:
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
+                );
+        }
     }
 
     private static DateDimension parseAndCreateDateDimension(

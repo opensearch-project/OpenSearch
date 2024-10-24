@@ -47,7 +47,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests.topMapping;
+import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
 public class StarTreeFilterTests extends AggregatorTestCase {
 
