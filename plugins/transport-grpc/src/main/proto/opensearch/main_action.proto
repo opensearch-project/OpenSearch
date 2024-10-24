@@ -1,0 +1,30 @@
+syntax = "proto3";
+package org.opensearch.proto.grpc;
+
+message MainRequest {
+
+}
+
+message MainResponse {
+  string name = 1;
+  string cluster_name = 2;
+  string cluster_uuid = 3;
+  Version version = 4;
+  string tagline = 5;
+
+  message Version {
+    string distribution = 1;
+    string number = 2;
+    string build_type = 3;
+    string build_hash = 4;
+    string build_date = 5;
+    string build_snapshot = 6;
+    string lucene_version = 7;
+    string minimum_wire_compatibility_version = 8;
+    string minimum_index_compatibility_version = 9;
+  }
+}
+
+service MainActionService {
+  rpc Get(MainRequest) returns (MainResponse) {}
+}
