@@ -270,6 +270,15 @@ public class TranslogTransferManager {
     }
 
     /**
+     * markFileAsDownloaded marks a file as already downloaded in the file transfer tracker.
+     * This is needed because we want to ensure that even if the file is skipped from being downloaded,
+     * TranslogTransferManager knows about it and does not re-upload the same to remote store.
+     * */
+    public void markFileAsDownloaded(String filename) {
+        fileTransferTracker.add(filename, true);
+    }
+
+    /**
      * Process the provided metadata and tries to recover translog.ckp file to the FS.
      */
     private void recoverCkpFileUsingMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
@@ -293,8 +302,8 @@ public class TranslogTransferManager {
 
     private Map<String, String> downloadToFS(String fileName, Path location, String primaryTerm, boolean withMetadata) throws IOException {
         Path filePath = location.resolve(fileName);
-        // Here, we always override the existing file if present.
-        // We need to change this logic when we introduce incremental download
+        // downloadToFS method will be called only when we want to download the file.
+        // Therefore, we delete the file if it exists.
         deleteFileIfExists(filePath);
 
         Map<String, String> metadata = null;
@@ -451,8 +460,23 @@ public class TranslogTransferManager {
                     snapshot -> String.valueOf(snapshot.getPrimaryTerm())
                 )
             );
+
+        // generationChecksumMap is the mapping between the generation and the checksum of associated translog file.
+        Map<String, String> generationChecksumMap = transferSnapshot.getTranslogFileSnapshots().stream().map(s -> {
+            assert s instanceof TranslogFileSnapshot;
+            return (TranslogFileSnapshot) s;
+        })
+            .filter(snapshot -> snapshot.getTranslogContentChecksum() != null)
+            .collect(
+                Collectors.toMap(
+                    snapshot -> String.valueOf(snapshot.getGeneration()),
+                    snapshot -> String.valueOf(snapshot.getTranslogContentChecksum())
+                )
+            );
+
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
+        translogTransferMetadata.setGenerationToChecksumMapper(new HashMap<>(generationChecksumMap));
 
         return new TransferFileSnapshot(
             translogTransferMetadata.getFileName(),
