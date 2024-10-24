@@ -100,6 +100,14 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
         if (verificationMode == SslVerificationMode.NONE) {
             final SslTrustConfig trustConfig = configuration.getTrustConfig();
             assertThat(trustConfig, instanceOf(TrustEverythingConfig.class));
+
+            if (inFipsJvm()) {
+                assertThrows(
+                    "The use of TrustEverythingConfig is not permitted in FIPS mode. This issue may be caused by the 'ssl.verification_mode=NONE' setting.",
+                    IllegalStateException.class,
+                    trustConfig::createTrustManager
+                );
+            }
         }
     }
 

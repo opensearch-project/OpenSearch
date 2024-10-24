@@ -21,15 +21,13 @@ public enum KeyStoreType {
     JKS("JKS"),
     PKCS_12("PKCS12"),
     PKCS_11("PKCS11"),
-    BKS("BKS"),
     BCFKS("BCFKS");
 
-    private static final Map<KeyStoreType, List<String>> TYPE_TO_EXTENSION_MAP = new HashMap<>();
+    static final Map<KeyStoreType, List<String>> TYPE_TO_EXTENSION_MAP = new HashMap<>();
 
     static {
         TYPE_TO_EXTENSION_MAP.put(JKS, List.of(".jks", ".ks"));
         TYPE_TO_EXTENSION_MAP.put(PKCS_12, List.of(".p12", ".pkcs12", ".pfx"));
-        TYPE_TO_EXTENSION_MAP.put(BKS, List.of(".bks")); // Bouncy Castle Keystore
         TYPE_TO_EXTENSION_MAP.put(BCFKS, List.of(".bcfks")); // Bouncy Castle FIPS Keystore
     }
 

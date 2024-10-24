@@ -138,14 +138,14 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         logger.info("failure", exception);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
-        assertThat(exception.getMessage(), Matchers.containsString("failed to parse any certificates"));
+        assertThat(exception.getMessage(), Matchers.containsString("Failed to parse any certificate from"));
     }
 
     private void assertFailedToParse(PemTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         logger.info("failure", exception);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
-        assertThat(exception.getMessage(), Matchers.containsString("failed to parse any certificates"));
+        assertThat(exception.getMessage(), Matchers.containsString("Failed to parse any certificate from"));
     }
 
     private void assertFileNotFound(PemTrustConfig trustConfig, Path file) {

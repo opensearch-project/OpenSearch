@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -69,6 +70,17 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
     private static final String MOCK_FINGERPRINT_3 = "da8e062d74919f549a9764c24ab0fcde3af3719f";
     private static final byte[] MOCK_ENCODING_4 = { 0x64, 0x65, 0x66, 0x67, 0x68, 0x69 };
     private static final String MOCK_FINGERPRINT_4 = "5d96965bfae50bf2be0d6259eb87a6cc9f5d0b26";
+
+    public void testTrustEmptyStore() {
+        var fileName = "cert-all/empty.jks";
+        var exception = assertThrows(SslConfigException.class, () -> loadCertificate(fileName));
+        assertThat(
+            exception.getMessage(),
+            Matchers.equalTo(
+                String.format(Locale.ROOT, "Failed to parse any certificate from [%s]", getDataPath("/certs/" + fileName).toAbsolutePath())
+            )
+        );
+    }
 
     public void testDiagnosticMessageWhenServerProvidesAFullCertChainThatIsTrusted() throws Exception {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt", "ca1/ca.crt");
