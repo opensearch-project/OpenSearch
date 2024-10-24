@@ -50,7 +50,7 @@ import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
 
 /**
  * A {@link SingleDimensionValuesSource} for global ordinals.
@@ -176,7 +176,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     long ord;
-                    while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                    while ((ord = dvs.nextOrd()) != NO_MORE_DOCS) {
                         currentValue = ord;
                         next.collect(doc, bucket);
                     }
@@ -206,7 +206,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 if (currentValueIsSet == false) {
                     if (dvs.advanceExact(doc)) {
                         long ord;
-                        while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                        while ((ord = dvs.nextOrd()) != NO_MORE_DOCS) {
                             if (term.equals(lookup.lookupOrd(ord))) {
                                 currentValueIsSet = true;
                                 currentValue = ord;

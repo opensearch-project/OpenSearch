@@ -32,6 +32,7 @@
 
 package org.opensearch.index.get;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
@@ -323,6 +324,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                 false,
                                 IndexOptions.NONE,
                                 DocValuesType.NONE,
+                                DocValuesSkipIndexType.NONE,
                                 -1,
                                 Collections.emptyMap(),
                                 0,

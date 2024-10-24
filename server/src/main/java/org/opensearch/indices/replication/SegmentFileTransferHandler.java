@@ -110,7 +110,7 @@ public final class SegmentFileTransferHandler {
                 // Segments* files require IOContext.READONCE
                 // https://github.com/apache/lucene/blob/b2d3a2b37e00f19a74949097736be8fd64745f61/lucene/test-framework/src/java/org/apache/lucene/tests/store/MockDirectoryWrapper.java#L817
                 if (md.name().startsWith(IndexFileNames.SEGMENTS) == false) {
-                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READ);
+                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.DEFAULT);
                     currentInput = new InputStreamIndexInput(indexInput, md.length()) {
                         @Override
                         public void close() throws IOException {
