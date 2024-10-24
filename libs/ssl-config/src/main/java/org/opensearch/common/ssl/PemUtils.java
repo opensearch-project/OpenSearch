@@ -62,7 +62,7 @@ final class PemUtils {
 
     private static final String BCFIPS = "BCFIPS";
 
-    private PemUtils() {
+    PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
 
@@ -87,7 +87,7 @@ final class PemUtils {
             try (InputStream input = Files.newInputStream(path)) {
                 final Collection<? extends Certificate> parsed = certFactory.generateCertificates(input);
                 if (parsed.isEmpty()) {
-                    throw new SslConfigException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
+                    throw new SslConfigException("Failed to parse any certificate from [" + path.toAbsolutePath() + "]");
                 }
                 certificates.addAll(parsed);
             }

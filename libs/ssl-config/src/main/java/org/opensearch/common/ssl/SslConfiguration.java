@@ -164,9 +164,6 @@ public class SslConfiguration {
      * {@link #getSupportedProtocols() configured protocols}.
      */
     private String contextProtocol() {
-        if (supportedProtocols.isEmpty()) {
-            throw new SslConfigException("no SSL/TLS protocols have been configured");
-        }
         if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
             if (!new HashSet<>(SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS).containsAll(supportedProtocols)) {
                 throw new SslConfigException(

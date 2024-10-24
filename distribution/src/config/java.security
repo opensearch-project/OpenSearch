@@ -1,7 +1,7 @@
-# Security Properties for JDK 11 and higher, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in approved-only mode
+# Security Properties for JDK 11 and higher, with BouncyCastle FIPS provider and BouncyCastleJSSEProvider in non-approved mode
 
-security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};
-security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
+security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
 security.provider.3=SUN
 security.provider.4=SunJGSS
 
@@ -29,9 +29,9 @@ ssl.TrustManagerFactory.algorithm=PKIX
 networkaddress.cache.negative.ttl=10
 krb5.kdc.bad.policy = tryLast
 
-jdk.certpath.disabledAlgorithms=MD2, MD5, SHA1, jdkCA&usageTLSServer, RSA keySize < 2048, DSA keySize < 2048, EC keySize < 224
-jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 2048, DSA keySize < 2048
-jdk.tls.disabledAlgorithms=SSLv3, TLSv1, TLSv1.1, RC4, MD5withRSA, DH keySize < 2048, EC keySize < 224, DES40_CBC, RC4_40, 3DES_EDE_CBC
+jdk.certpath.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, DSA keySize < 1024
+jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, DSA keySize < 1024
+jdk.tls.disabledAlgorithms=SSLv3, RC4, MD5withRSA, DH keySize < 1024, DES40_CBC, RC4_40
 jdk.tls.legacyAlgorithms= \
         K_NULL, C_NULL, M_NULL, \
         DH_anon, ECDH_anon, \
@@ -42,7 +42,6 @@ jdk.tls.keyLimits=AES/GCM/NoPadding KeyUpdate 2^37
 crypto.policy=unlimited
 
 jdk.xml.dsig.secureValidationPolicy=\
-    disallowAlg http://www.w3.org/TR/1999/REC-xslt-19991116,\
     disallowAlg http://www.w3.org/2001/04/xmldsig-more#rsa-md5,\
     disallowAlg http://www.w3.org/2001/04/xmldsig-more#hmac-md5,\
     disallowAlg http://www.w3.org/2001/04/xmldsig-more#md5,\

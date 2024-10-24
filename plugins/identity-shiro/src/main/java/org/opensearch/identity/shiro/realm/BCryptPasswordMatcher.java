@@ -38,7 +38,6 @@ public class BCryptPasswordMatcher implements CredentialsMatcher {
     public boolean doCredentialsMatch(AuthenticationToken token, AuthenticationInfo info) {
         final UsernamePasswordToken userToken = (UsernamePasswordToken) token;
         return check(userToken.getPassword(), (String) info.getCredentials());
-
     }
 
     private boolean check(char[] password, String hash) {
