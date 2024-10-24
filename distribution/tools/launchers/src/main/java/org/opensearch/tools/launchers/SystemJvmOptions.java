@@ -32,6 +32,7 @@
 
 package org.opensearch.tools.launchers;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -39,7 +40,10 @@ import java.util.stream.Collectors;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions() {
+    protected static final String OPENSEARCH_CRYPTO_STANDARD = "OPENSEARCH_CRYPTO_STANDARD";
+    protected static final String FIPS_140_2 = "FIPS-140-2";
+
+    static List<String> systemJvmOptions(final Path config) {
         return Collections.unmodifiableList(
             Arrays.asList(
                 /*
@@ -77,11 +81,32 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
-                // security manager
+                // security settings
+                enableFips(),
                 allowSecurityManagerOption(),
+                loadJavaSecurityProperties(config),
                 javaLocaleProviders()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+    }
+
+    private static String enableFips() {
+        var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
+        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_2)) {
+            return "-Dorg.bouncycastle.fips.approved_only=true";
+        }
+        return "";
+    }
+
+    private static String loadJavaSecurityProperties(final Path config) {
+        String securityFile;
+        var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
+        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_2)) {
+            securityFile = "fips_java.security";
+        } else {
+            securityFile = "java.security";
+        }
+        return "-Djava.security.properties=" + config.resolve(securityFile).toAbsolutePath();
     }
 
     private static String allowSecurityManagerOption() {
