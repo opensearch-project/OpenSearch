@@ -333,10 +333,6 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
             latch.countDown();
         }
 
-        public CountDownLatch getLatch() {
-            return latch;
-        }
-
         public Exception getException() {
             return exception;
         }

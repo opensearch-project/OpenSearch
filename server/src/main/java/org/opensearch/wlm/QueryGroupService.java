@@ -216,14 +216,24 @@ public class QueryGroupService extends AbstractLifecycleComponent
             }
         }
         if (existingStateMap != null) {
-            existingStateMap.forEach((queryGroupId, currentState) -> {
+            for (Map.Entry<String, QueryGroupState> entry : existingStateMap.entrySet()) {
+                String queryGroupId = entry.getKey();
+                QueryGroupState currentState = entry.getValue();
                 boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
                 if (shouldInclude) {
                     if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
                         statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
                     }
                 }
-            });
+            }
+            // existingStateMap.forEach((queryGroupId, currentState) -> {
+            // boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
+            // if (shouldInclude) {
+            // if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
+            // statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+            // }
+            // }
+            // });
         }
         return new QueryGroupStats(statsHolderMap);
     }
