@@ -99,7 +99,7 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             roles,
             Version.CURRENT
         );
-        assertFalse(node.toString().contains(RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
+        assertFalse(node.toString().contains(RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.get(0)));
     }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {
