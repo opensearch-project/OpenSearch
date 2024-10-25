@@ -33,6 +33,7 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.AggregationPath;
@@ -215,19 +216,11 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx);
+        MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx, bucketOrds, this, sub);
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                for (BytesRef compositeKey : collector.apply(doc)) {
-                    long bucketOrd = bucketOrds.add(owningBucketOrd, compositeKey);
-                    if (bucketOrd < 0) {
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(sub, doc, bucketOrd);
-                    } else {
-                        collectBucket(sub, doc, bucketOrd);
-                    }
-                }
+                collector.apply(doc, owningBucketOrd);
             }
         };
     }
@@ -268,12 +261,10 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         }
         // we need to fill-in the blanks
         for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
-            MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx);
             // brute force
+            MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx, bucketOrds, null, null);
             for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                for (BytesRef compositeKey : collector.apply(docId)) {
-                    bucketOrds.add(owningBucketOrd, compositeKey);
-                }
+                collector.apply(docId, owningBucketOrd);
             }
         }
     }
@@ -284,10 +275,11 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
     @FunctionalInterface
     interface MultiTermsValuesSourceCollector {
         /**
-         * Collect a list values of multi_terms on each doc.
-         * Each terms could have multi_values, so the result is the cartesian product of each term's values.
+         * Generates the cartesian product of all fields used in aggregation and
+         * collects them in buckets using the composite key of their field values.
          */
-        List<BytesRef> apply(int doc) throws IOException;
+        void apply(int doc, long owningBucketOrd) throws IOException;
+
     }
 
     @FunctionalInterface
@@ -361,47 +353,72 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             this.valuesSources = valuesSources;
         }
 
-        public MultiTermsValuesSourceCollector getValues(LeafReaderContext ctx) throws IOException {
+        public MultiTermsValuesSourceCollector getValues(
+            LeafReaderContext ctx,
+            BytesKeyedBucketOrds bucketOrds,
+            BucketsAggregator aggregator,
+            LeafBucketCollector sub
+        ) throws IOException {
             List<InternalValuesSourceCollector> collectors = new ArrayList<>();
             for (InternalValuesSource valuesSource : valuesSources) {
                 collectors.add(valuesSource.apply(ctx));
             }
+            boolean collectBucketOrds = aggregator != null && sub != null;
             return new MultiTermsValuesSourceCollector() {
+
+                /**
+                 * This method does the following : <br>
+                 * <li>Fetches the values of every field present in the doc List<List<TermValue<?>>> via @{@link InternalValuesSourceCollector}</li>
+                 * <li>Generates Composite keys from the fetched values for all fields present in the aggregation.</li>
+                 * <li>Adds every composite key to the @{@link BytesKeyedBucketOrds} and Optionally collects them via @{@link BucketsAggregator#collectBucket(LeafBucketCollector, int, long)}</li>
+                 */
                 @Override
-                public List<BytesRef> apply(int doc) throws IOException {
+                public void apply(int doc, long owningBucketOrd) throws IOException {
+                    // TODO A new list creation can be avoided for every doc.
                     List<List<TermValue<?>>> collectedValues = new ArrayList<>();
                     for (InternalValuesSourceCollector collector : collectors) {
                         collectedValues.add(collector.apply(doc));
                     }
-                    List<BytesRef> result = new ArrayList<>();
                     scratch.seek(0);
                     scratch.writeVInt(collectors.size()); // number of fields per composite key
-                    cartesianProduct(result, scratch, collectedValues, 0);
-                    return result;
+                    generateAndCollectCompositeKeys(collectedValues, 0, owningBucketOrd, doc);
                 }
 
                 /**
-                 * Cartesian product using depth first search.
-                 *
-                 * <p>
-                 * Composite keys are encoded to a {@link BytesRef} in a format compatible with {@link StreamOutput::writeGenericValue},
-                 * but reuses the encoding of the shared prefixes from the previous levels to avoid wasteful work.
+                 * This generates and collects all Composite keys in their buckets by performing a cartesian product <br>
+                 * of all the values in all the fields ( used in agg ) for the given doc recursively.
+                 * @param collectedValues : Values of all fields present in the aggregation for the @doc
+                 * @param index : Points to the field being added to generate the composite key
                  */
-                private void cartesianProduct(
-                    List<BytesRef> compositeKeys,
-                    BytesStreamOutput scratch,
+                private void generateAndCollectCompositeKeys(
                     List<List<TermValue<?>>> collectedValues,
-                    int index
+                    int index,
+                    long owningBucketOrd,
+                    int doc
                 ) throws IOException {
                     if (collectedValues.size() == index) {
-                        compositeKeys.add(BytesRef.deepCopyOf(scratch.bytes().toBytesRef()));
+                        // Avoid performing a deep copy of the composite key by inlining.
+                        long bucketOrd = bucketOrds.add(owningBucketOrd, scratch.bytes().toBytesRef());
+                        if (collectBucketOrds) {
+                            if (bucketOrd < 0) {
+                                bucketOrd = -1 - bucketOrd;
+                                aggregator.collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                aggregator.collectBucket(sub, doc, bucketOrd);
+                            }
+                        }
                         return;
                     }
 
                     long position = scratch.position();
-                    for (TermValue<?> value : collectedValues.get(index)) {
+                    List<TermValue<?>> values = collectedValues.get(index);
+                    int numIterations = values.size();
+                    // For each loop is not done to reduce the allocations done for Iterator objects
+                    // once for every field in every doc.
+                    for (int i = 0; i < numIterations; i++) {
+                        TermValue<?> value = values.get(i);
                         value.writeTo(scratch); // encode the value
-                        cartesianProduct(compositeKeys, scratch, collectedValues, index + 1); // dfs
+                        generateAndCollectCompositeKeys(collectedValues, index + 1, owningBucketOrd, doc); // dfs
                         scratch.seek(position); // backtrack
                     }
                 }
@@ -441,9 +458,14 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                         if (i > 0 && bytes.equals(previous)) {
                             continue;
                         }
-                        BytesRef copy = BytesRef.deepCopyOf(bytes);
-                        termValues.add(TermValue.of(copy));
-                        previous = copy;
+                        // Performing a deep copy is not required for field containing only one value.
+                        if (valuesCount > 1) {
+                            BytesRef copy = BytesRef.deepCopyOf(bytes);
+                            termValues.add(TermValue.of(copy));
+                            previous = copy;
+                        } else {
+                            termValues.add(TermValue.of(bytes));
+                        }
                     }
                     return termValues;
                 };

@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -78,6 +79,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -381,7 +383,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 );
                 if (request.partial() == false) {
                     Set<String> missing = new HashSet<>();
-                    for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards.entrySet()) {
+                    for (final Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                         if (entry.getValue().state() == ShardState.MISSING) {
                             missing.add(entry.getKey().getIndex().getName());
                         }
@@ -465,34 +467,35 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot creation listener
      */
     public void createSnapshotV2(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        long pinnedTimestamp = System.currentTimeMillis();
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
+        validate(repositoryName, snapshotName);
+
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        long pinnedTimestamp = System.currentTimeMillis();
+        try {
+            updateSnapshotPinnedTimestamp(snapshot, pinnedTimestamp);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         Repository repository = repositoriesService.repository(repositoryName);
-        validate(repositoryName, snapshotName);
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
-
-            private SnapshotId snapshotId;
-
-            private Snapshot snapshot;
-
             boolean enteredLoop;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // move to in progress
-                snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
                 Repository repository = repositoriesService.repository(repositoryName);
-
                 if (repository.isReadOnly()) {
                     listener.onFailure(
                         new RepositoryException(repository.getMetadata().name(), "cannot create snapshot-v2 in a readonly repository")
                     );
                 }
 
-                snapshot = new Snapshot(repositoryName, snapshotId);
                 final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
 
                 createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
@@ -592,55 +595,44 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     pinnedTimestamp
                 );
                 final Version version = minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null);
-                final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                pinnedTimestampListener.whenComplete(repoData -> {
-                    repository.finalizeSnapshot(
-                        shardGenerations,
-                        repositoryData.getGenId(),
-                        metadataForSnapshot(newState.metadata(), request.includeGlobalState(), false, dataStreams, newEntry.indices()),
-                        snapshotInfo,
-                        version,
-                        state -> stateWithoutSnapshot(state, snapshot),
-                        Priority.IMMEDIATE,
-                        new ActionListener<RepositoryData>() {
-                            @Override
-                            public void onResponse(RepositoryData repositoryData) {
+                repository.finalizeSnapshot(
+                    shardGenerations,
+                    repositoryData.getGenId(),
+                    metadataForSnapshot(newState.metadata(), request.includeGlobalState(), false, dataStreams, newEntry.indices()),
+                    snapshotInfo,
+                    version,
+                    state -> stateWithoutSnapshot(state, snapshot),
+                    Priority.IMMEDIATE,
+                    new ActionListener<RepositoryData>() {
+                        @Override
+                        public void onResponse(RepositoryData repositoryData) {
+                            if (clusterService.state().nodes().isLocalNodeElectedClusterManager() == false) {
                                 leaveRepoLoop(repositoryName);
-                                if (clusterService.state().nodes().isLocalNodeElectedClusterManager() == false) {
-                                    failSnapshotCompletionListeners(
-                                        snapshot,
-                                        new SnapshotException(snapshot, "Aborting snapshot-v2, no longer cluster manager")
-                                    );
-                                    listener.onFailure(
-                                        new SnapshotException(
-                                            repositoryName,
-                                            snapshotName,
-                                            "Aborting snapshot-v2, no longer cluster manager"
-                                        )
-                                    );
-                                    return;
-                                }
-                                listener.onResponse(snapshotInfo);
+                                failSnapshotCompletionListeners(
+                                    snapshot,
+                                    new SnapshotException(snapshot, "Aborting snapshot-v2, no longer cluster manager")
+                                );
+                                listener.onFailure(
+                                    new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2, no longer cluster manager")
+                                );
+                                return;
                             }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("Failed to finalize snapshot repo {} for snapshot-v2 {} ", repositoryName, snapshotName);
-                                leaveRepoLoop(repositoryName);
-                                // cleaning up in progress snapshot here
-                                stateWithoutSnapshotV2(newState);
-                                listener.onFailure(e);
-                            }
+                            cleanOrphanTimestamp(repositoryName, repositoryData);
+                            logger.info("created snapshot-v2 [{}] in repository [{}]", repositoryName, snapshotName);
+                            leaveRepoLoop(repositoryName);
+                            listener.onResponse(snapshotInfo);
                         }
-                    );
-                }, e -> {
-                    logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} {} ", repositoryName, snapshotName, e);
-                    leaveRepoLoop(repositoryName);
-                    // cleaning up in progress snapshot here
-                    stateWithoutSnapshotV2(newState);
-                    listener.onFailure(e);
-                });
-                updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("Failed to finalize snapshot repo {} for snapshot-v2 {} ", repositoryName, snapshotName);
+                            leaveRepoLoop(repositoryName);
+                            // cleaning up in progress snapshot here
+                            stateWithoutSnapshotV2(newState);
+                            listener.onFailure(e);
+                        }
+                    }
+                );
             }
 
             @Override
@@ -649,6 +641,51 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    private void cleanOrphanTimestamp(String repoName, RepositoryData repositoryData) {
+        Collection<String> snapshotUUIDs = repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+        Map<String, List<Long>> pinnedEntities = RemoteStorePinnedTimestampService.getPinnedEntities();
+
+        List<String> orphanPinnedEntities = pinnedEntities.keySet()
+            .stream()
+            .filter(pinnedEntity -> isOrphanPinnedEntity(repoName, snapshotUUIDs, pinnedEntity))
+            .collect(Collectors.toList());
+
+        if (orphanPinnedEntities.isEmpty()) {
+            return;
+        }
+        logger.info("Found {} orphan timestamps. Cleaning it up now", orphanPinnedEntities.size());
+        deleteOrphanTimestamps(pinnedEntities, orphanPinnedEntities);
+    }
+
+    static boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
+        Tuple<String, String> tokens = getRepoSnapshotUUIDTuple(pinnedEntity);
+        return Objects.equals(tokens.v1(), repoName) && snapshotUUIDs.contains(tokens.v2()) == false;
+    }
+
+    private void deleteOrphanTimestamps(Map<String, List<Long>> pinnedEntities, List<String> orphanPinnedEntities) {
+        final CountDownLatch latch = new CountDownLatch(orphanPinnedEntities.size());
+        for (String pinnedEntity : orphanPinnedEntities) {
+            assert pinnedEntities.get(pinnedEntity).size() == 1 : "Multiple timestamps for same repo-snapshot uuid found";
+            long orphanTimestamp = pinnedEntities.get(pinnedEntity).get(0);
+            remoteStorePinnedTimestampService.unpinTimestamp(
+                orphanTimestamp,
+                pinnedEntity,
+                new LatchedActionListener<>(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception e) {}
+                }, latch)
+            );
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void createSnapshotPreValidations(
@@ -677,34 +714,40 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
     }
 
-    private void updateSnapshotPinnedTimestamp(
-        RepositoryData repositoryData,
-        Snapshot snapshot,
-        long timestampToPin,
-        ActionListener<RepositoryData> listener
-    ) {
+    private void updateSnapshotPinnedTimestamp(Snapshot snapshot, long timestampToPin) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        SetOnce<Exception> ex = new SetOnce<>();
+        ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
+                ex.set(e);
+            }
+        };
         remoteStorePinnedTimestampService.pinTimestamp(
             timestampToPin,
             getPinningEntity(snapshot.getRepository(), snapshot.getSnapshotId().getUUID()),
-            new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    logger.debug("Timestamp pinned successfully for snapshot {}", snapshot.getSnapshotId().getName());
-                    listener.onResponse(repositoryData);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to pin timestamp for snapshot {} with exception {}", snapshot.getSnapshotId().getName(), e);
-                    listener.onFailure(e);
-
-                }
-            }
+            new LatchedActionListener<>(listener, latch)
         );
+        latch.await();
+        if (ex.get() != null) {
+            throw ex.get();
+        }
     }
 
     public static String getPinningEntity(String repositoryName, String snapshotUUID) {
         return repositoryName + SNAPSHOT_PINNED_TIMESTAMP_DELIMITER + snapshotUUID;
+    }
+
+    public static Tuple<String, String> getRepoSnapshotUUIDTuple(String pinningEntity) {
+        String[] tokens = pinningEntity.split(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER);
+        String snapUUID = String.join(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER, Arrays.copyOfRange(tokens, 1, tokens.length));
+        return new Tuple<>(tokens[0], snapUUID);
     }
 
     private void cloneSnapshotPinnedTimestamp(
@@ -835,7 +878,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     ) {
 
         long startTime = System.currentTimeMillis();
-        ClusterState currentState = clusterService.state();
         String snapshotName = snapshot.getSnapshotId().getName();
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
@@ -913,8 +955,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
                 executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
-                final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-
                 snapshotInfoListener.whenComplete(snapshotInfo -> {
                     final SnapshotInfo cloneSnapshotInfo = new SnapshotInfo(
                         snapshot.getSnapshotId(),
@@ -934,17 +974,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         throw new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2 clone, no longer cluster manager");
                     }
                     final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                    pinnedTimestampListener.whenComplete(repoData -> {
+                    final StepListener<Metadata> metadataListener = new StepListener<>();
+                    pinnedTimestampListener.whenComplete(
+                        rData -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
+                            final Metadata.Builder metaBuilder = Metadata.builder(repository.getSnapshotGlobalMetadata(newEntry.source()));
+                            for (IndexId index : newEntry.indices()) {
+                                metaBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, newEntry.source(), index), false);
+                            }
+                            return metaBuilder.build();
+                        })),
+                        e -> {
+                            logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                            stateWithoutSnapshotV2(newState);
+                            leaveRepoLoop(repositoryName);
+                            listener.onFailure(e);
+                        }
+                    );
+                    metadataListener.whenComplete(meta -> {
+                        ShardGenerations shardGenerations = buildGenerationsV2(newEntry, meta);
                         repository.finalizeSnapshot(
                             shardGenerations,
                             repositoryData.getGenId(),
-                            metadataForSnapshot(
-                                currentState.metadata(),
-                                newEntry.includeGlobalState(),
-                                false,
-                                newEntry.dataStreams(),
-                                newEntry.indices()
-                            ),
+                            metadataForSnapshot(meta, newEntry.includeGlobalState(), false, newEntry.dataStreams(), newEntry.indices()),
                             cloneSnapshotInfo,
                             repositoryData.getVersion(sourceSnapshotId),
                             state -> stateWithoutSnapshot(state, snapshot),
@@ -952,8 +1003,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             new ActionListener<RepositoryData>() {
                                 @Override
                                 public void onResponse(RepositoryData repositoryData) {
-                                    leaveRepoLoop(repositoryName);
                                     if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                                        leaveRepoLoop(repositoryName);
                                         failSnapshotCompletionListeners(
                                             snapshot,
                                             new SnapshotException(snapshot, "Aborting Snapshot-v2 clone, no longer cluster manager")
@@ -968,6 +1019,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         return;
                                     }
                                     logger.info("snapshot-v2 clone [{}] completed successfully", snapshot);
+                                    leaveRepoLoop(repositoryName);
                                     listener.onResponse(null);
                                 }
 
@@ -985,7 +1037,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         );
                     }, e -> {
-                        logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                        logger.error("Failed to retrieve metadata for snapshot-v2 {} {} ", repositoryName, snapshotName);
                         stateWithoutSnapshotV2(newState);
                         leaveRepoLoop(repositoryName);
                         listener.onFailure(e);
@@ -1263,7 +1315,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final Set<RepositoryShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
 
-    private void runReadyClone(
+    // Made to package private to be able to test the method in UTs
+    void runReadyClone(
         Snapshot target,
         SnapshotId sourceSnapshot,
         ShardSnapshotStatus shardStatusBefore,
@@ -1287,69 +1340,75 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             protected void doRun() {
                 final String localNodeId = clusterService.localNode().getId();
-                repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
-                    try {
-                        final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(
-                            repositoryData,
-                            sourceSnapshot,
-                            repoShardId.index()
-                        );
-                        final boolean cloneRemoteStoreIndexShardSnapshot = remoteStoreIndexShallowCopy
-                            && indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-                        final SnapshotId targetSnapshot = target.getSnapshotId();
-                        final ActionListener<String> listener = ActionListener.wrap(
-                            generation -> innerUpdateSnapshotState(
-                                new ShardSnapshotUpdate(
-                                    target,
-                                    repoShardId,
-                                    new ShardSnapshotStatus(localNodeId, ShardState.SUCCESS, generation)
-                                ),
-                                ActionListener.runBefore(
-                                    ActionListener.wrap(
-                                        v -> logger.trace(
-                                            "Marked [{}] as successfully cloned from [{}] to [{}]",
-                                            repoShardId,
-                                            sourceSnapshot,
-                                            targetSnapshot
-                                        ),
-                                        e -> {
-                                            logger.warn("Cluster state update after successful shard clone [{}] failed", repoShardId);
-                                            failAllListenersOnMasterFailOver(e);
-                                        }
-                                    ),
-                                    () -> currentlyCloning.remove(repoShardId)
-                                )
-                            ),
-                            e -> {
-                                logger.warn("Exception [{}] while trying to clone shard [{}]", e, repoShardId);
-                                failCloneShardAndUpdateClusterState(target, sourceSnapshot, repoShardId);
-                            }
-                        );
-                        if (currentlyCloning.add(repoShardId)) {
-                            if (cloneRemoteStoreIndexShardSnapshot) {
-                                repository.cloneRemoteStoreIndexShardSnapshot(
-                                    sourceSnapshot,
-                                    targetSnapshot,
-                                    repoShardId,
-                                    shardStatusBefore.generation(),
-                                    remoteStoreLockManagerFactory,
-                                    listener
-                                );
-                            } else {
-                                repository.cloneShardSnapshot(
-                                    sourceSnapshot,
-                                    targetSnapshot,
-                                    repoShardId,
-                                    shardStatusBefore.generation(),
-                                    listener
-                                );
-                            }
+                if (remoteStoreIndexShallowCopy == false) {
+                    executeClone(localNodeId, false);
+                } else {
+                    repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+                        try {
+                            final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(
+                                repositoryData,
+                                sourceSnapshot,
+                                repoShardId.index()
+                            );
+                            final boolean cloneRemoteStoreIndexShardSnapshot = indexMetadata.getSettings()
+                                .getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+                            executeClone(localNodeId, cloneRemoteStoreIndexShardSnapshot);
+                        } catch (IOException e) {
+                            logger.warn("Failed to get index-metadata from repository data for index [{}]", repoShardId.index().getName());
+                            failCloneShardAndUpdateClusterState(target, sourceSnapshot, repoShardId);
                         }
-                    } catch (IOException e) {
-                        logger.warn("Failed to get index-metadata from repository data for index [{}]", repoShardId.index().getName());
+                    }, this::onFailure));
+                }
+            }
+
+            private void executeClone(String localNodeId, boolean cloneRemoteStoreIndexShardSnapshot) {
+                if (currentlyCloning.add(repoShardId)) {
+                    if (cloneRemoteStoreIndexShardSnapshot) {
+                        repository.cloneRemoteStoreIndexShardSnapshot(
+                            sourceSnapshot,
+                            target.getSnapshotId(),
+                            repoShardId,
+                            shardStatusBefore.generation(),
+                            remoteStoreLockManagerFactory,
+                            getCloneCompletionListener(localNodeId)
+                        );
+                    } else {
+                        repository.cloneShardSnapshot(
+                            sourceSnapshot,
+                            target.getSnapshotId(),
+                            repoShardId,
+                            shardStatusBefore.generation(),
+                            getCloneCompletionListener(localNodeId)
+                        );
+                    }
+                }
+            }
+
+            private ActionListener<String> getCloneCompletionListener(String localNodeId) {
+                return ActionListener.wrap(
+                    generation -> innerUpdateSnapshotState(
+                        new ShardSnapshotUpdate(target, repoShardId, new ShardSnapshotStatus(localNodeId, ShardState.SUCCESS, generation)),
+                        ActionListener.runBefore(
+                            ActionListener.wrap(
+                                v -> logger.trace(
+                                    "Marked [{}] as successfully cloned from [{}] to [{}]",
+                                    repoShardId,
+                                    sourceSnapshot,
+                                    target.getSnapshotId()
+                                ),
+                                e -> {
+                                    logger.warn("Cluster state update after successful shard clone [{}] failed", repoShardId);
+                                    failAllListenersOnMasterFailOver(e);
+                                }
+                            ),
+                            () -> currentlyCloning.remove(repoShardId)
+                        )
+                    ),
+                    e -> {
+                        logger.warn("Exception [{}] while trying to clone shard [{}]", e, repoShardId);
                         failCloneShardAndUpdateClusterState(target, sourceSnapshot, repoShardId);
                     }
-                }, this::onFailure));
+                );
             }
         });
     }
@@ -1481,6 +1540,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }
+        return builder.build();
+    }
+
+    private static ShardGenerations buildGenerationsV2(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+        ShardGenerations.Builder builder = ShardGenerations.builder();
+        snapshot.indices().forEach(indexId -> {
+            int shardCount = metadata.index(indexId.getName()).getNumberOfShards();
+            for (int i = 0; i < shardCount; i++) {
+                builder.put(indexId, i, null);
+            }
+        });
         return builder.build();
     }
 
@@ -1682,7 +1752,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Updates the state of in-progress snapshots in reaction to a change in the configuration of the cluster nodes (cluster-manager fail-over or
      * disconnect of a data node that was executing a snapshot) or a routing change that started shards whose snapshot state is
-     * {@link SnapshotsInProgress.ShardState#WAITING}.
+     * {@link ShardState#WAITING}.
      *
      * @param changedNodes true iff either a cluster-manager fail-over occurred or a data node that was doing snapshot work got removed from the
      *                     cluster
@@ -2490,6 +2560,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public ClusterState execute(ClusterState currentState) throws Exception {
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
+                boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
+                boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
+                List<SnapshotsInProgress.Entry> entriesForThisRepo = snapshots.entries()
+                    .stream()
+                    .filter(entry -> Objects.equals(entry.repository(), repoName))
+                    .collect(Collectors.toList());
+                if (isSnapshotV2 && remoteStoreIndexShallowCopy && entriesForThisRepo.isEmpty() == false) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repoName,
+                        String.join(",", snapshotNames),
+                        "cannot delete snapshots in v2 repo while a snapshot is in progress"
+                    );
+                }
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(
                     snapshotEntries.stream().map(e -> e.snapshot().getSnapshotId()).collect(Collectors.toList()),
                     repositoryData,
@@ -2587,7 +2670,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }
-        return Collections.unmodifiableList(new ArrayList<>(foundSnapshots));
+        return unmodifiableList(new ArrayList<>(foundSnapshots));
     }
 
     // Return in-progress snapshot entries by name and repository in the given cluster state or null if none is found
@@ -2737,7 +2820,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         reusedExistingDelete = true;
                         return currentState;
                     }
-                    final List<SnapshotId> toDelete = Collections.unmodifiableList(new ArrayList<>(snapshotIdsRequiringCleanup));
+                    final List<SnapshotId> toDelete = unmodifiableList(new ArrayList<>(snapshotIdsRequiringCleanup));
                     ensureBelowConcurrencyLimit(repoName, toDelete.get(0).getName(), snapshots, deletionsInProgress);
                     newDelete = new SnapshotDeletionsInProgress.Entry(
                         toDelete,
@@ -3295,7 +3378,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param indices             Indices to snapshot
      * @return list of shard to be included into current snapshot
      */
-    private static Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
+    private static Map<ShardId, ShardSnapshotStatus> shards(
         SnapshotsInProgress snapshotsInProgress,
         @Nullable SnapshotDeletionsInProgress deletionsInProgress,
         Metadata metadata,
@@ -3304,7 +3387,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         RepositoryData repositoryData,
         String repoName
     ) {
-        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = new HashMap<>();
+        final Map<ShardId, ShardSnapshotStatus> builder = new HashMap<>();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
         final InFlightShardSnapshotStates inFlightShardStates = InFlightShardSnapshotStates.forRepo(
             repoName,
@@ -3338,7 +3421,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     final ShardSnapshotStatus shardSnapshotStatus;
                     if (indexRoutingTable == null) {
-                        shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                        shardSnapshotStatus = new ShardSnapshotStatus(
                             null,
                             ShardState.MISSING,
                             "missing routing table",

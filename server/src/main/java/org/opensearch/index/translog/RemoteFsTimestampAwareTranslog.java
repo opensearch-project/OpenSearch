@@ -215,31 +215,58 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     logger.debug(() -> "generationsToBeDeleted = " + generationsToBeDeleted);
                     if (generationsToBeDeleted.isEmpty() == false) {
                         // Delete stale generations
-                        translogTransferManager.deleteGenerationAsync(
-                            primaryTermSupplier.getAsLong(),
-                            generationsToBeDeleted,
-                            remoteGenerationDeletionPermits::release
-                        );
+                        try {
+                            translogTransferManager.deleteGenerationAsync(
+                                primaryTermSupplier.getAsLong(),
+                                generationsToBeDeleted,
+                                remoteGenerationDeletionPermits::release
+                            );
+                        } catch (Exception e) {
+                            logger.error("Exception in delete generations flow", e);
+                            // Release permit that is meant for metadata files and return
+                            remoteGenerationDeletionPermits.release();
+                            assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
+                                + remoteGenerationDeletionPermits.availablePermits()
+                                + " is not equal to "
+                                + REMOTE_DELETION_PERMITS;
+                            return;
+                        }
                     } else {
                         remoteGenerationDeletionPermits.release();
                     }
 
                     if (metadataFilesToBeDeleted.isEmpty() == false) {
                         // Delete stale metadata files
-                        translogTransferManager.deleteMetadataFilesAsync(
-                            metadataFilesToBeDeleted,
-                            remoteGenerationDeletionPermits::release
-                        );
+                        try {
+                            translogTransferManager.deleteMetadataFilesAsync(
+                                metadataFilesToBeDeleted,
+                                remoteGenerationDeletionPermits::release
+                            );
+                        } catch (Exception e) {
+                            logger.error("Exception in delete metadata files flow", e);
+                            // Permits is already released by deleteMetadataFilesAsync
+                            assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
+                                + remoteGenerationDeletionPermits.availablePermits()
+                                + " is not equal to "
+                                + REMOTE_DELETION_PERMITS;
+                            return;
+                        }
 
                         // Update cache to keep only those metadata files that are not getting deleted
                         oldFormatMetadataFileGenerationMap.keySet().retainAll(metadataFilesNotToBeDeleted);
+                        oldFormatMetadataFilePrimaryTermMap.keySet().retainAll(metadataFilesNotToBeDeleted);
                         // Delete stale primary terms
                         deleteStaleRemotePrimaryTerms(metadataFilesNotToBeDeleted);
                     } else {
                         remoteGenerationDeletionPermits.release();
                     }
                 } catch (Exception e) {
+                    logger.error("Exception in trimUnreferencedReaders", e);
                     remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                    assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
+                        + remoteGenerationDeletionPermits.availablePermits()
+                        + " is not equal to "
+                        + REMOTE_DELETION_PERMITS;
                 }
             }
 
@@ -318,9 +345,11 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         );
 
         // Get md files matching pinned timestamps
+        Set<Long> pinnedTimestamps = new HashSet<>(pinnedTimestampsState.v2());
+        pinnedTimestamps.add(pinnedTimestampsState.v1());
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             metadataFilesToBeDeleted,
-            pinnedTimestampsState.v2(),
+            pinnedTimestamps,
             metadataFilePinnedTimestampMap,
             file -> RemoteStoreUtils.invertLong(file.split(METADATA_SEPARATOR)[3]),
             TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
@@ -408,9 +437,9 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
     }
 
-    private void deleteStaleRemotePrimaryTerms(List<String> metadataFiles) {
+    private void deleteStaleRemotePrimaryTerms(List<String> metadataFilesNotToBeDeleted) {
         deleteStaleRemotePrimaryTerms(
-            metadataFiles,
+            metadataFilesNotToBeDeleted,
             translogTransferManager,
             oldFormatMetadataFilePrimaryTermMap,
             minPrimaryTermInRemote,
@@ -425,7 +454,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
      * This will also delete all stale translog metadata files from remote except the latest basis the metadata file comparator.
      */
     protected static void deleteStaleRemotePrimaryTerms(
-        List<String> metadataFiles,
+        List<String> metadataFilesNotToBeDeleted,
         TranslogTransferManager translogTransferManager,
         Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap,
         AtomicLong minPrimaryTermInRemoteAtomicLong,
@@ -434,15 +463,16 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
         // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
         // of older primary term.
-        if (metadataFiles.isEmpty()) {
+        if (metadataFilesNotToBeDeleted.isEmpty()) {
             logger.trace("No metadata is uploaded yet, returning from deleteStaleRemotePrimaryTerms");
             return;
         }
-        Optional<Long> minPrimaryTermFromMetadataFiles = metadataFiles.stream().map(file -> {
+        Optional<Long> minPrimaryTermFromMetadataFiles = metadataFilesNotToBeDeleted.stream().map(file -> {
             try {
-                return getMinMaxPrimaryTermFromMetadataFile(file, translogTransferManager, oldFormatMetadataFilePrimaryTermMap).v1();
+                return getMinMaxPrimaryTermFromMetadataFile(file, translogTransferManager, oldFormatMetadataFilePrimaryTermMap, logger)
+                    .v1();
             } catch (IOException e) {
-                return Long.MAX_VALUE;
+                return Long.MIN_VALUE;
             }
         }).min(Long::compareTo);
         // First we delete all stale primary terms folders from remote store
@@ -459,7 +489,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
     }
 
-    private static Long getMinPrimaryTermInRemote(
+    protected static Long getMinPrimaryTermInRemote(
         AtomicLong minPrimaryTermInRemote,
         TranslogTransferManager translogTransferManager,
         Logger logger
@@ -481,7 +511,8 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     protected static Tuple<Long, Long> getMinMaxPrimaryTermFromMetadataFile(
         String metadataFile,
         TranslogTransferManager translogTransferManager,
-        Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap
+        Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap,
+        Logger logger
     ) throws IOException {
         Tuple<Long, Long> minMaxPrimaryTermFromFileName = TranslogTransferMetadata.getMinMaxPrimaryTermFromFilename(metadataFile);
         if (minMaxPrimaryTermFromFileName != null) {
@@ -503,6 +534,8 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     if (primaryTerm.isPresent()) {
                         minPrimaryTem = primaryTerm.get();
                     }
+                } else {
+                    logger.warn("No primary term found from GenerationToPrimaryTermMap for file [{}]", metadataFile);
                 }
                 Tuple<Long, Long> minMaxPrimaryTermTuple = new Tuple<>(minPrimaryTem, maxPrimaryTem);
                 oldFormatMetadataFilePrimaryTermMap.put(metadataFile, minMaxPrimaryTermTuple);

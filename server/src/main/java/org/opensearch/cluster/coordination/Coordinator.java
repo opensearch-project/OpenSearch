@@ -105,6 +105,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -140,7 +141,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         "cluster.publish.timeout",
         TimeValue.timeValueMillis(30000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private final Settings settings;
@@ -163,7 +165,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final Random random;
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final SeedHostsResolver configuredHostsResolver;
-    private final TimeValue publishTimeout;
+    private TimeValue publishTimeout;
     private final TimeValue publishInfoTimeout;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
@@ -187,8 +189,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
+    private final RemoteClusterStateService remoteClusterStateService;
     private final RemoteStoreNodeService remoteStoreNodeService;
     private NodeConnectionsService nodeConnectionsService;
+    private final ClusterSettings clusterSettings;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -244,6 +248,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(PUBLISH_TIMEOUT_SETTING, this::setPublishTimeout);
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
@@ -298,6 +303,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
         this.lagDetector = new LagDetector(
             settings,
+            clusterSettings,
             transportService.getThreadPool(),
             n -> removeNode(n, "lagging"),
             transportService::getLocalNode
@@ -312,6 +318,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.persistedStateRegistry = persistedStateRegistry;
         this.localNodeCommissioned = true;
         this.remoteStoreNodeService = remoteStoreNodeService;
+        this.remoteClusterStateService = remoteClusterStateService;
+        this.clusterSettings = clusterSettings;
+    }
+
+    private void setPublishTimeout(TimeValue publishTimeout) {
+        this.publishTimeout = publishTimeout;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -381,7 +393,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void handleApplyCommit(ApplyCommitRequest applyCommitRequest, ActionListener<Void> applyListener) {
+    private void handleApplyCommit(
+        ApplyCommitRequest applyCommitRequest,
+        Consumer<ClusterState> updateLastSeen,
+        ActionListener<Void> applyListener
+    ) {
         synchronized (mutex) {
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
@@ -389,6 +405,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(committedState) : committedState;
             clusterApplier.setPreCommitState(applierState);
+            updateLastSeen.accept(coordinationState.get().getLastAcceptedState());
 
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // cluster-manager node applies the committed state at the end of the publication process, not here.
@@ -912,9 +929,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 stats.add(persistedStateRegistry.getPersistedState(stateType).getStats());
             }
         });
-        if (coordinationState.get().isRemotePublicationEnabled()) {
-            stats.add(publicationHandler.getFullDownloadStats());
-            stats.add(publicationHandler.getDiffDownloadStats());
+        if (remoteClusterStateService != null) {
+            stats.add(remoteClusterStateService.getFullDownloadStats());
+            stats.add(remoteClusterStateService.getDiffDownloadStats());
         }
         clusterStateStats.setPersistenceStats(stats);
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
@@ -1356,7 +1373,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final PublicationTransportHandler.PublicationContext publicationContext = publicationHandler.newPublicationContext(
                     clusterChangedEvent,
-                    coordinationState.get().isRemotePublicationEnabled(),
+                    this.isRemotePublicationEnabled(),
                     persistedStateRegistry
                 );
                 logger.debug("initialized PublicationContext using class: {}", publicationContext.getClass().toString());
@@ -1659,7 +1676,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.localNodeAckEvent = localNodeAckEvent;
             this.ackListener = ackListener;
             this.publishListener = publishListener;
-
             this.timeoutHandler = singleNodeDiscovery ? null : transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
@@ -1885,8 +1901,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     public boolean isRemotePublicationEnabled() {
-        if (coordinationState.get() != null) {
-            return coordinationState.get().isRemotePublicationEnabled();
+        if (remoteClusterStateService != null) {
+            return remoteClusterStateService.isRemotePublicationEnabled();
         }
         return false;
     }

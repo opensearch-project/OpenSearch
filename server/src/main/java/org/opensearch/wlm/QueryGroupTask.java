@@ -17,7 +17,6 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.CancellableTask;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -82,9 +81,11 @@ public class QueryGroupTask extends CancellableTask {
      * @param threadContext current threadContext
      */
     public final void setQueryGroupId(final ThreadContext threadContext) {
-        this.queryGroupId = Optional.ofNullable(threadContext)
-            .map(threadContext1 -> threadContext1.getHeader(QUERY_GROUP_ID_HEADER))
-            .orElse(DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
+        if (threadContext != null && threadContext.getHeader(QUERY_GROUP_ID_HEADER) != null) {
+            this.queryGroupId = threadContext.getHeader(QUERY_GROUP_ID_HEADER);
+        } else {
+            this.queryGroupId = DEFAULT_QUERY_GROUP_ID_SUPPLIER.get();
+        }
     }
 
     public long getElapsedTime() {

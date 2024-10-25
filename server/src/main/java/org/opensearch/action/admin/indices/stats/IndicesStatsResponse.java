@@ -45,6 +45,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +65,7 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     private Map<ShardRouting, ShardStats> shardStatsMap;
 
-    IndicesStatsResponse(StreamInput in) throws IOException {
+    public IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, (size) -> new ShardStats[size]);
     }
@@ -229,5 +230,9 @@ public class IndicesStatsResponse extends BroadcastResponse {
     @Override
     public String toString() {
         return Strings.toString(MediaTypeRegistry.JSON, this, true, false);
+    }
+
+    public static IndicesStatsResponse getEmptyResponse() {
+        return new IndicesStatsResponse(new ShardStats[0], 0, 0, 0, Collections.emptyList());
     }
 }

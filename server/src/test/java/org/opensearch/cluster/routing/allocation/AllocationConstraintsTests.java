@@ -25,6 +25,8 @@ import static org.mockito.Mockito.when;
 
 public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
+    long constraintWeight = 20L;
+
     public void testSettings() {
         Settings.Builder settings = Settings.builder();
         ClusterSettings service = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -69,7 +71,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.getNodeId()).thenReturn("test-node");
 
         long expectedWeight = (shardCount >= avgShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
-        assertEquals(expectedWeight, constraints.weight(balancer, node, "index"));
+        assertEquals(expectedWeight, constraints.weight(balancer, node, "index", constraintWeight));
 
     }
 
@@ -91,14 +93,14 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numPrimaryShards(anyString())).thenReturn(perIndexPrimaryShardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        assertEquals(0, constraints.weight(balancer, node, indexName));
+        assertEquals(0, constraints.weight(balancer, node, indexName, constraintWeight));
 
         perIndexPrimaryShardCount = 2;
         when(node.numPrimaryShards(anyString())).thenReturn(perIndexPrimaryShardCount);
-        assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
+        assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName, constraintWeight));
 
         constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
-        assertEquals(0, constraints.weight(balancer, node, indexName));
+        assertEquals(0, constraints.weight(balancer, node, indexName, constraintWeight));
     }
 
     /**
@@ -118,14 +120,14 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numPrimaryShards()).thenReturn(primaryShardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        assertEquals(0, constraints.weight(balancer, node, indexName));
+        assertEquals(0, constraints.weight(balancer, node, indexName, constraintWeight));
 
         primaryShardCount = 3;
         when(node.numPrimaryShards()).thenReturn(primaryShardCount);
-        assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
+        assertEquals(constraintWeight, constraints.weight(balancer, node, indexName, constraintWeight));
 
         constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
-        assertEquals(0, constraints.weight(balancer, node, indexName));
+        assertEquals(0, constraints.weight(balancer, node, indexName, constraintWeight));
     }
 
     /**
@@ -150,22 +152,22 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numPrimaryShards()).thenReturn(primaryShardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        assertEquals(0, constraints.weight(balancer, node, indexName));
+        assertEquals(0, constraints.weight(balancer, node, indexName, constraintWeight));
 
         // breaching global primary shard count but not per index primary shard count
         primaryShardCount = 5;
         when(node.numPrimaryShards()).thenReturn(primaryShardCount);
-        assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
+        assertEquals(constraintWeight, constraints.weight(balancer, node, indexName, constraintWeight));
 
         // when per index primary shard count constraint is also breached
         perIndexPrimaryShardCount = 3;
         when(node.numPrimaryShards(indexName)).thenReturn(perIndexPrimaryShardCount);
-        assertEquals(2 * CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
+        assertEquals(CONSTRAINT_WEIGHT + constraintWeight, constraints.weight(balancer, node, indexName, constraintWeight));
 
         // disable both constraints
         constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
         constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
-        assertEquals(0, constraints.weight(balancer, node, indexName));
+        assertEquals(0, constraints.weight(balancer, node, indexName, constraintWeight));
     }
 
     /**
@@ -202,8 +204,8 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
         long expectedWeight = (shardCount >= (int) Math.ceil(avgPerIndexShardsPerNode)) ? CONSTRAINT_WEIGHT : 0;
         expectedWeight += perIndexPrimaryShardCount > (int) Math.ceil(avgPerIndexPrimaryShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
-        expectedWeight += primaryShardsPerNode >= (int) Math.ceil(avgPrimaryShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
-        assertEquals(expectedWeight, constraints.weight(balancer, node, indexName));
+        expectedWeight += primaryShardsPerNode >= (int) Math.ceil(avgPrimaryShardsPerNode) ? constraintWeight : 0;
+        assertEquals(expectedWeight, constraints.weight(balancer, node, indexName, constraintWeight));
     }
 
 }

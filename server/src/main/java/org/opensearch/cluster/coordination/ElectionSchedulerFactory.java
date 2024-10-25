@@ -214,7 +214,7 @@ public class ElectionSchedulerFactory {
                     if (isClosed.get()) {
                         logger.debug("{} not starting election", this);
                     } else {
-                        logger.debug("{} starting election", this);
+                        logger.debug("{} starting election with duration {}", this, duration);
                         scheduleNextElection(duration, scheduledRunnable);
                         scheduledRunnable.run();
                     }
