@@ -572,6 +572,17 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                         );
                     }
                 }
+                for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
+                    indexShardRoutingBuilder.addShard(
+                        ShardRouting.newUnassigned(
+                            shardId,
+                            false,
+                            true,
+                            PeerRecoverySource.INSTANCE, // TODO: Update to remote store if enabled
+                            unassignedInfo
+                        )
+                    );
+                }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
             }
             return this;
