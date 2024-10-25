@@ -83,11 +83,13 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
         String routingTableRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
             "node.attr." + REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            remoteStoreNodeAttributePrefix,
             ROUTING_TABLE_REPO_NAME
         );
         String routingTableRepoSettingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
             "node.attr." + REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            remoteStoreNodeAttributePrefix,
             ROUTING_TABLE_REPO_NAME
         );
 
@@ -112,7 +114,7 @@ public class RemotePublicationConfigurationIT extends MigrationBaseTestCase {
                     segmentRepoPath,
                     REPOSITORY_2_NAME,
                     translogRepoPath,
-                    REPOSITORY_NAME,
+                    ROUTING_TABLE_REPO_NAME,
                     segmentRepoPath,
                     false
                 )
