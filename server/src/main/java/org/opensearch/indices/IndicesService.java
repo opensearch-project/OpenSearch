@@ -205,6 +205,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.indices.IndicesRequestCache.ALLOW_SIZE_NONZERO_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -360,6 +361,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
+    private boolean canCacheSizeNonzeroRequests;
 
     @Override
     protected void doStart() {
@@ -507,6 +509,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         this.replicator = replicator;
+        this.canCacheSizeNonzeroRequests = ALLOW_SIZE_NONZERO_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_SIZE_NONZERO_SETTING, this::setCanCacheSizeNonzeroRequests);
     }
 
     public IndicesService(
@@ -1748,9 +1752,10 @@ public class IndicesService extends AbstractLifecycleComponent
         if (request.requestCache() == null) {
             if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
                 return false;
-            } else if (context.size() != 0) {
+            } else if (context.size() != 0 && !canCacheSizeNonzeroRequests) {
                 // If no request cache query parameter and shard request cache
                 // is enabled in settings don't cache for requests with size > 0
+                // unless this is enabled via cluster setting
                 return false;
             }
         } else if (request.requestCache() == false) {
@@ -2117,5 +2122,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public CompositeIndexSettings getCompositeIndexSettings() {
         return this.compositeIndexSettings;
+    }
+
+    // Package-private for testing
+    void setCanCacheSizeNonzeroRequests(Boolean canCacheSizeNonzeroRequests) {
+        this.canCacheSizeNonzeroRequests = canCacheSizeNonzeroRequests;
     }
 }

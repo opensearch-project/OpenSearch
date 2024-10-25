@@ -147,6 +147,16 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.NodeScope
     );
 
+    /**
+     * If enabled, allows caching size > 0 queries.
+     */
+    public static final Setting<Boolean> ALLOW_SIZE_NONZERO_SETTING = Setting.boolSetting(
+        "indices.requests.cache.allow_size_nonzero",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();

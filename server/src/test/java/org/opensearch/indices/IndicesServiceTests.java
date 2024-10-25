@@ -641,25 +641,68 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.requestCache()).thenReturn(true);
 
-        TestSearchContext context = new TestSearchContext(indexService.getBigArrays(), indexService) {
-            @Override
-            public SearchType searchType() {
-                return SearchType.QUERY_THEN_FETCH;
-            }
-        };
+        TestSearchContext context = getTestContext(indexService, 0);
+        IndexReader.CacheHelper notDelegatingCacheHelper = mock(IndexReader.CacheHelper.class);
+        DelegatingCacheHelper delegatingCacheHelper = mock(DelegatingCacheHelper.class);
+        for (boolean useDelegatingCacheHelper : new boolean[] { true, false }) {
+            IndexReader.CacheHelper cacheHelper = useDelegatingCacheHelper ? delegatingCacheHelper : notDelegatingCacheHelper;
+            setupMocksForCanCache(context, cacheHelper);
+            assertEquals(useDelegatingCacheHelper, indicesService.canCache(request, context));
+        }
+    }
 
+    public void testCanCacheSizeNonzero() {
+        // Size == 0 requests should always be cacheable (if they pass the other checks).
+        // Size > 0 requests should only be cacheable if ALLOW_SIZE_NONZERO_SETTING is true.
+
+        final IndexService indexService = createIndex("test");
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.requestCache()).thenReturn(null);
+
+        TestSearchContext sizeZeroContext = getTestContext(indexService, 0);
+        TestSearchContext sizeNonzeroContext = getTestContext(indexService, 10);
+
+        // Test for an IndicesService with the default setting value of false
+        IndicesService indicesService = getIndicesService();
+        DelegatingCacheHelper cacheHelper = mock(DelegatingCacheHelper.class);
+        Map<TestSearchContext, Boolean> expectedResultMap = Map.of(sizeZeroContext, true, sizeNonzeroContext, false);
+
+        for (Map.Entry<TestSearchContext, Boolean> entry : expectedResultMap.entrySet()) {
+            TestSearchContext context = entry.getKey();
+            setupMocksForCanCache(context, cacheHelper);
+            assertEquals(entry.getValue(), indicesService.canCache(request, context));
+        }
+        // Simulate the cluster setting update by manually calling setCanCacheSizeNonzeroRequests
+        indicesService.setCanCacheSizeNonzeroRequests(true);
+        expectedResultMap = Map.of(sizeZeroContext, true, sizeNonzeroContext, true);
+
+        for (Map.Entry<TestSearchContext, Boolean> entry : expectedResultMap.entrySet()) {
+            TestSearchContext context = entry.getKey();
+            setupMocksForCanCache(context, cacheHelper);
+            assertEquals(entry.getValue(), indicesService.canCache(request, context));
+        }
+    }
+
+    private void setupMocksForCanCache(TestSearchContext context, IndexReader.CacheHelper cacheHelper) {
         ContextIndexSearcher searcher = mock(ContextIndexSearcher.class);
         context.setSearcher(searcher);
         DirectoryReader reader = mock(DirectoryReader.class);
         when(searcher.getDirectoryReader()).thenReturn(reader);
         when(searcher.getIndexReader()).thenReturn(reader);
-        IndexReader.CacheHelper notDelegatingCacheHelper = mock(IndexReader.CacheHelper.class);
-        DelegatingCacheHelper delegatingCacheHelper = mock(DelegatingCacheHelper.class);
+        when(reader.getReaderCacheHelper()).thenReturn(cacheHelper);
+    }
 
-        for (boolean useDelegatingCacheHelper : new boolean[] { true, false }) {
-            IndexReader.CacheHelper cacheHelper = useDelegatingCacheHelper ? delegatingCacheHelper : notDelegatingCacheHelper;
-            when(reader.getReaderCacheHelper()).thenReturn(cacheHelper);
-            assertEquals(useDelegatingCacheHelper, indicesService.canCache(request, context));
-        }
+    private TestSearchContext getTestContext(IndexService indexService, int size) {
+        return new TestSearchContext(indexService.getBigArrays(), indexService) {
+            @Override
+            public SearchType searchType() {
+                return SearchType.QUERY_THEN_FETCH;
+            }
+
+            @Override
+            public int size() {
+                return size;
+            }
+        };
     }
 }
