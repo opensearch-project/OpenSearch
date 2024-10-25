@@ -31,7 +31,6 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.settings.KeyStoreCommandTestCase;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
@@ -39,7 +38,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
-import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -53,14 +51,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 public class BootstrapTests extends OpenSearchTestCase {
     Environment env;
@@ -137,40 +129,6 @@ public class BootstrapTests extends OpenSearchTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public void testInitExecutionOrder() throws Exception {
-        AtomicInteger order = new AtomicInteger(0);
-        CountDownLatch countDownLatch = new CountDownLatch(1);
-        Thread mockThread = new Thread(() -> {
-            assertEquals(0, order.getAndIncrement());
-            countDownLatch.countDown();
-        });
-
-        Node mockNode = mock(Node.class);
-        doAnswer(invocation -> {
-            try {
-                boolean threadStarted = countDownLatch.await(1000, TimeUnit.MILLISECONDS);
-                assertTrue(
-                    "Waited for one second but the keepAliveThread isn't started, please check the execution order of"
-                        + "keepAliveThread.start and node.start",
-                    threadStarted
-                );
-            } catch (InterruptedException e) {
-                fail("Thread interrupted");
-            }
-            assertEquals(1, order.getAndIncrement());
-            return null;
-        }).when(mockNode).start();
-
-        LogConfigurator.registerErrorListener();
-        Bootstrap testBootstrap = new Bootstrap(mockThread, mockNode);
-        Bootstrap.setInstance(testBootstrap);
-
-        Bootstrap.startInstance(testBootstrap);
-
-        verify(mockNode).start();
-        assertEquals(2, order.get());
     }
 
 }

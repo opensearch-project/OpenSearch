@@ -44,8 +44,11 @@ public interface PaginationStrategy<T> {
     List<T> getRequestedEntities();
 
     /**
-     *
-     * Utility method to get list of indices filtered as per {@param filterPredicate} and the sorted according to {@param comparator}.
+     * Utility method to get list of indices filtered and sorted as per the provided parameters.
+     * @param clusterState state consisting of all the indices to be filtered and sorted.
+     * @param filterPredicate predicate to be used for filtering out the required indices.
+     * @param comparator comparator to be used for sorting the already filtered list of indices.
+     * @return list of filtered and sorted IndexMetadata.
      */
     static List<IndexMetadata> getSortedIndexMetadata(
         final ClusterState clusterState,
@@ -56,8 +59,10 @@ public interface PaginationStrategy<T> {
     }
 
     /**
-     *
-     * Utility method to get list of indices sorted as per {@param comparator}.
+     * Utility method to get list of sorted indices.
+     * @param clusterState state consisting of indices to be sorted.
+     * @param comparator comparator to be used for sorting the list of indices.
+     * @return list of sorted IndexMetadata.
      */
     static List<IndexMetadata> getSortedIndexMetadata(final ClusterState clusterState, Comparator<IndexMetadata> comparator) {
         return clusterState.metadata().indices().values().stream().sorted(comparator).collect(Collectors.toList());

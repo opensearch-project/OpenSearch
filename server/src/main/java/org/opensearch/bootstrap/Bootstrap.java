@@ -93,17 +93,6 @@ final class Bootstrap {
     private final Thread keepAliveThread;
     private final Spawner spawner = new Spawner();
 
-    // For testing purpose
-    static void setInstance(Bootstrap bootstrap) {
-        INSTANCE = bootstrap;
-    }
-
-    // For testing purpose
-    Bootstrap(Thread keepAliveThread, Node node) {
-        this.keepAliveThread = keepAliveThread;
-        this.node = node;
-    }
-
     /** creates a new instance */
     Bootstrap() {
         keepAliveThread = new Thread(new Runnable() {
@@ -347,10 +336,8 @@ final class Bootstrap {
     }
 
     private void start() throws NodeValidationException {
-        // keepAliveThread should start first than node to ensure the cluster can spin up successfully in edge cases:
-        // https://github.com/opensearch-project/OpenSearch/issues/14791
-        keepAliveThread.start();
         node.start();
+        keepAliveThread.start();
     }
 
     static void stop() throws IOException {
@@ -423,7 +410,7 @@ final class Bootstrap {
                 throw new BootstrapException(e);
             }
 
-            startInstance(INSTANCE);
+            INSTANCE.start();
 
             // We don't close stderr if `--quiet` is passed, because that
             // hides fatal startup errors. For example, if OpenSearch is
@@ -473,10 +460,6 @@ final class Bootstrap {
 
             throw e;
         }
-    }
-
-    static void startInstance(Bootstrap instance) throws NodeValidationException {
-        instance.start();
     }
 
     @SuppressForbidden(reason = "System#out")

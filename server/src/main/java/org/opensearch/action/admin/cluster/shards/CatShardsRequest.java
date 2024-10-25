@@ -37,7 +37,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     public CatShardsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             indices = in.readStringArray();
             cancelAfterTimeInterval = in.readOptionalTimeValue();
             if (in.readBoolean()) {
@@ -50,7 +50,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             if (indices == null) {
                 out.writeVInt(0);
             } else {

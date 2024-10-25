@@ -266,11 +266,12 @@ public class QueryGroupService extends AbstractLifecycleComponent
             return;
         }
 
-        // rejections will not happen for SOFT mode QueryGroups
+        // rejections will not happen for SOFT mode QueryGroups unless node is in duress
         Optional<QueryGroup> optionalQueryGroup = activeQueryGroups.stream().filter(x -> x.get_id().equals(queryGroupId)).findFirst();
 
-        if (optionalQueryGroup.isPresent() && optionalQueryGroup.get().getResiliencyMode() == MutableQueryGroupFragment.ResiliencyMode.SOFT)
-            return;
+        if (optionalQueryGroup.isPresent()
+            && (optionalQueryGroup.get().getResiliencyMode() == MutableQueryGroupFragment.ResiliencyMode.SOFT
+                && !nodeDuressTrackers.isNodeInDuress())) return;
 
         optionalQueryGroup.ifPresent(queryGroup -> {
             boolean reject = false;

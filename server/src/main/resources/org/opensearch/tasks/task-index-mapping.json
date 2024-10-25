@@ -1,7 +1,7 @@
 {
   "_doc" : {
     "_meta": {
-      "version": 4
+      "version": 5
     },
     "dynamic" : "strict",
     "properties" : {
@@ -34,6 +34,9 @@
           "start_time_in_millis": {
             "type": "long"
           },
+          "cancellation_time_millis": {
+            "type": "long"
+          },
           "type": {
             "type": "keyword"
           },
@@ -45,6 +48,10 @@
             "type": "text"
           },
           "headers": {
+            "type" : "object",
+            "enabled" : false
+          },
+          "resource_stats": {
             "type" : "object",
             "enabled" : false
           }
