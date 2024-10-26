@@ -39,11 +39,15 @@ import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.te.TeluguNormalizationFilterFactory;
 import org.apache.lucene.analysis.te.TeluguStemFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.indices.analysis.AnalysisFactoryTestCase;
+import org.opensearch.indices.analysis.AnalysisModule;
 
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import org.mockito.Mock;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -52,6 +56,9 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     public CommonAnalysisFactoryTests() {
         super(new CommonAnalysisModulePlugin());
     }
+
+    @Mock
+    private AnalysisModule analysisModule;
 
     @Override
     protected Map<String, Class<?>> getTokenizers() {
@@ -301,5 +308,40 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             emptyList(),
             unmarked
         );
+    }
+
+    /**
+     * Tests the getTokenFilters(AnalysisModule) method to verify:
+     * 1. All token filters are properly loaded
+     * 2. Basic filters remain available
+     * 3. Synonym filters are added when AnalysisModule is provided
+     * 4. The total number of filters is correct (base filters + synonym filters)
+     */
+    public void testGetTokenFiltersWithAnalysisModule() {
+        CommonAnalysisModulePlugin plugin = (CommonAnalysisModulePlugin) getAnalysisPlugin();
+        Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> filters = plugin.getTokenFilters(analysisModule);
+        assertNotNull("Token filters should not be null", filters);
+        assertTrue("Should contain basic filters", filters.containsKey("lowercase"));
+        assertTrue("Should contain synonym filter", filters.containsKey("synonym"));
+        assertTrue("Should contain synonym_graph filter", filters.containsKey("synonym_graph"));
+        Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> baseFilters = plugin.getTokenFilters();
+        assertEquals("Should contain additional synonym filters", baseFilters.size() + 2, filters.size());
+    }
+
+    /**
+     * Tests that synonym-related token filters are only available when an AnalysisModule is provided.
+     * This test verifies that:
+     * 1. Base getTokenFilters() does not include synonym filters
+     * 2. Extended getTokenFilters(AnalysisModule) includes synonym filters
+     * 3. Both synonym and synonym_graph filters require AnalysisModule
+     */
+    public void testSynonymFiltersRequireAnalysisModule() {
+        CommonAnalysisModulePlugin plugin = (CommonAnalysisModulePlugin) getAnalysisPlugin();
+        Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> baseFilters = plugin.getTokenFilters();
+        Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> extendedFilters = plugin.getTokenFilters(analysisModule);
+        assertFalse("Base filters should not contain synonym filter", baseFilters.containsKey("synonym"));
+        assertTrue("Extended filters should contain synonym filter", extendedFilters.containsKey("synonym"));
+        assertFalse("Base filters should not contain synonym_graph filter", baseFilters.containsKey("synonym_graph"));
+        assertTrue("Extended filters should contain synonym_graph filter", extendedFilters.containsKey("synonym_graph"));
     }
 }
