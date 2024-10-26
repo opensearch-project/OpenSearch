@@ -61,8 +61,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -267,9 +267,17 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     public RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
         Map<String, String> nodeAttributes = node.getAttributes();
-        String type = nodeAttributes.get(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
+        String remotePublicationPrefix = "remote_publication";
+        String type = nodeAttributes.get(
+            String.format(Locale.getDefault(), REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, remotePublicationPrefix, name)
+        );
 
-        String settingsAttributeKeyPrefix = String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, name);
+        String settingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            remotePublicationPrefix,
+            name
+        );
         Map<String, String> settingsMap = node.getAttributes()
             .keySet()
             .stream()
