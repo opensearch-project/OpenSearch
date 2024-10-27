@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote;
 
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -487,7 +488,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             IndexGraveyard.TYPE,
             CLUSTER_UUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             customMetadataForDownload.customBlobStoreFormat.serialize(customMetadata, fileName, compressor).streamInput()
