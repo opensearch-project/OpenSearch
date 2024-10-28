@@ -197,8 +197,8 @@ final class Bootstrap {
         );
 
         var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
-        if (cryptoStandard != null && cryptoStandard.equals("FIPS-140-2")) {
-            LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-2 mode");
+        if (cryptoStandard != null && cryptoStandard.equals("FIPS-140-3")) {
+            LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-3 mode");
         }
 
         // initialize probes before the security manager is installed

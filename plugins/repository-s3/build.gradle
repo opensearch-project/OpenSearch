@@ -145,9 +145,9 @@ def fixtureAddress = { fixture, name, port ->
 }
 
 def applyFipsConfig(OpenSearchCluster cluster) {
-  if (System.getenv('OPENSEARCH_CRYPTO_STANDARD') == 'FIPS-140-2') {
+  if (System.getenv('OPENSEARCH_CRYPTO_STANDARD') == 'FIPS-140-3') {
     cluster.keystorePassword 'notarealpasswordphrase'
-    cluster.environment 'OPENSEARCH_CRYPTO_STANDARD', 'FIPS-140-2'
+    cluster.environment 'OPENSEARCH_CRYPTO_STANDARD', 'FIPS-140-3'
   }
 }
 

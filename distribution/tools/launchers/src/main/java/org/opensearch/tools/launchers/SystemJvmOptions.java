@@ -32,6 +32,8 @@
 
 package org.opensearch.tools.launchers;
 
+import java.io.FileNotFoundException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,10 +42,10 @@ import java.util.stream.Collectors;
 
 final class SystemJvmOptions {
 
-    protected static final String OPENSEARCH_CRYPTO_STANDARD = "OPENSEARCH_CRYPTO_STANDARD";
-    protected static final String FIPS_140_2 = "FIPS-140-2";
+    static final String OPENSEARCH_CRYPTO_STANDARD = "OPENSEARCH_CRYPTO_STANDARD";
+    static final String FIPS_140_3 = "FIPS-140-3";
 
-    static List<String> systemJvmOptions(final Path config) {
+    static List<String> systemJvmOptions(final Path config, Runtime.Version runtimeVersion) throws FileNotFoundException {
         return Collections.unmodifiableList(
             Arrays.asList(
                 /*
@@ -72,7 +74,7 @@ final class SystemJvmOptions {
                  */
                 "-XX:-OmitStackTraceInFastThrow",
                 // enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if they are supported
-                maybeShowCodeDetailsInExceptionMessages(),
+                maybeShowCodeDetailsInExceptionMessages(runtimeVersion),
                 // flags to configure Netty
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
@@ -83,7 +85,7 @@ final class SystemJvmOptions {
                 "-Dlog4j2.disable.jmx=true",
                 // security settings
                 enableFips(),
-                allowSecurityManagerOption(),
+                allowSecurityManagerOption(runtimeVersion),
                 loadJavaSecurityProperties(config),
                 javaLocaleProviders()
             )
@@ -92,33 +94,38 @@ final class SystemJvmOptions {
 
     private static String enableFips() {
         var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_2)) {
+        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_3)) {
             return "-Dorg.bouncycastle.fips.approved_only=true";
         }
         return "";
     }
 
-    private static String loadJavaSecurityProperties(final Path config) {
+    private static String loadJavaSecurityProperties(final Path config) throws FileNotFoundException {
         String securityFile;
         var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_2)) {
+        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_3)) {
             securityFile = "fips_java.security";
         } else {
             securityFile = "java.security";
         }
-        return "-Djava.security.properties=" + config.resolve(securityFile).toAbsolutePath();
+        var securityFilePath = config.resolve(securityFile);
+
+        if (!Files.exists(securityFilePath)) {
+            throw new FileNotFoundException("Security file not found: " + securityFilePath.toAbsolutePath());
+        }
+        return "-Djava.security.properties=" + securityFilePath.toAbsolutePath();
     }
 
-    private static String allowSecurityManagerOption() {
-        if (Runtime.version().feature() > 17) {
+    private static String allowSecurityManagerOption(Runtime.Version runtimeVersion) {
+        if (runtimeVersion.feature() > 17) {
             return "-Djava.security.manager=allow";
         } else {
             return "";
         }
     }
 
-    private static String maybeShowCodeDetailsInExceptionMessages() {
-        if (Runtime.version().feature() >= 14) {
+    private static String maybeShowCodeDetailsInExceptionMessages(Runtime.Version runtimeVersion) {
+        if (runtimeVersion.feature() >= 14) {
             return "-XX:+ShowCodeDetailsInExceptionMessages";
         } else {
             return "";
