@@ -21,7 +21,6 @@ import java.util.Map;
 
 @SuppressWarnings("unchecked")
 public class ClusterStateIT extends AbstractRollingTestCase{
-    private static final Logger logger = LogManager.getLogger(ClusterStateIT.class);
     private static final String templateName = "my_template";
     private static final String indexName = "test_cluster_state";
     private static final String componentTemplateName = "test_component_template";
@@ -69,7 +68,8 @@ public class ClusterStateIT extends AbstractRollingTestCase{
             verifyTemplateMetadataInClusterState(response);
             verifyComponentTemplateInClusterState(response);
             verifyComposableTemplateInClusterState(response);
-            verifySettingsInClusterState();
+//            Settings are required to wiped after Tests, so Settings are not present after rolling upgrade starts
+//            verifySettingsInClusterState();
         }
     }
 
@@ -187,7 +187,7 @@ public class ClusterStateIT extends AbstractRollingTestCase{
             "}";
 
         putSettings.setJsonEntity(settingsJson);
-        client().performRequest(putSettings);
+        assertOK(client().performRequest(putSettings));
     }
 
     private static void addTransientSettings() throws Exception {
@@ -207,7 +207,7 @@ public class ClusterStateIT extends AbstractRollingTestCase{
             "}";
 
         putSettings.setJsonEntity(settingsJson);
-        client().performRequest(putSettings);
+        assertOK(client().performRequest(putSettings));
     }
 
     private static void verifyIndexInClusterState(Response clusterStateResponse) throws Exception {
@@ -221,7 +221,6 @@ public class ClusterStateIT extends AbstractRollingTestCase{
         Map<String, Object> index = (Map<String, Object>) indices.get(indexName);
         assertNotNull("Index " + indexName + " should exist in cluster state", index);
 
-        logger.info(index);
         // Verify index settings
         Map<String, Object> settings = (Map<String, Object>) index.get("settings");
         assertNotNull("Settings should exist in index", settings);
