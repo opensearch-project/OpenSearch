@@ -114,7 +114,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             // Initialize global build parameters
             boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
             var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-            var inFipsJvm = cryptoStandard != null && cryptoStandard.equals("FIPS-140-2");
+            var inFipsJvm = cryptoStandard != null && cryptoStandard.equals("FIPS-140-3");
 
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
@@ -166,6 +166,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         final String osArch = System.getProperty("os.arch");
         final Jvm gradleJvm = Jvm.current();
         final String gradleJvmDetails = getJavaInstallation(gradleJvm.getJavaHome()).getDisplayName();
+        final String cryptStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
 
         LOGGER.quiet("=======================================");
         LOGGER.quiet("OpenSearch Build Hamster says Hello!");
@@ -182,7 +183,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
-        LOGGER.quiet("  Crypto Standard       : " + Optional.ofNullable(System.getenv(OPENSEARCH_CRYPTO_STANDARD)).orElse("any-supported"));
+        if (cryptStandard != null && cryptStandard.equals("FIPS-140-3")) {
+            LOGGER.quiet("  Crypto Standard       : FIPS-140-3");
+        } else {
+            LOGGER.quiet("  Crypto Standard       : any-supported");
+        }
         LOGGER.quiet("=======================================");
     }
 
