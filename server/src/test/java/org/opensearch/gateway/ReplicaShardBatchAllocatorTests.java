@@ -644,6 +644,25 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());
     }
 
+    public void testDoNotCancelForInactivePrimaryNode() {
+        RoutingAllocation allocation = oneInactivePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), null);
+        testBatchAllocator.addData(
+            node1,
+            null,
+            "MATCH",
+            null,
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        ).addData(node2, randomSyncId(), null, new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+
+        testBatchAllocator.processExistingRecoveries(
+            allocation,
+            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+        );
+
+        assertThat(allocation.routingNodesChanged(), equalTo(false));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());
+    }
+
     public void testAllocateUnassignedBatchThrottlingAllocationDeciderIsHonoured() throws InterruptedException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders allocationDeciders = randomAllocationDeciders(
@@ -696,6 +715,51 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             logger
         );
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, allocateUnassignedDecision.getAllocationStatus());
+    }
+
+    public void testAllocateUnassignedBatchOnTimeoutWithUnassignedReplicaShard() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
+        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        Set<ShardId> shards = new HashSet<>();
+        while (iterator.hasNext()) {
+            shards.add(iterator.next().shardId());
+        }
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
+        assertEquals(
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            allocation.routingNodes().unassigned().ignored().get(0).unassignedInfo().getLastAllocationStatus()
+        );
+    }
+
+    public void testAllocateUnassignedBatchOnTimeoutWithAlreadyRecoveringReplicaShard() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
+        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        Set<ShardId> shards = new HashSet<>();
+        while (iterator.hasNext()) {
+            shards.add(iterator.next().shardId());
+        }
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
+    }
+
+    public void testAllocateUnassignedBatchOnTimeoutSkipIgnoringNewReplicaShards() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            yesAllocationDeciders(),
+            Settings.EMPTY,
+            UnassignedInfo.Reason.INDEX_CREATED
+        );
+        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        Set<ShardId> shards = new HashSet<>();
+        while (iterator.hasNext()) {
+            ShardRouting sr = iterator.next();
+            if (sr.primary() == false) {
+                shards.add(sr.shardId());
+            }
+        }
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
@@ -861,6 +925,41 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        return new RoutingAllocation(
+            deciders,
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+    }
+
+    private RoutingAllocation oneInactivePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders, UnassignedInfo unassignedInfo) {
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.INITIALIZING);
+        RoutingTable routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(shardId.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
+                            .addShard(
+                                TestShardRouting.newShardRouting(
+                                    shardId,
+                                    node2.getId(),
+                                    null,
+                                    false,
+                                    ShardRoutingState.INITIALIZING,
+                                    unassignedInfo
+                                )
+                            )
+                            .build()
+                    )
+            )
+            .build();
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2))
             .build();
         return new RoutingAllocation(
             deciders,

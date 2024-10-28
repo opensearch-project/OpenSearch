@@ -82,7 +82,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Is the allocator responsible for allocating the given {@link ShardRouting}?
      */
-    protected static boolean isResponsibleFor(final ShardRouting shard) {
+    protected boolean isResponsibleFor(final ShardRouting shard) {
         return shard.primary() // must be primary
             && shard.unassigned() // must be unassigned
             // only handle either an existing store or a snapshot recovery

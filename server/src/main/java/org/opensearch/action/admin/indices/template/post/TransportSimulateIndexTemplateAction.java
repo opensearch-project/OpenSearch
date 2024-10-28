@@ -140,7 +140,8 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
             MetadataIndexTemplateService.validateV2TemplateRequest(
                 state.metadata(),
                 simulateTemplateToAdd,
-                request.getIndexTemplateRequest().indexTemplate()
+                request.getIndexTemplateRequest().indexTemplate(),
+                clusterService.getClusterSettings()
             );
             stateWithTemplate = indexTemplateService.addIndexTemplateV2(
                 state,

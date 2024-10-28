@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -25,7 +25,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
 /**
  * Wrapper class for uploading/downloading global metadata ({@link Metadata}) to/from remote blob store
  */
-public class RemoteGlobalMetadata extends AbstractRemoteWritableBlobEntity<Metadata> {
+public class RemoteGlobalMetadata extends AbstractClusterMetadataWriteableBlobEntity<Metadata> {
     public static final String GLOBAL_METADATA = "global_metadata";
 
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(

@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
@@ -72,6 +73,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -195,7 +197,11 @@ public class AllocationService {
     protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         ClusterState newState = buildResult(oldState, allocation);
 
-        logClusterHealthStateChange(new ClusterStateHealth(oldState), new ClusterStateHealth(newState), reason);
+        logClusterHealthStateChange(
+            new ClusterStateHealth(oldState, ClusterHealthRequest.Level.CLUSTER),
+            new ClusterStateHealth(newState, ClusterHealthRequest.Level.CLUSTER),
+            reason
+        );
 
         return newState;
     }
@@ -617,10 +623,10 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        allocator.allocateAllUnassignedShards(allocation, true);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, true)).ifPresent(Runnable::run);
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        allocator.allocateAllUnassignedShards(allocation, false);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, false)).ifPresent(Runnable::run);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {

@@ -15,14 +15,31 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.script.AggregationScript;
 import org.opensearch.script.Script;
+import org.opensearch.search.lookup.LeafSearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DerivedFieldTypeTests extends FieldTypeTestCase {
@@ -43,6 +60,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
         assertTrue(dft.getFieldMapper() instanceof BooleanFieldMapper);
         assertTrue(dft.getIndexableFieldGenerator().apply(true) instanceof Field);
         assertTrue(dft.getIndexableFieldGenerator().apply(false) instanceof Field);
+        assertEquals("derived", dft.typeName());
     }
 
     public void testDateType() {
@@ -99,5 +117,74 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
 
     public void testUnsupportedType() {
         expectThrows(IllegalArgumentException.class, () -> createDerivedFieldType("match_only_text"));
+    }
+
+    public void testGetAggregationScript_keyword() throws IOException {
+        DerivedFieldType dft = spy(createDerivedFieldType("keyword"));
+        assertTrue(dft.isAggregatable());
+        QueryShardContext mockContext = mock(QueryShardContext.class);
+        List<Object> expected = List.of("foo");
+        mockValueFetcherForAggs(mockContext, dft, expected);
+
+        AggregationScript.LeafFactory aggregationScript = dft.getAggregationScript(mockContext);
+        // have to use a memoryIndex because we can't mock leafReaderContext
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+        AggregationScript script = aggregationScript.newInstance(leafReaderContext);
+
+        Object result = script.execute();
+        assertEquals(expected, result);
+    }
+
+    public void testGetAggregationScript_ip() throws IOException {
+        DerivedFieldType dft = spy(createDerivedFieldType("ip"));
+        assertTrue(dft.isAggregatable());
+        QueryShardContext mockContext = mock(QueryShardContext.class);
+        List<Object> expected = List.of("192.168.0.1");
+        LeafSearchLookup leafSearchLookup = mockValueFetcherForAggs(mockContext, dft, expected);
+        SourceLookup sourceLookup = mock(SourceLookup.class);
+        when(leafSearchLookup.source()).thenReturn(sourceLookup);
+        AggregationScript.LeafFactory aggregationScript = dft.getAggregationScript(mockContext);
+        assertFalse(aggregationScript.needs_score());
+        // have to use a memoryIndex because we can't mock leafReaderContext
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+        AggregationScript script = aggregationScript.newInstance(leafReaderContext);
+
+        // test setDocument
+        int docid = 1;
+        script.setDocument(docid);
+        verify(sourceLookup, times(1)).setSegmentAndDocument(any(), eq(docid));
+
+        // test execute
+        List<Object> result = (List<Object>) script.execute();
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString((String) expected.get(0)))), result.get(0));
+    }
+
+    public void testDerivedFieldValueFetcherDoesNotSupportCustomFormats() {
+        DerivedFieldType dft = createDerivedFieldType("boolean");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> dft.valueFetcher(mock(QueryShardContext.class), mock(SearchLookup.class), "yyyy-MM-dd")
+        );
+    }
+
+    public void testSpanPrefixQueryNotSupported() {
+        DerivedFieldType dft = createDerivedFieldType("boolean");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> dft.spanPrefixQuery("value", mock(SpanMultiTermQueryWrapper.SpanRewriteMethod.class), mock(QueryShardContext.class))
+        );
+    }
+
+    private static LeafSearchLookup mockValueFetcherForAggs(QueryShardContext mockContext, DerivedFieldType dft, List<Object> expected) {
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
+        when(searchLookup.getLeafSearchLookup(any())).thenReturn(leafLookup);
+        when(mockContext.lookup()).thenReturn(searchLookup);
+        DerivedFieldValueFetcher valueFetcher = mock(DerivedFieldValueFetcher.class);
+        when(valueFetcher.fetchValuesInternal(any())).thenReturn(expected);
+        doReturn(valueFetcher).when(dft).valueFetcher(any(), any(), any());
+        return leafLookup;
     }
 }

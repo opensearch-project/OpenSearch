@@ -188,7 +188,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private static int urgentPoolCount(Settings settings) {
-        return boundedBy((allocatedProcessors(settings) + 7) / 8, 1, 2);
+        return boundedBy((allocatedProcessors(settings) + 1) / 2, 1, 2);
     }
 
     private static int priorityPoolCount(Settings settings) {

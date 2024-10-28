@@ -10,11 +10,15 @@ package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Index settings for star tree fields. The settings are final as right now
@@ -25,6 +29,7 @@ import java.util.List;
 public class StarTreeIndexSettings {
 
     public static int STAR_TREE_MAX_DIMENSIONS_DEFAULT = 10;
+    public static int STAR_TREE_MAX_BASE_METRICS_DEFAULT = 100;
     /**
      * This setting determines the max number of star tree fields that can be part of composite index mapping. For each
      * star tree field, we will generate associated star tree index.
@@ -47,6 +52,19 @@ public class StarTreeIndexSettings {
         STAR_TREE_MAX_DIMENSIONS_DEFAULT,
         2,
         10,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * This setting determines the max number of dimensions that can be part of star tree index field. Number of
+     * dimensions and associated cardinality has direct effect of star tree index size and query performance.
+     */
+    public static final Setting<Integer> STAR_TREE_MAX_BASE_METRICS_SETTING = Setting.intSetting(
+        "index.composite_index.star_tree.field.max_base_metrics",
+        STAR_TREE_MAX_BASE_METRICS_DEFAULT,
+        4,
+        100,
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -82,9 +100,9 @@ public class StarTreeIndexSettings {
     /**
      * Default intervals for date dimension as part of star tree fields
      */
-    public static final Setting<List<Rounding.DateTimeUnit>> DEFAULT_DATE_INTERVALS = Setting.listSetting(
+    public static final Setting<List<DateTimeUnitRounding>> DEFAULT_DATE_INTERVALS = Setting.listSetting(
         "index.composite_index.star_tree.field.default.date_intervals",
-        Arrays.asList(Rounding.DateTimeUnit.MINUTES_OF_HOUR.shortName(), Rounding.DateTimeUnit.HOUR_OF_DAY.shortName()),
+        Arrays.asList(Rounding.DateTimeUnit.MINUTES_OF_HOUR.shortName(), DataCubeDateTimeUnit.HALF_HOUR_OF_DAY.shortName()),
         StarTreeIndexSettings::getTimeUnit,
         Setting.Property.IndexScope,
         Setting.Property.Final
@@ -93,24 +111,27 @@ public class StarTreeIndexSettings {
     /**
      * Default metrics for metrics as part of star tree fields
      */
-    public static final Setting<List<MetricStat>> DEFAULT_METRICS_LIST = Setting.listSetting(
+    public static final Setting<List<String>> DEFAULT_METRICS_LIST = Setting.listSetting(
         "index.composite_index.star_tree.field.default.metrics",
-        Arrays.asList(
-            MetricStat.AVG.toString(),
-            MetricStat.COUNT.toString(),
-            MetricStat.SUM.toString(),
-            MetricStat.MAX.toString(),
-            MetricStat.MIN.toString()
-        ),
-        MetricStat::fromTypeName,
+        Arrays.asList(MetricStat.VALUE_COUNT.toString(), MetricStat.SUM.toString()),
+        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
 
-    public static Rounding.DateTimeUnit getTimeUnit(String expression) {
-        if (!DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
-            throw new IllegalArgumentException("unknown calendar intervals specified in star tree index mapping");
+    public static DateTimeUnitRounding getTimeUnit(String expression) {
+        if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
+            return new DateTimeUnitAdapter(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression));
+        } else if (DataCubeDateTimeUnit.DATE_FIELD_UNITS.containsKey(expression)) {
+            return DataCubeDateTimeUnit.DATE_FIELD_UNITS.get(expression);
         }
-        return DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression);
+        throw new IllegalArgumentException("unknown calendar intervals specified in star tree index mapping");
     }
+
+    public static final Setting<Boolean> IS_COMPOSITE_INDEX_SETTING = Setting.boolSetting(
+        "index.composite_index",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
 }

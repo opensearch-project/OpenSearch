@@ -35,6 +35,9 @@ package org.opensearch.cluster;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
@@ -53,9 +56,11 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestLogsAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ClusterConnectionManager;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.Transport;
@@ -69,6 +74,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -77,6 +83,7 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptySet;
@@ -86,12 +93,15 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class NodeConnectionsServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private TransportService transportService;
     private Map<DiscoveryNode, CheckedRunnable<Exception>> nodeConnectionBlocks;
+    private TestLogsAppender testLogsAppender;
+    private LoggerContext loggerContext;
 
     private List<DiscoveryNode> generateNodes() {
         List<DiscoveryNode> nodes = new ArrayList<>();
@@ -490,6 +500,108 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testConnectionCheckerRetriesIfPendingDisconnection() throws InterruptedException {
+        final Settings.Builder settings = Settings.builder();
+        final long reconnectIntervalMillis = 50;
+        settings.put(CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), reconnectIntervalMillis + "ms");
+
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            builder().put(NODE_NAME_SETTING.getKey(), "node").build(),
+            random()
+        );
+
+        MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
+        TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final TestNodeConnectionsService service = new TestNodeConnectionsService(
+            settings.build(),
+            deterministicTaskQueue.getThreadPool(),
+            transportService
+        );
+        service.start();
+
+        // setup the connections
+        final DiscoveryNode node = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).build();
+
+        final AtomicBoolean connectionCompleted = new AtomicBoolean();
+        service.connectToNodes(nodes, () -> connectionCompleted.set(true));
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(connectionCompleted.get());
+
+        // reset any logs as we want to assert for exceptions that show up after this
+        // reset connect to node count to assert for later
+        logger.info("--> resetting captured logs and counters");
+        testLogsAppender.clearCapturedLogs();
+        // this ensures we only track connection attempts that happen after the disconnection
+        transportService.resetConnectToNodeCallCount();
+
+        // block connection checker reconnection attempts until after we set pending disconnections
+        logger.info("--> disabling connection checker, and triggering disconnect");
+        service.setShouldReconnect(false);
+        transportService.disconnectFromNode(node);
+
+        // set pending disconnections to true to fail future reconnection attempts
+        final long maxDisconnectionTime = 1000;
+        deterministicTaskQueue.scheduleNow(new Runnable() {
+            @Override
+            public void run() {
+                logger.info("--> setting pending disconnections to fail next connection attempts");
+                service.setPendingDisconnections(new HashSet<>(Collections.singleton(node)));
+            }
+
+            @Override
+            public String toString() {
+                return "scheduled disconnection of " + node;
+            }
+        });
+        // our task queue will have the first task as the runnable to set pending disconnections
+        // here we re-enable the connection checker to enqueue next tasks for attempting reconnection
+        logger.info("--> re-enabling reconnection checker");
+        service.setShouldReconnect(true);
+
+        final long maxReconnectionTime = 2000;
+        final int expectedReconnectionAttempts = 10;
+
+        // this will first run the task to set the pending disconnections, then will execute the reconnection tasks
+        // exit early when we have enough reconnection attempts
+        logger.info("--> running tasks in order until expected reconnection attempts");
+        runTasksInOrderUntilExpectedReconnectionAttempts(
+            deterministicTaskQueue,
+            maxDisconnectionTime + maxReconnectionTime,
+            transportService,
+            expectedReconnectionAttempts
+        );
+        logger.info("--> verifying that connectionchecker tried to reconnect");
+
+        // assert that the connections failed
+        assertFalse("connected to " + node, transportService.nodeConnected(node));
+
+        // assert that we saw at least the required number of reconnection attempts, and the exceptions that showed up are as expected
+        logger.info("--> number of reconnection attempts: {}", transportService.getConnectToNodeCallCount());
+        assertThat(
+            "Did not see enough reconnection attempts from connection checker",
+            transportService.getConnectToNodeCallCount(),
+            greaterThan(expectedReconnectionAttempts)
+        );
+        boolean logFound = testLogsAppender.waitForLog("failed to connect", 1, TimeUnit.SECONDS)
+            && testLogsAppender.waitForLog(
+                "IllegalStateException: cannot make a new connection as disconnect to node",
+                1,
+                TimeUnit.SECONDS
+            );
+        assertTrue("Expected log for reconnection failure was not found in the required time period", logFound);
+
+        // clear the pending disconnections and ensure the connection gets re-established automatically by connectionchecker
+        logger.info("--> clearing pending disconnections to allow connections to re-establish");
+        service.clearPendingDisconnections();
+        runTasksUntil(deterministicTaskQueue, maxDisconnectionTime + maxReconnectionTime + 2 * reconnectIntervalMillis);
+        assertConnectedExactlyToNodes(transportService, nodes);
+    }
+
     private void runTasksUntil(DeterministicTaskQueue deterministicTaskQueue, long endTimeMillis) {
         while (deterministicTaskQueue.getCurrentTimeMillis() < endTimeMillis) {
             if (deterministicTaskQueue.hasRunnableTasks() && randomBoolean()) {
@@ -499,6 +611,24 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
             }
         }
         deterministicTaskQueue.runAllRunnableTasks();
+    }
+
+    private void runTasksInOrderUntilExpectedReconnectionAttempts(
+        DeterministicTaskQueue deterministicTaskQueue,
+        long endTimeMillis,
+        TestTransportService transportService,
+        int expectedReconnectionAttempts
+    ) {
+        // break the loop if we timeout or if we have enough reconnection attempts
+        while ((deterministicTaskQueue.getCurrentTimeMillis() < endTimeMillis)
+            && (transportService.getConnectToNodeCallCount() <= expectedReconnectionAttempts)) {
+            if (deterministicTaskQueue.hasRunnableTasks() && randomBoolean()) {
+                deterministicTaskQueue.runNextTask();
+            } else if (deterministicTaskQueue.hasDeferredTasks()) {
+                deterministicTaskQueue.advanceTime();
+            }
+        }
+        deterministicTaskQueue.runAllRunnableTasksInEnqueuedOrder();
     }
 
     private void ensureConnections(NodeConnectionsService service) {
@@ -526,6 +656,16 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // Add any other specific messages you want to capture
+        List<String> messagesToCapture = Arrays.asList("failed to connect", "IllegalStateException");
+        testLogsAppender = new TestLogsAppender(messagesToCapture);
+        loggerContext = (LoggerContext) LogManager.getContext(false);
+        Configuration config = loggerContext.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(NodeConnectionsService.class.getName());
+        loggerConfig.addAppender(testLogsAppender, null, null);
+        loggerConfig = config.getLoggerConfig(ClusterConnectionManager.class.getName());
+        loggerConfig.addAppender(testLogsAppender, null, null);
+        loggerContext.updateLoggers();
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
         this.threadPool = threadPool;
         nodeConnectionBlocks = newConcurrentMap();
@@ -537,6 +677,14 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
     @Override
     @After
     public void tearDown() throws Exception {
+        testLogsAppender.clearCapturedLogs();
+        loggerContext = (LoggerContext) LogManager.getContext(false);
+        Configuration config = loggerContext.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(NodeConnectionsService.class.getName());
+        loggerConfig.removeAppender(testLogsAppender.getName());
+        loggerConfig = config.getLoggerConfig(ClusterConnectionManager.class.getName());
+        loggerConfig.removeAppender(testLogsAppender.getName());
+        loggerContext.updateLoggers();
         transportService.stop();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
@@ -544,6 +692,8 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
     }
 
     private final class TestTransportService extends TransportService {
+
+        private final AtomicInteger connectToNodeCallCount = new AtomicInteger(0);
 
         private TestTransportService(Transport transport, ThreadPool threadPool) {
             super(
@@ -587,6 +737,47 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
                 });
             } else {
                 super.connectToNode(node, listener);
+            }
+            logger.info("calling connectToNode");
+            connectToNodeCallCount.incrementAndGet();
+        }
+
+        public int getConnectToNodeCallCount() {
+            return connectToNodeCallCount.get();
+        }
+
+        public void resetConnectToNodeCallCount() {
+            connectToNodeCallCount.set(0);
+        }
+    }
+
+    private class TestNodeConnectionsService extends NodeConnectionsService {
+        private boolean shouldReconnect = true;
+
+        public TestNodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
+            super(settings, threadPool, transportService);
+        }
+
+        public void setShouldReconnect(boolean shouldReconnect) {
+            this.shouldReconnect = shouldReconnect;
+        }
+
+        @Override
+        protected void doStart() {
+            final StoppableConnectionChecker connectionChecker = new StoppableConnectionChecker();
+            this.connectionChecker = connectionChecker;
+            connectionChecker.scheduleNextCheck();
+        }
+
+        class StoppableConnectionChecker extends NodeConnectionsService.ConnectionChecker {
+            @Override
+            protected void doRun() {
+                if (connectionChecker == this && shouldReconnect) {
+                    connectDisconnectedTargets(this::scheduleNextCheck);
+                } else {
+                    // Skip reconnection attempt but still schedule the next check
+                    scheduleNextCheck();
+                }
             }
         }
     }

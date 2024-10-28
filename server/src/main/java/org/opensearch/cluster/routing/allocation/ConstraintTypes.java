@@ -70,7 +70,7 @@ public class ConstraintTypes {
         return (params) -> {
             int perIndexPrimaryShardCount = params.getNode().numPrimaryShards(params.getIndex());
             int perIndexAllowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode(params.getIndex()));
-            return perIndexPrimaryShardCount > perIndexAllowedPrimaryShardCount;
+            return perIndexPrimaryShardCount >= perIndexAllowedPrimaryShardCount;
         };
     }
 
@@ -85,5 +85,15 @@ public class ConstraintTypes {
             int allowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode() * (1 + buffer));
             return primaryShardCount >= allowedPrimaryShardCount;
         };
+    }
+
+    public static long predicateKeyToWeightMap(String key, long primaryConstraintWeight) {
+        switch (key) {
+            case CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID:
+            case CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID:
+                return primaryConstraintWeight;
+            default:
+                return CONSTRAINT_WEIGHT;
+        }
     }
 }

@@ -40,7 +40,6 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -81,7 +80,6 @@ class CompositeAggregationFactory extends AggregatorFactory {
 
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
-        // Disable concurrent search if any scripting is used. See https://github.com/opensearch-project/OpenSearch/issues/12331 for details
-        return Arrays.stream(sources).noneMatch(CompositeValuesSourceConfig::hasScript);
+        return true;
     }
 }

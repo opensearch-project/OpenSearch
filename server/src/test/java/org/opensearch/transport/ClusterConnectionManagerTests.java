@@ -320,6 +320,50 @@ public class ClusterConnectionManagerTests extends OpenSearchTestCase {
         assertEquals(0, nodeDisconnectedCount.get());
     }
 
+    public void testConnectFailsWhenDisconnectIsPending() {
+        AtomicInteger nodeConnectedCount = new AtomicInteger();
+        AtomicInteger nodeDisconnectedCount = new AtomicInteger();
+        connectionManager.addListener(new TransportConnectionListener() {
+            @Override
+            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+                nodeConnectedCount.incrementAndGet();
+            }
+
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+                nodeDisconnectedCount.incrementAndGet();
+            }
+        });
+
+        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
+        Transport.Connection connection = new TestConnect(node);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            listener.onResponse(connection);
+            return null;
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+        assertFalse(connectionManager.nodeConnected(node));
+
+        // Mark connection as pending disconnect, any connection attempt should fail
+        connectionManager.setPendingDisconnection(node);
+        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+        connectionManager.connectToNode(node, connectionProfile, validator, fut);
+        expectThrows(IllegalStateException.class, () -> fut.actionGet());
+
+        // clear the pending disconnect and assert that connection succeeds
+        connectionManager.clearPendingDisconnections();
+        assertFalse(connectionManager.nodeConnected(node));
+        PlainActionFuture.get(
+            future -> connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.map(future, x -> null))
+        );
+        assertFalse(connection.isClosed());
+        assertTrue(connectionManager.nodeConnected(node));
+        assertEquals(1, connectionManager.size());
+        assertEquals(1, nodeConnectedCount.get());
+        assertEquals(0, nodeDisconnectedCount.get());
+    }
+
     private static class TestConnect extends CloseableConnection {
 
         private final DiscoveryNode node;

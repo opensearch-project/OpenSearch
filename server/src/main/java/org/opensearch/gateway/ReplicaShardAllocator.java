@@ -100,7 +100,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Metadata metadata = allocation.metadata();
         RoutingNodes routingNodes = allocation.routingNodes();
         ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard.shardId());
-        assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
+        if (primaryShard == null) {
+            logger.trace("{}: no active primary shard found or allocated, letting actual allocation figure it out", shard);
+            return null;
+        }
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
 
@@ -188,7 +191,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Is the allocator responsible for allocating the given {@link ShardRouting}?
      */
-    protected static boolean isResponsibleFor(final ShardRouting shard) {
+    protected boolean isResponsibleFor(final ShardRouting shard) {
         return shard.primary() == false // must be a replica
             && shard.unassigned() // must be unassigned
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...

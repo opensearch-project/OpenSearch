@@ -34,11 +34,16 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.plugins.Plugin;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,6 +51,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
@@ -91,22 +97,110 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    @BeforeClass
+    public static void createMapper() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(STAR_TREE_INDEX, "true").build());
+    }
+
+    @AfterClass
+    public static void clearMapper() {
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+    }
+
+    public void testScaledFloatWithStarTree() throws Exception {
+
+        double scalingFactorField1 = randomDouble() * 100;
+        double scalingFactorField2 = randomDouble() * 100;
+        double scalingFactorField3 = randomDouble() * 100;
+
+        XContentBuilder mapping = getStarTreeMappingWithScaledFloat(scalingFactorField1, scalingFactorField2, scalingFactorField3);
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        assertTrue(mapping.toString().contains("startree"));
+
+        long randomLongField1 = randomLong();
+        long randomLongField2 = randomLong();
+        long randomLongField3 = randomLong();
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.field("field1", randomLongField1).field("field2", randomLongField2).field("field3", randomLongField3))
+        );
+        validateScaledFloatFields(doc, "field1", randomLongField1, scalingFactorField1);
+        validateScaledFloatFields(doc, "field2", randomLongField2, scalingFactorField2);
+        validateScaledFloatFields(doc, "field3", randomLongField3, scalingFactorField3);
+    }
+
+    @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(super.getIndexSettings())
+            .build();
+    }
+
+    private static void validateScaledFloatFields(ParsedDocument doc, String field, long value, double scalingFactor) {
+        IndexableField[] fields = doc.rootDoc().getFields(field);
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals((long) (value * scalingFactor), pointField.numericValue().longValue());
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals((long) (value * scalingFactor), dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+    }
+
+    private XContentBuilder getStarTreeMappingWithScaledFloat(
+        double scalingFactorField1,
+        double scalingFactorField2,
+        double scalingFactorField3
+    ) throws IOException {
+        return topMapping(b -> {
+            b.startObject("composite");
+            b.startObject("startree");
+            b.field("type", "star_tree");
+            b.startObject("config");
+            b.field("max_leaf_docs", 100);
+            b.startArray("ordered_dimensions");
+            b.startObject();
+            b.field("name", "field1");
+            b.endObject();
+            b.startObject();
+            b.field("name", "field2");
+            b.endObject();
+            b.endArray();
+            b.startArray("metrics");
+            b.startObject();
+            b.field("name", "field3");
+            b.startArray("stats");
+            b.value("sum");
+            b.value("value_count");
+            b.endArray();
+            b.endObject();
+            b.endArray();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.startObject("properties");
+            b.startObject("field1");
+            b.field("type", "scaled_float").field("scaling_factor", scalingFactorField1);
+            b.endObject();
+            b.startObject("field2");
+            b.field("type", "scaled_float").field("scaling_factor", scalingFactorField2);
+            b.endObject();
+            b.startObject("field3");
+            b.field("type", "scaled_float").field("scaling_factor", scalingFactorField3);
+            b.endObject();
+            b.endObject();
+        });
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0));
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(mapping.toString(), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(1230, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(1230, dvField.numericValue().longValue());
-        assertFalse(dvField.fieldType().stored());
+        validateScaledFloatFields(doc, "field", 123, 10.0);
     }
 
     public void testMissingScalingFactor() {

@@ -82,6 +82,8 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec:${versions.netty}"
@@ -111,6 +113,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
   mapping from: /netty-.*/, to: 'netty'
+  mapping from: /log4j-.*/, to: 'log4j'
 }
 
 bundlePlugin {
@@ -510,9 +513,7 @@ thirdPartyAudit {
     'org.jboss.marshalling.MarshallingConfiguration',
     'org.jboss.marshalling.Unmarshaller',
 
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
+    'org.slf4j.ext.EventData',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
 

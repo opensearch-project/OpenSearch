@@ -15,7 +15,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.function.Supplier;
 
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured;
 
 /**
  * Factory to provide impl for RemoteRoutingTableService based on settings.
@@ -34,10 +34,11 @@ public class RemoteRoutingTableServiceFactory {
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
         ClusterSettings clusterSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        String clusterName
     ) {
-        if (isRemoteRoutingTableEnabled(settings)) {
-            return new InternalRemoteRoutingTableService(repositoriesService, settings, clusterSettings, threadPool);
+        if (isRemoteRoutingTableConfigured(settings)) {
+            return new InternalRemoteRoutingTableService(repositoriesService, settings, clusterSettings, threadPool, clusterName);
         }
         return new NoopRemoteRoutingTableService();
     }

@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
@@ -29,7 +29,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 /**
  * Wrapper class for uploading/downloading {@link DiscoveryNodes} to/from remote blob store
  */
-public class RemoteDiscoveryNodes extends AbstractRemoteWritableBlobEntity<DiscoveryNodes> {
+public class RemoteDiscoveryNodes extends AbstractClusterMetadataWriteableBlobEntity<DiscoveryNodes> {
 
     public static final String DISCOVERY_NODES = "nodes";
     public static final ChecksumWritableBlobStoreFormat<DiscoveryNodes> DISCOVERY_NODES_FORMAT = new ChecksumWritableBlobStoreFormat<>(
@@ -88,7 +88,12 @@ public class RemoteDiscoveryNodes extends AbstractRemoteWritableBlobEntity<Disco
 
     @Override
     public InputStream serialize() throws IOException {
-        return DISCOVERY_NODES_FORMAT.serialize(discoveryNodes, generateBlobFileName(), getCompressor()).streamInput();
+        return DISCOVERY_NODES_FORMAT.serialize(
+            (out, discoveryNode) -> discoveryNode.writeToWithAttribute(out),
+            discoveryNodes,
+            generateBlobFileName(),
+            getCompressor()
+        ).streamInput();
     }
 
     @Override

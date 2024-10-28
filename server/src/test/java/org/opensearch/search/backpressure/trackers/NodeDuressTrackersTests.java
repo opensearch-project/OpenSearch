@@ -8,9 +8,9 @@
 
 package org.opensearch.search.backpressure.trackers;
 
-import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.ResourceType;
 
 import java.util.EnumMap;
 
@@ -19,7 +19,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeNotInDuress() {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, new NodeDuressTracker(() -> false, () -> 2));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> false, () -> 2));
                 put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 2));
             }
         };
@@ -34,7 +34,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenHeapInDuress() {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 3));
                 put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 1));
             }
         };
@@ -51,7 +51,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenCPUInDuress() {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, new NodeDuressTracker(() -> false, () -> 1));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> false, () -> 1));
                 put(ResourceType.CPU, new NodeDuressTracker(() -> true, () -> 3));
             }
         };
@@ -68,7 +68,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenCPUAndHeapInDuress() {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 3));
                 put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 3));
             }
         };

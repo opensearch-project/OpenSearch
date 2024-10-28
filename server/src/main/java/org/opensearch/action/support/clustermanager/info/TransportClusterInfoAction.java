@@ -62,6 +62,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this.localExecuteSupported = true;
     }
 
     @Override

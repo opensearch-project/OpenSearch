@@ -25,6 +25,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.IndexMetadataUploadListener;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
@@ -50,8 +51,8 @@ import static org.opensearch.index.remote.RemoteIndexPath.COMBINED_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
 import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStorePathStrategy;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * Uploads the remote store path for all possible combinations of {@link org.opensearch.index.remote.RemoteStoreEnums.DataCategory}
@@ -79,6 +80,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     private final Settings settings;
     private final boolean isRemoteDataAttributePresent;
     private final boolean isTranslogSegmentRepoSame;
+    private final RemoteStoreSettings remoteStoreSettings;
     private final Supplier<RepositoriesService> repositoriesService;
     private volatile TimeValue metadataUploadTimeout;
 
@@ -89,7 +91,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         ThreadPool threadPool,
         Settings settings,
         Supplier<RepositoriesService> repositoriesService,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(threadPool, ThreadPool.Names.GENERIC);
         this.settings = Objects.requireNonNull(settings);
@@ -100,6 +103,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         Objects.requireNonNull(clusterSettings);
         metadataUploadTimeout = clusterSettings.get(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setMetadataUploadTimeout);
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     @Override
@@ -208,7 +212,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
                 basePath,
                 pathType,
                 hashAlgorithm,
-                pathCreationMap
+                pathCreationMap,
+                remoteStoreSettings
             );
             String fileName = generateFileName(indexUUID, idxMD.getVersion(), remoteIndexPath.getVersion());
             REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(remoteIndexPath, blobContainer, fileName, actionListener);
@@ -230,7 +235,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     }
 
     public void start() {
-        assert isRemoteStoreClusterStateEnabled(settings) == true : "Remote cluster state is not enabled";
+        assert isRemoteClusterStateConfigured(settings) == true : "Remote cluster state is not configured";
         if (isRemoteDataAttributePresent == false) {
             // If remote store data attributes are not present than we skip this.
             return;

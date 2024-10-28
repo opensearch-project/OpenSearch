@@ -95,7 +95,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
-        out.writeOptionalWriteable(currentNode);
+        out.writeOptionalWriteable((stream, node) -> node.writeToWithAttribute(stream), currentNode);
         out.writeOptionalWriteable(relocationTargetNode);
         out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);

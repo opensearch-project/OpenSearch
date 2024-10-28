@@ -33,6 +33,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.QueryGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -69,6 +70,8 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -325,6 +328,35 @@ public class ClusterModuleTests extends ModuleTestCase {
             IllegalArgumentException.class,
             () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(), new TestShardBatchGatewayAllocator())
         );
+    }
+
+    public void testQueryGroupMetadataRegister() {
+        List<NamedWriteableRegistry.Entry> customEntries = ClusterModule.getNamedWriteables();
+        List<NamedXContentRegistry.Entry> customXEntries = ClusterModule.getNamedXWriteables();
+        assertTrue(
+            customEntries.stream()
+                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(QueryGroupMetadata.TYPE))
+        );
+
+        assertTrue(
+            customXEntries.stream()
+                .anyMatch(
+                    entry -> entry.categoryClass == Metadata.Custom.class && entry.name.getPreferredName().equals(QueryGroupMetadata.TYPE)
+                )
+        );
+    }
+
+    public void testRerouteServiceSetForBalancedShardsAllocator() {
+        ClusterModule clusterModule = new ClusterModule(
+            Settings.EMPTY,
+            clusterService,
+            Collections.emptyList(),
+            clusterInfoService,
+            null,
+            threadContext,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
+        clusterModule.setRerouteServiceForAllocator((reason, priority, listener) -> listener.onResponse(clusterService.state()));
     }
 
     private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {

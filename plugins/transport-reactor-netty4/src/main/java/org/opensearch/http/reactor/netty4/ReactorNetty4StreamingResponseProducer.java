@@ -21,7 +21,11 @@ class ReactorNetty4StreamingResponseProducer implements StreamingHttpContentSend
     private volatile FluxSink<HttpContent> emitter;
 
     ReactorNetty4StreamingResponseProducer() {
-        this.sender = Flux.create(emitter -> this.emitter = emitter);
+        this.sender = Flux.create(emitter -> register(emitter));
+    }
+
+    private void register(FluxSink<HttpContent> emitter) {
+        this.emitter = emitter;
     }
 
     @Override

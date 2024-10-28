@@ -9,14 +9,17 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 
@@ -29,7 +32,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
 /**
  * Wrapper class for uploading/downloading {@link IndexMetadata} to/from remote blob store
  */
-public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexMetadata> {
+public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEntity<IndexMetadata> {
 
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 2;
 
@@ -41,15 +44,24 @@ public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexM
     public static final String INDEX = "index";
 
     private IndexMetadata indexMetadata;
+    private RemoteStoreEnums.PathType pathType;
+    private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
+    private String fixedPrefix;
 
     public RemoteIndexMetadata(
         final IndexMetadata indexMetadata,
         final String clusterUUID,
         final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
+        final NamedXContentRegistry namedXContentRegistry,
+        final RemoteStoreEnums.PathType pathType,
+        final RemoteStoreEnums.PathHashAlgorithm pathHashAlgo,
+        final String fixedPrefix
     ) {
         super(clusterUUID, compressor, namedXContentRegistry);
         this.indexMetadata = indexMetadata;
+        this.pathType = pathType;
+        this.pathHashAlgo = pathHashAlgo;
+        this.fixedPrefix = fixedPrefix;
     }
 
     public RemoteIndexMetadata(
@@ -84,6 +96,22 @@ public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexM
         );
         this.blobFileName = blobFileName;
         return blobFileName;
+    }
+
+    @Override
+    public BlobPath getPrefixedPath(BlobPath blobPath) {
+        if (pathType == null) {
+            return blobPath;
+        }
+        assert pathHashAlgo != null;
+        return pathType.path(
+            RemoteStorePathStrategy.PathInput.builder()
+                .fixedPrefix(fixedPrefix)
+                .basePath(blobPath)
+                .indexUUID(indexMetadata.getIndexUUID())
+                .build(),
+            pathHashAlgo
+        );
     }
 
     @Override

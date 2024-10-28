@@ -226,6 +226,7 @@ public abstract class TransportNodesAction<
         private final NodesRequest request;
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
+        private final DiscoveryNode[] concreteNodes;
         private final AtomicInteger counter = new AtomicInteger();
         private final Task task;
 
@@ -238,11 +239,17 @@ public abstract class TransportNodesAction<
                 assert request.concreteNodes() != null;
             }
             this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+            this.concreteNodes = request.concreteNodes();
+            if (request.getIncludeDiscoveryNodes() == false) {
+                // As we transfer the ownership of discovery nodes to route the request to into the AsyncAction class,
+                // we remove the list of DiscoveryNodes from the request. This reduces the payload of the request and improves
+                // the number of concrete nodes in the memory.
+                request.setConcreteNodes(null);
+            }
         }
 
         void start() {
-            final DiscoveryNode[] nodes = request.concreteNodes();
-            if (nodes.length == 0) {
+            if (this.concreteNodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
                 return;
@@ -251,16 +258,15 @@ public abstract class TransportNodesAction<
             if (request.timeout() != null) {
                 builder.withTimeout(request.timeout());
             }
-            for (int i = 0; i < nodes.length; i++) {
+            for (int i = 0; i < this.concreteNodes.length; i++) {
                 final int idx = i;
-                final DiscoveryNode node = nodes[i];
+                final DiscoveryNode node = this.concreteNodes[i];
                 final String nodeId = node.getId();
                 try {
                     TransportRequest nodeRequest = newNodeRequest(request);
                     if (task != null) {
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
-
                     transportService.sendRequest(
                         node,
                         getTransportNodeAction(node),

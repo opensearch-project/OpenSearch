@@ -291,8 +291,7 @@ final class SimilarityProviders {
 
         boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
 
-        ClassicSimilarity similarity = new ClassicSimilarity();
-        similarity.setDiscountOverlaps(discountOverlaps);
+        ClassicSimilarity similarity = new ClassicSimilarity(discountOverlaps);
         return similarity;
     }
 

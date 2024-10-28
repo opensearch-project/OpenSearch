@@ -47,6 +47,7 @@ public class SearchPipelineCommonModulePluginTests extends OpenSearchTestCase {
             List.of("rename_field", "truncate_hits", "collapse"),
             SearchPipelineCommonModulePlugin::getResponseProcessors
         );
+        runAllowlistTest(key, List.of("split", "sort"), SearchPipelineCommonModulePlugin::getResponseProcessors);
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -82,7 +83,7 @@ public class SearchPipelineCommonModulePluginTests extends OpenSearchTestCase {
         try (SearchPipelineCommonModulePlugin plugin = new SearchPipelineCommonModulePlugin()) {
             assertEquals(Set.of("oversample", "filter_query", "script"), plugin.getRequestProcessors(createParameters(settings)).keySet());
             assertEquals(
-                Set.of("rename_field", "truncate_hits", "collapse"),
+                Set.of("rename_field", "truncate_hits", "collapse", "split", "sort"),
                 plugin.getResponseProcessors(createParameters(settings)).keySet()
             );
             assertEquals(Set.of(), plugin.getSearchPhaseResultsProcessors(createParameters(settings)).keySet());

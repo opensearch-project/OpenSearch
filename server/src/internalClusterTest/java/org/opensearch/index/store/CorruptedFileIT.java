@@ -577,18 +577,12 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         // the other problem here why we can't corrupt segments.X files is that the snapshot flushes again before
         // it snapshots and that will write a new segments.X+1 file
         logger.info("-->  creating repository");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", randomRepoPath().toAbsolutePath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", randomRepoPath().toAbsolutePath())
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository("test-repo", "fs", settings);
+
         logger.info("--> snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
@@ -761,18 +755,11 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         // Create a snapshot repository. This repo is used to take a snapshot after
         // corrupting a file, which causes the node to notice the corrupt data and
         // close the shard.
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", randomRepoPath().toAbsolutePath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", randomRepoPath().toAbsolutePath())
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository("test-repo", "fs", settings);
 
         client().prepareIndex("test").setSource("field", "value").execute();
         indexingInFlight.await();

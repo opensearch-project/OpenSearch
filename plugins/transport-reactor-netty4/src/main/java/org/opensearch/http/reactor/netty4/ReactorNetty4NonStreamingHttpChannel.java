@@ -55,9 +55,14 @@ class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        emitter.next(createResponse(response));
-        listener.onResponse(null);
-        emitter.complete();
+        try {
+            emitter.next(createResponse(response));
+            listener.onResponse(null);
+            emitter.complete();
+        } catch (final Exception ex) {
+            emitter.error(ex);
+            listener.onFailure(ex);
+        }
     }
 
     @Override

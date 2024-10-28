@@ -36,6 +36,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
@@ -183,6 +184,12 @@ public class ValuesSourceConfig {
             valuesSourceType = defaultValueSourceType;
         }
         DocValueFormat docValueFormat = resolveFormat(format, valuesSourceType, timeZone, fieldType);
+
+        // If we are aggregating on derived field set the agg script.
+        if (fieldType instanceof DerivedFieldType) {
+            aggregationScript = ((DerivedFieldType) fieldType).getAggregationScript(context);
+        }
+
         config = new ValuesSourceConfig(
             valuesSourceType,
             fieldContext,
@@ -336,7 +343,7 @@ public class ValuesSourceConfig {
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
         } else {
-            if (fieldContext() == null) {
+            if (fieldContext() == null || fieldType() instanceof DerivedFieldType) {
                 // Script case
                 vs = valueSourceType().getScript(script(), scriptValueType());
             } else {

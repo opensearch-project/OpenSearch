@@ -60,7 +60,6 @@ import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 
 import org.ehcache.Cache;
-import org.ehcache.CachePersistenceException;
 import org.ehcache.PersistentCacheManager;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheEventListenerConfigurationBuilder;
@@ -102,16 +101,18 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private static final Logger logger = LogManager.getLogger(EhcacheDiskCache.class);
 
     // Unique id associated with this cache.
-    private final static String UNIQUE_ID = UUID.randomUUID().toString();
-    private final static String THREAD_POOL_ALIAS_PREFIX = "ehcachePool";
-    private final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
+    final static String UNIQUE_ID = UUID.randomUUID().toString();
+    final static String THREAD_POOL_ALIAS_PREFIX = "ehcachePool";
+    final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
+    final static String CACHE_DATA_CLEANUP_DURING_INITIALIZATION_EXCEPTION = "Failed to delete ehcache disk cache under "
+        + "path: %s during initialization. Please clean this up manually and restart the process";
 
     // A Cache manager can create many caches.
     private final PersistentCacheManager cacheManager;
 
     // Disk cache. Using ByteArrayWrapper to compare two byte[] by values rather than the default reference checks
     @SuppressWarnings({ "rawtypes" }) // We have to use the raw type as there's no way to pass the "generic class" to ehcache
-    private Cache<ICacheKey, ByteArrayWrapper> cache;
+    private final Cache<ICacheKey, ByteArrayWrapper> cache;
     private final long maxWeightInBytes;
     private final String storagePath;
     private final Class<K> keyType;
@@ -133,7 +134,8 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     Map<ICacheKey<K>, CompletableFuture<Tuple<ICacheKey<K>, V>>> completableFutureMap = new ConcurrentHashMap<>();
 
-    private EhcacheDiskCache(Builder<K, V> builder) {
+    @SuppressForbidden(reason = "Ehcache uses File.io")
+    EhcacheDiskCache(Builder<K, V> builder) {
         this.keyType = Objects.requireNonNull(builder.keyType, "Key type shouldn't be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "Value type shouldn't be null");
         this.expireAfterAccess = Objects.requireNonNull(builder.getExpireAfterAcess(), "ExpireAfterAccess value shouldn't " + "be null");
@@ -150,6 +152,18 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.storagePath = builder.storagePath;
         if (this.storagePath == null || this.storagePath.isBlank()) {
             throw new IllegalArgumentException("Storage path shouldn't be null or empty");
+        }
+        // Delete all the previous disk cache related files/data. We don't persist data between process restart for
+        // now which is why need to do this. Clean up in case there was a non graceful restart and we had older disk
+        // cache data still lying around.
+        Path ehcacheDirectory = Paths.get(this.storagePath);
+        if (Files.exists(ehcacheDirectory)) {
+            try {
+                logger.info("Found older disk cache data lying around during initialization under path: {}", this.storagePath);
+                IOUtils.rm(ehcacheDirectory);
+            } catch (IOException e) {
+                throw new OpenSearchException(String.format(CACHE_DATA_CLEANUP_DURING_INITIALIZATION_EXCEPTION, this.storagePath), e);
+            }
         }
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
             this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite#" + UNIQUE_ID;
@@ -175,11 +189,22 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         }
     }
 
+    // Package private for testing
+    PersistentCacheManager getCacheManager() {
+        return this.cacheManager;
+    }
+
     @SuppressWarnings({ "rawtypes" })
     private Cache<ICacheKey, ByteArrayWrapper> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
         // Creating the cache requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<Cache<ICacheKey, ByteArrayWrapper>>) () -> {
             try {
+                int segmentCount = (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                    .get(DISK_SEGMENT_KEY)
+                    .get(settings);
+                if (builder.getNumberOfSegments() > 0) {
+                    segmentCount = builder.getNumberOfSegments();
+                }
                 return this.cacheManager.createCache(
                     this.diskCacheAlias,
                     CacheConfigurationBuilder.newCacheConfigurationBuilder(
@@ -213,7 +238,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                                 (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
                                     .get(DISK_WRITE_CONCURRENCY_KEY)
                                     .get(settings),
-                                (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
+                                segmentCount
                             )
                         )
                         .withKeySerializer(new KeySerializerWrapper(keySerializer))
@@ -255,7 +280,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     @SuppressForbidden(reason = "Ehcache uses File.io")
-    private PersistentCacheManager buildCacheManager() {
+    PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
         // Creating the cache manager also requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<PersistentCacheManager>) () -> {
@@ -444,20 +469,21 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     @SuppressForbidden(reason = "Ehcache uses File.io")
     public void close() {
-        cacheManager.removeCache(this.diskCacheAlias);
-        cacheManager.close();
         try {
-            cacheManager.destroyCache(this.diskCacheAlias);
-            // Delete all the disk cache related files/data
-            Path ehcacheDirectory = Paths.get(this.storagePath);
-            if (Files.exists(ehcacheDirectory)) {
-                IOUtils.rm(ehcacheDirectory);
-            }
-        } catch (CachePersistenceException e) {
-            throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
-        } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
+            cacheManager.close();
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close ehcache manager"), e);
         }
+        // Delete all the disk cache related files/data in case it is present
+        Path ehcacheDirectory = Paths.get(this.storagePath);
+        if (Files.exists(ehcacheDirectory)) {
+            try {
+                IOUtils.rm(ehcacheDirectory);
+            } catch (IOException e) {
+                logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
+            }
+        }
+
     }
 
     /**
@@ -689,8 +715,19 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                 throw new IllegalArgumentException("EhcacheDiskCache requires a value serializer of type Serializer<V, byte[]>");
             }
 
-            return new Builder<K, V>().setStoragePath((String) settingList.get(DISK_STORAGE_PATH_KEY).get(settings))
-                .setDiskCacheAlias((String) settingList.get(DISK_CACHE_ALIAS_KEY).get(settings))
+            String storagePath = (String) settingList.get(DISK_STORAGE_PATH_KEY).get(settings);
+            // If we read the storage path directly from the setting, we have to add the segment number at the end.
+            if (storagePath == null || storagePath.isBlank()) {
+                // In case storage path is not explicitly set by user, use default path.
+                // Since this comes from the TSC, it already has the segment number at the end.
+                storagePath = config.getStoragePath();
+            }
+            String diskCacheAlias = (String) settingList.get(DISK_CACHE_ALIAS_KEY).get(settings);
+            if (config.getCacheAlias() != null && !config.getCacheAlias().isBlank()) {
+                diskCacheAlias = config.getCacheAlias();
+            }
+            EhcacheDiskCache.Builder<K, V> builder = (Builder<K, V>) new Builder<K, V>().setStoragePath(storagePath)
+                .setDiskCacheAlias(diskCacheAlias)
                 .setIsEventListenerModeSync((Boolean) settingList.get(DISK_LISTENER_MODE_SYNC_KEY).get(settings))
                 .setCacheType(cacheType)
                 .setKeyType((config.getKeyType()))
@@ -701,9 +738,21 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener())
                 .setExpireAfterAccess((TimeValue) settingList.get(DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY).get(settings))
-                .setMaximumWeightInBytes((Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings))
-                .setSettings(settings)
-                .build();
+                .setSettings(settings);
+            long maxSizeInBytes = (Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings);
+            // If config value is set, use this instead.
+            if (config.getMaxSizeInBytes() > 0) {
+                builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
+            } else {
+                builder.setMaximumWeightInBytes(maxSizeInBytes);
+            }
+            int segmentCount = (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings);
+            if (config.getSegmentCount() > 0) {
+                builder.setNumberOfSegments(config.getSegmentCount());
+            } else {
+                builder.setNumberOfSegments(segmentCount);
+            }
+            return builder.build();
         }
 
         @Override

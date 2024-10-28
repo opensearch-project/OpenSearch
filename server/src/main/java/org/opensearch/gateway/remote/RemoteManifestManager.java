@@ -10,12 +10,14 @@ package org.opensearch.gateway.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
@@ -23,7 +25,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -62,7 +63,7 @@ public class RemoteManifestManager {
 
     private volatile TimeValue metadataManifestUploadTimeout;
     private final String nodeId;
-    private final RemoteClusterStateBlobStore<ClusterMetadataManifest, RemoteClusterMetadataManifest> manifestBlobStore;
+    private final RemoteWriteableEntityBlobStore<ClusterMetadataManifest, RemoteClusterMetadataManifest> manifestBlobStore;
     private final Compressor compressor;
     private final NamedXContentRegistry namedXContentRegistry;
     // todo remove blobStorerepo from here
@@ -78,12 +79,13 @@ public class RemoteManifestManager {
     ) {
         this.metadataManifestUploadTimeout = clusterSettings.get(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING);
         this.nodeId = nodeId;
-        this.manifestBlobStore = new RemoteClusterStateBlobStore<>(
+        this.manifestBlobStore = new RemoteWriteableEntityBlobStore<>(
             blobStoreTransferService,
             blobStoreRepository,
             clusterName,
             threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+            ThreadPool.Names.REMOTE_STATE_READ,
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
         );
         ;
         clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);
@@ -97,6 +99,7 @@ public class RemoteManifestManager {
         RemoteClusterStateUtils.UploadedMetadataResults uploadedMetadataResult,
         String previousClusterUUID,
         ClusterStateDiffManifest clusterDiffManifest,
+        ClusterStateChecksum clusterStateChecksum,
         boolean committed
     ) {
         synchronized (this) {
@@ -108,7 +111,7 @@ public class RemoteManifestManager {
                 .opensearchVersion(Version.CURRENT)
                 .nodeId(nodeId)
                 .committed(committed)
-                .codecVersion(RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION)
+                .codecVersion(ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION)
                 .indices(uploadedMetadataResult.uploadedIndexMetadata)
                 .previousClusterUUID(previousClusterUUID)
                 .clusterUUIDCommitted(clusterState.metadata().clusterUUIDCommitted())
@@ -124,8 +127,10 @@ public class RemoteManifestManager {
                 .metadataVersion(clusterState.metadata().version())
                 .transientSettingsMetadata(uploadedMetadataResult.uploadedTransientSettingsMetadata)
                 .clusterStateCustomMetadataMap(uploadedMetadataResult.uploadedClusterStateCustomMetadataMap)
-                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings);
+                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings)
+                .checksum(clusterStateChecksum);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
+            logger.trace(() -> new ParameterizedMessage("[{}] uploading manifest", manifest));
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }
@@ -185,6 +190,17 @@ public class RemoteManifestManager {
      */
     public Optional<ClusterMetadataManifest> getLatestClusterMetadataManifest(String clusterName, String clusterUUID) {
         Optional<String> latestManifestFileName = getLatestManifestFileName(clusterName, clusterUUID);
+        return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
+    }
+
+    public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
+        String clusterName,
+        String clusterUUID,
+        long term,
+        long version
+    ) {
+        String prefix = RemoteManifestManager.getManifestFilePrefixForTermVersion(term, version);
+        Optional<String> latestManifestFileName = getManifestFileNameByPrefix(clusterName, clusterUUID, prefix);
         return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
     }
 
@@ -287,7 +303,7 @@ public class RemoteManifestManager {
         }
     }
 
-    static String getManifestFilePrefixForTermVersion(long term, long version) {
+    public static String getManifestFilePrefixForTermVersion(long term, long version) {
         return String.join(
             DELIMITER,
             RemoteClusterMetadataManifest.MANIFEST,
@@ -310,6 +326,16 @@ public class RemoteManifestManager {
             RemoteClusterMetadataManifest.MANIFEST + DELIMITER,
             1
         );
+        if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
+            return Optional.of(manifestFilesMetadata.get(0).name());
+        }
+        logger.info("No manifest file present in remote store for cluster name: {}, cluster UUID: {}", clusterName, clusterUUID);
+        return Optional.empty();
+    }
+
+    private Optional<String> getManifestFileNameByPrefix(String clusterName, String clusterUUID, String filePrefix)
+        throws IllegalStateException {
+        List<BlobMetadata> manifestFilesMetadata = getManifestFileNames(clusterName, clusterUUID, filePrefix, 1);
         if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
             return Optional.of(manifestFilesMetadata.get(0).name());
         }

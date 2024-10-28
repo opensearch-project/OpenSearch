@@ -99,7 +99,7 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         }
     }
 
-    public void testFetchBlobWithConcurrentCacheEvictions() throws Exception {
+    public void testFetchBlobWithConcurrentCacheEvictions() {
         // Submit 256 tasks to an executor with 16 threads that will each randomly
         // request one of eight blobs. Given that the cache can only hold two
         // blobs this will lead to a huge amount of contention and thrashing.
@@ -114,41 +114,34 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
                         try (IndexInput indexInput = fetchBlobWithName(blobname)) {
                             assertIndexInputIsFunctional(indexInput);
                         }
+                    } catch (IOException ignored) { // fetchBlobWithName may fail due to fixed capacity
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }
                 }));
             }
             // Wait for all threads to complete
-            for (Future<?> future : futures) {
-                future.get(10, TimeUnit.SECONDS);
+            try {
+                for (Future<?> future : futures) {
+                    future.get(10, TimeUnit.SECONDS);
+                }
+            } catch (java.util.concurrent.ExecutionException ignored) { // Index input may be null
+            } catch (Exception e) {
+                throw new AssertionError(e);
             }
+
         } finally {
             assertTrue(terminate(testRunner));
         }
         MatcherAssert.assertThat("Expected many evictions to happen", fileCache.stats().evictionCount(), greaterThan(0L));
     }
 
-    public void testUsageExceedsCapacity() throws Exception {
-        // Fetch resources that exceed the configured capacity of the cache and assert that the
-        // returned IndexInputs are still functional.
-        try (IndexInput i1 = fetchBlobWithName("1"); IndexInput i2 = fetchBlobWithName("2"); IndexInput i3 = fetchBlobWithName("3")) {
-            assertIndexInputIsFunctional(i1);
-            assertIndexInputIsFunctional(i2);
-            assertIndexInputIsFunctional(i3);
-            MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo((long) EIGHT_MB * 3));
-            MatcherAssert.assertThat(fileCache.usage().usage(), equalTo((long) EIGHT_MB * 3));
-        }
-        MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo(0L));
-        MatcherAssert.assertThat(fileCache.usage().usage(), equalTo((long) EIGHT_MB * 3));
-        // Fetch another resource which will trigger an eviction
-        try (IndexInput i1 = fetchBlobWithName("1")) {
-            assertIndexInputIsFunctional(i1);
-            MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo((long) EIGHT_MB));
-            MatcherAssert.assertThat(fileCache.usage().usage(), equalTo((long) EIGHT_MB));
-        }
-        MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo(0L));
-        MatcherAssert.assertThat(fileCache.usage().usage(), equalTo((long) EIGHT_MB));
+    public void testOverflowDisabled() throws Exception {
+        initializeTransferManager();
+        IndexInput i1 = fetchBlobWithName("1");
+        IndexInput i2 = fetchBlobWithName("2");
+
+        assertThrows(IOException.class, () -> { IndexInput i3 = fetchBlobWithName("3"); });
     }
 
     public void testDownloadFails() throws Exception {

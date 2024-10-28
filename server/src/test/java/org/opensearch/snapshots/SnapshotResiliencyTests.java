@@ -66,6 +66,9 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.cluster.state.TransportClusterStateAction;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
@@ -141,6 +144,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
+import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -229,6 +233,7 @@ import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -957,6 +962,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         String repoName = "repo";
         String snapshotName = "snapshot";
         final String index = "test";
+        final String alias = "test_alias";
         final int shards = randomIntBetween(1, 10);
 
         TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentClusterManager(
@@ -966,9 +972,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
         final int documentsFirstSnapshot = randomIntBetween(0, 100);
-
         continueOrDie(
-            createRepoAndIndex(repoName, index, shards),
+            createRepoAndIndexAndAlias(repoName, index, shards, alias),
             createIndexResponse -> indexNDocuments(
                 documentsFirstSnapshot,
                 index,
@@ -1008,19 +1013,27 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     .cluster()
                     .restoreSnapshot(
                         new RestoreSnapshotRequest(repoName, secondSnapshotName).waitForCompletion(true)
+                            .includeAliases(true)
                             .renamePattern("(.+)")
-                            .renameReplacement("restored_$1"),
+                            .renameReplacement("restored_$1")
+                            .renameAliasPattern("(.+)")
+                            .renameAliasReplacement("restored_alias_$1"),
                         restoreSnapshotResponseListener
                     )
             );
         });
 
-        final StepListener<SearchResponse> searchResponseListener = new StepListener<>();
+        final StepListener<SearchResponse> searchIndexResponseListener = new StepListener<>();
+        final StepListener<SearchResponse> searchAliasResponseListener = new StepListener<>();
         continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
                 new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
-                searchResponseListener
+                searchIndexResponseListener
+            );
+            client().search(
+                new SearchRequest("restored_alias_" + alias).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
+                searchAliasResponseListener
             );
         });
 
@@ -1028,7 +1041,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         assertEquals(
             documentsFirstSnapshot + documentsSecondSnapshot,
-            Objects.requireNonNull(searchResponseListener.result().getHits().getTotalHits()).value
+            Objects.requireNonNull(searchIndexResponseListener.result().getHits().getTotalHits()).value
+        );
+        assertEquals(
+            documentsFirstSnapshot + documentsSecondSnapshot,
+            Objects.requireNonNull(searchAliasResponseListener.result().getHits().getTotalHits()).value
         );
         assertThat(deleteSnapshotStepListener.result().isAcknowledged(), is(true));
         assertThat(restoreSnapshotResponseListener.result().getRestoreInfo().failedShards(), is(0));
@@ -1501,12 +1518,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     private StepListener<CreateIndexResponse> createRepoAndIndex(String repoName, String index, int shards) {
         final StepListener<AcknowledgedResponse> createRepositoryListener = new StepListener<>();
 
-        client().admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType(FsRepository.TYPE)
-            .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
-            .execute(createRepositoryListener);
+        Settings.Builder settings = Settings.builder().put("location", randomAlphaOfLength(10));
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, FsRepository.TYPE, settings, createRepositoryListener);
 
         final StepListener<CreateIndexResponse> createIndexResponseStepListener = new StepListener<>();
 
@@ -1521,6 +1534,22 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         );
 
         return createIndexResponseStepListener;
+    }
+
+    private StepListener<AcknowledgedResponse> createRepoAndIndexAndAlias(String repoName, String index, int shards, String alias) {
+        final StepListener<AcknowledgedResponse> createAliasListener = new StepListener<>();
+
+        continueOrDie(
+            createRepoAndIndex(repoName, index, shards),
+            acknowledgedResponse -> client().admin()
+                .indices()
+                .aliases(
+                    new IndicesAliasesRequest().addAliasAction(IndicesAliasesRequest.AliasActions.add().index(index).alias(alias)),
+                    createAliasListener
+                )
+        );
+
+        return createAliasListener;
     }
 
     private void clearDisruptionsAndAwaitSync() {
@@ -1926,11 +1955,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
                         }
-
-                        @Override
-                        protected void connectToNodesAndWait(ClusterState newClusterState) {
-                            // don't do anything, and don't block
-                        }
                     }
                 );
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
@@ -2015,7 +2039,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,
-                    actionFilters
+                    actionFilters,
+                    null,
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
@@ -2072,7 +2098,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     null,
                     emptyMap(),
-                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
+                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
                     repositoriesServiceReference::get,
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
@@ -2095,7 +2121,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     rerouteService,
                     threadPool
                 );
-                nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
+                nodeConnectionsService = createTestNodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -2175,6 +2201,30 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         metadataCreateIndexService,
                         actionFilters,
                         indexNameExpressionResolver
+                    )
+                );
+                final MetadataDeleteIndexService metadataDeleteIndexService = new MetadataDeleteIndexService(
+                    settings,
+                    clusterService,
+                    allocationService
+                );
+                final MetadataIndexAliasesService metadataIndexAliasesService = new MetadataIndexAliasesService(
+                    clusterService,
+                    indicesService,
+                    new AliasValidator(),
+                    metadataDeleteIndexService,
+                    namedXContentRegistry
+                );
+                actions.put(
+                    IndicesAliasesAction.INSTANCE,
+                    new TransportIndicesAliasesAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        metadataIndexAliasesService,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        new RequestValidators<>(Collections.emptyList())
                     )
                 );
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
@@ -2286,7 +2336,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
                     null,
-                    new TaskResourceTrackingService(settings, clusterSettings, threadPool)
+                    new TaskResourceTrackingService(settings, clusterSettings, threadPool),
+                    Collections.emptyList()
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
@@ -2342,7 +2393,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         transportService,
                         clusterService,
                         threadPool,
-                        new MetadataDeleteIndexService(settings, clusterService, allocationService),
+                        metadataDeleteIndexService,
                         actionFilters,
                         indexNameExpressionResolver,
                         new DestructiveOperations(settings, clusterSettings)
@@ -2368,7 +2419,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         snapshotsService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        DefaultRemoteStoreSettings.INSTANCE
                     )
                 );
                 actions.put(
@@ -2378,6 +2430,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         snapshotsService,
+                        repositoriesService,
                         actionFilters,
                         indexNameExpressionResolver
                     )
@@ -2411,7 +2464,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        null
                     )
                 );
                 actions.put(
@@ -2431,7 +2485,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             nodeEnv,
                             indicesService,
                             namedXContentRegistry
-                        )
+                        ),
+                        new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                     )
                 );
                 actions.put(
@@ -2453,7 +2508,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        null
                     )
                 );
 
@@ -2486,6 +2542,24 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         random()
                     );
                 }
+            }
+
+            public NodeConnectionsService createTestNodeConnectionsService(
+                Settings settings,
+                ThreadPool threadPool,
+                TransportService transportService
+            ) {
+                return new NodeConnectionsService(settings, threadPool, transportService) {
+                    @Override
+                    public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                        // just update targetsByNode to ensure disconnect runs for these nodes
+                        // we rely on disconnect to run for keeping track of pendingDisconnects and ensuring node-joins can happen
+                        for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                            this.targetsByNode.put(discoveryNode, createConnectionTarget(discoveryNode));
+                        }
+                        onCompletion.run();
+                    }
+                };
             }
 
             public ClusterInfoService getMockClusterInfoService() {
@@ -2559,10 +2633,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
                     null
                 );
+                coordinator.setNodeConnectionsService(nodeConnectionsService);
                 clusterManagerService.setClusterStatePublisher(coordinator);
-                coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();
+                coordinator.start();
                 clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();

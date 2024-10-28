@@ -92,7 +92,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public enum Dynamic {
         TRUE,
         FALSE,
-        STRICT
+        STRICT,
+        STRICT_ALLOW_TEMPLATES
     }
 
     /**
@@ -169,6 +170,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public void setIncludeInRoot(boolean value) {
             includeInRoot = new Explicit<>(value, true);
+        }
+
+        public static boolean isParent(ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper, MapperService mapperService) {
+            if (parentObjectMapper == null || childObjectMapper == null) {
+                return false;
+            }
+
+            ObjectMapper parent = childObjectMapper.getParentObjectMapper(mapperService);
+            while (parent != null && parent != parentObjectMapper) {
+                childObjectMapper = parent;
+                parent = childObjectMapper.getParentObjectMapper(mapperService);
+            }
+            return parentObjectMapper == parent;
         }
     }
 
@@ -297,6 +311,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
+                } else if (value.equalsIgnoreCase("strict_allow_templates")) {
+                    builder.dynamic(Dynamic.STRICT_ALLOW_TEMPLATES);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -435,6 +451,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     "star tree index is under an experimental feature and can be activated only by enabling "
                         + FeatureFlags.STAR_TREE_INDEX_SETTING.getKey()
                         + " feature flag in the JVM options"
+                );
+            }
+            if (StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(parserContext.getSettings()) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Set '%s' as true as part of index settings to use star tree index",
+                        StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey()
+                    )
                 );
             }
             Iterator<Map.Entry<String, Object>> iterator = compositeNode.entrySet().iterator();

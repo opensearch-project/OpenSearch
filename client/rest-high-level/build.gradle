@@ -50,7 +50,9 @@ restResources {
 }
 
 dependencies {
-  api project(':server')
+  api(project(':server')) {
+    exclude group: 'com.google.protobuf'
+  }
   api project(':client:rest')
   api project(':modules:mapper-extras')
   api project(':modules:parent-join')

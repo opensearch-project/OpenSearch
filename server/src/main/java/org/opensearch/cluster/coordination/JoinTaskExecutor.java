@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
@@ -419,9 +420,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * ensures that the joining node has a version that's compatible with all current nodes
      */
     public static void ensureNodesCompatibility(final DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
-        final Version minNodeVersion = currentNodes.getMinNodeVersion();
-        final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
-        ensureNodesCompatibility(joiningNode, currentNodes, metadata, minNodeVersion, maxNodeVersion);
+        try {
+            final Version minNodeVersion = currentNodes.getMinNodeVersion();
+            final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
+            ensureNodesCompatibility(joiningNode, currentNodes, metadata, minNodeVersion, maxNodeVersion);
+        } catch (Exception e) {
+            logger.error("Exception in NodesCompatibility validation", e);
+            throw e;
+        }
     }
 
     /**
@@ -458,7 +464,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             );
         }
 
-        ensureRemoteStoreNodesCompatibility(joiningNode, currentNodes, metadata);
+        ensureRemoteRepositoryCompatibility(joiningNode, currentNodes, metadata);
     }
 
     /**
@@ -491,6 +497,30 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
+    public static void ensureRemoteRepositoryCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
+        List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
+
+        boolean isClusterRemoteStoreEnabled = existingNodes.stream().anyMatch(DiscoveryNode::isRemoteStoreNode);
+        if (isClusterRemoteStoreEnabled || joiningNode.isRemoteStoreNode()) {
+            ensureRemoteStoreNodesCompatibility(joiningNode, currentNodes, metadata);
+        } else {
+            ensureRemoteClusterStateNodesCompatibility(joiningNode, currentNodes);
+        }
+    }
+
+    private static void ensureRemoteClusterStateNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes) {
+        List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
+
+        assert existingNodes.isEmpty() == false;
+        Optional<DiscoveryNode> remotePublicationNode = existingNodes.stream()
+            .filter(DiscoveryNode::isRemoteStatePublicationEnabled)
+            .findFirst();
+
+        if (remotePublicationNode.isPresent() && joiningNode.isRemoteStatePublicationEnabled()) {
+            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES);
+        }
+    }
+
     /**
      * The method ensures homogeneity -
      * 1. The joining node has to be a remote store backed if it's joining a remote store backed cluster. Validates
@@ -506,6 +536,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      *       needs to be modified.
      */
     private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
+
         List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
 
         assert existingNodes.isEmpty() == false;
@@ -513,9 +544,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
 
         List<String> reposToSkip = new ArrayList<>(1);
+        // find a remote node which has routing table configured
         Optional<DiscoveryNode> remoteRoutingTableNode = existingNodes.stream()
             .filter(
-                node -> node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
+                node -> node.isRemoteStoreNode()
+                    && node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
             )
             .findFirst();
         // If none of the existing nodes have routing table repo, then we skip this repo check if present in joining node.
@@ -584,6 +617,23 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             } else {
                 throw new IllegalStateException("a remote store node [" + joiningNode + "] is trying to join a non remote store cluster");
             }
+        }
+    }
+
+    private static void ensureRepositoryCompatibility(DiscoveryNode joiningNode, DiscoveryNode existingNode, List<String> reposToValidate) {
+
+        RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
+        RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode);
+
+        if (existingRemoteStoreNodeAttribute.equalsForRepositories(joiningRemoteStoreNodeAttribute, reposToValidate) == false) {
+            throw new IllegalStateException(
+                "a remote store node ["
+                    + joiningNode
+                    + "] is trying to join a remote store cluster with incompatible node attributes in "
+                    + "comparison with existing node ["
+                    + existingNode
+                    + "]"
+            );
         }
     }
 

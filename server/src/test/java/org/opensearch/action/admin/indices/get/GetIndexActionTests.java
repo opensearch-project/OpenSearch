@@ -36,6 +36,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -68,7 +69,7 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
     private ThreadPool threadPool;
     private SettingsFilter settingsFilter;
     private final String indexName = "test_index";
-
+    private Context context;
     private TestTransportGetIndexAction getIndexAction;
 
     @Before
@@ -91,6 +92,7 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
+        context = new Context(randomAlphaOfLength(5));
         getIndexAction = new GetIndexActionTests.TestTransportGetIndexAction();
     }
 
@@ -135,6 +137,23 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testContextInResponse() {
+        GetIndexRequest contextIndexRequest = new GetIndexRequest().indices(indexName);
+        getIndexAction.execute(
+            null,
+            contextIndexRequest,
+            ActionListener.wrap(
+                resp -> assertTrue(
+                    "index context should be present as it was set",
+                    resp.contexts().get(indexName) != null && resp.contexts().get(indexName).equals(context)
+                ),
+                exception -> {
+                    throw new AssertionError(exception);
+                }
+            )
+        );
+    }
+
     class TestTransportGetIndexAction extends TransportGetIndexAction {
 
         TestTransportGetIndexAction() {
@@ -157,7 +176,7 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
             ClusterState state,
             ActionListener<GetIndexResponse> listener
         ) {
-            ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
+            ClusterState stateWithIndex = ClusterStateCreationUtils.stateWithContext(indexName, 1, 1, context);
             super.doClusterManagerOperation(request, concreteIndices, stateWithIndex, listener);
         }
     }

@@ -23,8 +23,10 @@ import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGa
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * PrimaryShardBatchAllocator is similar to {@link org.opensearch.gateway.PrimaryShardAllocator} only difference is
@@ -82,6 +84,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
      * @param allocation    the allocation state container object
      */
     public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+        logger.trace("Starting shard allocation execution for unassigned primary shards: {}", shardRoutings.size());
         HashMap<ShardId, AllocateUnassignedDecision> ineligibleShardAllocationDecisions = new HashMap<>();
         List<ShardRouting> eligibleShards = new ArrayList<>();
         List<ShardRouting> inEligibleShards = new ArrayList<>();
@@ -99,13 +102,13 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
         // only fetch data for eligible shards
         final FetchResult<NodeGatewayStartedShardsBatch> shardsState = fetchData(eligibleShards, inEligibleShards, allocation);
 
+        Set<ShardRouting> batchShardRoutingSet = new HashSet<>(shardRoutings);
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
 
-            if (shardRoutings.contains(unassignedShard)) {
-                assert unassignedShard.primary();
+            if (unassignedShard.primary() && batchShardRoutingSet.contains(unassignedShard)) {
                 if (ineligibleShardAllocationDecisions.containsKey(unassignedShard.shardId())) {
                     allocationDecision = ineligibleShardAllocationDecisions.get(unassignedShard.shardId());
                 } else {
@@ -115,6 +118,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }
         }
+        logger.trace("Finished shard allocation execution for unassigned primary shards: {}", shardRoutings.size());
     }
 
     /**

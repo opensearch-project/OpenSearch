@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
@@ -28,7 +28,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METAD
 /**
  * Wrapper class for uploading/downloading {@link DiffableStringMap} to/from remote blob store
  */
-public class RemoteHashesOfConsistentSettings extends AbstractRemoteWritableBlobEntity<DiffableStringMap> {
+public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWriteableBlobEntity<DiffableStringMap> {
     public static final String HASHES_OF_CONSISTENT_SETTINGS = "hashes-of-consistent-settings";
     public static final ChecksumWritableBlobStoreFormat<DiffableStringMap> HASHES_OF_CONSISTENT_SETTINGS_FORMAT =
         new ChecksumWritableBlobStoreFormat<>("hashes-of-consistent-settings", DiffableStringMap::readFrom);

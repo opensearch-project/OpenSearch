@@ -34,6 +34,12 @@ package org.opensearch.indices;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -56,7 +62,10 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.request.RequestCacheStats;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
@@ -65,6 +74,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZoneId;
@@ -74,6 +84,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -576,6 +587,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
             .build();
         String index = "index";
         assertAcked(
@@ -589,12 +601,13 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         );
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         client.prepareIndex(index).setId("1").setRouting("1").setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
-        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge(index).setFlush(true).get();
-        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refreshAndWaitForReplication();
 
         indexRandomForConcurrentSearch(index);
+
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge(index).setFlush(true).get();
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
 
         assertCacheState(client, index, 0, 0);
 
@@ -766,6 +779,59 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertTrue(stats.getMemorySizeInBytes() == 0);
         stats = getNodeCacheStats(client(node_2));
         assertTrue(stats.getMemorySizeInBytes() == 0);
+    }
+
+    public void testTimedOutQuery() throws Exception {
+        // A timed out query should be cached and then invalidated
+        Client client = client();
+        String index = "index";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping("k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        // Disable index refreshing to avoid cache being invalidated mid-test
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+                )
+                .get()
+        );
+        indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
+        ensureSearchable(index);
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        forceMerge(client, index);
+
+        QueryBuilder timeoutQueryBuilder = new TermQueryBuilder("k", "hello") {
+            @Override
+            protected Query doToQuery(QueryShardContext context) {
+                return new TermQuery(new Term("k", "hello")) {
+                    @Override
+                    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                        // Create the weight before sleeping. Otherwise, TermStates.build() (in the call to super.createWeight()) will
+                        // sometimes throw an exception on timeout, rather than timing out gracefully.
+                        Weight result = super.createWeight(searcher, scoreMode, boost);
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException ignored) {}
+                        return result;
+                    }
+                };
+            }
+        };
+
+        SearchResponse resp = client.prepareSearch(index)
+            .setRequestCache(true)
+            .setQuery(timeoutQueryBuilder)
+            .setTimeout(new TimeValue(5, TimeUnit.MILLISECONDS))
+            .get();
+        assertTrue(resp.isTimedOut());
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
+        // The cache should be empty as the timed-out query was invalidated
+        assertEquals(0, requestCacheStats.getMemorySizeInBytes());
     }
 
     private Path[] shardDirectory(String server, Index index, int shard) {
