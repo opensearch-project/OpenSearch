@@ -481,6 +481,12 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetAsyncReadRunnable_CustomMetadata() throws Exception {
+        for (Version version : List.of(Version.CURRENT, Version.V_2_15_0, Version.V_2_13_0)) {
+            verifyCustomMetadataReadForVersion(version);
+        }
+    }
+
+    private void verifyCustomMetadataReadForVersion(Version version) throws Exception {
         Metadata.Custom customMetadata = getCustomMetadata();
         String fileName = randomAlphaOfLength(10);
         RemoteCustomMetadata customMetadataForDownload = new RemoteCustomMetadata(
@@ -489,7 +495,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             CLUSTER_UUID,
             compressor,
             namedWriteableRegistry,
-            Version.CURRENT
+            version
         );
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             customMetadataForDownload.customBlobStoreFormat.serialize(customMetadata, fileName, compressor).streamInput()
@@ -697,4 +703,5 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         assertThat(customsDiff.getUpserts(), is(expectedUpserts));
         assertThat(customsDiff.getDeletes(), is(List.of(CustomMetadata1.TYPE)));
     }
+
 }
