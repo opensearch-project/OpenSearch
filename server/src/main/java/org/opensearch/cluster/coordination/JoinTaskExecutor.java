@@ -192,22 +192,22 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .stream()
             .filter(DiscoveryNode::isRemoteStatePublicationEnabled)
             .findFirst();
-        RepositoriesMetadata existingrepositoriesMetadata = currentState.getMetadata().custom(RepositoriesMetadata.TYPE);
+        RepositoriesMetadata existingRepositoriesMetadata = currentState.getMetadata().custom(RepositoriesMetadata.TYPE);
         Map<String, RepositoryMetadata> repositories = new LinkedHashMap<>();
-        if (existingrepositoriesMetadata != null) {
-            existingrepositoriesMetadata.repositories().forEach(r -> repositories.putIfAbsent(r.name(), r));
+        if (existingRepositoriesMetadata != null) {
+            existingRepositoriesMetadata.repositories().forEach(r -> repositories.putIfAbsent(r.name(), r));
         }
         if (remoteDN.isPresent()) {
             RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
                 remoteDN.get(),
-                existingrepositoriesMetadata
+                existingRepositoriesMetadata
             );
             repositoriesMetadata.repositories().forEach(r -> repositories.putIfAbsent(r.name(), r));
         }
         if (remotePublicationDN.isPresent()) {
             RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
                 remotePublicationDN.get(),
-                existingrepositoriesMetadata
+                existingRepositoriesMetadata
             );
             repositoriesMetadata.repositories().forEach(r -> repositories.putIfAbsent(r.name(), r));
         }
@@ -246,7 +246,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                         logger.info("Updating system repository now for remote store");
                         RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
                             node,
-                            existingrepositoriesMetadata
+                            existingRepositoriesMetadata
                         );
                         repositoriesMetadata.repositories().forEach(r -> repositories.putIfAbsent(r.name(), r));
                     }
