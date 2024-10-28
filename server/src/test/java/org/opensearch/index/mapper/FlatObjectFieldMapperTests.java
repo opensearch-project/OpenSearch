@@ -12,7 +12,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -24,13 +23,14 @@ import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_AND_PATH_SUFFIX;
-import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_SUFFIX;
-import static org.opensearch.index.mapper.FlatObjectFieldMapper.CONTENT_TYPE;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class FlatObjectFieldMapperTests extends MapperTestCase {
+    private static final String FIELD_TYPE = "flat_object";
+    private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
+    private static final String VALUE_SUFFIX = "._value";
+
     protected boolean supportsMeta() {
         return false;
     }
@@ -41,7 +41,7 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
 
     public void testMapperServiceHasParser() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> { minimalMapping(b); }));
-        Mapper.TypeParser parser = mapperService.mapperRegistry.getMapperParsers().get(CONTENT_TYPE);
+        Mapper.TypeParser parser = mapperService.mapperRegistry.getMapperParsers().get(FIELD_TYPE);
         assertNotNull(parser);
         assertTrue(parser instanceof FlatObjectFieldMapper.TypeParser);
     }
@@ -49,39 +49,28 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
         ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-        FlatObjectFieldMapper.FlatObjectFieldType fieldType = (FlatObjectFieldMapper.FlatObjectFieldType) mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.fieldType("field");
         Query query = fieldType.existsQuery(queryShardContext);
         assertExistsQuery(fieldType, query, fields);
+
     }
 
-    protected void assertExistsQuery(FlatObjectFieldMapper.FlatObjectFieldType fieldType, Query query, ParseContext.Document fields) {
-
-        if (fieldType.hasDocValues() && fieldType.hasMappedFieldTyeNameInQueryFieldName(fieldType.name()) == false) {
-            assertThat(query, instanceOf(FieldExistsQuery.class));
-            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
-            assertEquals(fieldType.name(), fieldExistsQuery.getField());
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+        // we always perform a term query against _field_names, even when the field
+        // is not added to _field_names because it is not indexed nor stored
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
+        assertEquals("field", termQuery.getTerm().text());
+        if (fieldType.isSearchable() || fieldType.isStored()) {
+            assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
         } else {
-            assertThat(query, instanceOf(TermQuery.class));
-            TermQuery termQuery = (TermQuery) query;
-            assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
-            assertEquals("field", termQuery.getTerm().text());
-        }
-
-        if (fieldType.hasDocValues()) {
-            assertDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
-        } else {
-            assertNoDocValuesField(fields, "field");
-            if (fieldType.isSearchable()) {
-                assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
-            } else {
-                assertNoFieldNamesField(fields);
-            }
         }
     }
 
     public void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", CONTENT_TYPE);
+        b.field("type", FIELD_TYPE);
     }
 
     /**
