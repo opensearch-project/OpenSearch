@@ -205,7 +205,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
-import static org.opensearch.indices.IndicesRequestCache.ENABLE_FOR_ALL_REQUESTS_SETTING;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -361,7 +361,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
-    private volatile boolean cachingEnabledForAllQueries;
+    private volatile boolean requestCachingEnabledForAllQueries;
 
     @Override
     protected void doStart() {
@@ -509,9 +509,9 @@ public class IndicesService extends AbstractLifecycleComponent
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         this.replicator = replicator;
-        this.cachingEnabledForAllQueries = ENABLE_FOR_ALL_REQUESTS_SETTING.get(clusterService.getSettings());
+        this.requestCachingEnabledForAllQueries = INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(ENABLE_FOR_ALL_REQUESTS_SETTING, this::setCachingEnabledForAllQueries);
+            .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING, this::setRequestCachingEnabledForAllQueries);
     }
 
     public IndicesService(
@@ -1752,7 +1752,7 @@ public class IndicesService extends AbstractLifecycleComponent
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
             if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false
-                || (context.size() > 0 && !cachingEnabledForAllQueries)) {
+                || (context.size() > 0 && !requestCachingEnabledForAllQueries)) {
                 // If no request cache query parameter and shard request cache
                 // is enabled in settings don't cache for requests with size > 0
                 // unless this is enabled via cluster setting
@@ -2125,7 +2125,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     // Package-private for testing
-    void setCachingEnabledForAllQueries(Boolean cachingEnabledForAllQueries) {
-        this.cachingEnabledForAllQueries = cachingEnabledForAllQueries;
+    void setRequestCachingEnabledForAllQueries(Boolean requestCachingEnabledForAllQueries) {
+        this.requestCachingEnabledForAllQueries = requestCachingEnabledForAllQueries;
     }
 }

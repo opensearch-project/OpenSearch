@@ -90,7 +90,7 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
-import static org.opensearch.indices.IndicesRequestCache.ENABLE_FOR_ALL_REQUESTS_SETTING;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
@@ -584,7 +584,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
         // If size > 0 we should cache if this is enabled via cluster setting
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put(ENABLE_FOR_ALL_REQUESTS_SETTING.getKey(), true));
+        updateSettingsRequest.persistentSettings(Settings.builder().put(INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING.getKey(), true));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         final SearchResponse r7 = client.prepareSearch(index)

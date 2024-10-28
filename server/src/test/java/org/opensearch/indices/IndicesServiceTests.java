@@ -673,7 +673,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             assertEquals(entry.getValue(), indicesService.canCache(request, context));
         }
         // Simulate the cluster setting update by manually calling setCanCacheSizeNonzeroRequests
-        indicesService.setCachingEnabledForAllQueries(true);
+        indicesService.setRequestCachingEnabledForAllQueries(true);
         expectedResultMap = Map.of(sizeZeroContext, true, sizeNonzeroContext, true);
 
         for (Map.Entry<TestSearchContext, Boolean> entry : expectedResultMap.entrySet()) {

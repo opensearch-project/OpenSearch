@@ -152,7 +152,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * If enabled, fundamentally non-cacheable queries like DFS queries, queries using the `now` keyword, and
      * scroll requests are still not cached.
      */
-    public static final Setting<Boolean> ENABLE_FOR_ALL_REQUESTS_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING = Setting.boolSetting(
         "indices.requests.cache.enable_for_all_requests",
         false,
         Property.NodeScope,
