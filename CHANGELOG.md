@@ -61,6 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.oauth-client:google-oauth-client` from 1.35.0 to 1.36.0 ([#16306](https://github.com/opensearch-project/OpenSearch/pull/16306))
 - Bump `lycheeverse/lychee-action` from 1.10.0 to 2.0.2 ([#16310](https://github.com/opensearch-project/OpenSearch/pull/16310))
 - Bump `com.google.code.gson:gson` from 2.10.1 to 2.11.0 ([#16308](https://github.com/opensearch-project/OpenSearch/pull/16308))
+- Bump `com.google.apis:google-api-services-compute` from v1-rev20240407-2.0.0 to v1-rev20241015-2.0.0 ([#16502](https://github.com/opensearch-project/OpenSearch/pull/16502))
 
 ### Changed
 - Add support for docker compose v2 in TestFixturesPlugin ([#16049](https://github.com/opensearch-project/OpenSearch/pull/16049))
