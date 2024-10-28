@@ -72,6 +72,9 @@ dependencies {
   api 'io.grpc:grpc-protobuf:1.61.0'
   api 'io.grpc:grpc-stub:1.61.0'
   api 'io.grpc:grpc-core:1.61.0'
+
+  // com.google.errorprone.annotations definitions used in grpc deps
+  api 'com.google.errorprone:error_prone_annotations:2.24.1'
 }
 
 restResources {
