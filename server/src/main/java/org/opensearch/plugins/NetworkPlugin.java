@@ -40,6 +40,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.grpc.GrpcServerTransport;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
@@ -102,6 +103,27 @@ public interface NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a map of {@link GrpcServerTransport} suppliers.
+     *
+     * TODO: Is a type setting needed for gRPC? What does this setting configure?
+     * TODO: Do we want to allow plugins to implement a gRPC transport specifically?
+     *  Mabe can reuse getTransports() instead?
+     *
+     */
+    default Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {

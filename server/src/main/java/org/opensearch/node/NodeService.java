@@ -47,6 +47,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.discovery.Discovery;
+import org.opensearch.grpc.GrpcServerTransport;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
@@ -87,6 +88,7 @@ public class NodeService implements Closeable {
     private final SettingsFilter settingsFilter;
     private final ScriptService scriptService;
     private final HttpServerTransport httpServerTransport;
+    private final GrpcServerTransport grpcServerTransport;
     private final ResponseCollectorService responseCollectorService;
     private final ResourceUsageCollectorService resourceUsageCollectorService;
     private final SearchTransportService searchTransportService;
@@ -114,6 +116,7 @@ public class NodeService implements Closeable {
         CircuitBreakerService circuitBreakerService,
         ScriptService scriptService,
         @Nullable HttpServerTransport httpServerTransport,
+        @Nullable GrpcServerTransport grpcServerTransport,
         IngestService ingestService,
         ClusterService clusterService,
         SettingsFilter settingsFilter,
@@ -140,6 +143,7 @@ public class NodeService implements Closeable {
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.httpServerTransport = httpServerTransport;
+        this.grpcServerTransport = grpcServerTransport;
         this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
         this.scriptService = scriptService;

@@ -44,6 +44,8 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.grpc.GrpcServerTransport;
+import org.opensearch.grpc.netty4.Netty4GrpcServerTransport;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.http.netty4.ssl.SecureNetty4HttpServerTransport;
@@ -68,6 +70,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
     public static final String NETTY_SECURE_TRANSPORT_NAME = "netty4-secure";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
     public static final String NETTY_SECURE_HTTP_TRANSPORT_NAME = "netty4-secure";
+    public static final String NETTY_GRPC_TRANSPORT_NAME = "netty4-grpc";
 
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
@@ -146,6 +149,30 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
                 clusterSettings,
                 getSharedGroupFactory(settings),
                 tracer
+            )
+        );
+    }
+
+    @Override
+    public Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        return Collections.singletonMap(
+            NETTY_GRPC_TRANSPORT_NAME,
+            () -> new Netty4GrpcServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                clusterSettings,
+                getSharedGroupFactory(settings)
             )
         );
     }

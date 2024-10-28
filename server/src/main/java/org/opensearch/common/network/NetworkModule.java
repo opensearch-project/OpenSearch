@@ -52,6 +52,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.grpc.GrpcServerTransport;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
@@ -157,6 +158,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
+    private final Map<String, Supplier<GrpcServerTransport>> transportGrpcFactories = new HashMap<>();
     private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
@@ -220,6 +222,20 @@ public final class NetworkModule {
             );
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());
+            }
+
+            Map<String, Supplier<GrpcServerTransport>> GrpcTransportFactory = plugin.getGrpcTransports(
+                settings,
+                threadPool,
+                bigArrays,
+                pageCacheRecycler,
+                circuitBreakerService,
+                networkService,
+                clusterSettings,
+                tracer
+            );
+            for (Map.Entry<String, Supplier<GrpcServerTransport>> entry : GrpcTransportFactory.entrySet()) {
+                registerGrpcTransport(entry.getKey(), entry.getValue());
             }
 
             Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(
@@ -305,6 +321,12 @@ public final class NetworkModule {
         }
     }
 
+    private void registerGrpcTransport(String key, Supplier<GrpcServerTransport> factory) {
+        if (transportGrpcFactories.putIfAbsent(key, factory) != null) {
+            throw new IllegalArgumentException("transport for name: " + key + " is already registered");
+        }
+    }
+
     /**
      * Register an allocation command.
      * <p>
@@ -342,6 +364,16 @@ public final class NetworkModule {
         final Supplier<HttpServerTransport> factory = transportHttpFactories.get(name);
         if (factory == null) {
             throw new IllegalStateException("Unsupported http.type [" + name + "]");
+        }
+        return factory;
+    }
+
+    public Supplier<GrpcServerTransport> getGrpcServerTransportSupplier() {
+        // TODO: Hacking in gRPC key from Netty4ModulePlugin
+        final String name = "netty4-grpc";
+        final Supplier<GrpcServerTransport> factory = transportGrpcFactories.get(name);
+        if (factory == null) {
+            throw new IllegalStateException("Unsupported grpc.type [" + name + "]");
         }
         return factory;
     }
