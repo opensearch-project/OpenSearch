@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING;
+import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
 
 public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationTestCase {
 
@@ -602,6 +603,32 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         // Valid setting with timeout = -1
         build = Settings.builder().put(settingKey, "-1").build();
         assertEquals(-1, ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
+    }
+
+    public void testFollowupPriorityValues() {
+        String settingKey = "cluster.routing.allocation.balanced_shards_allocator.schedule_reroute.priority";
+        Settings build = Settings.builder().put(settingKey, "normal").build();
+        assertEquals(Priority.NORMAL, FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "high").build();
+        assertEquals(Priority.HIGH, FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "urgent").build();
+        assertEquals(Priority.URGENT, FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        Settings wrongPriority = Settings.builder().put(settingKey, "immediate").build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority)
+        );
+        assertEquals("priority [IMMEDIATE] not supported for [" + FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey() + "]", iae.getMessage());
+
+        Settings wrongPriority2 = Settings.builder().put(settingKey, "random").build();
+        IllegalArgumentException iae2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority2)
+        );
+        assertEquals("No enum constant org.opensearch.common.Priority.RANDOM", iae2.getMessage());
     }
 
     private RoutingTable buildRoutingTable(Metadata metadata) {

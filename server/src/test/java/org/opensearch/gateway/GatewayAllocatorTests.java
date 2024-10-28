@@ -540,6 +540,35 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         clusterService.close();
     }
 
+    public void testFollowupPriorityValues() {
+        String settingKey = "cluster.routing.allocation.shards_batch_gateway_allocator.schedule_reroute.priority";
+        Settings build = Settings.builder().put(settingKey, "normal").build();
+        assertEquals(Priority.NORMAL, ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "high").build();
+        assertEquals(Priority.HIGH, ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "urgent").build();
+        assertEquals(Priority.URGENT, ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        Settings wrongPriority = Settings.builder().put(settingKey, "immediate").build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority)
+        );
+        assertEquals(
+            "priority [IMMEDIATE] not supported for [" + ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey() + "]",
+            iae.getMessage()
+        );
+
+        Settings wrongPriority2 = Settings.builder().put(settingKey, "random").build();
+        IllegalArgumentException iae2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority2)
+        );
+        assertEquals("No enum constant org.opensearch.common.Priority.RANDOM", iae2.getMessage());
+    }
+
     private void createIndexAndUpdateClusterState(int count, int numberOfShards, int numberOfReplicas) {
         if (count == 0) return;
         Metadata.Builder metadata = Metadata.builder();
