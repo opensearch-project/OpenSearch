@@ -361,7 +361,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
-    private boolean canCacheSizeNonzeroRequests;
+    private volatile boolean canCacheSizeNonzeroRequests;
 
     @Override
     protected void doStart() {
