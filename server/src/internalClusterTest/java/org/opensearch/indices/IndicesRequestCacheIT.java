@@ -584,7 +584,9 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
         // If size > 0 we should cache if this is enabled via cluster setting
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put(INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING.getKey(), true));
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING.getKey(), true)
+        );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         final SearchResponse r7 = client.prepareSearch(index)
