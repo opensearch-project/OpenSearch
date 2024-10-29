@@ -60,7 +60,6 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MessageDigests;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
@@ -103,10 +102,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.opensearch.plugins.PluginInfo.CLUSTER_ACTIONS_SETTING;
+import static org.opensearch.plugins.PluginInfo.DESCRIPTION_SETTING;
+import static org.opensearch.plugins.PluginInfo.INDEX_ACTIONS_SETTING;
 
 /**
  * A command for the plugin cli to install a plugin into opensearch.
@@ -195,16 +196,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     static final Set<PosixFilePermission> CONFIG_FILES_PERMS;
     static final Set<PosixFilePermission> PLUGIN_DIR_PERMS;
     static final Set<PosixFilePermission> PLUGIN_FILES_PERMS;
-
-    static final Setting<List<String>> CLUSTER_ACTIONS_SETTING = Setting.listSetting(
-        "cluster.actions",
-        Collections.emptyList(),
-        Function.identity()
-    );
-
-    static final Setting<Settings> INDEX_ACTIONS_SETTING = Setting.groupSetting("index.actions.");
-
-    static final Setting<String> DESCRIPTION_SETTING = Setting.simpleString("description");
 
     static {
         // Bin directory get chmod 755

@@ -38,6 +38,7 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.common.Strings;
@@ -57,6 +58,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,6 +81,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
         JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature(),
         true
     );
+
+    public static final Setting<List<String>> CLUSTER_ACTIONS_SETTING = Setting.listSetting(
+        "cluster.actions",
+        Collections.emptyList(),
+        Function.identity()
+    );
+
+    public static final Setting<Settings> INDEX_ACTIONS_SETTING = Setting.groupSetting("index.actions.");
+
+    public static final Setting<String> DESCRIPTION_SETTING = Setting.simpleString("description");
 
     private final String name;
     private final String description;
@@ -217,8 +229,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
-        // TODO switch this to 2.X version this change will be released in after backport
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
             this.requestedActions = Settings.readSettingsFromStream(in);
         } else {
             this.requestedActions = Settings.EMPTY;
@@ -248,7 +259,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
             Settings.writeSettingsToStream(requestedActions, out);
         }
     }
@@ -510,12 +521,30 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns actions requested by this plugin in the plugin-permissions.yml file
+     * Returns cluster actions requested by this plugin in the plugin-permissions.yml file
      *
-     * @return A settings object containing the contents of plugin-permissions.yml file
+     * @return A list of cluster actions contained within the plugin-permissions.yml file
      */
-    public Settings getRequestedActions() {
-        return requestedActions;
+    public List<String> getClusterActions() {
+        return CLUSTER_ACTIONS_SETTING.get(requestedActions);
+    }
+
+    /**
+     * Returns index actions requested by this plugin in the plugin-permissions.yml file
+     *
+     * @return A list of index actions contained within the plugin-permissions.yml file. This method returns a map
+     * of index pattern -> list of actions that apply on the index pattern
+     */
+    public Map<String, List<String>> getIndexActions() {
+        final Map<String, List<String>> indexActions = new HashMap<>();
+        final Settings requestedIndexActionsGroup = INDEX_ACTIONS_SETTING.get(requestedActions);
+        if (!requestedIndexActionsGroup.keySet().isEmpty()) {
+            for (String indexPattern : requestedIndexActionsGroup.keySet()) {
+                List<String> indexActionsForPattern = requestedIndexActionsGroup.getAsList(indexPattern);
+                indexActions.put(indexPattern, indexActionsForPattern);
+            }
+        }
+        return indexActions;
     }
 
     @Override
@@ -531,6 +560,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            if (!Settings.EMPTY.equals(requestedActions)) {
+                builder.field("cluster.actions", getClusterActions());
+                builder.field("index.actions", getIndexActions());
+            }
         }
         builder.endObject();
 

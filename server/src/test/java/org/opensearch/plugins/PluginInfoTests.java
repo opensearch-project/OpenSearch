@@ -35,7 +35,9 @@ package org.opensearch.plugins;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.index.IndexAction;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -48,6 +50,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -387,6 +390,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         );
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String prettyPrint = info.toXContent(builder, ToXContent.EMPTY_PARAMS).prettyPrint().toString();
+        prettyPrint = Arrays.stream(prettyPrint.split("\n")).map(String::trim).collect(Collectors.joining(""));
         assertTrue(prettyPrint.contains("\"name\" : \"fake\""));
         assertTrue(prettyPrint.contains("\"version\" : \"dummy\""));
         assertTrue(prettyPrint.contains("\"opensearch_version\" : \"" + Version.CURRENT));
@@ -396,6 +400,38 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertTrue(prettyPrint.contains("\"custom_foldername\" : \"folder\""));
         assertTrue(prettyPrint.contains("\"extended_plugins\" : [ ]"));
         assertTrue(prettyPrint.contains("\"has_native_controller\" : false"));
+    }
+
+    public void testToXContentWithRequestedActions() throws Exception {
+        PluginInfo info = new PluginInfo(
+            "fake",
+            "foo",
+            "dummy",
+            Version.CURRENT,
+            "1.8",
+            "dummyClass",
+            "folder",
+            Collections.emptyList(),
+            false,
+            Settings.builder()
+                .putList("cluster.actions", List.of(ClusterHealthAction.NAME))
+                .putList("index.actions.my-index", List.of(IndexAction.NAME))
+                .build()
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        String prettyPrint = info.toXContent(builder, ToXContent.EMPTY_PARAMS).prettyPrint().toString();
+        prettyPrint = Arrays.stream(prettyPrint.split("\n")).map(String::trim).collect(Collectors.joining(""));
+        assertTrue(prettyPrint.contains("\"name\" : \"fake\""));
+        assertTrue(prettyPrint.contains("\"version\" : \"dummy\""));
+        assertTrue(prettyPrint.contains("\"opensearch_version\" : \"" + Version.CURRENT));
+        assertTrue(prettyPrint.contains("\"java_version\" : \"1.8\""));
+        assertTrue(prettyPrint.contains("\"description\" : \"foo\""));
+        assertTrue(prettyPrint.contains("\"classname\" : \"dummyClass\""));
+        assertTrue(prettyPrint.contains("\"custom_foldername\" : \"folder\""));
+        assertTrue(prettyPrint.contains("\"extended_plugins\" : [ ]"));
+        assertTrue(prettyPrint.contains("\"has_native_controller\" : false"));
+        assertTrue(prettyPrint.contains("\"cluster.actions\" : [\"" + ClusterHealthAction.NAME + "\"]"));
+        assertTrue(prettyPrint.contains("\"index.actions\" : {\"my-index\" : [\"" + IndexAction.NAME + "\"]}"));
     }
 
     public void testPluginListSorted() {
