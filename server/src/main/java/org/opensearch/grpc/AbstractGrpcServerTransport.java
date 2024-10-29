@@ -49,26 +49,19 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
 
     @Override
     public BoundTransportAddress boundAddress() {
+        // TODO: BOUND ADDR GETTER
         return null;
     }
 
     @Override
     public GrpcInfo info() {
+        // TODO: IMPLE FETCH GRPC INFO
         return null;
     }
 
     @Override
     public GrpcStats stats() {
+        // TODO: IMPL FETCH GRPC STATS
         return null;
-    }
-
-    @Override
-    protected void doStop() {
-
-    }
-
-    @Override
-    protected void doClose() {
-
     }
 }

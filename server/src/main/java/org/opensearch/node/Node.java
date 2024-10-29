@@ -1771,11 +1771,16 @@ public class Node implements Closeable {
 
         injector.getInstance(HttpServerTransport.class).start();
 
+        // TODO: FEATURE FLAG HERE?
+        injector.getInstance(GrpcServerTransport.class).start();
+
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
             writePortsFile("http", http.boundAddress());
+            GrpcServerTransport grpc = injector.getInstance(GrpcServerTransport.class);
+            writePortsFile("grpc", grpc.boundAddress());
         }
 
         logger.info("started");
