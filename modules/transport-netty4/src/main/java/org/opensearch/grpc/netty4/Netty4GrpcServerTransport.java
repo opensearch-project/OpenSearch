@@ -117,49 +117,4 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
     protected void doClose() {
 
     }
-
-    @Override
-    public BoundTransportAddress boundAddress() {
-        return null;
-    }
-
-    @Override
-    public GrpcInfo info() {
-        return null;
-    }
-
-    @Override
-    public GrpcStats stats() {
-        return null;
-    }
-
-    @Override
-    public Lifecycle.State lifecycleState() {
-        return null;
-    }
-
-    @Override
-    public void addLifecycleListener(LifecycleListener listener) {
-
-    }
-
-    @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-
-    }
-
-    @Override
-    public void start() {
-        
-    }
-
-    @Override
-    public void stop() {
-
-    }
-
-    @Override
-    public void close() {
-
-    }
 }
