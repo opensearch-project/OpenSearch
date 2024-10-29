@@ -229,7 +229,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             this.requestedActions = Settings.readSettingsFromStream(in);
         } else {
             this.requestedActions = Settings.EMPTY;
@@ -259,7 +259,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             Settings.writeSettingsToStream(requestedActions, out);
         }
     }
