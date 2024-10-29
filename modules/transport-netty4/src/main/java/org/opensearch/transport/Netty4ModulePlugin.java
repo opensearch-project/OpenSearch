@@ -156,21 +156,14 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
     @Override
     public Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(
         Settings settings,
-        ThreadPool threadPool,
-        BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
-        CircuitBreakerService circuitBreakerService,
         NetworkService networkService,
-        ClusterSettings clusterSettings,
-        Tracer tracer
+        ClusterSettings clusterSettings
     ) {
         return Collections.singletonMap(
             NETTY_GRPC_TRANSPORT_NAME,
             () -> new Netty4GrpcServerTransport(
                 settings,
                 networkService,
-                bigArrays,
-                threadPool,
                 clusterSettings,
                 getSharedGroupFactory(settings)
             )

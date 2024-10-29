@@ -111,21 +111,11 @@ public interface NetworkPlugin {
 
     /**
      * Returns a map of {@link GrpcServerTransport} suppliers.
-     *
-     * TODO: Is a type setting needed for gRPC? What does this setting configure?
-     * TODO: Do we want to allow plugins to implement a gRPC transport specifically?
-     *  Mabe can reuse getTransports() instead?
-     *
      */
     default Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(
         Settings settings,
-        ThreadPool threadPool,
-        BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
-        CircuitBreakerService circuitBreakerService,
         NetworkService networkService,
-        ClusterSettings clusterSettings,
-        Tracer tracer
+        ClusterSettings clusterSettings
     ) {
         return Collections.emptyMap();
     }

@@ -35,7 +35,6 @@ package org.opensearch.grpc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 
 /**
@@ -45,7 +44,6 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
  */
 public abstract class AbstractGrpcServerTransport extends AbstractLifecycleComponent implements GrpcServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractGrpcServerTransport.class);
-    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     @Override
     public BoundTransportAddress boundAddress() {
