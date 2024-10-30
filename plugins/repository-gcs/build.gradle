@@ -48,7 +48,7 @@ opensearchplugin {
 }
 
 versions << [
-  'google_auth': '1.7.0'
+  'google_auth': '1.29.0'
 ]
 
 dependencies {
