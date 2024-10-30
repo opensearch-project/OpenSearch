@@ -104,6 +104,6 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
 
     @Override
     protected void doClose() {
-        grpcServer.shutdown();
+
     }
 }

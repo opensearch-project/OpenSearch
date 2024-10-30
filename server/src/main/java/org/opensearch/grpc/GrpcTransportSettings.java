@@ -66,7 +66,7 @@ public final class GrpcTransportSettings {
 
     public static final Setting<List<String>> SETTING_GRPC_BIND_HOST = listSetting(
         "grpc.bind_host",
-        emptyList(),
+        List.of("0.0.0.0"),
         Function.identity(),
         Property.NodeScope
     );
