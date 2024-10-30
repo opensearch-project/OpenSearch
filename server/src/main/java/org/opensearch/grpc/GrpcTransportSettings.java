@@ -32,26 +32,19 @@
 
 package org.opensearch.grpc;
 
-import org.opensearch.common.Booleans;
-import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.transport.PortsRange;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.opensearch.common.settings.Setting.boolSetting;
 import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
 
 /**
- * Transport settings for http connections
+ * Transport settings for gRPC connections
  *
  * @opensearch.internal
  */
@@ -59,14 +52,30 @@ public final class GrpcTransportSettings {
 
     public static final Setting<PortsRange> SETTING_GRPC_PORT = new Setting<>(
         "grpc.port",
-        "9200-9300",
+        "9400-9500",
         PortsRange::new,
         Property.NodeScope
     );
 
+    public static final Setting<Integer> SETTING_GRPC_PUBLISH_PORT = intSetting("grpc.publish_port", -1, -1, Property.NodeScope);
+
     public static final Setting<List<String>> SETTING_GRPC_BIND_HOST = listSetting(
         "grpc.bind_host",
         List.of("0.0.0.0"),
+        Function.identity(),
+        Property.NodeScope
+    );
+
+    public static final Setting<List<String>> SETTING_GRPC_HOST = listSetting(
+        "grpc.host",
+        emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
+
+    public static final Setting<List<String>> SETTING_GRPC_PUBLISH_HOST = listSetting(
+        "grpc.publish_host",
+        SETTING_GRPC_HOST,
         Function.identity(),
         Property.NodeScope
     );

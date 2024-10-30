@@ -52,10 +52,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
-import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
-import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
-import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
+import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_BIND_HOST;
+import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_PORT;
+import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_PUBLISH_HOST;
+import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_PUBLISH_PORT;
 
 /**
  * Base GrpcServer class
@@ -80,16 +80,16 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
         this.settings = settings;
         this.networkService = networkService;
 
-        List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
+        List<String> httpBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost).toArray(
             Strings.EMPTY_ARRAY
         );
 
-        List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
+        List<String> httpPublishHost = SETTING_GRPC_PUBLISH_HOST.get(settings);
         this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
 
-        this.port = SETTING_HTTP_PORT.get(settings);
+        this.port = SETTING_GRPC_PORT.get(settings);
     }
 
     @Override
@@ -115,13 +115,11 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
     abstract protected TransportAddress bindAddress(InetAddress hostAddress, PortsRange portRange);
 
     /*
-    TODO: COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
+    TODO: MOSTLY* COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
     HOST ADDR RESOLUTION - PORT RANGE ITERATING
     LOGIC CAN BE SHARED? TODO: REFACTOR
      */
-    protected void bindServers() {
-
-        // RESOLVE BIND HOST ADDRESSES - CHECK FOR COMMON ERRORS AND DO SOME SIMPLE TRANSLATIONS
+    protected void bindServer() {
         InetAddress hostAddresses[];
         try {
             hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
@@ -129,13 +127,11 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
             throw new BindTransportException("Failed to resolve host [" + Arrays.toString(bindHosts) + "]", e);
         }
 
-        // CHILD CLASS BIND
         List<TransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
         for (InetAddress address : hostAddresses) {
-            boundAddresses.add(bindAddress(address));
+            boundAddresses.add(bindAddress(address, port));
         }
 
-        // PUBLISH THOSE ADDRESSES
         final InetAddress publishInetAddress;
         try {
             publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts);
@@ -150,12 +146,12 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
     }
 
     /*
-    TODO: COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
+    TODO: MOSTLY* COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
     PUBLISHED PORT RESOLUTION
     LOGIC CAN BE SHARED? TODO: REFACTOR
      */
     static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
-        int publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
+        int publishPort = SETTING_GRPC_PUBLISH_PORT.get(settings);
 
         if (publishPort < 0) {
             for (TransportAddress boundAddress : boundAddresses) {
@@ -186,9 +182,9 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
                     + publishInetAddress
                     + "). "
                     + "Please specify a unique port by setting "
-                    + SETTING_HTTP_PORT.getKey()
+                    + SETTING_GRPC_PORT.getKey()
                     + " or "
-                    + SETTING_HTTP_PUBLISH_PORT.getKey()
+                    + SETTING_GRPC_PUBLISH_PORT.getKey()
             );
         }
         return publishPort;

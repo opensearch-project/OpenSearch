@@ -14,7 +14,6 @@ import org.opensearch.common.transport.PortsRange;
 
 import io.grpc.Server;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -45,14 +44,9 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
         boolean success = false;
         try {
             sharedGroup = sharedGroupFactory.getGRPCGroup();
-            bindServers();
-
+            bindServer();
             success = true;
             logger.info("Started gRPC server on port {}", port);
-
-        } catch (IOException e) {
-            logger.error("Failed to start gRPC server", e);
-            throw new RuntimeException("Failed to start gRPC server", e);
         } finally {
             if (!success) {
                 doStop();
@@ -63,6 +57,7 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
     @Override
     protected TransportAddress bindAddress(InetAddress hostAddress, PortsRange portRange) {
         AtomicReference<Exception> lastException = new AtomicReference<>();
+        AtomicReference<TransportAddress> addr = new AtomicReference<>();
 
         boolean success = portRange.iterate(portNumber -> {
             try {
@@ -77,6 +72,7 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
 
                 srv.start();
                 servers.add(srv);
+                addr.set(new TransportAddress(hostAddress, portNumber));
 
                 logger.debug("Bound gRPC to address {{}}", address);
                 return true;
@@ -93,7 +89,7 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
             );
         }
 
-        return boundServer.get();
+        return addr.get();
     }
 
     @Override
@@ -119,7 +115,5 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
     }
 
     @Override
-    protected void doClose() {
-        // TODO:
-    }
+    protected void doClose() {}
 }
