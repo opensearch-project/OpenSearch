@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Bump `google-auth-library-oauth2-http` from 1.7.0 to 1.29.0 in /plugins/repository-gcs ([#16520](https://github.com/opensearch-project/OpenSearch/pull/16520))
+- Bump `com.google.apis:google-api-services-compute` from v1-rev20240407-2.0.0 to v1-rev20241015-2.0.0 ([#16502](https://github.com/opensearch-project/OpenSearch/pull/16502))
 
 ### Changed
 
