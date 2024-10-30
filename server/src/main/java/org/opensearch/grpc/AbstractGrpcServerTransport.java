@@ -35,7 +35,27 @@ package org.opensearch.grpc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.PortsRange;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.transport.BindTransportException;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 
 /**
  * Base GrpcServer class
@@ -45,10 +65,36 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 public abstract class AbstractGrpcServerTransport extends AbstractLifecycleComponent implements GrpcServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractGrpcServerTransport.class);
 
+    private volatile BoundTransportAddress boundAddress;
+    private final String[] bindHosts;
+    private final String[] publishHosts;
+    private final Settings settings;
+    private final NetworkService networkService;
+
+    protected final PortsRange port;
+
+    protected AbstractGrpcServerTransport(
+        Settings settings,
+        NetworkService networkService
+    ) {
+        this.settings = settings;
+        this.networkService = networkService;
+
+        List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
+        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost).toArray(
+            Strings.EMPTY_ARRAY
+        );
+
+        List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
+        this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
+            .toArray(Strings.EMPTY_ARRAY);
+
+        this.port = SETTING_HTTP_PORT.get(settings);
+    }
+
     @Override
     public BoundTransportAddress boundAddress() {
-        // TODO: BOUND ADDR GETTER
-        return null;
+        return this.boundAddress;
     }
 
     @Override
@@ -61,5 +107,90 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
     public GrpcStats stats() {
         // TODO: IMPL FETCH GRPC STATS
         return null;
+    }
+
+    /*
+    gRPC service definitions provided at bind.
+     */
+    abstract protected TransportAddress bindAddress(InetAddress hostAddress, PortsRange portRange);
+
+    /*
+    TODO: COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
+    HOST ADDR RESOLUTION - PORT RANGE ITERATING
+    LOGIC CAN BE SHARED? TODO: REFACTOR
+     */
+    protected void bindServers() {
+
+        // RESOLVE BIND HOST ADDRESSES - CHECK FOR COMMON ERRORS AND DO SOME SIMPLE TRANSLATIONS
+        InetAddress hostAddresses[];
+        try {
+            hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
+        } catch (IOException e) {
+            throw new BindTransportException("Failed to resolve host [" + Arrays.toString(bindHosts) + "]", e);
+        }
+
+        // CHILD CLASS BIND
+        List<TransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
+        for (InetAddress address : hostAddresses) {
+            boundAddresses.add(bindAddress(address));
+        }
+
+        // PUBLISH THOSE ADDRESSES
+        final InetAddress publishInetAddress;
+        try {
+            publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts);
+        } catch (Exception e) {
+            throw new BindTransportException("Failed to resolve publish address", e);
+        }
+
+        final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
+        TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
+        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
+        logger.info("{}", boundAddress);
+    }
+
+    /*
+    TODO: COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
+    PUBLISHED PORT RESOLUTION
+    LOGIC CAN BE SHARED? TODO: REFACTOR
+     */
+    static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
+        int publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
+
+        if (publishPort < 0) {
+            for (TransportAddress boundAddress : boundAddresses) {
+                InetAddress boundInetAddress = boundAddress.address().getAddress();
+                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
+                    publishPort = boundAddress.getPort();
+                    break;
+                }
+            }
+        }
+
+        // if no matching boundAddress found, check if there is a unique port for all bound addresses
+        if (publishPort < 0) {
+            final Set<Integer> ports = new HashSet<>();
+            for (TransportAddress boundAddress : boundAddresses) {
+                ports.add(boundAddress.getPort());
+            }
+            if (ports.size() == 1) {
+                publishPort = ports.iterator().next();
+            }
+        }
+
+        if (publishPort < 0) {
+            throw new BindTransportException(
+                "Failed to auto-resolve http publish port, multiple bound addresses "
+                    + boundAddresses
+                    + " with distinct ports and none of them matched the publish address ("
+                    + publishInetAddress
+                    + "). "
+                    + "Please specify a unique port by setting "
+                    + SETTING_HTTP_PORT.getKey()
+                    + " or "
+                    + SETTING_HTTP_PUBLISH_PORT.getKey()
+            );
+        }
+        return publishPort;
     }
 }

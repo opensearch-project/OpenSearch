@@ -226,8 +226,7 @@ public final class NetworkModule {
 
             Map<String, Supplier<GrpcServerTransport>> GrpcTransportFactory = plugin.getGrpcTransports(
                 settings,
-                networkService,
-                clusterSettings
+                networkService
             );
             for (Map.Entry<String, Supplier<GrpcServerTransport>> entry : GrpcTransportFactory.entrySet()) {
                 registerGrpcTransport(entry.getKey(), entry.getValue());

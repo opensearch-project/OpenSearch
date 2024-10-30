@@ -114,8 +114,7 @@ public interface NetworkPlugin {
      */
     default Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(
         Settings settings,
-        NetworkService networkService,
-        ClusterSettings clusterSettings
+        NetworkService networkService
     ) {
         return Collections.emptyMap();
     }
