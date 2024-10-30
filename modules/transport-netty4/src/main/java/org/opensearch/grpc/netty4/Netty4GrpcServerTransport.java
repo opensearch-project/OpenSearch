@@ -13,6 +13,8 @@ import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.common.transport.PortsRange;
 
 import io.grpc.Server;
+import io.grpc.protobuf.services.HealthStatusManager;
+import io.grpc.protobuf.services.ProtoReflectionService;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -67,6 +69,8 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
                     .bossEventLoopGroup(sharedGroup.getLowLevelGroup())
                     .workerEventLoopGroup(sharedGroup.getLowLevelGroup())
                     .channelType(NettyAllocator.getServerChannelType())
+                    .addService(new HealthStatusManager().getHealthService())
+                    .addService(ProtoReflectionService.newInstance())
                     // TODO: INJECT SERVICE DEFINITIONS // .addService(new GrpcQueryServiceImpl(this))
                     .build();
 
