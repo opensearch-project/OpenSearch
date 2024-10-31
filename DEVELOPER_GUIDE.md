@@ -3,8 +3,7 @@
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
-      - [JDK 14](#jdk-14)
-      - [JDK 17](#jdk-17)
+      - [JDK 23](#jdk-23)
       - [Custom Runtime JDK](#custom-runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
@@ -78,7 +77,7 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 #### JDK 11
 
-OpenSearch builds using Java 11 at a minimum, using the Adoptium distribution. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`. This is configured in [buildSrc/build.gradle](buildSrc/build.gradle) and [distribution/tools/java-version-checker/build.gradle](distribution/tools/java-version-checker/build.gradle).
+OpenSearch builds using Java 11 at a minimum, using the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`. This is configured in [buildSrc/build.gradle](buildSrc/build.gradle) and [distribution/tools/java-version-checker/build.gradle](distribution/tools/java-version-checker/build.gradle).
 
 ```
 allprojects {
@@ -92,19 +91,21 @@ sourceCompatibility = JavaVersion.VERSION_11
 targetCompatibility = JavaVersion.VERSION_11
 ```
 
-Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
+Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11). 
 
-#### JDK 14
+Since 8.10 release, Gradle has deprecated the usage of the JDKs below JDK-16. As such, for development purposes we recommend to install additionally at least [JDK 17](https://adoptium.net/temurin/releases/?version=17) or [JDK 21](https://adoptium.net/temurin/releases/?version=21). If you still want to stick to JDK-11 only, please add `-Dorg.gradle.warning.mode=none` when invoking any Gradle build task from command line, for example:
 
-To run the full suite of tests, download and install [JDK 14](https://jdk.java.net/archive/) and set `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+```
+./gradlew check -Dorg.gradle.warning.mode=none
+```
 
-#### JDK 17
+#### JDK 23
 
-By default, the test tasks use bundled JDK runtime, configured in [buildSrc/version.properties](buildSrc/version.properties), and set to JDK 17 (LTS).
+By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 23 (non-LTS).
 
 ```
 bundled_jdk_vendor = adoptium
-bundled_jdk = 17.0.2+8
+bundled_jdk = 23.0.1+11
 ```
 
 #### Custom Runtime JDK
