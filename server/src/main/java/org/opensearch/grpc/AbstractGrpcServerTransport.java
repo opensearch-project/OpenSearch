@@ -41,6 +41,7 @@ import org.opensearch.common.transport.PortsRange;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.transport.BindTransportException;
 
 import java.io.IOException;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_BIND_HOST;
+import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_MAX_CONTENT_LENGTH;
 import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_PORT;
 import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_PUBLISH_PORT;
@@ -66,12 +68,14 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
     private static final Logger logger = LogManager.getLogger(AbstractGrpcServerTransport.class);
 
     private volatile BoundTransportAddress boundAddress;
+
     private final String[] bindHosts;
     private final String[] publishHosts;
     private final Settings settings;
     private final NetworkService networkService;
 
     protected final PortsRange port;
+    protected final ByteSizeValue maxContentLength;
 
     protected AbstractGrpcServerTransport(
         Settings settings,
@@ -90,6 +94,7 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
             .toArray(Strings.EMPTY_ARRAY);
 
         this.port = SETTING_GRPC_PORT.get(settings);
+        this.maxContentLength = SETTING_GRPC_MAX_CONTENT_LENGTH.get(settings);
     }
 
     @Override
@@ -99,26 +104,22 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
 
     @Override
     public GrpcInfo info() {
-        // TODO: IMPLE FETCH GRPC INFO
-        return null;
+        BoundTransportAddress boundTransportAddress = boundAddress();
+        if (boundTransportAddress == null) {
+            return null;
+        }
+        return new GrpcInfo(boundTransportAddress, maxContentLength.getBytes());
     }
 
     @Override
     public GrpcStats stats() {
-        // TODO: IMPL FETCH GRPC STATS
-        return null;
+        return new GrpcStats();
     }
 
-    /*
-    gRPC service definitions provided at bind.
-     */
+    // gRPC service definitions provided at bind
     abstract protected TransportAddress bindAddress(InetAddress hostAddress, PortsRange portRange);
 
-    /*
-    TODO: MOSTLY* COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
-    HOST ADDR RESOLUTION - PORT RANGE ITERATING
-    LOGIC CAN BE SHARED? TODO: REFACTOR
-     */
+    // TODO: IDENTICAL TO - HTTP SERVER TRANSPORT
     protected void bindServer() {
         InetAddress hostAddresses[];
         try {
@@ -145,11 +146,7 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
         logger.info("{}", boundAddress);
     }
 
-    /*
-    TODO: MOSTLY* COPIED CODE FROM ABSTRACT HTTP SERVER TRANSPORT.
-    PUBLISHED PORT RESOLUTION
-    LOGIC CAN BE SHARED? TODO: REFACTOR
-     */
+    // TODO: IDENTICAL TO - HTTP SERVER TRANSPORT
     static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
         int publishPort = SETTING_GRPC_PUBLISH_PORT.get(settings);
 

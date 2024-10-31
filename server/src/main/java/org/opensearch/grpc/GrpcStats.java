@@ -46,47 +46,27 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "3.0.0")
 public class GrpcStats implements Writeable, ToXContentFragment {
 
-    private final long serverOpen;
-    private final long totalOpen;
+    // TODO: WHAT GRPC STATS DO WE CONSIDER RELEVANT?
+    public GrpcStats() {
 
-    public GrpcStats(long serverOpen, long totalOpened) {
-        this.serverOpen = serverOpen;
-        this.totalOpen = totalOpened;
     }
 
     public GrpcStats(StreamInput in) throws IOException {
-        serverOpen = in.readVLong();
-        totalOpen = in.readVLong();
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(serverOpen);
-        out.writeVLong(totalOpen);
-    }
 
-    public long getServerOpen() {
-        return this.serverOpen;
-    }
-
-    public long getTotalOpen() {
-        return this.totalOpen;
-    }
-
-    static final class Fields {
-        static final String GRPC = "grpc";
-        static final String CURRENT_OPEN = "current_open";
-        static final String TOTAL_OPENED = "total_opened";
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.GRPC);
-        builder.field(Fields.CURRENT_OPEN, serverOpen);
-        builder.field(Fields.TOTAL_OPENED, totalOpen);
+        builder.startObject("grpc_stats");
+        builder.field("test_field", "stat_foo");
         builder.endObject();
         return builder;
     }

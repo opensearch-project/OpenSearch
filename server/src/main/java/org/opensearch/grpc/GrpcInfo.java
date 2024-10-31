@@ -32,8 +32,7 @@
 
 package org.opensearch.grpc;
 
-import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,19 +44,15 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+// TODO: IDENTICAL TO - HTTP INFO
+
 /**
- * Information about an http connection
+ * Information about a grpc connection
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@ExperimentalApi
 public class GrpcInfo implements ReportingService.Info {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GrpcInfo.class);
-
-    /** Deprecated property, just here for deprecation logging in 7.x. */
-    private static final boolean CNAME_IN_PUBLISH_HOST = System.getProperty("opensearch.http.cname_in_publish_address") != null;
-
     private final BoundTransportAddress address;
     private final long maxContentLength;
 
@@ -77,7 +72,7 @@ public class GrpcInfo implements ReportingService.Info {
     }
 
     static final class Fields {
-        static final String GRPC = "http";
+        static final String GRPC = "grpc";
         static final String BOUND_ADDRESS = "bound_address";
         static final String PUBLISH_ADDRESS = "publish_address";
         static final String MAX_CONTENT_LENGTH = "max_content_length";
@@ -91,13 +86,6 @@ public class GrpcInfo implements ReportingService.Info {
         TransportAddress publishAddress = address.publishAddress();
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
-        if (CNAME_IN_PUBLISH_HOST) {
-            deprecationLogger.deprecate(
-                "cname_in_publish_address",
-                "opensearch.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address "
-                    + "formatting. Remove this property to get rid of this deprecation warning."
-            );
-        }
         if (InetAddresses.isInetAddress(hostString) == false) {
             publishAddressString = hostString + '/' + publishAddress.toString();
         }

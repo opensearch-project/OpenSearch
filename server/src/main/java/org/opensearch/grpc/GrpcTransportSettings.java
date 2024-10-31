@@ -35,6 +35,8 @@ package org.opensearch.grpc;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.transport.PortsRange;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.List;
 import java.util.function.Function;
@@ -77,6 +79,14 @@ public final class GrpcTransportSettings {
         "grpc.publish_host",
         SETTING_GRPC_HOST,
         Function.identity(),
+        Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SETTING_GRPC_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
+        "grpc.max_content_length",
+        new ByteSizeValue(100, ByteSizeUnit.MB),
+        new ByteSizeValue(0, ByteSizeUnit.BYTES),
+        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES),
         Property.NodeScope
     );
 
