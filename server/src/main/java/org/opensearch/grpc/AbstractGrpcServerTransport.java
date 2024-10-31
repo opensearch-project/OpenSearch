@@ -119,9 +119,8 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
     // gRPC service definitions provided at bind
     abstract protected TransportAddress bindAddress(InetAddress hostAddress, PortsRange portRange);
 
-    // TODO: IDENTICAL TO - HTTP SERVER TRANSPORT
     protected void bindServer() {
-        InetAddress hostAddresses[];
+        InetAddress[] hostAddresses;
         try {
             hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
         } catch (IOException e) {

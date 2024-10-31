@@ -314,7 +314,9 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
+import static org.opensearch.common.util.FeatureFlags.GRPC_ENABLE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
+import static org.opensearch.common.util.FeatureFlags.initializeFeatureFlags;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
@@ -1771,16 +1773,19 @@ public class Node implements Closeable {
 
         injector.getInstance(HttpServerTransport.class).start();
 
-        // TODO: FEATURE FLAG HERE?
-        injector.getInstance(GrpcServerTransport.class).start();
+        if (FeatureFlags.isEnabled(GRPC_ENABLE_SETTING)) {
+            injector.getInstance(GrpcServerTransport.class).start();
+        }
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
             writePortsFile("http", http.boundAddress());
-            GrpcServerTransport grpc = injector.getInstance(GrpcServerTransport.class);
-            writePortsFile("grpc", grpc.boundAddress());
+            if (FeatureFlags.isEnabled(GRPC_ENABLE_SETTING)) {
+                GrpcServerTransport grpc = injector.getInstance(GrpcServerTransport.class);
+                writePortsFile("grpc", grpc.boundAddress());
+            }
         }
 
         logger.info("started");
