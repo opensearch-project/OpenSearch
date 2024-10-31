@@ -20,14 +20,21 @@ jettison          = "1.5.4"
 woodstox          = "6.4.0"
 kotlin            = "1.7.10"
 antlr4            = "4.13.1"
-guava             = "32.1.1-jre"
-protobuf          = "3.25.5"
 jakarta_annotation = "1.3.5"
 google_http_client = "1.44.1"
 google_auth       = "1.29.0"
 tdigest           = "3.3"
 hdrhistogram      = "2.2.2"
+
+# gRPC
 grpc              = "1.68.0"
+protobuf          = "3.25.5"
+guava             = "32.1.1-jre"
+jsr305            = "3.0.2"
+failureaccess     = "1.0.2"
+error_prone_annotations = "2.24.1"
+javax_annotations = "1.3.2"
+perfmark_api      = "0.26.0"
 
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.13.0"

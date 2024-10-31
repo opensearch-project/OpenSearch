@@ -66,24 +66,20 @@ dependencies {
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 
-  // TODO: ${versions.grpc}
-  compileOnly 'javax.annotation:javax.annotation-api:1.3.2'
-  compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
-  runtimeOnly 'com.google.guava:guava:32.1.1-jre'
-  api 'com.google.guava:failureaccess:1.0.2'
-
-  api 'com.google.errorprone:error_prone_annotations:2.24.1'
-  api 'javax.annotation:javax.annotation-api:1.3.2'
-
-  api 'io.perfmark:perfmark-api:0.26.0'
-
-  api 'io.grpc:grpc-netty:1.61.0'
-  api 'io.grpc:grpc-api:1.61.0'
-  api 'io.grpc:grpc-protobuf-lite:1.61.0'
-  api 'io.grpc:grpc-protobuf:1.61.0'
-  api 'io.grpc:grpc-stub:1.61.0'
-  api 'io.grpc:grpc-core:1.61.0'
-  api 'io.grpc:grpc-services:1.61.0'
+  // gRPC
+  compileOnly "javax.annotation:javax.annotation-api:${versions.javax_annotations}"
+  compileOnly "com.google.code.findbugs:jsr305:${versions.jsr305}"
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  api "com.google.guava:failureaccess:${versions.failureaccess}"
+  api "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
+  api "io.perfmark:perfmark-api:${versions.perfmark_api}"
+  api "io.grpc:grpc-netty:${versions.grpc}"
+  api "io.grpc:grpc-api:${versions.grpc}"
+  api "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+  api "io.grpc:grpc-protobuf:${versions.grpc}"
+  api "io.grpc:grpc-stub:${versions.grpc}"
+  api "io.grpc:grpc-core:${versions.grpc}"
+  api "io.grpc:grpc-services:${versions.grpc}"
 }
 
 restResources {
