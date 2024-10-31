@@ -36,6 +36,7 @@ import org.opensearch.cli.Command;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
 import org.opensearch.grpc.GrpcTransportSettings;
 import org.opensearch.http.HttpTransportSettings;
@@ -70,6 +71,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.opensearch.common.util.FeatureFlags.GRPC_ENABLE_SETTING;
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 
@@ -402,8 +404,11 @@ final class Security {
      */
     private static void addBindPermissions(Permissions policy, Settings settings) {
         addSocketPermissionForHttp(policy, settings);
-        addSocketPermissionForGrpc(policy, settings); // TODO: CONDITIONAL ON GRPC FEATURE FLAG?
         addSocketPermissionForTransportProfiles(policy, settings);
+
+        if (FeatureFlags.isEnabled(GRPC_ENABLE_SETTING)) {
+            addSocketPermissionForGrpc(policy, settings);
+        }
     }
 
     /**
