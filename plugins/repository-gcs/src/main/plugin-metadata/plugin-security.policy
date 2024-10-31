@@ -43,4 +43,5 @@ grant {
 
   // gcs client set Authenticator for proxy username/password
   permission java.net.NetPermission "setDefaultAuthenticator";
+  permission java.io.FilePermission "/sys/class/dmi/id/product_name", "read";
 };
