@@ -316,7 +316,6 @@ import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
 import static org.opensearch.common.util.FeatureFlags.GRPC_ENABLE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
-import static org.opensearch.common.util.FeatureFlags.initializeFeatureFlags;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
