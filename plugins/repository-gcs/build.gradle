@@ -47,10 +47,6 @@ opensearchplugin {
   classname 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
-versions << [
-  'google_auth': '1.29.0'
-]
-
 dependencies {
   api 'com.google.api:api-common:1.8.1'
   api 'com.google.api:gax:2.35.0'
