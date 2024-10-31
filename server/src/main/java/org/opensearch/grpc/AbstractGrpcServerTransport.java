@@ -49,9 +49,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+
+import static org.opensearch.common.network.NetworkService.resolvePublishPort;
 
 import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_BIND_HOST;
 import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_MAX_CONTENT_LENGTH;
@@ -140,37 +140,7 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
-        TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
-        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
-        logger.info("{}", boundAddress);
-    }
-
-    // TODO: IDENTICAL TO - HTTP SERVER TRANSPORT
-    static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
-        int publishPort = SETTING_GRPC_PUBLISH_PORT.get(settings);
-
-        if (publishPort < 0) {
-            for (TransportAddress boundAddress : boundAddresses) {
-                InetAddress boundInetAddress = boundAddress.address().getAddress();
-                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
-                    publishPort = boundAddress.getPort();
-                    break;
-                }
-            }
-        }
-
-        // if no matching boundAddress found, check if there is a unique port for all bound addresses
-        if (publishPort < 0) {
-            final Set<Integer> ports = new HashSet<>();
-            for (TransportAddress boundAddress : boundAddresses) {
-                ports.add(boundAddress.getPort());
-            }
-            if (ports.size() == 1) {
-                publishPort = ports.iterator().next();
-            }
-        }
-
+        final int publishPort = resolvePublishPort(SETTING_GRPC_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
         if (publishPort < 0) {
             throw new BindTransportException(
                 "Failed to auto-resolve http publish port, multiple bound addresses "
@@ -184,6 +154,11 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
                     + SETTING_GRPC_PUBLISH_PORT.getKey()
             );
         }
-        return publishPort;
+
+
+
+        TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
+        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
+        logger.info("{}", boundAddress);
     }
 }
