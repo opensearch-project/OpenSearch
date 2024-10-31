@@ -8,29 +8,17 @@
 
 package org.opensearch.grpc.netty4;
 
-import io.grpc.ForwardingServerCall;
-import io.grpc.ForwardingServerCallListener;
-import io.grpc.Metadata;
-import io.grpc.ServerCall;
-import io.grpc.ServerCallHandler;
-import io.grpc.ServerInterceptor;
-import io.grpc.Status;
-import io.grpc.netty.NettyServerBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.PortsRange;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.grpc.AbstractGrpcServerTransport;
 import org.opensearch.grpc.GrpcStats;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.SharedGroupFactory;
-import org.opensearch.common.transport.PortsRange;
-
-import io.grpc.Server;
-import io.grpc.protobuf.services.HealthStatusManager;
-import io.grpc.protobuf.services.ProtoReflectionService;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -39,22 +27,29 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.grpc.ForwardingServerCall;
+import io.grpc.ForwardingServerCallListener;
+import io.grpc.Metadata;
+import io.grpc.Server;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptor;
+import io.grpc.Status;
+import io.grpc.netty.NettyServerBuilder;
+import io.grpc.protobuf.services.HealthStatusManager;
+import io.grpc.protobuf.services.ProtoReflectionService;
+
 public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
 
-    public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT =
-        Setting.intSetting("grpc.worker_count", 1, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = Setting.intSetting("grpc.worker_count", 1, Setting.Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
     private final ServerStatsInterceptor sharedServerStatsInterceptor;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
-    public Netty4GrpcServerTransport(
-        Settings settings,
-        NetworkService networkService,
-        SharedGroupFactory sharedGroupFactory
-    ) {
+    public Netty4GrpcServerTransport(Settings settings, NetworkService networkService, SharedGroupFactory sharedGroupFactory) {
         super(settings, networkService);
         this.sharedGroupFactory = sharedGroupFactory;
         this.sharedServerStatsInterceptor = new ServerStatsInterceptor();
@@ -83,8 +78,7 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
         boolean success = portRange.iterate(portNumber -> {
             try {
                 InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                NettyServerBuilder srvBuilder = NettyServerBuilder
-                    .forAddress(address)
+                NettyServerBuilder srvBuilder = NettyServerBuilder.forAddress(address)
                     .bossEventLoopGroup(sharedGroup.getLowLevelGroup())
                     .workerEventLoopGroup(sharedGroup.getLowLevelGroup())
                     .channelType(NettyAllocator.getServerChannelType())
@@ -106,10 +100,7 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
         });
 
         if (!success) {
-            throw new RuntimeException(
-                "Failed to bind to " + hostAddress + " on ports " + portRange,
-                lastException.get()
-            );
+            throw new RuntimeException("Failed to bind to " + hostAddress + " on ports " + portRange, lastException.get());
         }
 
         return addr.get();
@@ -153,7 +144,8 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
         public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
             ServerCall<ReqT, RespT> call,
             Metadata headers,
-            ServerCallHandler<ReqT, RespT> next) {
+            ServerCallHandler<ReqT, RespT> next
+        ) {
 
             activeConnections.incrementAndGet();
             totalRequests.incrementAndGet();
@@ -165,7 +157,9 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
                         activeConnections.decrementAndGet();
                         super.close(status, trailers);
                     }
-                }, headers)) {};
+                }, headers)
+            ) {
+            };
         }
 
         public long getActiveConnections() {
