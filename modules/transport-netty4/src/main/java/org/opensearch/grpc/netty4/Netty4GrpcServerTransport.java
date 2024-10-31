@@ -39,8 +39,8 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
 
     private final SharedGroupFactory sharedGroupFactory;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
+    private final ServerStatsInterceptor sharedServerStatsInterceptor;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
-    private volatile ServerStatsInterceptor sharedServerStatsInterceptor;
 
     public Netty4GrpcServerTransport(
         Settings settings,
