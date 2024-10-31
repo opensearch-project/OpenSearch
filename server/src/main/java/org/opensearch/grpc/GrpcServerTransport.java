@@ -20,7 +20,6 @@ import org.opensearch.core.service.ReportingService;
  */
 @PublicApi(since = "3.0.0")
 public interface GrpcServerTransport extends LifecycleComponent, ReportingService<GrpcInfo> {
-    String GRPC_SERVER_WORKER_THREAD_NAME_PREFIX = "grpc_server_worker";
     BoundTransportAddress boundAddress();
     GrpcInfo info();
     GrpcStats stats();
