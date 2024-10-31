@@ -111,11 +111,6 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
         return new GrpcInfo(boundTransportAddress, maxContentLength.getBytes());
     }
 
-    @Override
-    public GrpcStats stats() {
-        return new GrpcStats();
-    }
-
     // gRPC service definitions provided at bind
     abstract protected TransportAddress bindAddress(InetAddress hostAddress, PortsRange portRange);
 
@@ -153,8 +148,6 @@ public abstract class AbstractGrpcServerTransport extends AbstractLifecycleCompo
                     + SETTING_GRPC_PUBLISH_PORT.getKey()
             );
         }
-
-
 
         TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);

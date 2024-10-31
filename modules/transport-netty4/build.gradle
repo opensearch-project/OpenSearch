@@ -73,6 +73,7 @@ dependencies {
   api "com.google.guava:failureaccess:${versions.failureaccess}"
   api "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
   api "io.perfmark:perfmark-api:${versions.perfmark_api}"
+  api "io.grpc:grpc-all:${versions.grpc}"
   api "io.grpc:grpc-netty:${versions.grpc}"
   api "io.grpc:grpc-api:${versions.grpc}"
   api "io.grpc:grpc-protobuf-lite:${versions.grpc}"
