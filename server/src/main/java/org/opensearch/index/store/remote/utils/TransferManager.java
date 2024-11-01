@@ -56,6 +56,13 @@ public class TransferManager {
 
     /**
      * Given a blobFetchRequestList, return it's corresponding IndexInput.
+     *
+     * Note: Scripted queries/aggs may trigger a blob fetch within a new security context.
+     * As such the following operations require elevated permissions.
+     * 
+     * cacheEntry.getIndexInput() downloads new blobs from the remote store to local disk.
+     * fileCache.compute() because inserting into the fileCache can trigger an eviction of on disk cache.
+     *
      * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
@@ -64,10 +71,6 @@ public class TransferManager {
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("fetchBlob called for {}", key.toString());
 
-        // We need to do a privileged action here in order to fetch from remote
-        // and write/evict from local file cache in case this is invoked as a side
-        // effect of a plugin (such as a scripted search) that doesn't have the
-        // necessary permissions.
         final CachedIndexInput cacheEntry = AccessController.doPrivileged((PrivilegedAction<CachedIndexInput>) () -> {
             return fileCache.compute(key, (path, cachedIndexInput) -> {
                 if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
@@ -82,14 +85,18 @@ public class TransferManager {
             });
         });
 
-        // Cache entry was either retrieved from the cache or newly added, either
-        // way the reference count has been incremented by one. We can only
-        // decrement this reference _after_ creating the clone to be returned.
-        try {
-            return cacheEntry.getIndexInput().clone();
-        } finally {
-            fileCache.decRef(key);
-        }
+        return AccessController.doPrivileged((PrivilegedAction<IndexInput>) () -> {
+            // Cache entry was either retrieved from the cache or newly added, either
+            // way the reference count has been incremented by one. We can only
+            // decrement this reference _after_ creating the clone to be returned.
+            try {
+                return cacheEntry.getIndexInput().clone();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                fileCache.decRef(key);
+            }
+        });
     }
 
     @SuppressWarnings("removal")
