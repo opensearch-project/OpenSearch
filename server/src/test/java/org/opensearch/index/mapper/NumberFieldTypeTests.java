@@ -987,7 +987,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         Document doc = new Document();
-        doc.add(new SortedNumericDocValuesField("ul", 10));
+        final BigInteger expectedValue = randomUnsignedLong();
+        doc.add(new SortedNumericDocValuesField("ul", expectedValue.longValue()));
         w.addDocument(doc);
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             final NumberFieldType ft = new NumberFieldType("ul", NumberType.UNSIGNED_LONG);
@@ -1001,7 +1002,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             assertEquals(1, fetcher.docValueCount());
             final Object value = fetcher.nextValue();
             assertTrue(value instanceof BigInteger);
-            assertEquals(BigInteger.valueOf(10), value);
+            assertEquals(expectedValue, value);
         }
         IOUtils.close(w, dir);
     }
