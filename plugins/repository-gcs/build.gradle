@@ -299,6 +299,13 @@ testClusters {
   all testClustersConfiguration
 }
 
+/**
+ * Used for testing getting credentials from GCE
+ */
+test {
+  environment 'NO_GCE_CHECK', 'true'
+}
+
 /*
  * We only use a small amount of data in these tests, which means that the resumable upload path is not tested. We add
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
