@@ -6,8 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.cache.common.tier;
+package org.opensearch.common.cache.stats;
 
+import org.opensearch.cache.common.tier.TieredSpilloverCache;
 import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 
 import java.util.ArrayList;
@@ -65,7 +66,7 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     /**
      * Add tierValue to the end of a copy of the initial dimension values, so they can appropriately be used in this stats holder.
      */
-    List<String> getDimensionsWithTierValue(List<String> initialDimensions, String tierValue) {
+    public List<String> getDimensionsWithTierValue(List<String> initialDimensions, String tierValue) {
         List<String> result = new ArrayList<>(initialDimensions);
         result.add(tierValue);
         return result;
@@ -164,7 +165,44 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
         super.decrementItems(dimensionValues);
     }
 
-    void setDiskCacheEnabled(boolean diskCacheEnabled) {
+    public void setDiskCacheEnabled(boolean diskCacheEnabled) {
         this.diskCacheEnabled = diskCacheEnabled;
+    }
+
+    @Override
+    public void removeDimensions(List<String> dimensionValues) {
+        assert dimensionValues.size() == dimensionNames.size() - 1 : "Must specify a value for every dimension except tier when removing from StatsHolder";
+        // As we are removing nodes from the tree, obtain the lock
+        lock.lock();
+        try {
+            removeDimensionsHelper(dimensionValues, getStatsRoot(), 0);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private ImmutableCacheStats removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
+        if (depth == dimensionValues.size() - 1) { // TODO: subtract 1 bc we don't want to subtract from tier nodes, just delete them
+            // Delete this node's children (which represent individual tiers) TODO: is this needed or does GC get it anyway?
+            for (Node child : node.getChildren().values()) {
+                // TODO: iteration issues?
+                node.children.remove(child.getDimensionValue());
+            }
+            // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
+            return node.getImmutableStats();
+        }
+        Node child = node.getChild(dimensionValues.get(depth));
+        if (child == null) {
+            return null;
+        }
+        ImmutableCacheStats statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
+        if (statsToDecrement != null) {
+            // The removal took place, decrement values and remove this node from its parent if it's now empty
+            node.decrementBySnapshot(statsToDecrement);
+            if (child.getChildren().isEmpty()) {
+                node.children.remove(child.getDimensionValue());
+            }
+        }
+        return statsToDecrement;
     }
 }

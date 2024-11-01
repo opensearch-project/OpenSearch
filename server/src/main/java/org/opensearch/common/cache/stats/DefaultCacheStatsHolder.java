@@ -40,7 +40,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     private final Node statsRoot;
     // To avoid sync problems, obtain a lock before creating or removing nodes in the stats tree.
     // No lock is needed to edit stats on existing nodes.
-    private final Lock lock = new ReentrantLock();
+    protected final Lock lock = new ReentrantLock();
     // The name of the cache type using these stats
     private final String storeName;
 
