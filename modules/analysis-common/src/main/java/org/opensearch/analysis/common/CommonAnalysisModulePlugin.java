@@ -248,7 +248,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
     }
 
     @Override
-    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters(AnalysisModule analysisModule) {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
         filters.put("apostrophe", ApostropheFilterFactory::new);
         filters.put("arabic_normalization", ArabicNormalizationFilterFactory::new);
@@ -339,12 +339,6 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.put("uppercase", UpperCaseTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
-        return filters;
-    }
-
-    @Override
-    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters(AnalysisModule analysisModule) {
-        Map<String, AnalysisProvider<TokenFilterFactory>> filters = getTokenFilters();
         filters.put(
             "synonym",
             requiresAnalysisSettings(

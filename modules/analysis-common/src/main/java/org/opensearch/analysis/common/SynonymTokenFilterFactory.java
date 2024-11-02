@@ -66,7 +66,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final Settings settings;
     protected final Environment environment;
     protected final AnalysisMode analysisMode;
-    private final String synonymAnalyzer;
+    private final String synonymAnalyzerName;
     private final AnalysisRegistry analysisRegistry;
 
     SynonymTokenFilterFactory(
@@ -93,7 +93,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         boolean updateable = settings.getAsBoolean("updateable", false);
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
-        this.synonymAnalyzer = settings.get("synonym_analyzer", null);
+        this.synonymAnalyzerName = settings.get("synonym_analyzer", null);
         this.analysisRegistry = analysisRegistry;
     }
 
@@ -149,10 +149,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         List<TokenFilterFactory> tokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
-        if (synonymAnalyzer != null) {
+        if (synonymAnalyzerName != null) {
             Analyzer customSynonymAnalyzer;
             try {
-                customSynonymAnalyzer = analysisRegistry.getAnalyzer(synonymAnalyzer);
+                customSynonymAnalyzer = analysisRegistry.getAnalyzer(synonymAnalyzerName);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

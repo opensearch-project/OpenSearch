@@ -526,10 +526,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
 
     /**
      * Tests registration and functionality of token filters that require access to the AnalysisModule.
-     * This test verifies:
-     * 1. Token filter registration using the extended getTokenFilters(AnalysisModule) method
-     * 2. Filter functionality in both predefined and custom analyzers
-     * 3. Proper access to AnalysisModule reference within filter factory creation
+     * This test verifies the token filter registration using the extended getTokenFilters(AnalysisModule) method
      */
     public void testTokenFilterRegistrationWithModuleReference() throws IOException {
         class TestPlugin implements AnalysisPlugin {

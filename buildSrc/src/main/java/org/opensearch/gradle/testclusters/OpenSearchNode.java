@@ -1216,18 +1216,14 @@ public class OpenSearchNode implements TestClusterConfiguration {
             );
 
             final List<Path> configFiles;
-            try (Stream<Path> stream = Files.walk(getDistroDir().resolve("config"))) {
+            try (Stream<Path> stream = Files.list(getDistroDir().resolve("config"))) {
                 configFiles = stream.collect(Collectors.toList());
             }
             logToProcessStdout("Copying additional config files from distro " + configFiles);
             for (Path file : configFiles) {
-                Path relativePath = getDistroDir().resolve("config").relativize(file);
-                Path dest = configFile.getParent().resolve(relativePath);
-                if (Files.isDirectory(file)) {
-                    Files.createDirectories(dest);
-                } else {
-                    Files.createDirectories(dest.getParent());
-                    Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                Path dest = configFile.getParent().resolve(file.getFileName());
+                if (Files.exists(dest) == false) {
+                    Files.copy(file, dest);
                 }
             }
         } catch (IOException e) {

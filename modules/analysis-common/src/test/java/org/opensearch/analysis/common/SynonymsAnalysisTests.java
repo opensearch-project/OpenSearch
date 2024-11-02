@@ -260,15 +260,13 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         Environment environment = TestEnvironment.newEnvironment(settings);
-
-        // Initialize analysis registry
-        AnalysisModule module = new AnalysisModule(environment, Collections.singletonList(new CommonAnalysisModulePlugin()));
-        AnalysisRegistry analysisRegistry = module.getAnalysisRegistry();
+        AnalysisModule analysisModule = new AnalysisModule(environment, Collections.singletonList(new CommonAnalysisModulePlugin()));
+        AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         String[] bypassingFactories = new String[] { "dictionary_decompounder" };
 
         CommonAnalysisModulePlugin plugin = new CommonAnalysisModulePlugin();
         for (String factory : bypassingFactories) {
-            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, environment, factory, settings);
+            TokenFilterFactory tff = plugin.getTokenFilters(analysisModule).get(factory).get(idxSettings, environment, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, environment, "keyword", settings);
             SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, environment, "synonym", settings, analysisRegistry);
             Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
@@ -330,8 +328,6 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(settings);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-
-        // Create analysis module
         AnalysisModule analysisModule = new AnalysisModule(environment, Collections.singletonList(new CommonAnalysisModulePlugin()));
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         CommonAnalysisModulePlugin plugin = new CommonAnalysisModulePlugin();
@@ -347,7 +343,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             "fingerprint" };
 
         for (String factory : disallowedFactories) {
-            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, environment, factory, settings);
+            TokenFilterFactory tff = plugin.getTokenFilters(analysisModule).get(factory).get(idxSettings, environment, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, environment, "keyword", settings);
             SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, environment, "synonym", settings, analysisRegistry);
 

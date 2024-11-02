@@ -87,7 +87,7 @@ public interface AnalysisPlugin {
 
     /**
      * Override to add additional {@link TokenFilter}s that need access to the AnalysisModule.
-     * The default implementation calls the existing getTokenFilters() method for backward compatibility.
+     * The default implementation for plugins that don't need AnalysisModule calls the existing getTokenFilters() method.
      */
     default Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters(AnalysisModule analysisModule) {
         return getTokenFilters();
