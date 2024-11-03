@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.0 to 3.4.1 ([#16550](https://github.com/opensearch-project/OpenSearch/pull/16550))
 
 ### Changed
+- Add Open Parameters to Flat_object Field Type ([#13853](https://github.com/opensearch-project/OpenSearch/pull/13853))
 
 ### Deprecated
 
