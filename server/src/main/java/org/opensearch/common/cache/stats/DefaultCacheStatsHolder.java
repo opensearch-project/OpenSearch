@@ -188,10 +188,10 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     }
 
     // Returns a CacheStatsCounterSnapshot object for the stats to decrement if the removal happened, null otherwise.
-    private ImmutableCacheStats removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
+    protected ImmutableCacheStats removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
         if (depth == dimensionValues.size()) {
             // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
-            return node.getImmutableStats();
+            return removeDimensionsBaseCase(node);
         }
         Node child = node.getChild(dimensionValues.get(depth));
         if (child == null) {
@@ -208,6 +208,10 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsToDecrement;
     }
 
+    protected ImmutableCacheStats removeDimensionsBaseCase(Node node) {
+        return node.getImmutableStats();
+    }
+
     // pkg-private for testing
     Node getStatsRoot() {
         return statsRoot;
@@ -219,7 +223,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     protected static class Node {
         private final String dimensionValue;
         // Map from dimensionValue to the DimensionNode for that dimension value.
-        public final Map<String, Node> children;
+        final Map<String, Node> children;
         // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
         // contains the sum of its children's stats.
         private CacheStats stats;

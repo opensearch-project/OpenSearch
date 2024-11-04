@@ -43,6 +43,8 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     /** Dimension value for on-disk cache, like EhcacheDiskCache. */
     public static final String TIER_DIMENSION_VALUE_DISK = "disk";
 
+    static final List<String> TIER_VALUES = List.of(TIER_DIMENSION_VALUE_ON_HEAP, TIER_DIMENSION_VALUE_DISK);
+
     /**
      * Constructor for the stats holder.
      * @param originalDimensionNames the original dimension names, not including TIER_DIMENSION_NAME
@@ -181,28 +183,14 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
         }
     }
 
-    private ImmutableCacheStats removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
-        if (depth == dimensionValues.size()) { // dimensionValues passed in doesn't include the tier dimension
-            // Manually delete this node's children (which represent individual tiers) TODO: is this needed or does GC get it anyway?
-            for (Node child : node.getChildren().values()) {
-                // TODO: iteration issues?
-                node.children.remove(child.getDimensionValue());
-            }
-            // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
-            return node.getImmutableStats();
+    @Override
+    protected ImmutableCacheStats removeDimensionsBaseCase(Node node) {
+        // The base case will be the node whose children represent individual tiers.
+        // Manually delete this node's children
+        for (String tierValue : TIER_VALUES) {
+            node.children.remove(tierValue);
         }
-        Node child = node.getChild(dimensionValues.get(depth));
-        if (child == null) {
-            return null;
-        }
-        ImmutableCacheStats statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
-        if (statsToDecrement != null) {
-            // The removal took place, decrement values and remove this node from its parent if it's now empty
-            node.decrementBySnapshot(statsToDecrement);
-            if (child.getChildren().isEmpty()) {
-                node.children.remove(child.getDimensionValue());
-            }
-        }
-        return statsToDecrement;
+        // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
+        return node.getImmutableStats();
     }
 }

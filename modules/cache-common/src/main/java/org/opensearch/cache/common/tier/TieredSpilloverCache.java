@@ -377,7 +377,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
                 if (key.getDropStatsForDimensions()) {
                     List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue().tierName);
-                    statsHolder.removeDimensions(dimensionValues);
+                    statsHolder.removeDimensions(dimensionValues); // TODO: fix!!
                 }
                 if (key.key != null) {
                     try (ReleasableLock ignore = writeLock.acquire()) {

@@ -23,6 +23,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.opensearch.common.cache.stats.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.common.cache.stats.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
+import static org.opensearch.common.cache.stats.TieredSpilloverCacheStatsHolder.TIER_VALUES;
 
 public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
     // These are modified from DefaultCacheStatsHolderTests.java to account for the tiers. Because we can't add a dependency on server.test,
@@ -204,9 +205,7 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
         List<List<String>> statsToPopulate,
         boolean diskTierEnabled
     ) {
-        List<String> tiers = diskTierEnabled
-            ? List.of(TIER_DIMENSION_VALUE_ON_HEAP, TIER_DIMENSION_VALUE_DISK)
-            : List.of(TIER_DIMENSION_VALUE_ON_HEAP);
+        List<String> tiers = diskTierEnabled ? TIER_VALUES : List.of(TIER_DIMENSION_VALUE_ON_HEAP);
         for (List<String> dims : statsToPopulate) {
             // Increment hits, misses, and evictions for set of dimensions, for both heap and disk
             for (String tier : tiers) {
@@ -330,8 +329,7 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
             usedDimensionValues.put(cacheStatsHolder.getDimensionNames().get(i), values);
         }
         if (diskTierEnabled) {
-            List<String> tierValues = List.of(TIER_DIMENSION_VALUE_ON_HEAP, TIER_DIMENSION_VALUE_DISK);
-            usedDimensionValues.put(TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME, tierValues);
+            usedDimensionValues.put(TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME, TIER_VALUES);
         } else {
             usedDimensionValues.put(TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME, List.of(TIER_DIMENSION_VALUE_ON_HEAP));
         }
