@@ -8,7 +8,7 @@
 
 package org.opensearch.common.cache.stats;
 
-import org.opensearch.cache.common.tier.TieredSpilloverCache;
+import org.opensearch.common.cache.tier.TieredSpilloverCache;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -7,4 +7,4 @@
  */
 
 /** A package for policies controlling what can enter caches. */
-package org.opensearch.cache.common.policy;
+package org.opensearch.common.cache.policy;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cache.common.tier;
+package org.opensearch.common.cache.tier;
 
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -76,7 +76,7 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
             .collect(Collectors.toList());
         Assert.assertTrue(
             pluginInfos.stream()
-                .anyMatch(pluginInfo -> pluginInfo.getName().equals("org.opensearch.cache.common.tier.TieredSpilloverCachePlugin"))
+                .anyMatch(pluginInfo -> pluginInfo.getName().equals("org.opensearch.common.cache.tier.TieredSpilloverCachePlugin"))
         );
     }
 
