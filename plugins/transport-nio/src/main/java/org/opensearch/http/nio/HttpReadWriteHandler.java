@@ -82,7 +82,16 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         TaskScheduler taskScheduler,
         LongSupplier nanoClock
     ) {
-        this(nioHttpChannel, transport, settings, taskScheduler, nanoClock, null /* no SSL/TLS */);
+        this(
+            nioHttpChannel,
+            transport,
+            settings,
+            taskScheduler,
+            nanoClock,
+            null, /* no header verifier */
+            new HttpContentDecompressor(),
+            null /* no SSL/TLS */
+        );
     }
 
     HttpReadWriteHandler(
@@ -91,6 +100,8 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         HttpHandlingSettings settings,
         TaskScheduler taskScheduler,
         LongSupplier nanoClock,
+        @Nullable ChannelHandler headerVerifier,
+        ChannelHandler decompressor,
         @Nullable SSLEngine sslEngine
     ) {
         this.nioHttpChannel = nioHttpChannel;
@@ -113,7 +124,10 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         );
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
         handlers.add(decoder);
-        handlers.add(new HttpContentDecompressor());
+        if (headerVerifier != null) {
+            handlers.add(headerVerifier);
+        }
+        handlers.add(decompressor);
         handlers.add(new HttpResponseEncoder());
         handlers.add(new HttpObjectAggregator(settings.getMaxContentLength()));
         if (settings.isCompression()) {

@@ -48,6 +48,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpServerChannel;
+import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.nio.ssl.SslUtils;
 import org.opensearch.nio.BytesChannelContext;
 import org.opensearch.nio.ChannelFactory;
@@ -61,6 +62,7 @@ import org.opensearch.nio.SocketChannelContext;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportAdapterProvider;
 import org.opensearch.transport.nio.NioGroupFactory;
 import org.opensearch.transport.nio.PageAllocator;
 
@@ -71,7 +73,14 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -88,6 +97,9 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_E
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(NioHttpServerTransport.class);
+
+    public static final String REQUEST_HEADER_VERIFIER = SecureHttpTransportSettingsProvider.REQUEST_HEADER_VERIFIER;
+    public static final String REQUEST_DECOMPRESSOR = SecureHttpTransportSettingsProvider.REQUEST_DECOMPRESSOR;
 
     protected final PageAllocator pageAllocator;
     private final NioGroupFactory nioGroupFactory;
@@ -224,6 +236,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     private class HttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
         private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
+        private final ChannelInboundHandlerAdapter headerVerifier;
+        private final TransportAdapterProvider<HttpServerTransport> decompressorProvider;
 
         private HttpChannelFactory(@Nullable SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider) {
             super(
@@ -237,6 +251,63 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 tcpReceiveBufferSize
             );
             this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
+
+            final List<ChannelInboundHandlerAdapter> headerVerifiers = getHeaderVerifiers(secureHttpTransportSettingsProvider);
+            final Optional<TransportAdapterProvider<HttpServerTransport>> decompressorProviderOpt = getDecompressorProvider(
+                secureHttpTransportSettingsProvider
+            );
+
+            // There could be multiple request decompressor providers configured, using the first one
+            decompressorProviderOpt.ifPresent(p -> logger.debug("Using request decompressor provider: {}", p));
+
+            if (headerVerifiers.size() > 1) {
+                throw new IllegalArgumentException(
+                    "Cannot have more than one header verifier configured, supplied " + headerVerifiers.size()
+                );
+            }
+
+            this.headerVerifier = headerVerifiers.isEmpty() ? null : headerVerifiers.get(0);
+            this.decompressorProvider = decompressorProviderOpt.orElseGet(() -> new TransportAdapterProvider<HttpServerTransport>() {
+                @Override
+                public String name() {
+                    return REQUEST_DECOMPRESSOR;
+                }
+
+                @Override
+                public <C> Optional<C> create(Settings settings, HttpServerTransport transport, Class<C> adapterClass) {
+                    return Optional.empty();
+                }
+            });
+
+        }
+
+        private List<ChannelInboundHandlerAdapter> getHeaderVerifiers(
+            @Nullable SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider
+        ) {
+            if (secureHttpTransportSettingsProvider == null) {
+                return Collections.emptyList();
+            }
+
+            return secureHttpTransportSettingsProvider.getHttpTransportAdapterProviders(settings)
+                .stream()
+                .filter(p -> REQUEST_HEADER_VERIFIER.equalsIgnoreCase(p.name()))
+                .map(p -> p.create(settings, NioHttpServerTransport.this, ChannelInboundHandlerAdapter.class))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+        }
+
+        private Optional<TransportAdapterProvider<HttpServerTransport>> getDecompressorProvider(
+            @Nullable SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider
+        ) {
+            if (secureHttpTransportSettingsProvider == null) {
+                return Optional.empty();
+            }
+
+            return secureHttpTransportSettingsProvider.getHttpTransportAdapterProviders(settings)
+                .stream()
+                .filter(p -> REQUEST_DECOMPRESSOR.equalsIgnoreCase(p.name()))
+                .findFirst();
         }
 
         @Override
@@ -254,6 +325,9 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 handlingSettings,
                 selector.getTaskScheduler(),
                 threadPool::relativeTimeInMillis,
+                headerVerifier,
+                decompressorProvider.create(settings, NioHttpServerTransport.this, ChannelInboundHandlerAdapter.class)
+                    .orElseGet(HttpContentDecompressor::new),
                 engine
             );
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
