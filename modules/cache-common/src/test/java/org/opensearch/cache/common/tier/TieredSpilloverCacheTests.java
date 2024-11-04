@@ -2112,6 +2112,60 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertTrue(VALID_SEGMENT_COUNT_VALUES.contains(tieredSpilloverCache.getNumberOfSegments()));
     }
 
+    public void testDropStatsForDimensions() throws Exception {
+        int onHeapCacheSize = randomIntBetween(300, 600);
+        int diskCacheSize = randomIntBetween(700, 1200);
+        int numberOfSegments = getNumberOfSegments();
+        int keyValueSize = 50;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        TieredSpilloverCache<String, String> tieredSpilloverCache = initializeTieredSpilloverCache(
+            keyValueSize,
+            diskCacheSize,
+            removalListener,
+            Settings.builder()
+                .put(
+                    TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                        CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                    ).getKey(),
+                    onHeapCacheSize * keyValueSize + "b"
+                )
+                .build(),
+            0,
+            numberOfSegments
+        );
+
+        List<ICacheKey<String>> usedKeys = new ArrayList<>();
+        // Fill the cache, getting some entries + evictions for both tiers
+        int minMisses = (diskCacheSize + onHeapCacheSize) / keyValueSize + 10;
+        int numMisses = onHeapCacheSize + diskCacheSize + randomIntBetween(minMisses, minMisses + 50);
+        for (int iter = 0; iter < numMisses; iter++) {
+            ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
+            usedKeys.add(key);
+            LoadAwareCacheLoader<ICacheKey<String>, String> tieredCacheLoader = getLoadAwareCacheLoader();
+            tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoader);
+        }
+        // Also do some random hits
+        Random rand = Randomness.get();
+        int approxNumHits = 30;
+        for (int i = 0; i < approxNumHits; i++) {
+            LoadAwareCacheLoader<ICacheKey<String>, String> tieredCacheLoader = getLoadAwareCacheLoader();
+            ICacheKey<String> key = usedKeys.get(rand.nextInt(usedKeys.size()));
+            tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoader);
+        }
+
+        ImmutableCacheStats totalStats = tieredSpilloverCache.stats().getTotalStats();
+        assertTrue(totalStats.getHits() > 0);
+        assertTrue(totalStats.getMisses() > 0);
+        assertTrue(totalStats.getEvictions() > 0);
+
+        // Since all the keys have the same dimension values, except tiers, we only need to remove that one, and we expect all stats values
+        // should be 0 after that.
+        ICacheKey<String> dropDimensionsKey = new ICacheKey<>(null, getMockDimensions());
+        dropDimensionsKey.setDropStatsForDimensions(true);
+        tieredSpilloverCache.invalidate(dropDimensionsKey);
+        assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), tieredSpilloverCache.stats().getTotalStats());
+    }
+
     private List<String> getMockDimensions() {
         List<String> dims = new ArrayList<>();
         for (String dimensionName : dimensionNames) {
