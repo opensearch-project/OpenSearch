@@ -16,11 +16,11 @@ import java.util.Objects;
  * A mutable class containing the 5 live metrics tracked by a StatsHolder object.
  */
 public class CacheStats {
-    public CounterMetric hits;
-    public CounterMetric misses;
-    public CounterMetric evictions;
-    public CounterMetric sizeInBytes;
-    public CounterMetric items;
+    CounterMetric hits;
+    CounterMetric misses;
+    CounterMetric evictions;
+    CounterMetric sizeInBytes;
+    CounterMetric items;
 
     public CacheStats(long hits, long misses, long evictions, long sizeInBytes, long items) {
         this.hits = new CounterMetric();

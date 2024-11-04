@@ -9,7 +9,6 @@
 package org.opensearch.common.cache.stats;
 
 import org.opensearch.cache.common.tier.TieredSpilloverCache;
-import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -171,7 +170,8 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
 
     @Override
     public void removeDimensions(List<String> dimensionValues) {
-        assert dimensionValues.size() == dimensionNames.size() - 1 : "Must specify a value for every dimension except tier when removing from StatsHolder";
+        assert dimensionValues.size() == dimensionNames.size() - 1
+            : "Must specify a value for every dimension except tier when removing from StatsHolder";
         // As we are removing nodes from the tree, obtain the lock
         lock.lock();
         try {
@@ -182,8 +182,8 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     }
 
     private ImmutableCacheStats removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
-        if (depth == dimensionValues.size() - 1) { // TODO: subtract 1 bc we don't want to subtract from tier nodes, just delete them
-            // Delete this node's children (which represent individual tiers) TODO: is this needed or does GC get it anyway?
+        if (depth == dimensionValues.size()) { // dimensionValues passed in doesn't include the tier dimension
+            // Manually delete this node's children (which represent individual tiers) TODO: is this needed or does GC get it anyway?
             for (Node child : node.getChildren().values()) {
                 // TODO: iteration issues?
                 node.children.remove(child.getDimensionValue());

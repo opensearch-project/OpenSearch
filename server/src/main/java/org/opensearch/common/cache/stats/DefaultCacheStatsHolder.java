@@ -209,14 +209,14 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     }
 
     // pkg-private for testing
-    public Node getStatsRoot() {
+    Node getStatsRoot() {
         return statsRoot;
     }
 
     /**
      * Nodes that make up the tree in the stats holder.
      */
-    public static class Node {
+    protected static class Node {
         private final String dimensionValue;
         // Map from dimensionValue to the DimensionNode for that dimension value.
         public final Map<String, Node> children;
@@ -241,7 +241,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
             return dimensionValue;
         }
 
-        public Map<String, Node> getChildren() {
+        protected Map<String, Node> getChildren() {
             // We can safely iterate over ConcurrentHashMap without worrying about thread issues.
             return children;
         }
@@ -280,7 +280,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
             return this.stats.getItems();
         }
 
-        public ImmutableCacheStats getImmutableStats() {
+        ImmutableCacheStats getImmutableStats() {
             return this.stats.immutableSnapshot();
         }
 
