@@ -44,7 +44,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -62,8 +62,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -127,11 +129,10 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
             request.indicesOptions().expandWildcardsClosed()
         );
 
-        return state.blocks()
-            .indicesBlockedException(
-                ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
-            );
+        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(
+            new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request))),
+            state
+        );
     }
 
     @Override
