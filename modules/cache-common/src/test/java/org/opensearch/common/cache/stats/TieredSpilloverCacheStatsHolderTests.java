@@ -351,7 +351,6 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
                 cacheStatsHolder.incrementMisses(dims);
             }
             for (int i = 0; i < stats.getEvictions(); i++) {
-                // For these tests, don't include heap evictions in total (as if there were no policies + disk tier is active)
                 boolean includeInTotal = dims.get(dims.size() - 1).equals(TIER_DIMENSION_VALUE_DISK) || !diskTierEnabled;
                 cacheStatsHolder.incrementEvictions(dims, includeInTotal);
             }
