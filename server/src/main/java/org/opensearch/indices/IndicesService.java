@@ -205,6 +205,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -360,6 +361,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
+    private volatile boolean requestCachingEnabledForAllQueries;
 
     @Override
     protected void doStart() {
@@ -507,6 +509,9 @@ public class IndicesService extends AbstractLifecycleComponent
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         this.replicator = replicator;
+        this.requestCachingEnabledForAllQueries = INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING, this::setRequestCachingEnabledForAllQueries);
     }
 
     public IndicesService(
@@ -1746,11 +1751,11 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
-                return false;
-            } else if (context.size() != 0) {
+            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false
+                || (context.size() > 0 && !requestCachingEnabledForAllQueries)) {
                 // If no request cache query parameter and shard request cache
                 // is enabled in settings don't cache for requests with size > 0
+                // unless this is enabled via cluster setting
                 return false;
             }
         } else if (request.requestCache() == false) {
@@ -2117,5 +2122,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public CompositeIndexSettings getCompositeIndexSettings() {
         return this.compositeIndexSettings;
+    }
+
+    // Package-private for testing
+    void setRequestCachingEnabledForAllQueries(Boolean requestCachingEnabledForAllQueries) {
+        this.requestCachingEnabledForAllQueries = requestCachingEnabledForAllQueries;
     }
 }
