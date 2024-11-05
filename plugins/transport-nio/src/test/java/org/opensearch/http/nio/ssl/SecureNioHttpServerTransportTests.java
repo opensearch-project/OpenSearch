@@ -6,31 +6,7 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
-package org.opensearch.http.nio;
+package org.opensearch.http.nio.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
@@ -52,7 +28,11 @@ import org.opensearch.http.CorsHandler;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.NullDispatcher;
+import org.opensearch.http.nio.NioHttpClient;
+import org.opensearch.http.nio.NioHttpServerTransport;
 import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -65,16 +45,21 @@ import org.opensearch.transport.nio.NioGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -85,25 +70,29 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Tests for the {@link NioHttpServerTransport} class.
+ * Tests for the secure {@link NioHttpServerTransport} class.
  */
-public class NioHttpServerTransportTests extends OpenSearchTestCase {
+public class SecureNioHttpServerTransportTests extends OpenSearchTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
     private MockPageCacheRecycler pageRecycler;
+    private ClusterSettings clusterSettings;
+    private SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
 
     @Before
     public void setup() throws Exception {
@@ -111,6 +100,27 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
         threadPool = new TestThreadPool("test");
         pageRecycler = new MockPageCacheRecycler(Settings.EMPTY);
         bigArrays = new MockBigArrays(pageRecycler, new NoneCircuitBreakerService());
+        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        secureHttpTransportSettingsProvider = new SecureHttpTransportSettingsProvider() {
+            @Override
+            public Optional<TransportExceptionHandler> buildHttpServerExceptionHandler(Settings settings, HttpServerTransport transport) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
+                try {
+                    SSLEngine engine = SslContextBuilder.forServer(
+                        SecureNioHttpServerTransportTests.class.getResourceAsStream("/certificate.crt"),
+                        SecureNioHttpServerTransportTests.class.getResourceAsStream("/certificate.key")
+                    ).trustManager(InsecureTrustManagerFactory.INSTANCE).build().newEngine(UnpooledByteBufAllocator.DEFAULT);
+                    return Optional.of(engine);
+                } catch (final IOException ex) {
+                    throw new SSLException(ex);
+                }
+            }
+        };
     }
 
     @After
@@ -121,6 +131,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
         threadPool = null;
         networkService = null;
         bigArrays = null;
+        clusterSettings = null;
     }
 
     /**
@@ -152,7 +163,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
-        final Settings settings = createSettings();
+        Settings settings = createSettings();
         runExpectHeaderTest(settings, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }
 
@@ -187,13 +198,14 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(settings, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                clusterSettings,
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (NioHttpClient client = NioHttpClient.http()) {
+            try (NioHttpClient client = NioHttpClient.https()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -227,7 +239,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testBindUnavailableAddress() {
-        final Settings initialSettings = createSettings();
+        Settings initialSettings = createSettings();
         try (
             NioHttpServerTransport transport = new NioHttpServerTransport(
                 initialSettings,
@@ -238,7 +250,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 new NioGroupFactory(Settings.EMPTY, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                clusterSettings,
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
@@ -258,11 +271,12 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                     xContentRegistry(),
                     new NullDispatcher(),
                     new NioGroupFactory(Settings.EMPTY, logger),
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    clusterSettings,
+                    secureHttpTransportSettingsProvider,
                     NoopTracer.INSTANCE
                 )
             ) {
-                BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
+                BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
                 assertEquals("Failed to bind to " + NetworkAddress.format(remoteAddress.address()), bindHttpException.getMessage());
             }
         }
@@ -303,6 +317,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 dispatcher,
                 new NioGroupFactory(settings, logger),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
@@ -310,7 +325,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (NioHttpClient client = NioHttpClient.http()) {
+            try (NioHttpClient client = NioHttpClient.https()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
                 request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -327,7 +342,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             }
 
             // Test short-circuited request
-            try (NioHttpClient client = NioHttpClient.http()) {
+            try (NioHttpClient client = NioHttpClient.https()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
                 request.headers().add(CorsHandler.ORIGIN, "google.com");
 
@@ -377,14 +392,15 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(Settings.EMPTY, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                clusterSettings,
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (NioHttpClient client = NioHttpClient.http()) {
+            try (NioHttpClient client = NioHttpClient.https()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
@@ -444,14 +460,15 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(settings, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                clusterSettings,
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (NioHttpClient client = NioHttpClient.http()) {
+            try (NioHttpClient client = NioHttpClient.https()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
@@ -508,13 +525,14 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 dispatcher,
                 new NioGroupFactory(settings, logger),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (NioHttpClient client = NioHttpClient.http()) {
+            try (NioHttpClient client = NioHttpClient.https()) {
                 NioSocketChannel channel = null;
                 try {
                     CountDownLatch channelClosedLatch = new CountDownLatch(1);
