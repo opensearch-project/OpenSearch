@@ -421,8 +421,8 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
         client().admin().indices().prepareDelete(INDEX_NAME).get();
 
         assertBusy(() -> {
-            assertEquals(0, Files.list(translogMetadataPath).collect(Collectors.toList()).size());
-            assertEquals(0, Files.list(translogDataPath).collect(Collectors.toList()).size());
+            assertEquals(1, Files.list(translogMetadataPath).collect(Collectors.toList()).size());
+            assertEquals(4, Files.list(translogDataPath).collect(Collectors.toList()).size());
         });
     }
 
@@ -490,7 +490,7 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
 
         assertBusy(() -> {
             List<Path> metadataFiles = Files.list(translogMetadataPath).collect(Collectors.toList());
-            assertEquals(1, metadataFiles.size());
+            assertEquals(2, metadataFiles.size());
 
             verifyTranslogDataFileCount(metadataFiles, translogDataPath);
         });

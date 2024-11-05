@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -68,6 +69,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -78,6 +80,7 @@ import java.util.stream.StreamSupport;
 import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.opensearch.snapshots.SnapshotsService.getRepoSnapshotUUIDTuple;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -802,6 +805,36 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
         );
         SnapshotsService.ShardSnapshotUpdate expectedUpdate = new SnapshotsService.ShardSnapshotUpdate(target, repoShardId, expectedStatus);
         assertEquals(expectedUpdate.hashCode(), capturedUpdate.hashCode());
+    }
+
+    public void testGetRepoSnapshotUUIDTuple() {
+        String repoName = "repoName";
+        String pinningEntity = "repoName__OstrHGrERqaR__-597zHYQ";
+        Tuple<String, String> t = getRepoSnapshotUUIDTuple(pinningEntity);
+        assertEquals(repoName, t.v1());
+        assertEquals("OstrHGrERqaR__-597zHYQ", t.v2());
+    }
+
+    public void testIsOrphanPinnedEntity() {
+        String repoName = "repoName";
+        ArrayList<String> snapshotUUIDs = new ArrayList<>(
+            Arrays.asList("OouZCQ30TqypFBZGgk1C7g", "RSP6GLJfSO6SsMmUjZNAaA", "OstrHGrERqaR__-597zHYQ, Zjlnf8IHRxqFBijj0m52gw")
+        );
+
+        ArrayList<String> pinnedEntities = new ArrayList<>(
+            Arrays.asList(
+                "repoName__OouZCQ30TqypFBZGgk1C7g",
+                "repoName__RSP6GLJfSO6SsMmUjZNAaA",
+                "repoName__OstrHGrERqaR__-597zHYQ, Zjlnf8IHRxqFBijj0m52gw"
+            )
+        );
+
+        for (String pinnedEntity : pinnedEntities) {
+            assertFalse(SnapshotsService.isOrphanPinnedEntity(repoName, snapshotUUIDs, pinnedEntity));
+        }
+
+        String orphanEntity = "repoName__orphan";
+        assertTrue(SnapshotsService.isOrphanPinnedEntity(repoName, snapshotUUIDs, orphanEntity));
     }
 
     /**

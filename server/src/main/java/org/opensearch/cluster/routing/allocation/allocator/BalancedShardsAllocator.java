@@ -139,6 +139,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    public static final Setting<Long> PRIMARY_CONSTRAINT_THRESHOLD_SETTING = Setting.longSetting(
+        "cluster.routing.allocation.primary_constraint.threshold",
+        10,
+        0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     /**
      * This setting governs whether primary shards balance is desired during allocation. This is used by {@link ConstraintTypes#isPerIndexPrimaryShardsPerNodeBreached()}
      * and {@link ConstraintTypes#isPrimaryShardsPerNodeBreached} which is used during unassigned shard allocation
@@ -201,6 +209,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float shardBalanceFactor;
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
+    private volatile long primaryConstraintThreshold;
 
     private volatile boolean ignoreThrottleInRestore;
     private volatile TimeValue allocatorTimeout;
@@ -219,6 +228,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setIgnoreThrottleInRestore(IGNORE_THROTTLE_FOR_REMOTE_RESTORE.get(settings));
         updateWeightFunction();
         setThreshold(THRESHOLD_SETTING.get(settings));
+        setPrimaryConstraintThresholdSetting(PRIMARY_CONSTRAINT_THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
@@ -231,6 +241,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
+        clusterSettings.addSettingsUpdateConsumer(PRIMARY_CONSTRAINT_THRESHOLD_SETTING, this::setPrimaryConstraintThresholdSetting);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_THROTTLE_FOR_REMOTE_RESTORE, this::setIgnoreThrottleInRestore);
         clusterSettings.addSettingsUpdateConsumer(ALLOCATOR_TIMEOUT_SETTING, this::setAllocatorTimeout);
     }
@@ -294,7 +305,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     private void updateWeightFunction() {
-        weightFunction = new WeightFunction(this.indexBalanceFactor, this.shardBalanceFactor, this.preferPrimaryShardRebalanceBuffer);
+        weightFunction = new WeightFunction(
+            this.indexBalanceFactor,
+            this.shardBalanceFactor,
+            this.preferPrimaryShardRebalanceBuffer,
+            this.primaryConstraintThreshold
+        );
     }
 
     /**
@@ -315,6 +331,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private void setThreshold(float threshold) {
         this.threshold = threshold;
+    }
+
+    private void setPrimaryConstraintThresholdSetting(long threshold) {
+        this.primaryConstraintThreshold = threshold;
+        this.weightFunction.updatePrimaryConstraintThreshold(threshold);
     }
 
     private void setAllocatorTimeout(TimeValue allocatorTimeout) {
@@ -489,10 +510,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float shardBalance;
         private final float theta0;
         private final float theta1;
+        private long primaryConstraintThreshold;
         private AllocationConstraints constraints;
         private RebalanceConstraints rebalanceConstraints;
 
-        WeightFunction(float indexBalance, float shardBalance, float preferPrimaryBalanceBuffer) {
+        WeightFunction(float indexBalance, float shardBalance, float preferPrimaryBalanceBuffer, long primaryConstraintThreshold) {
             float sum = indexBalance + shardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -501,6 +523,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             theta1 = indexBalance / sum;
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
+            this.primaryConstraintThreshold = primaryConstraintThreshold;
             RebalanceParameter rebalanceParameter = new RebalanceParameter(preferPrimaryBalanceBuffer);
             this.constraints = new AllocationConstraints();
             this.rebalanceConstraints = new RebalanceConstraints(rebalanceParameter);
@@ -510,12 +533,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public float weightWithAllocationConstraints(ShardsBalancer balancer, ModelNode node, String index) {
             float balancerWeight = weight(balancer, node, index);
-            return balancerWeight + constraints.weight(balancer, node, index);
+            return balancerWeight + constraints.weight(balancer, node, index, primaryConstraintThreshold);
         }
 
         public float weightWithRebalanceConstraints(ShardsBalancer balancer, ModelNode node, String index) {
             float balancerWeight = weight(balancer, node, index);
-            return balancerWeight + rebalanceConstraints.weight(balancer, node, index);
+            return balancerWeight + rebalanceConstraints.weight(balancer, node, index, primaryConstraintThreshold);
         }
 
         float weight(ShardsBalancer balancer, ModelNode node, String index) {
@@ -530,6 +553,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         void updateRebalanceConstraint(String constraint, boolean add) {
             this.rebalanceConstraints.updateRebalanceConstraint(constraint, add);
+        }
+
+        void updatePrimaryConstraintThreshold(long primaryConstraintThreshold) {
+            this.primaryConstraintThreshold = primaryConstraintThreshold;
         }
     }
 

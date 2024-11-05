@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesProducerUtil;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
@@ -35,7 +36,6 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.StarTreeMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -221,12 +221,8 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         }
         // we have all the required fields to build composite fields
         if (compositeFieldSet.isEmpty()) {
-            for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
-                if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
-                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-                        starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, compositeDocValuesConsumer);
-                    }
-                }
+            try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, compositeDocValuesConsumer);
             }
         }
     }
@@ -285,9 +281,20 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             if (mergeState.docValuesProducers[i] instanceof CompositeIndexReader) {
                 reader = (CompositeIndexReader) mergeState.docValuesProducers[i];
             } else {
-                continue;
+                Set<DocValuesProducer> docValuesProducers = DocValuesProducerUtil.getSegmentDocValuesProducers(
+                    mergeState.docValuesProducers[i]
+                );
+                for (DocValuesProducer docValuesProducer : docValuesProducers) {
+                    if (docValuesProducer instanceof CompositeIndexReader) {
+                        reader = (CompositeIndexReader) docValuesProducer;
+                        List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
+                        if (compositeFieldInfo.isEmpty() == false) {
+                            break;
+                        }
+                    }
+                }
             }
-
+            if (reader == null) continue;
             List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
             for (CompositeIndexFieldInfo fieldInfo : compositeFieldInfo) {
                 if (fieldInfo.getType().equals(CompositeMappedFieldType.CompositeFieldType.STAR_TREE)) {
@@ -295,17 +302,6 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                     if (compositeIndexValues instanceof StarTreeValues) {
                         StarTreeValues starTreeValues = (StarTreeValues) compositeIndexValues;
                         List<StarTreeValues> fieldsList = starTreeSubsPerField.getOrDefault(fieldInfo.getField(), new ArrayList<>());
-                        if (starTreeField == null) {
-                            starTreeField = starTreeValues.getStarTreeField();
-                        }
-                        // assert star tree configuration is same across segments
-                        else {
-                            if (starTreeField.equals(starTreeValues.getStarTreeField()) == false) {
-                                throw new IllegalArgumentException(
-                                    "star tree field configuration must match the configuration of the field being merged"
-                                );
-                            }
-                        }
                         fieldsList.add(starTreeValues);
                         starTreeSubsPerField.put(fieldInfo.getField(), fieldsList);
                     }
@@ -340,7 +336,8 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             segmentInfo,
             segmentWriteState.fieldInfos,
             segmentWriteState.segUpdates,
-            segmentWriteState.context
+            segmentWriteState.context,
+            segmentWriteState.segmentSuffix
         );
     }
 

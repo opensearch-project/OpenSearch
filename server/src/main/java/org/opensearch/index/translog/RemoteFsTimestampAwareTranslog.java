@@ -345,9 +345,11 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         );
 
         // Get md files matching pinned timestamps
+        Set<Long> pinnedTimestamps = new HashSet<>(pinnedTimestampsState.v2());
+        pinnedTimestamps.add(pinnedTimestampsState.v1());
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             metadataFilesToBeDeleted,
-            pinnedTimestampsState.v2(),
+            pinnedTimestamps,
             metadataFilePinnedTimestampMap,
             file -> RemoteStoreUtils.invertLong(file.split(METADATA_SEPARATOR)[3]),
             TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen

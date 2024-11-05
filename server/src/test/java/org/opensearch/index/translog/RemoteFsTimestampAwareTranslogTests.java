@@ -286,9 +286,9 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
         assertBusy(() -> {
-            assertEquals(0, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
             assertEquals(
-                0,
+                12,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
@@ -755,17 +755,21 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertTrue(generations.isEmpty());
     }
 
-    public void testGetMetadataFilesToBeDeletedNoExclusion() {
+    public void testGetMetadataFilesToBeDeletedExclusionDueToRefreshTimestamp() {
         updatePinnedTimstampTask.run();
 
-        List<String> metadataFiles = List.of(
-            "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1",
-            "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__1",
-            "metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__1"
-        );
+        List<String> metadataFiles = new ArrayList<>();
+        metadataFiles.add("metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1");
+        metadataFiles.add("metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__1");
+        metadataFiles.add("metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__1");
 
+        // Removing file that is pinned by latest refresh timestamp
+        List<String> metadataFilesToBeDeleted = new ArrayList<>(metadataFiles);
+        metadataFilesToBeDeleted.remove(
+            "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1"
+        );
         assertEquals(
-            metadataFiles,
+            metadataFilesToBeDeleted,
             RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(metadataFiles, new HashMap<>(), Long.MAX_VALUE, false, logger)
         );
     }
@@ -774,13 +778,15 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         updatePinnedTimstampTask.run();
         long currentTimeInMillis = System.currentTimeMillis();
         String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
-        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 30000);
-        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 60000);
+        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 400000);
+        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 30000);
+        String md4Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 60000);
 
         List<String> metadataFiles = List.of(
-            "metadata__9223372036438563903__9223372036854774799__" + md1Timestamp + "__31__9223372036854775106__1",
-            "metadata__9223372036438563903__9223372036854775800__" + md2Timestamp + "__31__9223372036854775803__1",
-            "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
+            "metadata__9223372036438563903__9223372036854774500__" + md1Timestamp + "__31__9223372036854775106__1",
+            "metadata__9223372036438563903__9223372036854774799__" + md2Timestamp + "__31__9223372036854775106__1",
+            "metadata__9223372036438563903__9223372036854775800__" + md3Timestamp + "__31__9223372036854775803__1",
+            "metadata__9223372036438563903__9223372036854775701__" + md4Timestamp + "__31__9223372036854775701__1"
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -791,24 +797,26 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             logger
         );
         assertEquals(1, metadataFilesToBeDeleted.size());
-        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
+        assertEquals(metadataFiles.get(1), metadataFilesToBeDeleted.get(0));
     }
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnPinningOnly() throws IOException {
         long currentTimeInMillis = System.currentTimeMillis();
-        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
-        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
-        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 190000);
+        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
+        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
+        String md4Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
 
-        long pinnedTimestamp = RemoteStoreUtils.invertLong(md2Timestamp) + 10000;
+        long pinnedTimestamp = RemoteStoreUtils.invertLong(md3Timestamp) + 10000;
         when(blobContainer.listBlobs()).thenReturn(Map.of(randomInt(100) + "__" + pinnedTimestamp, new PlainBlobMetadata("xyz", 100)));
 
         updatePinnedTimstampTask.run();
 
         List<String> metadataFiles = List.of(
-            "metadata__9223372036438563903__9223372036854774799__" + md1Timestamp + "__31__9223372036854775106__1",
-            "metadata__9223372036438563903__9223372036854775600__" + md2Timestamp + "__31__9223372036854775803__1",
-            "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
+            "metadata__9223372036438563903__9223372036854774500__" + md1Timestamp + "__31__9223372036854775701__1",
+            "metadata__9223372036438563903__9223372036854774799__" + md2Timestamp + "__31__9223372036854775106__1",
+            "metadata__9223372036438563903__9223372036854775600__" + md3Timestamp + "__31__9223372036854775803__1",
+            "metadata__9223372036438563903__9223372036854775701__" + md4Timestamp + "__31__9223372036854775701__1"
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -819,8 +827,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             logger
         );
         assertEquals(2, metadataFilesToBeDeleted.size());
-        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
-        assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(1));
+        assertEquals(metadataFiles.get(1), metadataFilesToBeDeleted.get(0));
+        assertEquals(metadataFiles.get(3), metadataFilesToBeDeleted.get(1));
     }
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnAgeAndPinning() throws IOException {
@@ -856,6 +864,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
         String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
         String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
+        String md4Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 800000);
 
         when(blobContainer.listBlobs()).thenReturn(Map.of());
 
@@ -866,8 +875,10 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
             // MaxGen 12
             "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
+            // MaxGen 9
+            "metadata__9223372036438563903__9223372036854775798__" + md3Timestamp + "__31__9223372036854775701__1",
             // MaxGen 10
-            "metadata__9223372036438563903__9223372036854775798__" + md3Timestamp + "__31__9223372036854775701__1"
+            "metadata__9223372036438563903__9223372036854775797__" + md4Timestamp + "__31__9223372036854775701__1"
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -878,8 +889,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             logger
         );
         assertEquals(2, metadataFilesToBeDeleted.size());
-        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
-        assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(1));
+        assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(0));
+        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(1));
     }
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnGenerationDeleteIndex() throws IOException {
@@ -892,13 +903,15 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
         updatePinnedTimstampTask.run();
 
-        List<String> metadataFiles = List.of(
-            // MaxGen 7
-            "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
-            // MaxGen 12
-            "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
-            // MaxGen 17
-            "metadata__9223372036438563903__9223372036854775790__" + md3Timestamp + "__31__9223372036854775701__1"
+        List<String> metadataFiles = new ArrayList<>(
+            List.of(
+                // MaxGen 12
+                "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
+                // MaxGen 7
+                "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
+                // MaxGen 17
+                "metadata__9223372036438563903__9223372036854775790__" + md3Timestamp + "__31__9223372036854775701__1"
+            )
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -908,6 +921,10 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             true,
             logger
         );
+
+        // Metadata file corresponding to latest pinned timestamp fetch is always considered pinned
+        metadataFiles.remove(metadataFiles.get(2));
+
         assertEquals(metadataFiles, metadataFilesToBeDeleted);
     }
 
