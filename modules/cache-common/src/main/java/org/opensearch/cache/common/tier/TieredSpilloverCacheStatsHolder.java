@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.stats;
+package org.opensearch.cache.common.tier;
 
-import org.opensearch.cache.common.tier.TieredSpilloverCache;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -177,20 +177,9 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
         // As we are removing nodes from the tree, obtain the lock
         lock.lock();
         try {
-            removeDimensionsHelper(dimensionValues, getStatsRoot(), 0);
+            removeDimensionsHelper(dimensionValues, statsRoot, 0);
         } finally {
             lock.unlock();
         }
-    }
-
-    @Override
-    protected ImmutableCacheStats removeDimensionsBaseCase(Node node) {
-        // The base case will be the node whose children represent individual tiers.
-        // Manually delete this node's children
-        for (String tierValue : TIER_VALUES) {
-            node.children.remove(tierValue);
-        }
-        // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
-        return node.getImmutableStats();
     }
 }

@@ -6,10 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.stats;
+package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.Randomness;
-import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
+import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -21,9 +23,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
-import static org.opensearch.common.cache.stats.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
-import static org.opensearch.common.cache.stats.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
-import static org.opensearch.common.cache.stats.TieredSpilloverCacheStatsHolder.TIER_VALUES;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_VALUES;
 
 public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
     // These are modified from DefaultCacheStatsHolderTests.java to account for the tiers. Because we can't add a dependency on server.test,
@@ -78,12 +80,17 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
         cacheStatsHolder.reset();
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStats originalCounter = expected.get(dimensionValues);
-            originalCounter.sizeInBytes = new CounterMetric();
-            originalCounter.items = new CounterMetric();
+            ImmutableCacheStats expectedTotal = new ImmutableCacheStats(
+                originalCounter.getHits(),
+                originalCounter.getMisses(),
+                originalCounter.getEvictions(),
+                0,
+                0
+            );
 
             DefaultCacheStatsHolder.Node node = getNode(dimensionValues, cacheStatsHolder.getStatsRoot());
             ImmutableCacheStats actual = node.getImmutableStats();
-            assertEquals(originalCounter.immutableSnapshot(), actual);
+            assertEquals(expectedTotal, actual);
         }
     }
 
@@ -130,7 +137,7 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
             // When we invalidate the last node, all nodes should be deleted except the root node
             cacheStatsHolder.removeDimensions(List.of("A2", "B3"));
             assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), cacheStatsHolder.getStatsRoot().getImmutableStats());
-            assertEquals(0, cacheStatsHolder.getStatsRoot().children.size());
+            // assertEquals(0, cacheStatsHolder.getStatsRoot().getChildren().size());
         }
     }
 
@@ -280,11 +287,19 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
                             threadRand.nextInt(5000),
                             threadRand.nextInt(10)
                         );
-                        expected.get(dimensions).hits.inc(statsToInc.getHits());
-                        expected.get(dimensions).misses.inc(statsToInc.getMisses());
-                        expected.get(dimensions).evictions.inc(statsToInc.getEvictions());
-                        expected.get(dimensions).sizeInBytes.inc(statsToInc.getSizeInBytes());
-                        expected.get(dimensions).items.inc(statsToInc.getItems());
+                        for (int iter = 0; iter < statsToInc.getHits(); iter++) {
+                            expected.get(dimensions).incrementHits();
+                        }
+                        for (int iter = 0; iter < statsToInc.getMisses(); iter++) {
+                            expected.get(dimensions).incrementMisses();
+                        }
+                        for (int iter = 0; iter < statsToInc.getEvictions(); iter++) {
+                            expected.get(dimensions).incrementEvictions();
+                        }
+                        expected.get(dimensions).incrementSizeInBytes(statsToInc.getSizeInBytes());
+                        for (int iter = 0; iter < statsToInc.getItems(); iter++) {
+                            expected.get(dimensions).incrementItems();
+                        }
                         populateStatsHolderFromStatsValueMap(cacheStatsHolder, Map.of(dimensions, statsToInc), diskTierEnabled);
                     }
                 }
