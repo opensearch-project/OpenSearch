@@ -67,7 +67,7 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     /**
      * Add tierValue to the end of a copy of the initial dimension values, so they can appropriately be used in this stats holder.
      */
-    public List<String> getDimensionsWithTierValue(List<String> initialDimensions, String tierValue) {
+    List<String> getDimensionsWithTierValue(List<String> initialDimensions, String tierValue) {
         List<String> result = new ArrayList<>(initialDimensions);
         result.add(tierValue);
         return result;
@@ -166,7 +166,7 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
         super.decrementItems(dimensionValues);
     }
 
-    public void setDiskCacheEnabled(boolean diskCacheEnabled) {
+    void setDiskCacheEnabled(boolean diskCacheEnabled) {
         this.diskCacheEnabled = diskCacheEnabled;
     }
 
