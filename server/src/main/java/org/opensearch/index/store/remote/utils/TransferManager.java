@@ -60,8 +60,8 @@ public class TransferManager {
      * Note: Scripted queries/aggs may trigger a blob fetch within a new security context.
      * As such the following operations require elevated permissions.
      *
-     * cacheEntry.getIndexInput() downloads new blobs from the remote store to local disk.
-     * fileCache.compute() because inserting into the fileCache can trigger an eviction of on disk cache.
+     * cacheEntry.getIndexInput() downloads new blobs from the remote store to local fileCache.
+     * fileCache.compute() as inserting into the local fileCache may trigger an eviction.
      *
      * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
