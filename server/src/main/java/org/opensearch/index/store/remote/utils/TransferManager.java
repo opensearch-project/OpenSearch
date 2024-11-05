@@ -95,7 +95,16 @@ public class TransferManager {
                 }
             });
         } catch (PrivilegedActionException e) {
-            throw (IOException) e.getException();
+            final Exception cause = e.getException();
+            if (cause instanceof IOException) {
+                thrown (IOException) cause;
+            } else if (cause instanceof RuntimeException) {
+                thrown (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                thrown (Error) cause;
+            } else {
+                throw new IOException(cause);
+            }
         }
     }
 
