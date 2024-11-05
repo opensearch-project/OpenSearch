@@ -13,10 +13,14 @@ set -e
 
 echo "Running Wazuh Indexer Pre-Installation Script"
 
+# Reference to restore actual service status
+restart_service=/tmp/wazuh-indexer.restart
+
 # Stop existing service
 if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer.service >/dev/null; then
     echo "Stop existing wazuh-indexer.service"
     systemctl --no-reload stop wazuh-indexer.service
+    touch $restart_service
 fi
 if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer-performance-analyzer.service >/dev/null; then
     echo "Stop existing wazuh-indexer-performance-analyzer.service"

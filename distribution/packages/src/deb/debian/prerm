@@ -11,16 +11,27 @@
 
 set -e
 
-echo "Running Wazuh Indexer Pre-Removal Script"
-
-# Stop existing service
-if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer.service >/dev/null; then
-    echo "Stop existing wazuh-indexer.service"
-    systemctl --no-reload stop wazuh-indexer.service
-fi
-if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer-performance-analyzer.service >/dev/null; then
-    echo "Stop existing wazuh-indexer-performance-analyzer.service"
-    systemctl --no-reload stop wazuh-indexer-performance-analyzer.service
-fi
+case "$1" in
+    upgrade|deconfigure)
+    ;;
+    remove)
+        echo "Running Wazuh Indexer Pre-Removal Script"
+        # Stop existing service
+        if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer.service >/dev/null; then
+            echo "Stop existing wazuh-indexer.service"
+            systemctl --no-reload stop wazuh-indexer.service
+        fi
+        if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer-performance-analyzer.service >/dev/null; then
+            echo "Stop existing wazuh-indexer-performance-analyzer.service"
+            systemctl --no-reload stop wazuh-indexer-performance-analyzer.service
+        fi
+    ;;
+    failed-upgrade)
+    ;;
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 0
+    ;;
+esac
 
 exit 0

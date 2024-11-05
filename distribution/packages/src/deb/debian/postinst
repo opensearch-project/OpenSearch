@@ -19,7 +19,7 @@ data_dir=/var/lib/wazuh-indexer
 log_dir=/var/log/wazuh-indexer
 pid_dir=/run/wazuh-indexer
 tmp_dir=/var/log/wazuh-indexer/tmp
-
+restart_service=/tmp/wazuh-indexer.restart
 
 # Create needed directories
 mkdir -p ${tmp_dir}
@@ -46,6 +46,15 @@ if command -v systemd-tmpfiles > /dev/null; then
     systemd-tmpfiles --create wazuh-indexer.conf
 fi
 
+if [ -f $restart_service ]; then
+    rm -f $restart_service
+    echo "Restarting wazuh-indexer service..."
+    if command -v systemctl > /dev/null; then
+        systemctl restart wazuh-indexer.service > /dev/null 2>&1
+    fi
+    exit 0
+fi
+
 # Messages
 echo "### NOT starting on installation, please execute the following statements to configure wazuh-indexer service to start automatically using systemd"
 echo " sudo systemctl daemon-reload"
@@ -54,5 +63,3 @@ echo "### You can start wazuh-indexer service by executing"
 echo " sudo systemctl start wazuh-indexer.service"
 
 exit 0
-
-
