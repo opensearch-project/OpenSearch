@@ -57,7 +57,7 @@ if (project == rootProject) {
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project)
 version = props.getProperty("opensearch")
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
@@ -114,7 +114,7 @@ dependencies {
   api 'com.github.johnrengelman:shadow:8.1.1'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
-  api 'de.thetaphi:forbiddenapis:3.6'
+  api 'de.thetaphi:forbiddenapis:3.8'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.6'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
   api 'org.apache.maven:maven-model:3.9.6'
@@ -287,15 +287,19 @@ if (project != rootProject) {
   }
 }
 
-// Define this here because we need it early.
+// Define this here because we need it early. It uses VersionCatalogsExtension to extract all versions
+// and converts to a Java Properties object
 class VersionPropertiesLoader {
-  static Properties loadBuildSrcVersion(File input) throws IOException {
+  static Properties loadBuildSrcVersion(Project project) throws IOException {
     Properties props = new Properties();
-    InputStream is = new FileInputStream(input)
-    try {
-      props.load(is)
-    } finally {
-      is.close()
+
+    var catalogs = project.extensions.getByType(VersionCatalogsExtension)
+    var libs = catalogs.named("libs")
+    libs.getVersionAliases().forEach {
+       libs.findVersion(it).ifPresent { v ->
+         // Gradle replaces '_' with '.' so 'google_http_client' becomes 'google.http.client' instead
+         props.setProperty(it.replaceAll("[.]", "_"), v.requiredVersion)
+       }
     }
     loadBuildSrcVersion(props, System.getProperties())
     return props

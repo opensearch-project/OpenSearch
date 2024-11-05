@@ -202,7 +202,7 @@ public class RemoteStoreNodeAttribute {
             .isEmpty() == false;
     }
 
-    public static boolean isRemoteRoutingTableEnabled(Settings settings) {
+    public static boolean isRemoteRoutingTableConfigured(Settings settings) {
         return isRemoteRoutingTableAttributePresent(settings);
     }
 
@@ -287,6 +287,6 @@ public class RemoteStoreNodeAttribute {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append('{').append(this.repositoriesMetadata).append('}');
-        return super.toString();
+        return sb.toString();
     }
 }

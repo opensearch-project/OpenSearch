@@ -8,7 +8,10 @@
 
 package org.opensearch.gateway.remote;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -19,6 +22,8 @@ import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
@@ -27,19 +32,32 @@ import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
+import org.opensearch.tasks.Task;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportInterceptor;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +68,8 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
+import static org.opensearch.cluster.coordination.PublicationTransportHandler.PUBLISH_REMOTE_STATE_ACTION_NAME;
+import static org.opensearch.cluster.coordination.PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME;
 import static org.opensearch.cluster.metadata.Metadata.isGlobalStateEquals;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
@@ -57,6 +77,8 @@ import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUB
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteDownloadStats.CHECKSUM_VALIDATION_FAILED_COUNT;
+import static org.opensearch.gateway.remote.RemotePersistenceStats.DIFF_DOWNLOAD_STATS;
+import static org.opensearch.gateway.remote.RemotePersistenceStats.FULL_DOWNLOAD_STATS;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_METADATA;
@@ -88,6 +110,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         isRemotePublicationEnabled = true;
         hasRemoteStateCharPrefix = randomBoolean();
         hasRemoteRoutingCharPrefix = randomBoolean();
+        clearInterceptedActions();
     }
 
     @Override
@@ -130,6 +153,13 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
                 PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString()
             )
             .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(InterceptingTransportService.TestPlugin.class);
+        return plugins;
     }
 
     public void testPublication() throws Exception {
@@ -236,7 +266,7 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             .addMetric(DISCOVERY.metricName())
             .get();
 
-        assertDataNodeDownloadStats(nodesStatsResponseDataNode);
+        assertDataNodeDownloadStats(nodesStatsResponseDataNode.getNodes().get(0));
     }
 
     public void testRemotePublicationDisabledByRollingRestart() throws Exception {
@@ -399,9 +429,162 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         });
     }
 
-    private void assertDataNodeDownloadStats(NodesStatsResponse nodesStatsResponse) {
+    public void testRemotePublicationDisabledAfterSettingChange() throws ExecutionException, InterruptedException {
+        prepareCluster(3, 2, Settings.EMPTY);
+        ensureStableCluster(5);
+        interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 2));
+        ensureGreen(INDEX_NAME);
+
+        assertEquals(0, (int) getRequestCount(PUBLISH_STATE_ACTION_NAME));
+        assertTrue(getRequestCount(PUBLISH_REMOTE_STATE_ACTION_NAME) > 0);
+
+        // disable remote publication
+        internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, false).build())
+            .get();
+
+        clearInterceptedActions();
+        interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+
+        createIndex(INDEX_NAME + "2", remoteStoreIndexSettings(1, 2));
+        ensureGreen(INDEX_NAME + "2");
+
+        assertTrue(getRequestCount(PUBLISH_STATE_ACTION_NAME) > 0);
+        assertEquals(0, (int) getRequestCount(PUBLISH_REMOTE_STATE_ACTION_NAME));
+    }
+
+    public void testRemotePublicationEnabledAfterSettingChange() {
+        isRemotePublicationEnabled = false;
+        prepareCluster(3, 2, Settings.EMPTY);
+        interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 2));
+        ensureGreen(INDEX_NAME);
+
+        assertTrue(getRequestCount(PUBLISH_STATE_ACTION_NAME) > 0);
+        assertEquals(0, (int) getRequestCount(PUBLISH_REMOTE_STATE_ACTION_NAME));
+
+        // enable remote publication
+        internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, true).build())
+            .get();
+
+        clearInterceptedActions();
+        interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+
+        createIndex(INDEX_NAME + "2", remoteStoreIndexSettings(1, 2));
+        ensureGreen(INDEX_NAME + "2");
+
+        assertEquals(0, (int) getRequestCount(PUBLISH_STATE_ACTION_NAME));
+        assertTrue(getRequestCount(PUBLISH_REMOTE_STATE_ACTION_NAME) > 0);
+    }
+
+    public void testRemotePublicationSettingChangePersistedAfterRestart() throws Exception {
+        isRemotePublicationEnabled = false;
+        prepareCluster(3, 2, Settings.EMPTY);
+        ensureStableCluster(5);
+        // enable remote publication
+        internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, true).build())
+            .get();
+        interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 2));
+        ensureGreen(INDEX_NAME);
+
+        assertEquals(0, (int) getRequestCount(PUBLISH_STATE_ACTION_NAME));
+        assertTrue(getRequestCount(PUBLISH_REMOTE_STATE_ACTION_NAME) > 0);
+
+        // disable remote publication
+        internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, false).build())
+            .get();
+
+        clearInterceptedActions();
+        interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+
+        internalCluster().rollingRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public void doAfterNodes(int n, Client client) {
+                interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+            }
+        });
+
+        ensureStableCluster(5);
+        assertEquals(0, (int) getRequestCount(PUBLISH_REMOTE_STATE_ACTION_NAME));
+        assertTrue(getRequestCount(PUBLISH_STATE_ACTION_NAME) > 0);
+    }
+
+    public void testRemotePublicationSettingChangePersistedAfterFullRestart() throws Exception {
+        isRemotePublicationEnabled = false;
+        prepareCluster(3, 2, Settings.EMPTY);
+        ensureStableCluster(5);
+        // enable remote publication
+        internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, true).build())
+            .get();
+        interceptTransportActions(PUBLISH_REMOTE_STATE_ACTION_NAME, PUBLISH_STATE_ACTION_NAME);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 2));
+        ensureGreen(INDEX_NAME);
+
+        assertEquals(0, (int) getRequestCount(PUBLISH_STATE_ACTION_NAME));
+        assertTrue(getRequestCount(PUBLISH_REMOTE_STATE_ACTION_NAME) > 0);
+
+        // disable remote publication
+        internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_PUBLICATION_SETTING_KEY, false).build())
+            .get();
+
+        internalCluster().fullRestart();
+
+        ensureStableCluster(5);
+        NodesStatsResponse response = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareNodesStats(internalCluster().getNodeNames())
+            .clear()
+            .addMetric(DISCOVERY.metricName())
+            .get();
+        response.getNodes().forEach(nodeStats -> {
+            DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
+            assertNotNull(discoveryStats.getClusterStateStats());
+            // ensure none of the nodes received remote publication
+            discoveryStats.getClusterStateStats()
+                .getPersistenceStats()
+                .stream()
+                .filter(
+                    persistedStateStats -> persistedStateStats.getStatsName().equals(FULL_DOWNLOAD_STATS)
+                        || persistedStateStats.getStatsName().equals(DIFF_DOWNLOAD_STATS)
+                )
+                .forEach(persistedStateStats -> {
+                    assertEquals(0, persistedStateStats.getSuccessCount());
+                    assertEquals(0, persistedStateStats.getFailedCount());
+                    assertEquals(0, persistedStateStats.getTotalTimeInMillis());
+                });
+        });
+    }
+
+    private void assertDataNodeDownloadStats(NodeStats nodeStats) {
         // assert cluster state stats for data node
-        DiscoveryStats dataNodeDiscoveryStats = nodesStatsResponse.getNodes().get(0).getDiscoveryStats();
+        DiscoveryStats dataNodeDiscoveryStats = nodeStats.getDiscoveryStats();
         assertNotNull(dataNodeDiscoveryStats.getClusterStateStats());
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getUpdateSuccess());
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 0);
@@ -445,5 +628,95 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
             logger.info(fileName);
             return fileName.split(DELIMITER)[0];
         }).collect(Collectors.toMap(Function.identity(), key -> 1, Integer::sum));
+    }
+
+    private static void clearInterceptedActions() {
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+                .clearInterceptedActions();
+        }
+    }
+
+    private static void interceptTransportActions(String... actions) {
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+                .interceptTransportActions(actions);
+        }
+    }
+
+    private static Integer getRequestCount(String action) {
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        return pluginsServices.iterator()
+            .next()
+            .filterPlugins(InterceptingTransportService.TestPlugin.class)
+            .stream()
+            .findFirst()
+            .get().instance.getRequestCount(action);
+    }
+
+    public static class InterceptingTransportService implements TransportInterceptor {
+
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
+            public final InterceptingTransportService instance = new InterceptingTransportService();
+
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors(
+                NamedWriteableRegistry namedWriteableRegistry,
+                ThreadContext threadContext
+            ) {
+                return Collections.singletonList(instance);
+            }
+        }
+
+        private final Set<String> actions = new HashSet<>();
+        private final Map<String, Integer> requests = new HashMap<>();
+
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler
+        ) {
+            return new InterceptingTransportService.InterceptingHandler<>(action, actualHandler);
+        }
+
+        synchronized Integer getRequestCount(String action) {
+            return requests.getOrDefault(action, 0);
+        }
+
+        synchronized void interceptTransportActions(String... actions) {
+            Collections.addAll(this.actions, actions);
+        }
+
+        synchronized void clearInterceptedActions() {
+            actions.clear();
+            requests.clear();
+        }
+
+        private class InterceptingHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
+            private final String action;
+            private final TransportRequestHandler<T> handler;
+            private final Logger logger = LogManager.getLogger(InterceptingHandler.class);
+
+            InterceptingHandler(String action, TransportRequestHandler<T> handler) {
+                this.action = action;
+                this.handler = handler;
+            }
+
+            @Override
+            public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
+                synchronized (this) {
+                    if (actions.contains(action)) {
+                        Integer requestCount = requests.getOrDefault(action, 0);
+                        requests.put(action, requestCount + 1);
+                        logger.info("intercepted action: {} count: {}", action, requestCount + 1);
+                    }
+                }
+                handler.messageReceived(request, channel, task);
+            }
+        }
     }
 }

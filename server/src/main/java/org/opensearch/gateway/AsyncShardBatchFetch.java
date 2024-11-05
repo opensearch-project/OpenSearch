@@ -241,11 +241,13 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
                 for (Map.Entry<ShardId, V> shardData : shardDataFromNode.entrySet()) {
                     if (shardData.getValue() != null) {
                         ShardId shardId = shardData.getKey();
-                        if (emptyShardResponsePredicate.test(shardData.getValue())) {
-                            this.emptyShardResponse[shardIdKey.get(shardId)] = true;
-                            this.shardData[shardIdKey.get(shardId)] = null;
-                        } else {
-                            this.shardData[shardIdKey.get(shardId)] = shardData.getValue();
+                        if (shardIdKey.get(shardId) != null) {// the response might be for shard which is no longer present in cache
+                            if (emptyShardResponsePredicate.test(shardData.getValue())) {
+                                this.emptyShardResponse[shardIdKey.get(shardId)] = true;
+                                this.shardData[shardIdKey.get(shardId)] = null;
+                            } else {
+                                this.shardData[shardIdKey.get(shardId)] = shardData.getValue();
+                            }
                         }
                     }
                 }

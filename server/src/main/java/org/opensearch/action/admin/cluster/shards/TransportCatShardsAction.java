@@ -108,6 +108,12 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                                 : paginationStrategy.getRequestedEntities()
                         );
                         catShardsResponse.setPageToken(Objects.isNull(paginationStrategy) ? null : paginationStrategy.getResponseToken());
+                        // For paginated queries, if strategy outputs no shards to be returned, avoid fetching IndicesStats.
+                        if (shouldSkipIndicesStatsRequest(paginationStrategy)) {
+                            catShardsResponse.setIndicesStatsResponse(IndicesStatsResponse.getEmptyResponse());
+                            cancellableListener.onResponse(catShardsResponse);
+                            return;
+                        }
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                         indicesStatsRequest.setShouldCancelOnTimeout(true);
                         indicesStatsRequest.all();
@@ -158,5 +164,9 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                 listener.onFailure(new ResponseLimitBreachedException("Too many shards requested.", limit, SHARDS));
             }
         }
+    }
+
+    private boolean shouldSkipIndicesStatsRequest(ShardPaginationStrategy paginationStrategy) {
+        return Objects.nonNull(paginationStrategy) && paginationStrategy.getRequestedEntities().isEmpty();
     }
 }
