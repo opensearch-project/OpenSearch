@@ -97,11 +97,9 @@ public class TransferManager {
         } catch (PrivilegedActionException e) {
             final Exception cause = e.getException();
             if (cause instanceof IOException) {
-                thrown (IOException) cause;
+                throw (IOException) cause;
             } else if (cause instanceof RuntimeException) {
-                thrown (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                thrown (Error) cause;
+                throw (RuntimeException) cause;
             } else {
                 throw new IOException(cause);
             }
