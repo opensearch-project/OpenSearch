@@ -50,6 +50,7 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -150,10 +151,6 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
-
-    // from  io.netty.channel.unix (netty)
-    'io.netty.channel.unix.FileDescriptor',
-    'io.netty.channel.unix.UnixChannel',
 
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration'
