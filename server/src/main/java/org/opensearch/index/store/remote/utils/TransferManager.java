@@ -67,12 +67,11 @@ public class TransferManager {
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
-
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("fetchBlob called for {}", key.toString());
 
-        final CachedIndexInput cacheEntry = AccessController.doPrivileged((PrivilegedAction<CachedIndexInput>) () -> {
-            return fileCache.compute(key, (path, cachedIndexInput) -> {
+        return AccessController.doPrivileged((PrivilegedAction<IndexInput>) () -> {
+            CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
                 if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
                     logger.trace("Transfer Manager - IndexInput closed or not in cache");
                     // Doesn't exist or is closed, either way create a new one
@@ -83,9 +82,7 @@ public class TransferManager {
                     return cachedIndexInput;
                 }
             });
-        });
 
-        return AccessController.doPrivileged((PrivilegedAction<IndexInput>) () -> {
             // Cache entry was either retrieved from the cache or newly added, either
             // way the reference count has been incremented by one. We can only
             // decrement this reference _after_ creating the clone to be returned.
