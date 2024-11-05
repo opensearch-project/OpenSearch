@@ -210,7 +210,6 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsToDecrement;
     }
 
-    // pkg-private for testing
     public Node getStatsRoot() {
         return statsRoot;
     }
