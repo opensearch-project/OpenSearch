@@ -51,6 +51,7 @@ import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.plugins.TransportExceptionHandler;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -177,7 +178,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService,
-                Tracer tracer
+                Tracer tracer,
+                MetricsRegistry metricsRegistry
             ) {
                 return Collections.singletonMap("custom", custom);
             }
@@ -286,7 +288,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService,
-                Tracer tracer
+                Tracer tracer,
+                MetricsRegistry metricsRegistry
             ) {
                 return Collections.singletonMap("default_custom", customTransport);
             }
@@ -331,7 +334,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService,
-                Tracer tracer
+                Tracer tracer,
+                MetricsRegistry metricsRegistry
             ) {
                 return Collections.singletonMap("default_custom", customTransport);
             }

@@ -23,6 +23,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.Aggregation;
 import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.InstrumentType;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
@@ -100,6 +101,10 @@ public final class OTelResourceProvider {
             .registerView(
                 InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
                 View.builder().setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build()
+            )
+            .registerView(
+                InstrumentSelector.builder().setName("otlp.exporter.*").build(),
+                View.builder().setAggregation(Aggregation.drop()).build()
             )
             .build();
     }
