@@ -757,7 +757,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 success = true;
             } finally {
                 if (!success && !created.isEmpty()) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
+                    cluster().wipeIndices(created.toArray(new String[0]));
                 }
             }
         }

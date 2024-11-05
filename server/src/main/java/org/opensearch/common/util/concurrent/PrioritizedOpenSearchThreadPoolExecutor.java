@@ -81,7 +81,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         List<Pending> pending = new ArrayList<>();
         addPending(new ArrayList<>(current), pending, true);
         addPending(new ArrayList<>(getQueue()), pending, false);
-        return pending.toArray(new Pending[pending.size()]);
+        return pending.toArray(new Pending[0]);
     }
 
     public int getNumberOfPendingTasks() {

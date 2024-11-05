@@ -325,7 +325,7 @@ public abstract class AbstractTermVectorsTestCase extends ParameterizedStaticSet
 
         refresh();
 
-        return configs.toArray(new TestConfig[configs.size()]);
+        return configs.toArray(new TestConfig[0]);
     }
 
     protected TestFieldSetting[] getFieldSettings() {

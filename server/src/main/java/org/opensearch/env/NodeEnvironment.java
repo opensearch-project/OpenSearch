@@ -1062,7 +1062,7 @@ public final class NodeEnvironment implements Closeable {
                 paths.add(indexFolder);
             }
         }
-        return paths.toArray(new Path[paths.size()]);
+        return paths.toArray(new Path[0]);
     }
 
     /**

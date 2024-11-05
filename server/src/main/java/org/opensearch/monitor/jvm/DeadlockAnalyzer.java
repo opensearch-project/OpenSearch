@@ -81,7 +81,7 @@ public class DeadlockAnalyzer {
         Deadlock result[] = new Deadlock[cycles.size()];
         int count = 0;
         for (LinkedHashSet<ThreadInfo> cycle : cycles) {
-            ThreadInfo asArray[] = cycle.toArray(new ThreadInfo[cycle.size()]);
+            ThreadInfo asArray[] = cycle.toArray(new ThreadInfo[0]);
             Deadlock d = new Deadlock(asArray);
             result[count++] = d;
         }
