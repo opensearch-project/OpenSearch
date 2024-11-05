@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.tier;
+package org.opensearch.cache.common.tier;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;

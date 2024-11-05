@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.policy;
+package org.opensearch.cache.common.policy;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.settings.ClusterSettings;
@@ -30,7 +31,7 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.function.Function;
 
-import static org.opensearch.common.cache.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 public class TookTimePolicyTests extends OpenSearchTestCase {
     private final Function<BytesReference, CachedQueryResult.PolicyValues> transformationFunction = (data) -> {

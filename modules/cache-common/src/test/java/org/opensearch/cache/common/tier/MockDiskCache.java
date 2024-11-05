@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.tier;
+package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;

@@ -7,4 +7,4 @@
  */
 
 /** Package related to cache tiers **/
-package org.opensearch.common.cache.tier;
+package org.opensearch.cache.common.tier;

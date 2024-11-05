@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.tier;
+package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
@@ -20,8 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.common.cache.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
-import static org.opensearch.common.cache.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 /**
  * Plugin for TieredSpilloverCache.

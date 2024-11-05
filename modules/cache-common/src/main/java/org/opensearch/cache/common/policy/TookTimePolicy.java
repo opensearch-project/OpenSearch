@@ -11,16 +11,17 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.cache.policy;
+package org.opensearch.cache.common.policy;
 
 import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.opensearch.common.cache.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 /**
  * A cache tier policy which accepts queries whose took time is greater than some threshold.
