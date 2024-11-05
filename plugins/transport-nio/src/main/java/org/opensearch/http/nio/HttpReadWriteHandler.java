@@ -32,6 +32,7 @@
 
 package org.opensearch.http.nio;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpHandlingSettings;
 import org.opensearch.http.HttpPipelinedRequest;
@@ -43,6 +44,8 @@ import org.opensearch.nio.NioChannelHandler;
 import org.opensearch.nio.SocketChannelContext;
 import org.opensearch.nio.TaskScheduler;
 import org.opensearch.nio.WriteOperation;
+
+import javax.net.ssl.SSLEngine;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +61,7 @@ import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.ssl.SslHandler;
 
 public class HttpReadWriteHandler implements NioChannelHandler {
 
@@ -78,6 +82,28 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         TaskScheduler taskScheduler,
         LongSupplier nanoClock
     ) {
+        this(
+            nioHttpChannel,
+            transport,
+            settings,
+            taskScheduler,
+            nanoClock,
+            null, /* no header verifier */
+            new HttpContentDecompressor(),
+            null /* no SSL/TLS */
+        );
+    }
+
+    HttpReadWriteHandler(
+        NioHttpChannel nioHttpChannel,
+        NioHttpServerTransport transport,
+        HttpHandlingSettings settings,
+        TaskScheduler taskScheduler,
+        LongSupplier nanoClock,
+        @Nullable ChannelHandler headerVerifier,
+        ChannelHandler decompressor,
+        @Nullable SSLEngine sslEngine
+    ) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
         this.taskScheduler = taskScheduler;
@@ -85,6 +111,12 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
 
         List<ChannelHandler> handlers = new ArrayList<>(8);
+
+        SslHandler sslHandler = null;
+        if (sslEngine != null) {
+            sslHandler = new SslHandler(sslEngine);
+        }
+
         HttpRequestDecoder decoder = new HttpRequestDecoder(
             settings.getMaxInitialLineLength(),
             settings.getMaxHeaderSize(),
@@ -92,7 +124,10 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         );
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
         handlers.add(decoder);
-        handlers.add(new HttpContentDecompressor());
+        if (headerVerifier != null) {
+            handlers.add(headerVerifier);
+        }
+        handlers.add(decompressor);
         handlers.add(new HttpResponseEncoder());
         handlers.add(new HttpObjectAggregator(settings.getMaxContentLength()));
         if (settings.isCompression()) {
@@ -102,7 +137,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         handlers.add(new NioHttpResponseCreator());
         handlers.add(new NioHttpPipeliningHandler(transport.getLogger(), settings.getPipeliningMaxEvents()));
 
-        adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
+        adaptor = new NettyAdaptor(sslHandler, handlers.toArray(new ChannelHandler[0]));
         adaptor.addCloseListener((v, e) -> nioHttpChannel.close());
     }
 
