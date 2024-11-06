@@ -33,18 +33,22 @@
 package org.opensearch.cluster.block;
 
 import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -56,6 +60,7 @@ import java.util.function.Predicate;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 import static java.util.stream.Collectors.toSet;
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
@@ -65,7 +70,11 @@ import static java.util.stream.Collectors.toSet;
 @PublicApi(since = "1.0.0")
 public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), Map.of());
-
+    public static final Set<Setting<Boolean>> INDEX_DATA_READ_ONLY_BLOCK_SETTINGS = Set.of(
+        IndexMetadata.INDEX_READ_ONLY_SETTING,
+        IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
+        IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING
+    );
     private final Set<ClusterBlock> global;
 
     private final Map<String, Set<ClusterBlock>> indicesBlocks;
@@ -273,6 +282,21 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             return null;
         }
         return new ClusterBlockException(indexLevelBlocks);
+    }
+
+    public static ClusterBlockException indicesWithRemoteSnapshotBlockedException(Collection<String> concreteIndices, ClusterState state) {
+        for (String index : concreteIndices) {
+            if (state.blocks().indexBlocked(ClusterBlockLevel.METADATA_WRITE, index)) {
+                IndexMetadata indexMeta = state.metadata().index(index);
+                if (indexMeta != null
+                    && (IndexModule.Type.REMOTE_SNAPSHOT.match(indexMeta.getSettings().get(INDEX_STORE_TYPE_SETTING.getKey())) == false
+                        || ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.stream()
+                            .anyMatch(booleanSetting -> booleanSetting.exists(indexMeta.getSettings())))) {
+                    return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices.toArray(new String[0]));
+                }
+            }
+        }
+        return null;
     }
 
     @Override
