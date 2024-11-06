@@ -43,6 +43,7 @@ import org.apache.lucene.search.Weight;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -89,6 +90,7 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
@@ -579,6 +581,22 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         OpenSearchAssertions.assertAllSuccessful(r4);
         assertThat(r4.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, index, 0, 4);
+
+        // If size > 0 we should cache if this is enabled via cluster setting
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING.getKey(), true)
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        final SearchResponse r7 = client.prepareSearch(index)
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(1)
+            .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-22").lte("2016-03-26"))
+            .get();
+        OpenSearchAssertions.assertAllSuccessful(r7);
+        assertThat(r7.getHits().getTotalHits().value, equalTo(5L));
+        assertCacheState(client, index, 0, 6);
     }
 
     public void testCacheWithFilteredAlias() throws InterruptedException {

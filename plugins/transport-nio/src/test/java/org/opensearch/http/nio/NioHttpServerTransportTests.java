@@ -193,7 +193,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (NioHttpClient client = new NioHttpClient()) {
+            try (NioHttpClient client = NioHttpClient.http()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -310,7 +310,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (NioHttpClient client = new NioHttpClient()) {
+            try (NioHttpClient client = NioHttpClient.http()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
                 request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -327,7 +327,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             }
 
             // Test short-circuited request
-            try (NioHttpClient client = new NioHttpClient()) {
+            try (NioHttpClient client = NioHttpClient.http()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
                 request.headers().add(CorsHandler.ORIGIN, "google.com");
 
@@ -384,7 +384,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (NioHttpClient client = new NioHttpClient()) {
+            try (NioHttpClient client = NioHttpClient.http()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
@@ -451,7 +451,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (NioHttpClient client = new NioHttpClient()) {
+            try (NioHttpClient client = NioHttpClient.http()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
@@ -514,7 +514,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (NioHttpClient client = new NioHttpClient()) {
+            try (NioHttpClient client = NioHttpClient.http()) {
                 NioSocketChannel channel = null;
                 try {
                     CountDownLatch channelClosedLatch = new CountDownLatch(1);

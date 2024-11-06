@@ -20,7 +20,7 @@ import java.util.Objects;
  *
  * Class specific to paginated queries, which will contain common query params required by a paginated API.
  */
-@PublicApi(since = "3.0.0")
+@PublicApi(since = "2.18.0")
 public class PageParams implements Writeable {
 
     public static final String PARAM_SORT = "sort";

@@ -434,6 +434,14 @@ public class MetadataCreateIndexService {
             // in which case templates don't apply, so create the index from the source metadata
             return applyCreateIndexRequestWithExistingMetadata(currentState, request, silent, sourceMetadata, metadataTransformer);
         } else {
+            // The backing index may have a different name or prefix than the data stream name.
+            final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
+
+            // Do not apply any templates to system indices
+            if (systemIndices.isSystemIndex(name)) {
+                return applyCreateIndexRequestWithNoTemplates(currentState, request, silent, metadataTransformer);
+            }
+
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
             // templates), so we need to check to see if the request is creating a hidden index
             // prior to resolving which templates it matches
@@ -441,8 +449,6 @@ public class MetadataCreateIndexService {
                 ? IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())
                 : null;
 
-            // The backing index may have a different name or prefix than the data stream name.
-            final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
@@ -626,14 +632,9 @@ public class MetadataCreateIndexService {
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
         final boolean isSystem = validateDotIndex(request.index(), isHiddenAfterTemplates);
 
-        // remove the setting it's temporary and is only relevant once we create the index
-        final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
-        settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        final Settings indexSettings = settingsBuilder.build();
-
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
-        tmpImdBuilder.settings(indexSettings);
+        tmpImdBuilder.settings(aggregatedIndexSettings);
         tmpImdBuilder.system(isSystem);
         addRemoteStoreCustomMetadata(tmpImdBuilder, true);
 
@@ -679,6 +680,17 @@ public class MetadataCreateIndexService {
             () -> new ParameterizedMessage("Added newCustomData={}, replaced oldCustomData={}", remoteCustomData, existingCustomData)
         );
         tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+    }
+
+    private ClusterState applyCreateIndexRequestWithNoTemplates(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+    ) throws Exception {
+        // Using applyCreateIndexRequestWithV1Templates with empty list instead of applyCreateIndexRequestWithV2Template
+        // with null template as applyCreateIndexRequestWithV2Template has assertions when template is null
+        return applyCreateIndexRequestWithV1Templates(currentState, request, silent, Collections.emptyList(), metadataTransformer);
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(

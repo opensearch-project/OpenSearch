@@ -73,6 +73,7 @@ import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.junit.Before;
@@ -980,5 +981,29 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         ft = new NumberFieldMapper.NumberFieldType("field", type);
         NumberFieldType finalFt = ft;
         assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap));
+    }
+
+    public void testFetchUnsignedLongDocValues() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        Document doc = new Document();
+        final BigInteger expectedValue = randomUnsignedLong();
+        doc.add(new SortedNumericDocValuesField("ul", expectedValue.longValue()));
+        w.addDocument(doc);
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            final NumberFieldType ft = new NumberFieldType("ul", NumberType.UNSIGNED_LONG);
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder(
+                "index",
+                () -> { throw new UnsupportedOperationException(); }
+            ).build(null, null);
+            assertEquals(IndexNumericFieldData.NumericType.UNSIGNED_LONG, fielddata.getNumericType());
+            DocValueFetcher.Leaf fetcher = fielddata.load(reader.leaves().get(0)).getLeafValueFetcher(DocValueFormat.UNSIGNED_LONG);
+            assertTrue(fetcher.advanceExact(0));
+            assertEquals(1, fetcher.docValueCount());
+            final Object value = fetcher.nextValue();
+            assertTrue(value instanceof BigInteger);
+            assertEquals(expectedValue, value);
+        }
+        IOUtils.close(w, dir);
     }
 }
