@@ -339,14 +339,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             }
         }
         try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-            starTreesBuilder.buildDuringMerge(
-                metaOut,
-                dataOut,
-                starTreeSubsPerField,
-                compositeDocValuesConsumer,
-                mergeState,
-                fieldDocIdSetIteratorMap
-            );
+            starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
         }
     }
 

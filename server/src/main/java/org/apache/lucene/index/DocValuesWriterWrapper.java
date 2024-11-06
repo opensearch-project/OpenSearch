@@ -13,6 +13,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 /**
  * Base wrapper class for DocValuesWriter.
  */
-public abstract class DocValuesWriterWrapper<T extends DocIdSetIterator> {
-    public abstract T getDocValues();
+public interface DocValuesWriterWrapper<T extends DocIdSetIterator> {
+    T getDocValues();
 }

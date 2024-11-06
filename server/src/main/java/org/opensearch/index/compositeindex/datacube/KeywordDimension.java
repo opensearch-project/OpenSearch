@@ -44,6 +44,7 @@ public class KeywordDimension implements Dimension {
 
     @Override
     public void setDimensionValues(Long value, Consumer<Long> dimSetter) {
+        // This will set the keyword dimension value's ordinal
         dimSetter.accept(value);
     }
 

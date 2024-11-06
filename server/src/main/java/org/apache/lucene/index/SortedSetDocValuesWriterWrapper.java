@@ -20,9 +20,9 @@ import org.apache.lucene.util.Counter;
  *
  * @opensearch.experimental
  */
-public class SortedSetDocValuesWriterWrapper extends DocValuesWriterWrapper<SortedSetDocValues> {
+public class SortedSetDocValuesWriterWrapper implements DocValuesWriterWrapper<SortedSetDocValues> {
 
-    private final SortedSetDocValuesWriter sortedSetDocValuesWriterWrapper;
+    private final SortedSetDocValuesWriter sortedSetDocValuesWriterDelegate;
 
     /**
      * Sole constructor. Constructs a new {@link SortedSetDocValuesWriterWrapper} instance.
@@ -33,7 +33,7 @@ public class SortedSetDocValuesWriterWrapper extends DocValuesWriterWrapper<Sort
      * @see SortedSetDocValuesWriter
      */
     public SortedSetDocValuesWriterWrapper(FieldInfo fieldInfo, Counter counter, ByteBlockPool byteBlockPool) {
-        sortedSetDocValuesWriterWrapper = new SortedSetDocValuesWriter(fieldInfo, counter, byteBlockPool);
+        sortedSetDocValuesWriterDelegate = new SortedSetDocValuesWriter(fieldInfo, counter, byteBlockPool);
     }
 
     /**
@@ -43,7 +43,7 @@ public class SortedSetDocValuesWriterWrapper extends DocValuesWriterWrapper<Sort
      * @param value the value to add
      */
     public void addValue(int docID, BytesRef value) {
-        sortedSetDocValuesWriterWrapper.addValue(docID, value);
+        sortedSetDocValuesWriterDelegate.addValue(docID, value);
     }
 
     /**
@@ -53,6 +53,6 @@ public class SortedSetDocValuesWriterWrapper extends DocValuesWriterWrapper<Sort
      */
     @Override
     public SortedSetDocValues getDocValues() {
-        return sortedSetDocValuesWriterWrapper.getDocValues();
+        return sortedSetDocValuesWriterDelegate.getDocValues();
     }
 }

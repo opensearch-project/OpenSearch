@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.index;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
@@ -16,7 +17,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.codec.composite.composite912.Composite912DocValuesReader;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.opensearch.index.codec.composite.composite912.Composite912DocValuesReader.getSortedNumericDocValues;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
@@ -174,9 +173,7 @@ public class StarTreeValues implements CompositeIndexValues {
                     assert dimensionfieldInfo != null;
                     if (dimensionfieldInfo.getDocValuesType().equals(DocValuesType.SORTED_SET)) {
                         SortedSetDocValues dimensionSortedSetDocValues = compositeDocValuesProducer.getSortedSet(dimensionfieldInfo);
-                        return new SortedSetStarTreeValuesIterator(
-                            Composite912DocValuesReader.getSortedSetDocValues(dimensionSortedSetDocValues)
-                        );
+                        return new SortedSetStarTreeValuesIterator(getSortedSetDocValues(dimensionSortedSetDocValues));
                     } else {
                         SortedNumericDocValues dimensionSortedNumericDocValues = compositeDocValuesProducer.getSortedNumeric(
                             dimensionfieldInfo
@@ -290,5 +287,31 @@ public class StarTreeValues implements CompositeIndexValues {
 
     public int getStarTreeDocumentCount() {
         return starTreeMetadata.getStarTreeDocCount();
+    }
+
+    /**
+     * Returns the sorted numeric doc values for the given sorted numeric field.
+     * If the sorted numeric field is null, it returns an empty doc id set iterator.
+     * <p>
+     * Sorted numeric field can be null for cases where the segment doesn't hold a particular value.
+     *
+     * @param sortedNumeric the sorted numeric doc values for a field
+     * @return empty sorted numeric values if the field is not present, else sortedNumeric
+     */
+    static SortedNumericDocValues getSortedNumericDocValues(SortedNumericDocValues sortedNumeric) {
+        return sortedNumeric == null ? DocValues.emptySortedNumeric() : sortedNumeric;
+    }
+
+    /**
+     * Returns the sortedSet doc values for the given sortedSet field.
+     * If the sortedSet field is null, it returns an empty doc id set iterator.
+     * <p>
+     * SortedSet field can be null for cases where the segment doesn't hold a particular value.
+     *
+     * @param sortedSetDv the sortedSet doc values for a field
+     * @return empty sortedSet values if the field is not present, else sortedSetDv
+     */
+    static SortedSetDocValues getSortedSetDocValues(SortedSetDocValues sortedSetDv) {
+        return sortedSetDv == null ? DocValues.emptySortedSet() : sortedSetDv;
     }
 }

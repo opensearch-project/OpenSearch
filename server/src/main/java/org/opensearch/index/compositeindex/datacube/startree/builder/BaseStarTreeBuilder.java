@@ -103,11 +103,11 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     private final IndexOutput metaOut;
     private final IndexOutput dataOut;
     private final Counter bytesUsed = Counter.newCounter();
-    Map<String, SortedSetDocValues> flushSortedSetDocValuesMap = new HashMap<>();
+    private Map<String, SortedSetDocValues> flushSortedSetDocValuesMap = new HashMap<>();
     // Maintains list of sortedSetDocValues for each star tree dimension field across segments during merge
-    Map<String, List<SortedSetStarTreeValuesIterator>> mergeSortedSetDimensionsMap = new HashMap<>();
+    private Map<String, List<SortedSetStarTreeValuesIterator>> mergeSortedSetDimensionsMap = new HashMap<>();
     // Maintains ordinalMap for each star tree dimension field during merge
-    Map<String, OrdinalMap> mergeSortedSetDimensionsOrdinalMap = new HashMap<>();
+    private Map<String, OrdinalMap> mergeSortedSetDimensionsOrdinalMap = new HashMap<>();
 
     // This should be true for merge flows
     protected boolean isMerge = false;
