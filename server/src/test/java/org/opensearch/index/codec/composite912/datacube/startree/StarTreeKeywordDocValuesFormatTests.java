@@ -10,6 +10,7 @@ package org.opensearch.index.codec.composite912.datacube.startree;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
@@ -171,12 +172,18 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
 
             iw.flush();
 
-            // Delete random number of documents
+            // Update random number of documents
             int docsToDelete = random().nextInt(5); // Delete up to 5 documents
             for (int i = 0; i < docsToDelete; i++) {
                 if (!allIds.isEmpty()) {
                     String idToDelete = allIds.iterator().next();
-                    iw.deleteDocuments(new Term("_id", idToDelete));
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("field-ndv", 1L));
+                    iw.w.softUpdateDocuments(
+                        new Term("_id", idToDelete),
+                        List.of(doc),
+                        new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1)
+                    );
                     allIds.remove(idToDelete);
                     documents.remove(idToDelete);
                 }

@@ -30,7 +30,6 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreesBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -263,7 +262,9 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                         return DocValues.emptySortedSet();
                     }
                 });
-            } else {
+            }
+            // TODO : change this logic to evaluate for sortedNumericField specifically
+            else {
                 fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
                     @Override
                     public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
@@ -302,7 +303,6 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
      */
     private void mergeStarTreeFields(MergeState mergeState) throws IOException {
         Map<String, List<StarTreeValues>> starTreeSubsPerField = new HashMap<>();
-        StarTreeField starTreeField = null;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             CompositeIndexReader reader = null;
             if (mergeState.docValuesProducers[i] == null) {
