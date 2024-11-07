@@ -72,8 +72,7 @@ public class FsProbeTests extends OpenSearchTestCase {
     public void testFsInfo() throws IOException {
 
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsProbe probe = new FsProbe(env, null);
-
+            FsProbe probe = new FsProbe(env, FileCache.NOOP_FILE_CACHE);
             FsInfo stats = probe.stats(null);
             assertNotNull(stats);
             assertThat(stats.getTimestamp(), greaterThan(0L));
@@ -110,6 +109,15 @@ public class FsProbeTests extends OpenSearchTestCase {
             assertThat(total.total, greaterThan(0L));
             assertThat(total.free, greaterThan(0L));
             assertThat(total.available, greaterThan(0L));
+            // Total file cache (sum over all "paths"):
+            assertThat(total.fileCacheReserved, equalTo(0L));
+            assertThat(total.fileCacheUtilized, equalTo(0L));
+
+            // The convention for "total" Path object is that some fields are not set
+            // which means they will not be included in output of toXContent method.
+            assertNull(total.path);
+            assertNull(total.mount);
+            assertNull(total.type);
 
             for (FsInfo.Path path : stats) {
                 assertNotNull(path);
@@ -204,24 +212,49 @@ public class FsProbeTests extends OpenSearchTestCase {
     }
 
     public void testFsInfoOverflow() throws Exception {
+        final String path_r = "/foo/bar";
+        final String path_z = "/foo/baz";
         final FsInfo.Path pathStats = new FsInfo.Path(
-            "/foo/bar",
+            path_r,
             null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
 
-        addUntilOverflow(pathStats, p -> p.total, "total", () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0));
+        addUntilOverflow(pathStats, p -> p.total, "total", () -> new FsInfo.Path(path_z, null, randomNonNegativeLong(), 0, 0, 0, 0));
 
-        addUntilOverflow(pathStats, p -> p.free, "free", () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0));
+        addUntilOverflow(pathStats, p -> p.free, "free", () -> new FsInfo.Path(path_z, null, 0, randomNonNegativeLong(), 0, 0, 0));
 
-        addUntilOverflow(pathStats, p -> p.available, "available", () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
+        addUntilOverflow(
+            pathStats,
+            p -> p.available,
+            "available",
+            () -> new FsInfo.Path(path_z, null, 0, 0, randomNonNegativeLong(), 0, 0)
+        );
+
+        addUntilOverflow(
+            pathStats,
+            p -> p.fileCacheReserved,
+            "fileCacheReserved",
+            () -> new FsInfo.Path(path_z, null, 0, 0, 0, randomNonNegativeLong(), 0)
+        );
+
+        addUntilOverflow(
+            pathStats,
+            p -> p.fileCacheUtilized,
+            "fileCacheUtilized",
+            () -> new FsInfo.Path(path_z, null, 0, 0, 0, 0, randomNonNegativeLong())
+        );
 
         // even after overflowing these should not be negative
         assertThat(pathStats.total, greaterThan(0L));
         assertThat(pathStats.free, greaterThan(0L));
         assertThat(pathStats.available, greaterThan(0L));
+        assertThat(pathStats.fileCacheReserved, greaterThan(0L));
+        assertThat(pathStats.fileCacheUtilized, greaterThan(0L));
     }
 
     private void addUntilOverflow(
@@ -394,9 +427,25 @@ public class FsProbeTests extends OpenSearchTestCase {
 
     public void testAdjustForHugeFilesystems() throws Exception {
         NodePath np = new FakeNodePath(createTempDir());
-        assertThat(FsProbe.getFSInfo(np).total, greaterThanOrEqualTo(0L));
-        assertThat(FsProbe.getFSInfo(np).free, greaterThanOrEqualTo(0L));
-        assertThat(FsProbe.getFSInfo(np).available, greaterThanOrEqualTo(0L));
+
+        FsInfo.Path path = FsProbe.getFSInfo(np, FileCache.NOOP_FILE_CACHE);
+        assertThat(path.total, greaterThanOrEqualTo(0L));
+        assertThat(path.free, greaterThanOrEqualTo(0L));
+        assertThat(path.available, greaterThanOrEqualTo(0L));
+        assertThat(path.fileCacheReserved, greaterThanOrEqualTo(0L));
+        assertThat(path.fileCacheUtilized, greaterThanOrEqualTo(0L));
+
+        /** The following test demonstrates that a call to {@link FsProbe#getFSInfo(NodePath)}
+         * leaves the file cache utilization value uninitialized which can have unexpected effects.
+         * Use of that method was deprecated and replaced by {@link FsProbe#getFSInfo(NodePath, FileCache)}.
+         * {@see https://github.com/opensearch-project/OpenSearch/pull/13232}
+         */
+        path = FsProbe.getFSInfo(np);
+        assertThat(path.total, greaterThanOrEqualTo(0L));
+        assertThat(path.free, greaterThanOrEqualTo(0L));
+        assertThat(path.available, greaterThanOrEqualTo(0L));
+        assertThat(path.fileCacheReserved, greaterThanOrEqualTo(0L));
+        assertThat(path.fileCacheUtilized, greaterThanOrEqualTo(-1L)); // <-- !!
     }
 
     static class FakeNodePath extends NodeEnvironment.NodePath {

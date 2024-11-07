@@ -14,6 +14,8 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
@@ -49,6 +51,29 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
  */
 @PublicApi(since = "2.7.0")
 public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
+
+    /**
+     * A minimalistic instance of the File Cache (FC) which is not useful for any real caching task
+     * but is useful as a placeholder in API calls that require FC instance, for example
+     * {@link org.opensearch.monitor.fs.FsProbe#getFSInfo(NodeEnvironment.NodePath, FileCache)}.
+     * <br>
+     * REMEMBER to use a valid FC instance if the output of such API call needs to reflect its state.
+     *
+     * @opensearch.internal
+     */
+    public static FileCache NOOP_FILE_CACHE = null;
+
+    // Perhaps we shall create a new class with static instance like NoopFileCache.INSTANCE ???
+    static {
+        int CONCURRENCY_LEVEL = 1;
+        int CAPACITY = 0;
+        NOOP_FILE_CACHE = FileCacheFactory.createConcurrentLRUFileCache(
+            CAPACITY,
+            CONCURRENCY_LEVEL,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+        );
+    }
+
     private static final Logger logger = LogManager.getLogger(FileCache.class);
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
