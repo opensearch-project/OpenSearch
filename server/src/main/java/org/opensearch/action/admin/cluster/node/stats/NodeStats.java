@@ -46,6 +46,7 @@ import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.grpc.GrpcStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.stats.IndexingPressureStats;
@@ -105,6 +106,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
     @Nullable
     private HttpStats http;
+
+    @Nullable
+    private GrpcStats grpc;
 
     @Nullable
     private AllCircuitBreakerStats breaker;
@@ -179,6 +183,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         fs = in.readOptionalWriteable(FsInfo::new);
         transport = in.readOptionalWriteable(TransportStats::new);
         http = in.readOptionalWriteable(HttpStats::new);
+        grpc = in.readOptionalWriteable(GrpcStats::new);
         breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
@@ -265,6 +270,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable FsInfo fs,
         @Nullable TransportStats transport,
         @Nullable HttpStats http,
+        @Nullable GrpcStats grpc,
         @Nullable AllCircuitBreakerStats breaker,
         @Nullable ScriptStats scriptStats,
         @Nullable DiscoveryStats discoveryStats,
@@ -296,6 +302,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.fs = fs;
         this.transport = transport;
         this.http = http;
+        this.grpc = grpc;
         this.breaker = breaker;
         this.scriptStats = scriptStats;
         this.discoveryStats = discoveryStats;
@@ -383,6 +390,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     public HttpStats getHttp() {
         return this.http;
+    }
+
+    @Nullable
+    public GrpcStats getGrpc() {
+        return this.grpc;
     }
 
     @Nullable
@@ -500,6 +512,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(fs);
         out.writeOptionalWriteable(transport);
         out.writeOptionalWriteable(http);
+        out.writeOptionalWriteable(grpc);
         out.writeOptionalWriteable(breaker);
         out.writeOptionalWriteable(scriptStats);
         out.writeOptionalWriteable(discoveryStats);
@@ -591,6 +604,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getHttp() != null) {
             getHttp().toXContent(builder, params);
+        }
+        if (getGrpc() != null) {
+            getGrpc().toXContent(builder, params);
         }
         if (getBreaker() != null) {
             getBreaker().toXContent(builder, params);

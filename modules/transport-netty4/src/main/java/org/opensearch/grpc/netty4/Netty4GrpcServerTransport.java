@@ -46,13 +46,15 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
 
     private final SharedGroupFactory sharedGroupFactory;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
-    private final ServerStatsInterceptor sharedServerStatsInterceptor;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
+    private final ServerStatsInterceptor sharedServerStatsInterceptor;
+    private final AtomicLong currentOpen = new AtomicLong(0);
+    private final AtomicLong totalOpened = new AtomicLong(0);
 
     public Netty4GrpcServerTransport(Settings settings, NetworkService networkService, SharedGroupFactory sharedGroupFactory) {
         super(settings, networkService);
         this.sharedGroupFactory = sharedGroupFactory;
-        this.sharedServerStatsInterceptor = new ServerStatsInterceptor();
+        this.sharedServerStatsInterceptor = new ServerStatsInterceptor(currentOpen, totalOpened);
     }
 
     @Override
@@ -133,12 +135,17 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
 
     @Override
     public GrpcStats stats() {
-        return new GrpcStats(sharedServerStatsInterceptor.getActiveConnections(), sharedServerStatsInterceptor.getTotalRequests());
+        return new GrpcStats(totalOpened.get(), currentOpen.get());
     }
 
     static class ServerStatsInterceptor implements ServerInterceptor {
-        private final AtomicLong activeConnections = new AtomicLong();
-        private final AtomicLong totalRequests = new AtomicLong();
+        private final AtomicLong currentOpen;
+        private final AtomicLong totalOpened;
+
+        ServerStatsInterceptor(AtomicLong currentOpen, AtomicLong totalOpened) {
+            this.currentOpen = currentOpen;
+            this.totalOpened = totalOpened;
+        }
 
         @Override
         public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
@@ -146,28 +153,24 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
             Metadata headers,
             ServerCallHandler<ReqT, RespT> next
         ) {
+            logger.debug("Intercepted call - Method: {}, Authority: {}, Headers: {}",
+                call.getMethodDescriptor().getFullMethodName(),
+                call.getAuthority(),
+                headers);
 
-            activeConnections.incrementAndGet();
-            totalRequests.incrementAndGet();
+            currentOpen.incrementAndGet();
+            totalOpened.incrementAndGet();
 
             return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
                 next.startCall(new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
                     @Override
                     public void close(Status status, Metadata trailers) {
-                        activeConnections.decrementAndGet();
+                        currentOpen.decrementAndGet();
                         super.close(status, trailers);
                     }
                 }, headers)
             ) {
             };
-        }
-
-        public long getActiveConnections() {
-            return activeConnections.get();
-        }
-
-        public long getTotalRequests() {
-            return totalRequests.get();
         }
     }
 }

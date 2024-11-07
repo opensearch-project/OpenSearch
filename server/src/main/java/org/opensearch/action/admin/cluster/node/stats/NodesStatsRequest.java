@@ -202,6 +202,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         FS("fs"),
         TRANSPORT("transport"),
         HTTP("http"),
+        GRPC("grpc"),
         BREAKER("breaker"),
         SCRIPT("script"),
         DISCOVERY("discovery"),

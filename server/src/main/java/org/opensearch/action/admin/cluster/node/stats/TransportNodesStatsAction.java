@@ -111,6 +111,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.FS.containedIn(metrics),
             NodesStatsRequest.Metric.TRANSPORT.containedIn(metrics),
             NodesStatsRequest.Metric.HTTP.containedIn(metrics),
+            NodesStatsRequest.Metric.GRPC.containedIn(metrics),
             NodesStatsRequest.Metric.BREAKER.containedIn(metrics),
             NodesStatsRequest.Metric.SCRIPT.containedIn(metrics),
             NodesStatsRequest.Metric.DISCOVERY.containedIn(metrics),

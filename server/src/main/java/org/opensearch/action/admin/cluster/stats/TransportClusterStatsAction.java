@@ -182,6 +182,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             false,
+            false,
             isMetricRequired(Metric.INGEST, nodeRequest.request),
             false,
             false,
