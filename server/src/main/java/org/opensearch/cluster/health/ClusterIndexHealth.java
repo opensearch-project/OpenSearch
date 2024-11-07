@@ -49,12 +49,14 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
@@ -148,50 +150,23 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private final ClusterHealthStatus status;
     private final Map<Integer, ClusterShardHealth> shards;
 
+    /**
+     * Constructors for creating health metrics for a cluster index.
+     * The simple constructor defaults to SHARDS level health checks:
+     * @param indexMetadata Metadata for the index being checked
+     * @param indexRoutingTable Routing table for the index shards
+     */
+
     public ClusterIndexHealth(final IndexMetadata indexMetadata, final IndexRoutingTable indexRoutingTable) {
-        this.index = indexMetadata.getIndex().getName();
-        this.numberOfShards = indexMetadata.getNumberOfShards();
-        this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
-
-        shards = new HashMap<>();
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-            int shardId = shardRoutingTable.shardId().id();
-            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
-        }
-
-        // update the index status
-        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        int computeActivePrimaryShards = 0;
-        int computeActiveShards = 0;
-        int computeRelocatingShards = 0;
-        int computeInitializingShards = 0;
-        int computeUnassignedShards = 0;
-        int computeDelayedUnassignedShards = 0;
-        for (ClusterShardHealth shardHealth : shards.values()) {
-            if (shardHealth.isPrimaryActive()) {
-                computeActivePrimaryShards++;
-            }
-            computeActiveShards += shardHealth.getActiveShards();
-            computeRelocatingShards += shardHealth.getRelocatingShards();
-            computeInitializingShards += shardHealth.getInitializingShards();
-            computeUnassignedShards += shardHealth.getUnassignedShards();
-            computeDelayedUnassignedShards += shardHealth.getDelayedUnassignedShards();
-
-            computeStatus = getIndexHealthStatus(shardHealth.getStatus(), computeStatus);
-        }
-        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
-            computeStatus = ClusterHealthStatus.RED;
-        }
-
-        this.status = computeStatus;
-        this.activePrimaryShards = computeActivePrimaryShards;
-        this.activeShards = computeActiveShards;
-        this.relocatingShards = computeRelocatingShards;
-        this.initializingShards = computeInitializingShards;
-        this.unassignedShards = computeUnassignedShards;
-        this.delayedUnassignedShards = computeDelayedUnassignedShards;
+        this(indexMetadata, indexRoutingTable, ClusterHealthRequest.Level.SHARDS);
     }
 
+    /**
+     * The full constructor allows specifying health check detail level and handles scaled-down indices:
+     * @param indexMetadata Metadata for the index being checked
+     * @param indexRoutingTable Routing table for the index shards
+     * @param healthLevel Detail level for health checks (cluster/indices/shards)
+     */
     public ClusterIndexHealth(
         final IndexMetadata indexMetadata,
         final IndexRoutingTable indexRoutingTable,
@@ -201,82 +176,223 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.numberOfShards = indexMetadata.getNumberOfShards();
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
-        shards = new HashMap<>();
+        boolean removeIndexingShards = indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOVE_INDEXING_SHARDS, false);
 
-        // update the index status
-        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        int computeActivePrimaryShards = 0;
-        int computeActiveShards = 0;
-        int computeRelocatingShards = 0;
-        int computeInitializingShards = 0;
-        int computeUnassignedShards = 0;
-        int computeDelayedUnassignedShards = 0;
+        ClusterIndexHealthStats result = removeIndexingShards
+            ? computeScaledDownIndicesHealth(indexRoutingTable)
+            : computeRegularIndicesHealth(indexRoutingTable, healthLevel);
 
-        boolean isShardLevelHealthRequired = healthLevel == ClusterHealthRequest.Level.SHARDS;
-        if (isShardLevelHealthRequired) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                int shardId = indexShardRoutingTable.shardId().id();
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, indexShardRoutingTable);
-                if (shardHealth.isPrimaryActive()) {
-                    computeActivePrimaryShards++;
-                }
-                computeActiveShards += shardHealth.getActiveShards();
-                computeRelocatingShards += shardHealth.getRelocatingShards();
-                computeInitializingShards += shardHealth.getInitializingShards();
-                computeUnassignedShards += shardHealth.getUnassignedShards();
-                computeDelayedUnassignedShards += shardHealth.getDelayedUnassignedShards();
-                computeStatus = getIndexHealthStatus(shardHealth.getStatus(), computeStatus);
-                shards.put(shardId, shardHealth);
+        this.status = result.status;
+        this.activePrimaryShards = result.activePrimaryShards;
+        this.activeShards = result.activeShards;
+        this.relocatingShards = result.relocatingShards;
+        this.initializingShards = result.initializingShards;
+        this.unassignedShards = result.unassignedShards;
+        this.delayedUnassignedShards = result.delayedUnassignedShards;
+        this.shards = result.shards;
+    }
+
+    /**
+     * Computes health metrics for scaled-down indices, which are indices where SETTING_REMOVE_INDEXING_SHARDS is true.
+     * This method specifically focuses on search-only shards and excludes indexing shards from health calculations.
+     *
+     * @param indexRoutingTable The routing table containing shard allocation information for the scaled-down index
+     * @return ClusterIndexHealthStats containing aggregated health metrics for the scaled-down index
+     * <p>
+     * Key differences from regular index health computation:
+     * - Only considers search-only shards in health calculations
+     * - Always reports zero active primary shards since scaled-down indices don't maintain primaries
+     * - Creates shard health entries only for shards that have search-only copies
+     * <p>
+     * Health metrics include:
+     * - Active shards (search-only replicas)
+     * - Relocating shards
+     * - Initializing shards
+     * - Unassigned shards
+     * - Delayed unassigned shards
+     * - Overall status (GREEN/YELLOW/RED) based only on search-only shards
+     * <p>
+     * The method aggregates metrics across all shards but maintains the special semantics
+     * of scaled-down indices where indexing operations are not supported.
+     */
+
+    private ClusterIndexHealthStats computeScaledDownIndicesHealth(IndexRoutingTable indexRoutingTable) {
+        final IndexHealthStats indexHealthStats = new IndexHealthStats();
+        final Map<Integer, ClusterShardHealth> computeShards = new HashMap<>();
+
+        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+            if (indexShardRoutingTable == null) {
+                continue;
             }
-        } else {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                int activeShardsPerShardId = 0;
 
-                List<ShardRouting> shardRoutings = indexShardRoutingTable.shards();
-                int shardRoutingCountPerShardId = shardRoutings.size();
-                for (int index = 0; index < shardRoutingCountPerShardId; index++) {
-                    ShardRouting shardRouting = shardRoutings.get(index);
-                    if (shardRouting.active()) {
-                        computeActiveShards++;
-                        activeShardsPerShardId++;
-                        if (shardRouting.relocating()) {
-                            computeRelocatingShards++;
-                        }
-                    } else if (shardRouting.initializing()) {
-                        computeInitializingShards++;
-                    } else if (shardRouting.unassigned()) {
-                        computeUnassignedShards++;
-                        if (shardRouting.unassignedInfo().isDelayed()) {
-                            computeDelayedUnassignedShards++;
-                        }
-                    }
-                }
-                ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
-                if (primaryShard.active()) {
-                    computeActivePrimaryShards++;
-                }
-                ClusterHealthStatus shardHealth = ClusterShardHealth.getShardHealth(
-                    primaryShard,
-                    activeShardsPerShardId,
-                    shardRoutingCountPerShardId
-                );
-                computeStatus = getIndexHealthStatus(shardHealth, computeStatus);
+            List<ShardRouting> shards = indexShardRoutingTable.shards();
+            int shardId = indexShardRoutingTable.shardId().id();
+            SearchShardStats searchShardStats = ClusterShardHealth.computeSearchShardStatus(shards);
+
+            indexHealthStats.activeShards += searchShardStats.activeShards;
+            indexHealthStats.relocatingShards += searchShardStats.relocatingShards;
+            indexHealthStats.initializingShards += searchShardStats.initializingShards;
+            indexHealthStats.unassignedShards += searchShardStats.unassignedShards;
+            indexHealthStats.delayedUnassignedShards += searchShardStats.delayedUnassignedShards;
+
+            if (searchShardStats.hasSearchOnlyShards) {
+                ClusterShardHealth.createSearchOnlyShardHealth(shardId, searchShardStats, computeShards);
+            }
+
+            indexHealthStats.status = getIndexHealthStatus(searchShardStats.status, indexHealthStats.status);
+        }
+
+        return new ClusterIndexHealthStats(
+            indexHealthStats.status,
+            0,
+            indexHealthStats.activeShards,
+            indexHealthStats.relocatingShards,
+            indexHealthStats.initializingShards,
+            indexHealthStats.unassignedShards,
+            indexHealthStats.delayedUnassignedShards,
+            computeShards
+        );
+    }
+
+    /**
+     * Computes health metrics for regular (non-scaled-down) indices. This method processes each shard's routing table
+     * and aggregates health statistics at either the shard or index level based on the requested health level.
+     *
+     * @param indexRoutingTable The routing table containing shard allocation information for the index
+     * @param healthLevel The requested detail level for health checks (cluster/indices/shards)
+     * @return ClusterIndexHealthStats containing aggregated health metrics for the index
+     * <p>
+     * The method handles two levels of health computation:
+     * 1. Shard-level (Level.SHARDS): Detailed health metrics for each individual shard
+     * 2. Index-level: Aggregated health metrics without per-shard details
+     * <p>
+     * Health metrics include:
+     * - Active primary and replica shards
+     * - Relocating shards
+     * - Initializing shards
+     * - Unassigned shards
+     * - Overall status (GREEN/YELLOW/RED)
+     * <p>
+     * If any shard's routing table is null, the index is marked as RED status.
+     * For empty routing tables (no shards), the index is also marked as RED.
+     */
+
+    private ClusterIndexHealthStats computeRegularIndicesHealth(
+        IndexRoutingTable indexRoutingTable,
+        ClusterHealthRequest.Level healthLevel
+    ) {
+        final IndexHealthStats indexHealthStats = new IndexHealthStats();
+        final Map<Integer, ClusterShardHealth> computeShards = new HashMap<>();
+        final boolean isShardLevelHealthRequired = healthLevel == ClusterHealthRequest.Level.SHARDS;
+
+        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+            if (indexShardRoutingTable == null) {
+                indexHealthStats.status = ClusterHealthStatus.RED;
+                continue;
+            }
+
+            if (isShardLevelHealthRequired) {
+                ClusterShardHealth.computeShardLevelHealth(indexShardRoutingTable, computeShards, result -> {
+                    indexHealthStats.activePrimaryShards += result.activePrimaryShards;
+                    indexHealthStats.activeShards += result.activeShards;
+                    indexHealthStats.relocatingShards += result.relocatingShards;
+                    indexHealthStats.initializingShards += result.initializingShards;
+                    indexHealthStats.unassignedShards += result.unassignedShards;
+                    indexHealthStats.delayedUnassignedShards += result.delayedUnassignedShards;
+                    indexHealthStats.status = getIndexHealthStatus(result.status, indexHealthStats.status);
+                });
+            } else {
+                computeIndexLevelHealth(indexShardRoutingTable, result -> {
+                    indexHealthStats.activePrimaryShards += result.activePrimaryShards;
+                    indexHealthStats.activeShards += result.activeShards;
+                    indexHealthStats.relocatingShards += result.relocatingShards;
+                    indexHealthStats.initializingShards += result.initializingShards;
+                    indexHealthStats.unassignedShards += result.unassignedShards;
+                    indexHealthStats.delayedUnassignedShards += result.delayedUnassignedShards;
+                    indexHealthStats.status = getIndexHealthStatus(result.status, indexHealthStats.status);
+                });
             }
         }
 
         if (indexRoutingTable.shards() != null && indexRoutingTable.shards().isEmpty()) {
-            // might be since none has been created yet (two phase index creation)
-            computeStatus = ClusterHealthStatus.RED;
+            indexHealthStats.status = ClusterHealthStatus.RED;
         }
 
-        this.status = computeStatus;
-        this.activePrimaryShards = computeActivePrimaryShards;
-        this.activeShards = computeActiveShards;
-        this.relocatingShards = computeRelocatingShards;
-        this.initializingShards = computeInitializingShards;
-        this.unassignedShards = computeUnassignedShards;
-        this.delayedUnassignedShards = computeDelayedUnassignedShards;
+        return new ClusterIndexHealthStats(
+            indexHealthStats.status,
+            indexHealthStats.activePrimaryShards,
+            indexHealthStats.activeShards,
+            indexHealthStats.relocatingShards,
+            indexHealthStats.initializingShards,
+            indexHealthStats.unassignedShards,
+            indexHealthStats.delayedUnassignedShards,
+            computeShards
+        );
+    }
 
+    /**
+     * Computes health metrics at the index level without generating per-shard details.
+     * This method processes a single shard's routing table to calculate aggregate health statistics
+     * and determines the overall health status based on the primary shard's state.
+     *
+     * @param indexShardRoutingTable The routing table for a specific shard in the index
+     * @param resultConsumer A consumer that receives the computed health statistics
+     * <p>
+     * Health metrics computed include:
+     * - Active shards count
+     * - Relocating shards count (subset of active shards that are currently relocating)
+     * - Initializing shards count
+     * - Unassigned shards count
+     * - Delayed unassigned shards count (subset of unassigned shards that are deliberately delayed)
+     * <p>
+     * The overall status is determined as follows:
+     * - RED if the primary shard is null or inactive
+     * - Otherwise, status is based on the primary shard's health calculation
+     * <p>
+     * Note: This method is used when shard-level health details are not required
+     * (i.e., when health check level is 'indices' or 'cluster').
+     */
+    private void computeIndexLevelHealth(IndexShardRoutingTable indexShardRoutingTable, Consumer<ClusterIndexHealthStats> resultConsumer) {
+        int activeShards = 0;
+        int relocatingShards = 0;
+        int initializingShards = 0;
+        int unassignedShards = 0;
+        int delayedUnassignedShards = 0;
+
+        List<ShardRouting> shardRoutings = indexShardRoutingTable.shards();
+        for (ShardRouting shardRouting : shardRoutings) {
+            if (shardRouting.active()) {
+                activeShards++;
+                if (shardRouting.relocating()) {
+                    relocatingShards++;
+                }
+            } else if (shardRouting.initializing()) {
+                initializingShards++;
+            } else if (shardRouting.unassigned()) {
+                unassignedShards++;
+                if (Objects.requireNonNull(shardRouting.unassignedInfo()).isDelayed()) {
+                    delayedUnassignedShards++;
+                }
+            }
+        }
+
+        ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+        ClusterHealthStatus status = primaryShard != null
+            ? ClusterShardHealth.getShardHealth(primaryShard, activeShards, shardRoutings.size())
+            : ClusterHealthStatus.RED;
+
+        resultConsumer.accept(
+            new ClusterIndexHealthStats(
+                status,
+                primaryShard != null && primaryShard.active() ? 1 : 0,
+                activeShards,
+                relocatingShards,
+                initializingShards,
+                unassignedShards,
+                delayedUnassignedShards,
+                Collections.emptyMap()
+            )
+        );
     }
 
     public static ClusterHealthStatus getIndexHealthStatus(ClusterHealthStatus shardHealth, ClusterHealthStatus computeStatus) {
@@ -418,8 +534,11 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
 
         if ("shards".equals(params.param("level", "indices"))) {
             builder.startObject(SHARDS);
-            for (ClusterShardHealth shardHealth : shards.values()) {
-                shardHealth.toXContent(builder, params);
+            // Only include shard details if we have actual shards to report
+            if (!shards.isEmpty()) {
+                for (ClusterShardHealth shardHealth : shards.values()) {
+                    shardHealth.toXContent(builder, params);
+                }
             }
             builder.endObject();
         }

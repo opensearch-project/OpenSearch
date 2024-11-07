@@ -420,10 +420,48 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         }
 
         /**
-         * Initializes an existing index.
+         * Initializes the routing table for an existing index during cluster recovery.
+         * This method handles both regular indices and scaled-down indices (indices with only search replicas).
+         * <p>
+         * For scaled-down indices:
+         * - Only search replicas are initialized
+         * - Primary and regular replica shards are not created
+         * - This maintains read-only capability while reducing resource usage
+         * <p>
+         * For regular indices:
+         * - Initializes as empty index with all shard types (primary, replica, search replicas)
+         * - Uses standard cluster recovery process
+         *
+         * @param indexMetadata metadata of the index being recovered
+         * @return the builder instance
          */
         public Builder initializeAsRecovery(IndexMetadata indexMetadata) {
-            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+            boolean removeIndexingShards = indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOVE_INDEXING_SHARDS, false);
+            if (removeIndexingShards) {
+                // For scaled down indices, only initialize search replicas
+                for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+                    ShardId sId = new ShardId(indexMetadata.getIndex(), shardId);
+                    IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(sId);
+
+                    // Add only search replicas
+                    for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
+                        indexShardRoutingBuilder.addShard(
+                            ShardRouting.newUnassigned(
+                                sId,
+                                false,
+                                true,
+                                // RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                                RecoverySource.PeerRecoverySource.INSTANCE,
+                                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)
+                            )
+                        );
+                    }
+                    shards.put(shardId, indexShardRoutingBuilder.build());
+                }
+            } else {
+                return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+            }
+            return this;
         }
 
         /**

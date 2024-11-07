@@ -1728,17 +1728,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             snapshot = getSegmentInfosSnapshot();
             final SegmentInfos segmentInfos = snapshot.get();
             return new Tuple<>(snapshot, computeReplicationCheckpoint(segmentInfos));
-        } catch (IOException | AlreadyClosedException e) {
-            logger.error("Error Fetching SegmentInfos and latest checkpoint", e);
-            if (snapshot != null) {
-                try {
-                    snapshot.close();
-                } catch (IOException ex) {
-                    throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
-                }
+        } catch (AlreadyClosedException e) {
+            // The shard is closed; this is expected during shutdown or reconfiguration.
+            logger.debug("Shard is already closed; cannot fetch SegmentInfos and checkpoint.", e);
+            // Return a null snapshot and the latest replication checkpoint.
+            return new Tuple<>(new GatedCloseable<>(null, () -> {}), getLatestReplicationCheckpoint());
+        } catch (IOException e) {
+            // An actual I/O error occurred; log this as an error.
+            logger.error("IOException while fetching SegmentInfos and checkpoint", e);
+            try {
+                snapshot.close();
+            } catch (IOException ex) {
+                logger.error("Error closing SegmentInfos snapshot after IOException", ex);
             }
+            return new Tuple<>(new GatedCloseable<>(null, () -> {}), getLatestReplicationCheckpoint());
         }
-        return new Tuple<>(new GatedCloseable<>(null, () -> {}), getLatestReplicationCheckpoint());
     }
 
     /**

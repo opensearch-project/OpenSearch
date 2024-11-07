@@ -45,6 +45,17 @@ testClusters {
         plugin('plugins:'.concat(p))
       }
     }
+    setting 'opensearch.experimental.feature.read.write.split.enabled', 'true'
+    setting 'path.repo', '["/tmp/my-repo"]'
+    setting 'node.attr.remote_store', 'true'
+    setting 'cluster.remote_store.state.enabled', 'true'
+    setting 'node.attr.remote_store.segment.repository', 'my-repository'
+    setting 'node.attr.remote_store.translog.repository', 'my-repository'
+    setting 'node.attr.remote_store.repository.my-repository.type', 'fs'
+    setting 'node.attr.remote_store.state.repository', 'my-repository'
+    setting 'node.attr.remote_store.repository.my-repository.settings.location', '/tmp/my-repo'
+
+
   }
 }
 

@@ -645,6 +645,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.Property.Final
     );
 
+    public static final String SETTING_REMOVE_INDEXING_SHARDS = "index.remove_indexing_shards.enabled";
+
+
+    public static final String SETTING_REMOVE_INDEXING_SHARDS_STATUS = "index.remove_indexing_shards.status";
+    public static final String SETTING_REMOVE_INDEXING_SHARDS_ERROR = "index.remove_indexing_shards.error";
+
+    public static final Setting<Boolean> INDEX_REMOVE_INDEXING_SHARDS_SETTING = Setting.boolSetting(
+        SETTING_REMOVE_INDEXING_SHARDS,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    
+    private final boolean isRemoveIndexingShards;
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
     static final String KEY_MAPPING_VERSION = "mapping_version";
@@ -742,7 +756,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Map<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
-        final Context context
+        final Context context,
+        final boolean isRemoveIndexingShards
     ) {
 
         this.index = index;
@@ -759,7 +774,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
         this.numberOfSearchOnlyReplicas = numberOfSearchOnlyReplicas;
-        this.totalNumberOfShards = numberOfShards * (numberOfReplicas + numberOfSearchOnlyReplicas + 1);
+        this.isRemoveIndexingShards = isRemoveIndexingShards;
+        if (this.isRemoveIndexingShards) {
+            this.totalNumberOfShards = numberOfShards * numberOfSearchOnlyReplicas;
+        } else {
+            this.totalNumberOfShards = numberOfShards * (numberOfReplicas + numberOfSearchOnlyReplicas + 1);
+        }
         this.settings = settings;
         this.mappings = Collections.unmodifiableMap(mappings);
         this.customData = Collections.unmodifiableMap(customData);
@@ -1376,6 +1396,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private Context context;
+        private boolean isRemoveIndexingShards;
 
         public Builder(String index) {
             this.index = index;
@@ -1385,6 +1406,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = new HashMap<>();
             this.rolloverInfos = new HashMap<>();
             this.isSystem = false;
+        }
+
+        public Builder removeIndexingShards(boolean isRemoveIndexingShards) {
+            this.isRemoveIndexingShards = isRemoveIndexingShards;
+            return this;
         }
 
         public Builder(IndexMetadata indexMetadata) {
@@ -1765,7 +1791,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 rolloverInfos,
                 isSystem,
                 indexTotalShardsPerNodeLimit,
-                context
+                context,
+                isRemoveIndexingShards
             );
         }
 

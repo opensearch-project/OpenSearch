@@ -32,6 +32,9 @@
 
 package org.opensearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
 import org.opensearch.cluster.DiffableUtils;
@@ -50,6 +53,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.repositories.IndexId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,6 +63,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
@@ -74,6 +79,7 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
 @PublicApi(since = "1.0.0")
 public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable>, VerifiableWriteable {
 
+    private static final Logger logger = LogManager.getLogger(RoutingTable.class);
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
 
     private final long version;
@@ -598,6 +604,91 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     }
                 }
                 indicesRouting.put(index, builder.build());
+            }
+            return this;
+        }
+
+        /**
+         * Updates the routing table for scaling indices up or down by managing primary and replica shards.
+         * This method is part of the scale to zero feature which allows indices to operate in a read-only
+         * mode with only search replicas active.
+         *
+         * @param remove   true for scale-down (removing indexing shards), false for scale-up (restoring indexing shards)
+         * @param indices  array of index names to be updated
+         * @return the builder instance for chaining
+         * @throws IllegalStateException if the builder has already been used
+         */
+
+        public Builder updateRemoveIndexShards(boolean remove, final String[] indices) {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
+            for (String index : indices) {
+                IndexRoutingTable indexRoutingTable = indicesRouting.get(index);
+                if (indexRoutingTable == null) {
+                    continue;
+                }
+
+                if (remove) {
+                    // Scaling down - keep only search replicas
+                    IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
+                    for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                        IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(indexShardRoutingTable.shardId());
+                        for (ShardRouting shardRouting : indexShardRoutingTable) {
+                            if (shardRouting.isSearchOnly()) {
+                                shardBuilder.addShard(shardRouting);
+                            }
+                        }
+                        builder.addIndexShard(shardBuilder.build());
+                    }
+                    indicesRouting.put(index, builder.build());
+                } else {
+                    // Scaling up - Start by creating a new routing table with unassigned primary and replica shards
+                    // The OpenSearch's allocation service handle the actual allocation
+                    IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
+
+                    for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                        IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(indexShardRoutingTable.shardId());
+
+                        // Keep all existing search replicas
+                        for (ShardRouting shardRouting : indexShardRoutingTable) {
+                            if (shardRouting.isSearchOnly()) {
+                                shardBuilder.addShard(shardRouting);
+                            }
+                        }
+
+                        // Create recovery source for primary
+                        RecoverySource.RemoteStoreRecoverySource remoteStoreRecoverySource = new RecoverySource.RemoteStoreRecoverySource(
+                            UUID.randomUUID().toString(),
+                            Version.CURRENT,
+                            new IndexId(
+                                indexShardRoutingTable.shardId().getIndex().getName(),
+                                indexShardRoutingTable.shardId().getIndex().getUUID()
+                            )
+                        );
+
+                        // Add unassigned primary
+                        ShardRouting primaryShard = ShardRouting.newUnassigned(
+                            indexShardRoutingTable.shardId(),
+                            true,
+                            remoteStoreRecoverySource,
+                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "Restoring primary shard")
+                        );
+                        shardBuilder.addShard(primaryShard);
+
+                        // Add unassigned replica
+                        ShardRouting replicaShard = ShardRouting.newUnassigned(
+                            indexShardRoutingTable.shardId(),
+                            false,
+                            RecoverySource.PeerRecoverySource.INSTANCE,
+                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "Restoring replica shard")
+                        );
+                        shardBuilder.addShard(replicaShard);
+
+                        builder.addIndexShard(shardBuilder.build());
+                    }
+                    indicesRouting.put(index, builder.build());
+                }
             }
             return this;
         }
