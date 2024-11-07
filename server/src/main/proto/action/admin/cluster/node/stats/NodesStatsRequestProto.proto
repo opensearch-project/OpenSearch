@@ -12,14 +12,9 @@
 syntax = "proto3";
 package org.opensearch.server.proto;
 
-option java_outer_classname = "NodesInfoProto";
+option java_outer_classname = "NodesStatsRequestProto";
 
-message NodesInfo {
-  string nodeId = 1;
-  int64 processId = 2;
-  string address = 3;
-  string displayName = 4;
-  string hash = 5;
-  string jvmInfoVersion = 6;
-  string jvmHeapMax = 7;
+message NodesStatsReq {
+  repeated string requestedMetrics = 1;
+  string timeout = 2;
 }

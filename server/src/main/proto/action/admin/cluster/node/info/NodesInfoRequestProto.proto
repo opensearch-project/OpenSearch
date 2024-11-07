@@ -12,11 +12,9 @@
 syntax = "proto3";
 package org.opensearch.server.proto;
 
-import "server/NodesInfoProto.proto";
+option java_outer_classname = "NodesInfoRequestProto";
 
-option java_outer_classname = "NodesInfoResponseProto";
-
-message NodesInfoResponse {
-  string clusterName = 1;
-  repeated NodesInfo nodesInfo = 2;
+message NodesInfoRequest {
+  repeated string requestedMetrics = 1;
+  string timeout = 2;
 }
