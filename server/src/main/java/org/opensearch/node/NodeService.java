@@ -173,6 +173,7 @@ public class NodeService implements Closeable {
         boolean threadPool,
         boolean transport,
         boolean http,
+        boolean grpc,
         boolean plugin,
         boolean ingest,
         boolean aggs,
@@ -200,6 +201,9 @@ public class NodeService implements Closeable {
         }
         if (http && httpServerTransport != null) {
             builder.setHttp(httpServerTransport.info());
+        }
+        if (grpc && grpcServerTransport != null) {
+            builder.setGrpc(grpcServerTransport.info());
         }
         if (plugin && pluginService != null) {
             builder.setPlugins(pluginService.info());

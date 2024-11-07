@@ -43,6 +43,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.grpc.GrpcInfo;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.ingest.IngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -139,6 +140,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             if (nodeInfo.getInfo(HttpInfo.class) != null) {
                 nodeInfo.getInfo(HttpInfo.class).toXContent(builder, params);
+            }
+            if (nodeInfo.getInfo(GrpcInfo.class) != null) {
+                nodeInfo.getInfo(GrpcInfo.class).toXContent(builder, params);
             }
             if (nodeInfo.getInfo(PluginsAndModules.class) != null) {
                 nodeInfo.getInfo(PluginsAndModules.class).toXContent(builder, params);
