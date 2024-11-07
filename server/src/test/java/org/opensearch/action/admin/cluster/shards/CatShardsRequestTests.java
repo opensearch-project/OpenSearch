@@ -93,7 +93,11 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
             new PageParams(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomIntBetween(1, 5))
         );
         catShardsRequest.setCancelAfterTimeInterval(TimeValue.timeValueMillis(randomIntBetween(1, 5)));
-        catShardsRequest.setIndices(new String[2]);
+        String[] indices = new String[2];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = randomAlphaOfLengthBetween(3, 10);
+        }
+        catShardsRequest.setIndices(indices);
 
         Version version = VersionUtils.getPreviousVersion(Version.V_2_18_0);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
