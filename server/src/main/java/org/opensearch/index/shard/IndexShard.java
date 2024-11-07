@@ -5170,6 +5170,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
             .getSegmentsUploadedToRemoteStore();
+        // Add check for existing remote segments
+        boolean hasPreexistingRemoteData = remoteDirectory != null && !remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty();
         store.incRef();
         try {
             final Directory storeDirectory;
@@ -5190,7 +5192,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             String segmentsNFile = copySegmentFiles(
                 storeDirectory,
                 sourceRemoteDirectory,
-                remoteDirectory,
+                hasPreexistingRemoteData ? null : remoteDirectory, // Pass null to skip upload,
                 uploadedSegments,
                 overrideLocal,
                 () -> {}
