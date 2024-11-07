@@ -134,7 +134,7 @@ public class FeatureFlags {
     public static final String GRPC_EXPERIMENTAL = "opensearch.experimental.feature.grpc.enabled";
     public static final Setting<Boolean> GRPC_ENABLE_SETTING = Setting.boolSetting(
         GRPC_EXPERIMENTAL,
-        false,
+        true,
         Property.NodeScope
     );
 
