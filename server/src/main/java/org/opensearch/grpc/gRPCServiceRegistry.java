@@ -6,11 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.grpc.services;
+package org.opensearch.grpc;
 
 import io.grpc.BindableService;
-
 import java.util.ArrayList;
+
+import org.opensearch.server.proto.action.admin.cluster.node.stats.NodesStatsProto;
 
 public class gRPCServiceRegistry {
     private final ArrayList<BindableService> services = new ArrayList<>();

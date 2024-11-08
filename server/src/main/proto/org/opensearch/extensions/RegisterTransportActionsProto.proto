@@ -10,16 +10,13 @@
  */
 
 syntax = "proto3";
-package org.opensearch.server.proto;
+package org.opensearch.proto;
 
-option java_outer_classname = "NodesInfoProto";
+import "org/opensearch/extensions/ExtensionIdentityProto.proto";
 
-message NodesInfo {
-  string nodeId = 1;
-  int64 processId = 2;
-  string address = 3;
-  string displayName = 4;
-  string hash = 5;
-  string jvmInfoVersion = 6;
-  string jvmHeapMax = 7;
+option java_outer_classname = "RegisterTransportActionsProto";
+
+message RegisterTransportActions {
+  org.opensearch.extensions.proto.ExtensionIdentity identity = 1;
+  repeated string transportActions = 2;
 }

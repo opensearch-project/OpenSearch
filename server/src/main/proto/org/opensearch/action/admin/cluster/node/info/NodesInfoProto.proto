@@ -10,13 +10,16 @@
  */
 
 syntax = "proto3";
-package org.opensearch.extensions.proto;
+package org.opensearch.action.admin.cluster.node.info.proto;
 
-import "extensions/ExtensionIdentityProto.proto";
-option java_outer_classname = "RegisterRestActionsProto";
+option java_outer_classname = "NodesInfoProto";
 
-message RegisterRestActions {
-  ExtensionIdentity identity = 1;
-  repeated string restActions = 2;
-  repeated string deprecatedRestActions = 3;
+message NodesInfo {
+  string nodeId = 1;
+  int64 processId = 2;
+  string address = 3;
+  string displayName = 4;
+  string hash = 5;
+  string jvmInfoVersion = 6;
+  string jvmHeapMax = 7;
 }

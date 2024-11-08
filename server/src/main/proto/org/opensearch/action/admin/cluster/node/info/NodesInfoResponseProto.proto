@@ -10,13 +10,13 @@
  */
 
 syntax = "proto3";
-package org.opensearch.server.proto;
+package org.opensearch.action.admin.cluster.node.info.proto;
 
-import "server/NodesStatsProto.proto";
+import "org/opensearch/action/admin/cluster/node/info/NodesInfoProto.proto";
 
-option java_outer_classname = "NodesStatsResponseProto";
+option java_outer_classname = "NodesInfoResponseProto";
 
-message NodesStatsResponse {
+message NodesInfoResponse {
   string clusterName = 1;
-  repeated NodesStats nodesStats = 2;
+  repeated opensearch.action.admin.cluster.node.info.proto.NodesInfo nodesInfo = 2;
 }

@@ -10,7 +10,7 @@
  */
 
 syntax = "proto3";
-package org.opensearch.server.proto;
+package org.opensearch.action.admin.cluster.node.info.proto;
 
 option java_outer_classname = "NodesInfoRequestProto";
 
