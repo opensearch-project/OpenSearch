@@ -121,6 +121,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         private final Parameter<Number> nullValue;
 
+        private final Parameter<Explicit<Boolean>> multivalued;
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NumberType type;
@@ -152,6 +154,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 (n, c, o) -> o == null ? null : type.parse(o, false),
                 m -> toType(m).nullValue
             ).acceptsNull();
+            this.multivalued = Parameter.explicitBoolParam("multivalued", true, m -> toType(m).multivalued, false);
         }
 
         Builder nullValue(Number number) {
@@ -166,7 +169,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, multivalued, meta);
         }
 
         @Override
@@ -1733,6 +1736,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
 
+    private final Explicit<Boolean> multivalued;
+
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.type = builder.type;
@@ -1744,6 +1749,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.multivalued = builder.multivalued.getValue();
     }
 
     boolean coerce() {
@@ -1752,6 +1758,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
     }
 
     @Override
@@ -1816,5 +1826,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 }

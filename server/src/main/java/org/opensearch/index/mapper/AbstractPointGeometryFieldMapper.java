@@ -104,6 +104,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             MultiFields multiFields,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> ignoreZValue,
+            Explicit<Boolean> multivalued,
             ParsedPoint nullValue,
             CopyTo copyTo
         );
@@ -117,6 +118,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                 multiFieldsBuilder.build(this, context),
                 ignoreMalformed(context),
                 ignoreZValue(context),
+                multivalued(),
                 nullValue,
                 copyTo
             );
@@ -183,10 +185,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         MultiFields multiFields,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
+        Explicit<Boolean> multivalued,
         ParsedPoint nullValue,
         CopyTo copyTo
     ) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multivalued, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 

@@ -41,11 +41,16 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -70,6 +75,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", true));
         checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((BooleanFieldMapper) m).multivalued()));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -233,5 +239,34 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         );
 
         assertEquals("Can't parse boolean value [random], expected [true] or [false]", e.getMessage());
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "boolean").field("multivalued", true)));
+        ThrowingRunnable runnable = () -> mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", true).endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(
+            e.getMessage(),
+            containsString("object mapping [field] trying to serialize a scalar value [true] for a multi-valued field")
+        );
+
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", List.of(true, false)).endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(4, fields.length);
     }
 }

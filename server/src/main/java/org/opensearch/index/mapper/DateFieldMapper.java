@@ -43,6 +43,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -236,6 +237,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
+        private final Parameter<Explicit<Boolean>> multivalued;
+
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -282,6 +285,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 this.printFormat.setValue(dateFormatter.printPattern());
                 this.locale.setValue(dateFormatter.locale());
             }
+            this.multivalued = Parameter.explicitBoolParam("multivalued", true, m -> toType(m).multivalued, false);
         }
 
         private DateFormatter buildFormatter() {
@@ -298,7 +302,19 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
+            return Arrays.asList(
+                index,
+                docValues,
+                store,
+                format,
+                printFormat,
+                locale,
+                nullValue,
+                ignoreMalformed,
+                boost,
+                multivalued,
+                meta
+            );
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -703,6 +719,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final Version indexCreatedVersion;
 
+    private final Explicit<Boolean> multivalued;
+
     private DateFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -725,6 +743,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.resolution = resolution;
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.multivalued = builder.multivalued.getValue();
     }
 
     @Override
@@ -799,5 +818,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 }

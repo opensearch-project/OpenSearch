@@ -120,6 +120,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).nullValue
         ).acceptsNull();
 
+        private final Parameter<Explicit<Boolean>> multivalued;
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, Settings settings) {
@@ -135,6 +137,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 ignoreMalformedByDefault
             );
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            this.multivalued = Parameter.explicitBoolParam("multivalued", true, m -> toType(m).multivalued, false);
         }
 
         Builder scalingFactor(double scalingFactor) {
@@ -149,7 +152,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, multivalued);
         }
 
         @Override
@@ -372,6 +375,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
 
+    private final Explicit<Boolean> multivalued;
+
     private ScaledFloatFieldMapper(
         String simpleName,
         ScaledFloatFieldType mappedFieldType,
@@ -389,6 +394,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         this.coerce = builder.coerce.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.multivalued = builder.multivalued.getValue();
     }
 
     boolean coerce() {
@@ -397,6 +403,10 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
     }
 
     @Override
@@ -412,6 +422,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, coerceByDefault).init(this);
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 
     @Override

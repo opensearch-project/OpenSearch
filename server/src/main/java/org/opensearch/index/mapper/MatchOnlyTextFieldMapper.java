@@ -206,6 +206,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
                 indexPhrases,
                 indexPrefixes,
                 boost,
+                multivalued,
                 meta
             );
         }

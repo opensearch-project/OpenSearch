@@ -44,6 +44,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
@@ -122,6 +123,13 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).nullValue
         ).acceptsNull();
 
+        private final Parameter<Explicit<Boolean>> multivalued = Parameter.explicitBoolParam(
+            "multivalued",
+            true,
+            m -> toType(m).multivalued,
+            false
+        );
+
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -131,7 +139,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, boost, docValues, indexed, nullValue, stored);
+            return Arrays.asList(meta, boost, docValues, indexed, nullValue, stored, multivalued);
         }
 
         @Override
@@ -348,6 +356,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
+    private final Explicit<Boolean> multivalued;
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -361,6 +370,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.docValues.getValue();
+        this.multivalued = builder.multivalued.getValue();
     }
 
     @Override
@@ -412,4 +422,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
+    }
 }

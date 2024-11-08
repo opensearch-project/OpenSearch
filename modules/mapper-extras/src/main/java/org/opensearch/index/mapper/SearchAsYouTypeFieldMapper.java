@@ -59,6 +59,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -156,6 +157,12 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         final Parameter<String> indexOptions = TextParams.indexOptions(m -> toType(m).indexOptions);
         final Parameter<Boolean> norms = TextParams.norms(true, m -> ft(m).getTextSearchInfo().hasNorms());
         final Parameter<String> termVectors = TextParams.termVectors(m -> toType(m).termVectors);
+        final Parameter<Explicit<Boolean>> multivalued = Parameter.explicitBoolParam(
+            "multivalued",
+            true,
+            m -> toType(m).multivalued,
+            false
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -178,6 +185,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
                 indexOptions,
                 norms,
                 termVectors,
+                multivalued,
                 meta
             );
         }
@@ -628,6 +636,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
+    private final Explicit<Boolean> multivalued;
+
     public SearchAsYouTypeFieldMapper(
         String simpleName,
         SearchAsYouTypeFieldType mappedFieldType,
@@ -646,6 +656,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.termVectors = builder.termVectors.getValue();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
+        this.multivalued = builder.multivalued.getValue();
     }
 
     @Override
@@ -682,6 +693,15 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     @Override
     public SearchAsYouTypeFieldType fieldType() {
         return (SearchAsYouTypeFieldType) super.fieldType();
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 
     public int maxShingleSize() {

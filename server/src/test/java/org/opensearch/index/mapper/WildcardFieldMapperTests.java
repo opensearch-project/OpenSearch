@@ -23,6 +23,9 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -43,6 +46,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.index.mapper.FieldTypeTestCase.fetchSourceValue;
+import static org.hamcrest.Matchers.containsString;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
 
@@ -62,6 +66,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove()));
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((WildcardFieldMapper) m).multivalued()));
     }
 
     public void testTokenizer() throws IOException {
@@ -329,5 +334,36 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field").nullValue("NULL").build(context).fieldType();
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("multivalued", true)));
+        ThrowingRunnable runnable = () -> mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "Hello World").endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(
+            e.getMessage(),
+            containsString("object mapping [field] trying to serialize a scalar value [Hello World] for a multi-valued field")
+        );
+
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder().startObject().field("field", List.of("Hello World", "abcdef")).endObject()
+                ),
+                MediaTypeRegistry.JSON
+            )
+        );
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
     }
 }

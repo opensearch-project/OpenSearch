@@ -75,6 +75,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     public static class Names {
         public static final ParseField IGNORE_MALFORMED = new ParseField("ignore_malformed");
         public static final ParseField IGNORE_Z_VALUE = new ParseField("ignore_z_value");
+        public static final ParseField MULTIVALUED = new ParseField("multivalued");
     }
 
     /**
@@ -85,6 +86,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
+        public static final Explicit<Boolean> MULTIVALUED = new Explicit<>(false, false);
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setStored(false);
@@ -166,6 +168,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
         protected boolean indexed = true;
+        protected Boolean multivalued;
 
         public Builder(String name, FieldType fieldType) {
             super(name, fieldType);
@@ -217,6 +220,18 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             this.ignoreZValue = ignoreZValue;
             return this;
         }
+
+        public Explicit<Boolean> multivalued() {
+            if (multivalued != null) {
+                return new Explicit<>(multivalued, true);
+            }
+            return Defaults.MULTIVALUED;
+        }
+
+        public Builder multivalued(boolean multivalued) {
+            this.multivalued = multivalued;
+            return this;
+        }
     }
 
     /**
@@ -245,6 +260,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                         XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_Z_VALUE.getPreferredName())
                     );
                     iterator.remove();
+                } else if (Names.MULTIVALUED.getPreferredName().equals(propName)) {
+                    params.put(
+                        Names.MULTIVALUED.getPreferredName(),
+                        XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.MULTIVALUED.getPreferredName())
+                    );
+                    iterator.remove();
                 }
             }
 
@@ -256,6 +277,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
             if (params.containsKey(Names.IGNORE_MALFORMED.getPreferredName())) {
                 builder.ignoreMalformed((Boolean) params.get(Names.IGNORE_MALFORMED.getPreferredName()));
+            }
+
+            if (params.containsKey(Names.MULTIVALUED.getPreferredName())) {
+                builder.multivalued((Boolean) params.get(Names.MULTIVALUED.getPreferredName()));
             }
             return builder;
         }
@@ -344,6 +369,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
+    protected Explicit<Boolean> multivalued;
 
     protected AbstractGeometryFieldMapper(
         String simpleName,
@@ -351,12 +377,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         MappedFieldType mappedFieldType,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
+        Explicit<Boolean> multivalued,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
+        this.multivalued = multivalued;
     }
 
     @Override
@@ -368,6 +396,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
         if (gsfm.ignoreZValue.explicit()) {
             this.ignoreZValue = gsfm.ignoreZValue;
+        }
+        if (gsfm.multivalued.explicit()) {
+            this.multivalued = gsfm.multivalued;
         }
     }
 
@@ -450,6 +481,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         if (includeDefaults || ignoreZValue.explicit()) {
             builder.field(Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
         }
+        if (includeDefaults || multivalued.explicit()) {
+            builder.field(Names.MULTIVALUED.getPreferredName(), multivalued.value());
+        }
     }
 
     public Explicit<Boolean> ignoreMalformed() {
@@ -458,5 +492,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     public Explicit<Boolean> ignoreZValue() {
         return ignoreZValue;
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 }

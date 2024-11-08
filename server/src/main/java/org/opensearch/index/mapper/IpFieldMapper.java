@@ -47,6 +47,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -101,6 +102,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
             .acceptsNull();
 
+        private final Parameter<Explicit<Boolean>> multivalued;
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final boolean ignoreMalformedByDefault;
@@ -111,6 +114,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.multivalued = Parameter.explicitBoolParam("multivalued", true, m -> toType(m).multivalued, false);
         }
 
         Builder nullValue(String nullValue) {
@@ -140,7 +144,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, multivalued, meta);
         }
 
         @Override
@@ -541,6 +545,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final Version indexCreatedVersion;
 
+    private final Explicit<Boolean> multivalued;
+
     private IpFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
@@ -551,10 +557,15 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.multivalued = builder.multivalued.getValue();
     }
 
     boolean ignoreMalformed() {
         return ignoreMalformed;
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
     }
 
     @Override
@@ -622,5 +633,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).init(this);
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 }

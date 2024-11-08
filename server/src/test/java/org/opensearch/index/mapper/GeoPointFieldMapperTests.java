@@ -31,6 +31,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
@@ -80,6 +81,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
             assertEquals(gpfm.nullValue, point);
         });
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((GeoPointFieldMapper) m).multivalued()));
     }
 
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -403,6 +405,35 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true")));
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").array("coordinates", new double[] { 1.1, 1.2 }).endObject()));
         assertThat(doc.rootDoc().getField("field"), nullValue());
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("multivalued", true)));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(b -> b.startObject("field").field("type", "Point").array("coordinates", new double[] { 1.1, 1.2 }).endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("object mapping [field] trying to serialize an object value for a multi-valued field"));
+
+        ParsedDocument doc = mapper.parse(
+            source(
+                b -> b.startArray("field")
+                    .startObject()
+                    .field("type", "Point")
+                    .array("coordinates", new double[] { 1.1, 1.2 })
+                    .endObject()
+                    .startObject()
+                    .field("type", "Point")
+                    .array("coordinates", new double[] { 1.3, 1.4 })
+                    .endObject()
+                    .endArray()
+            )
+        );
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(4, fields.length);
     }
 
     @Override

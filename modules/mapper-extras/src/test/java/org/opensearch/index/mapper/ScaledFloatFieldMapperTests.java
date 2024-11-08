@@ -86,6 +86,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             b -> b.field("ignore_malformed", true),
             m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed())
         );
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((ScaledFloatFieldMapper) m).multivalued()));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -357,6 +358,37 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("multivalued", true))
+        );
+        ThrowingRunnable runnable = () -> mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "1.34").endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(
+            e.getMessage(),
+            containsString("object mapping [field] trying to serialize a scalar value [1.34] for a multi-valued field")
+        );
+
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", List.of("1.34", "2.35")).endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(4, fields.length);
     }
 
     public void testNullValue() throws IOException {

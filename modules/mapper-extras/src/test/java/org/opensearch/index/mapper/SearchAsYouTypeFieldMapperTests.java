@@ -52,7 +52,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -128,6 +130,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("search_analyzer", "keyword");
             b.field("search_quote_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((SearchAsYouTypeFieldMapper) m).multivalued()));
 
     }
 
@@ -634,6 +638,35 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 )
             )
         );
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("multivalued", true)));
+        ThrowingRunnable runnable = () -> mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "foo").endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(
+            e.getMessage(),
+            containsString("object mapping [field] trying to serialize a scalar value [foo] for a multi-valued field")
+        );
+
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", List.of("foo", "bar")).endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
     }
 
     public void testAnalyzerSerialization() throws IOException {

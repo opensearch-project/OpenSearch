@@ -70,6 +70,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.Version;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
@@ -143,7 +144,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         public static final int POSITION_INCREMENT_GAP = 100;
     }
 
-    private static TextFieldMapper toType(FieldMapper in) {
+    protected static TextFieldMapper toType(FieldMapper in) {
         return (TextFieldMapper) in;
     }
 
@@ -331,6 +332,13 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 .orElse(null)
         ).acceptsNull();
 
+        protected final Parameter<Explicit<Boolean>> multivalued = Parameter.explicitBoolParam(
+            "multivalued",
+            true,
+            m -> toType(m).multivalued,
+            false
+        );
+
         protected final Parameter<Float> boost = Parameter.boostParam();
         protected final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -390,6 +398,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 indexPhrases,
                 indexPrefixes,
                 boost,
+                multivalued,
                 meta
             );
         }
@@ -989,6 +998,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected final Version indexCreatedVersion;
     protected final IndexAnalyzers indexAnalyzers;
     private final FielddataFrequencyFilter freqFilter;
+    protected final Explicit<Boolean> multivalued;
 
     protected TextFieldMapper(
         String simpleName,
@@ -1016,6 +1026,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.freqFilter = builder.freqFilter.getValue();
+        this.multivalued = builder.multivalued.getValue();
     }
 
     @Override
@@ -1079,6 +1090,15 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     @Override
     public TextFieldType fieldType() {
         return (TextFieldType) super.fieldType();
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 
     public static Query createPhraseQuery(TokenStream stream, String field, int slop, boolean enablePositionIncrements) throws IOException {
@@ -1224,5 +1244,6 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
         mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
         mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
+        mapperBuilder.multivalued.toXContent(builder, includeDefaults);
     }
 }

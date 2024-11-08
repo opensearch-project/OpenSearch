@@ -47,6 +47,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -65,6 +66,7 @@ import org.hamcrest.core.CombinableMatcher;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -122,6 +124,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
             assertEquals(30, cfm.getMaxInputLength());
         });
+
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((CompletionFieldMapper) m).multivalued()));
     }
 
     @Override
@@ -735,6 +739,35 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Query prefixQuery = completionFieldMapper.fieldType()
             .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertThat(prefixQuery, instanceOf(RegexCompletionQuery.class));
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "completion").field("multivalued", true)));
+        ThrowingRunnable runnable = () -> mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "foo").endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(
+            e.getMessage(),
+            containsString("object mapping [field] trying to serialize a scalar value [foo] for a multi-valued field")
+        );
+
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", List.of("foo", "bar")).endObject()),
+                MediaTypeRegistry.JSON
+            )
+        );
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
     }
 
     private static void assertFieldsOfType(IndexableField[] fields) {

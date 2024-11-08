@@ -413,4 +413,36 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             mapper.merge(mapping, MergeReason.MAPPING_UPDATE);
         }
     }
+
+    protected void doTestMultivalued(String type) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> b.field("multivalued", true)));
+        ThrowingRunnable runnable = () -> mapper.parse(
+            source(
+                b -> b.startObject("field")
+                    .field(GT_FIELD.getPreferredName(), getFrom(type))
+                    .field(LT_FIELD.getPreferredName(), getTo(type))
+                    .endObject()
+            )
+        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(e.getMessage(), containsString("object mapping [field] trying to serialize an object value for a multi-valued field"));
+
+        ParsedDocument doc = mapper.parse(
+            source(
+                b -> b.startArray("field")
+                    .startObject()
+                    .field(getFromField(), getFrom(type))
+                    .field(getToField(), getTo(type))
+                    .endObject()
+                    .startObject()
+                    .field(getFromField(), getFrom(type))
+                    .field(getToField(), getTo(type))
+                    .endObject()
+                    .endArray()
+            )
+        );
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(3, fields.length);
+    }
 }
