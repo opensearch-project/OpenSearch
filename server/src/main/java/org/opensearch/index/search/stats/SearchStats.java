@@ -32,6 +32,8 @@
 
 package org.opensearch.index.search.stats;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestStats;
@@ -67,7 +69,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
      */
     @PublicApi(since = "1.0.0")
     public static class PhaseStatsLongHolder implements Writeable {
-
+        private static final Logger logger = LogManager.getLogger(PhaseStatsLongHolder.class);
         long current;
         long total;
         long timeInMillis;
@@ -86,9 +88,19 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(current);
+            if (current < 0) {
+                logger.warn("Coordinator request stats 'current' is negative: {}", current);
+                out.writeVLong(0);
+            } else {
+                out.writeVLong(current);
+            }
             out.writeVLong(total);
-            out.writeVLong(timeInMillis);
+            if (timeInMillis < 0) {
+                logger.warn("Coordinator request stats 'timeInMillis' is negative: {}", timeInMillis);
+                out.writeVLong(0);
+            } else {
+                out.writeVLong(timeInMillis);
+            }
         }
 
         PhaseStatsLongHolder() {
@@ -173,7 +185,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return requestStatsLongHolder;
         }
 
-        private Stats() {
+        Stats() {
             // for internal use, initializes all counts to 0
         }
 
