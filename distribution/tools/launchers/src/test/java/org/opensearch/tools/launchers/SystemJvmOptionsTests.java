@@ -51,10 +51,11 @@ public class SystemJvmOptionsTests extends LaunchersTestCase {
     public void testFipsOption() throws Exception {
         createSecurityFile(FILE_NAME);
         var jvmOptions = SystemJvmOptions.systemJvmOptions(globalTempDir().toAbsolutePath(), Runtime.version());
+        var fipsProperty = "-Dorg.bouncycastle.fips.approved_only=true";
         if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
-            assertThat(jvmOptions, hasItem("-Dorg.bouncycastle.fips.approved_only=true"));
+            assertThat(jvmOptions, hasItem(fipsProperty));
         } else {
-            assertThat(jvmOptions, not(hasItem("-Dorg.bouncycastle.fips.approved_only=true")));
+            assertThat(jvmOptions, not(hasItem(fipsProperty)));
         }
     }
 

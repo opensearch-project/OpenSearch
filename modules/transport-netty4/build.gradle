@@ -79,6 +79,8 @@ tasks.named("dependencyLicenses").configure {
 
 forbiddenPatterns {
   exclude '**/*.p12'
+  exclude '**/*.jks'
+  exclude '**/*.bcfks'
 }
 
 test {

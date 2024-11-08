@@ -57,9 +57,6 @@ import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.SecureRandom;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
@@ -91,22 +88,8 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     @AfterClass
     public static void stopHttpServers() throws IOException {
-        if (httpsServer != null) {
-            httpsServer.stop(0); // Stop the server
-            Executor executor = httpsServer.getExecutor();
-            if (executor instanceof ExecutorService) {
-                ((ExecutorService) executor).shutdown(); // Shutdown the executor
-                try {
-                    if (!((ExecutorService) executor).awaitTermination(15, TimeUnit.SECONDS)) {
-                        ((ExecutorService) executor).shutdownNow(); // Force shutdown if not terminated
-                    }
-                } catch (InterruptedException ex) {
-                    ((ExecutorService) executor).shutdownNow(); // Force shutdown on interruption
-                    Thread.currentThread().interrupt();
-                }
-            }
-            httpsServer = null;
-        }
+        httpsServer.stop(0);
+        httpsServer = null;
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {

@@ -68,7 +68,7 @@ final class PemUtils {
 
     /**
      * Creates a {@link PrivateKey} from the contents of a file. Supports PKCS#1, PKCS#8
-     * encoded formats of encrypted and plaintext RSA, DSA and EC(secp256r1) keys
+     * encoded formats of encrypted and plaintext RSA, DSA and EC(secp256r1) keys.
      *
      * @param keyPath           the path for the key file
      * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key

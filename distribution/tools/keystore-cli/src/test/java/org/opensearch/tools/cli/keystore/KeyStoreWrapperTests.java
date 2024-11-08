@@ -93,7 +93,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
-    Supplier<char[]> passphraseSupplier = () -> inFipsJvm() ? "6!6428DQXwPpi7@$ggeg/=".toCharArray() : new char[0];
+    String STRONG_PASSWORD = "6!6428DQXwPpi7@$ggeg/="; // has to be at least 112 bit long.
+    Supplier<char[]> passphraseSupplier = () -> inFipsJvm() ? STRONG_PASSWORD.toCharArray() : new char[0];
     Environment env;
     List<FileSystem> fileSystems = new ArrayList<>();
 
@@ -373,14 +374,14 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         assumeTrue("Test in FIPS JVM", inFipsJvm());
 
         Exception e = assertThrows(SecurityException.class, () -> generateV1());
-        assertThat(e.getMessage(), containsString("Only PKCS_11, BCFKS, JKS keystores are allowed in FIPS JVM"));
+        assertThat(e.getMessage(), containsString("Only PKCS_11, BCFKS keystores are allowed in FIPS JVM"));
     }
 
     public void testFailLoadV2KeystoresInFipsJvm() throws Exception {
         assumeTrue("Test in FIPS JVM", inFipsJvm());
 
         Exception e = assertThrows(SecurityException.class, () -> generateV2());
-        assertThat(e.getMessage(), containsString("Only PKCS_11, BCFKS, JKS keystores are allowed in FIPS JVM"));
+        assertThat(e.getMessage(), containsString("Only PKCS_11, BCFKS keystores are allowed in FIPS JVM"));
     }
 
     public void testBackcompatV1() throws Exception {

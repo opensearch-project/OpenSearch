@@ -242,7 +242,7 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
     }
 
     public void testLoadKeysFromPKCS12() {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        assumeFalse("Can't use PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.p12");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "p12-pass");

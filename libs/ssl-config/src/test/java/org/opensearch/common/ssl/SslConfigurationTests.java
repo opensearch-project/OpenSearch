@@ -246,7 +246,7 @@ public class SslConfigurationTests extends OpenSearchTestCase {
         assertThat(
             exception.getMessage(),
             equalTo(
-                String.format(Locale.ROOT, "in FIPS mode only the following SSL/TLS protocols are allowed: [%s]", FIPS_APPROVED_PROTOCOLS)
+                String.format(Locale.ROOT, "in FIPS mode only the following SSL/TLS protocols are allowed: %s", FIPS_APPROVED_PROTOCOLS)
             )
         );
     }
