@@ -32,7 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.crypto.KeyStoreFactory;
 import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -182,7 +181,7 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadEncryptedOpenSslDsaKey() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
         Key key = getKeyFromKeystore("DSA", KeyStoreType.JKS);
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
@@ -286,11 +285,11 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     private Key getKeyFromKeystore(String algo) throws Exception {
-        return getKeyFromKeystore(algo, CryptoServicesRegistrar.isInApprovedOnlyMode() ? KeyStoreType.BCFKS : KeyStoreType.JKS);
+        return getKeyFromKeystore(algo, inFipsJvm() ? KeyStoreType.BCFKS : KeyStoreType.JKS);
     }
 
     private Key getKeyFromKeystore(String algo, KeyStoreType keyStoreType) throws Exception {
-        var keystorePath = getDataPath("/certs/pem-utils/testnode" + KeyStoreType.getExtensionsByType(keyStoreType));
+        var keystorePath = getDataPath("/certs/pem-utils/testnode" + KeyStoreType.TYPE_TO_EXTENSION_MAP.get(keyStoreType).get(0));
         var alias = "testnode_" + algo.toLowerCase(Locale.ROOT);
         var password = "testnode".toCharArray();
         try (var in = Files.newInputStream(keystorePath)) {

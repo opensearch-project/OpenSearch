@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.gcs;
 
-import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -189,9 +188,9 @@ public class GoogleCloudStorageService {
     private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
         return SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // use the JKS trustStore format instead of PKCS#12 to ensure compatibility with BC-FIPS
-            var certTrustStore = KeyStoreFactory.getInstance(KeyStoreType.JKS);
-            InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks");
+            // use the BCFIPS trustStore format instead of PKCS#12 to ensure compatibility with BC-FIPS
+            var certTrustStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+            InputStream keyStoreStream = getClass().getResourceAsStream("/google.bcfks");
             SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
 
             builder.trustCertificates(certTrustStore);

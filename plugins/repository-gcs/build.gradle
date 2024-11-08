@@ -242,6 +242,10 @@ def encodedCredentials = {
   Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
 }
 
+forbiddenPatterns {
+  exclude '**/*.bcfks'
+}
+
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 task createServiceAccountFile() {
   doLast {

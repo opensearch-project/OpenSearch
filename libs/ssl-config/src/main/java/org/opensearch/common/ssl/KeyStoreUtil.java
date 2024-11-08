@@ -54,6 +54,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
@@ -83,10 +84,11 @@ final class KeyStoreUtil {
             }
             return keyStore;
         } catch (IOException e) {
-            throw new SslConfigException(
-                "cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
-                e
-            );
+            var finalMessage = e.getMessage();
+            if (Objects.equals(e.getMessage(), "BCFKS KeyStore corrupted: MAC calculation failed.")) {
+                finalMessage = "incorrect password or corrupt file.";
+            }
+            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + finalMessage, e);
         }
     }
 
