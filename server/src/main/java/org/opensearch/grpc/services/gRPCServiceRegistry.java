@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.grpc;
+package org.opensearch.grpc.services;
 
 import io.grpc.BindableService;
 import java.util.ArrayList;
