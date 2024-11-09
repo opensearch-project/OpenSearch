@@ -38,6 +38,7 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.crypto.DataKeyPair;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.util.io.IOUtils;
@@ -362,16 +363,21 @@ public final class CryptoDirectory extends NIOFSDirectory {
             return end - off;
         }
 
+        @SuppressForbidden(reason = "FileChannel#read is a faster alternative to synchronized block")
         private int read(ByteBuffer dst, long position) throws IOException {
             int ret;
             int i;
-            tmpBuffer.rewind();
+            tmpBuffer.rewind().limit(dst.remaining());
+            /* tmpBuffer.rewind();
             // FileChannel#read is forbidden
-            synchronized (channel) {
+            /* synchronized (channel) {
                 channel.position(position);
                 i = stream.read(tmpBuffer.array(), 0, dst.remaining());
             }
             tmpBuffer.limit(i);
+            */
+            i = channel.read(tmpBuffer, position);
+            tmpBuffer.flip();
             try {
                 if (end - position > i) ret = cipher.update(tmpBuffer, dst);
                 else ret = cipher.doFinal(tmpBuffer, dst);
