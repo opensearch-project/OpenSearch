@@ -111,6 +111,9 @@ dependencies {
   api libs.protobuf
   api libs.jakartaannotation
 
+  // kafka
+  api "org.apache.kafka:kafka-clients:2.8.2"
+
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
 
