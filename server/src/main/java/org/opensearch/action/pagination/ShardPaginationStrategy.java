@@ -9,6 +9,7 @@
 package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -37,14 +38,23 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
     private PageData pageData;
 
     public ShardPaginationStrategy(PageParams pageParams, ClusterState clusterState) {
+        this(pageParams, clusterState, null);
+    }
+
+    public ShardPaginationStrategy(PageParams pageParams, ClusterState clusterState, IndicesOptions indicesOptions) {
         ShardStrategyToken shardStrategyToken = getShardStrategyToken(pageParams.getRequestedToken());
         // Get list of indices metadata sorted by their creation time and filtered by the last sent index
-        List<IndexMetadata> filteredIndices = getEligibleIndices(
+        List<IndexMetadata> filteredIndices = PaginationStrategy.getSortedIndexMetadata(
             clusterState,
-            pageParams.getSort(),
-            Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexName,
-            Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexCreationTime
+            getMetadataFilter(
+                pageParams.getSort(),
+                Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexName,
+                Objects.isNull(shardStrategyToken) ? null : shardStrategyToken.lastIndexCreationTime,
+                indicesOptions
+            ),
+            PageParams.PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) ? ASC_COMPARATOR : DESC_COMPARATOR
         );
+
         // Get the list of shards and indices belonging to current page.
         this.pageData = getPageData(
             filteredIndices,
@@ -54,37 +64,29 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
         );
     }
 
-    private static List<IndexMetadata> getEligibleIndices(
-        ClusterState clusterState,
+    private static Predicate<IndexMetadata> getMetadataFilter(
         String sortOrder,
         String lastIndexName,
-        Long lastIndexCreationTime
+        Long lastIndexCreationTime,
+        IndicesOptions indicesOptions
     ) {
         if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
-            return PaginationStrategy.getSortedIndexMetadata(
-                clusterState,
-                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
-            );
-        } else {
-            return PaginationStrategy.getSortedIndexMetadata(
-                clusterState,
-                getMetadataFilter(sortOrder, lastIndexName, lastIndexCreationTime),
-                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
-            );
-        }
-    }
-
-    private static Predicate<IndexMetadata> getMetadataFilter(String sortOrder, String lastIndexName, Long lastIndexCreationTime) {
-        if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
-            return indexMetadata -> true;
+            return indexStateFilter(indicesOptions);
         }
         return indexNameFilter(lastIndexName).or(
             IndexPaginationStrategy.getIndexCreateTimeFilter(sortOrder, lastIndexName, lastIndexCreationTime)
-        );
+        ).and(indexStateFilter(indicesOptions));
     }
 
     private static Predicate<IndexMetadata> indexNameFilter(String lastIndexName) {
         return metadata -> metadata.getIndex().getName().equals(lastIndexName);
+    }
+
+    private static Predicate<IndexMetadata> indexStateFilter(IndicesOptions indicesOptions) {
+        if (Objects.isNull(indicesOptions) || !indicesOptions.forbidClosedIndices()) {
+            return metadata -> true;
+        }
+        return metadata -> metadata.getState().equals(IndexMetadata.State.OPEN);
     }
 
     /**

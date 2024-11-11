@@ -16,6 +16,7 @@ import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.breaker.ResponseLimitBreachedException;
@@ -148,7 +149,9 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
     }
 
     private ShardPaginationStrategy getPaginationStrategy(PageParams pageParams, ClusterStateResponse clusterStateResponse) {
-        return Objects.isNull(pageParams) ? null : new ShardPaginationStrategy(pageParams, clusterStateResponse.getState());
+        return Objects.isNull(pageParams)
+            ? null
+            : new ShardPaginationStrategy(pageParams, clusterStateResponse.getState(), IndicesOptions.strictExpandOpenAndForbidClosed());
     }
 
     private void validateRequestLimit(
