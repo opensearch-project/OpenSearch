@@ -2307,11 +2307,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return An Optional containing the shard path with the highest generation number, or empty if the list is empty
      */
     private Optional<String> findHighestGenerationShardPaths(List<String> matchingShardPaths) {
-        return matchingShardPaths.stream()
-            .map(s -> s.split("\\" + SnapshotShardPaths.DELIMITER))
-            .sorted((a, b) -> Integer.parseInt(b[2]) - Integer.parseInt(a[2]))
-            .map(parts -> String.join(SnapshotShardPaths.DELIMITER, parts))
-            .findFirst();
+        if (matchingShardPaths.isEmpty()) {
+            return Optional.empty();
+        }
+
+        int maxGen = Integer.MIN_VALUE;
+        String maxGenShardPath = null;
+
+        for (String shardPath : matchingShardPaths) {
+            String[] parts = shardPath.split("\\" + SnapshotShardPaths.DELIMITER);
+            int shardCount = Integer.parseInt(parts[parts.length - 3]);
+            if (shardCount > maxGen) {
+                maxGen = shardCount;
+                maxGenShardPath = shardPath;
+            }
+        }
+        assert maxGenShardPath != null : "Valid maxGenShardPath should be present";
+        return Optional.of(maxGenShardPath);
     }
 
     /**
@@ -2549,25 +2561,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * on account of new indexes by same index name being snapshotted that exists already in the repository's snapshots.
      */
     private void cleanupRedundantSnapshotShardPaths(Set<String> updatedShardPathsIndexIds) {
-        Set<String> updatedIndexIds = updatedShardPathsIndexIds.stream()
-            .map(s -> getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]))
-            .collect(Collectors.toSet());
-        Set<String> indexIdShardPaths = getSnapshotShardPaths().keySet();
-        List<String> staleShardPaths = indexIdShardPaths.stream().filter(s -> updatedShardPathsIndexIds.contains(s) == false).filter(s -> {
-            String indexId = getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]);
-            return updatedIndexIds.contains(indexId);
-        }).collect(Collectors.toList());
         try {
-            deleteFromContainer(snapshotShardPathBlobContainer(), staleShardPaths);
-        } catch (IOException e) {
-            logger.warn(
-                new ParameterizedMessage(
-                    "Repository [{}] Exception during snapshot stale index deletion {}",
-                    metadata.name(),
-                    staleShardPaths
-                ),
-                e
-            );
+            Set<String> updatedIndexIds = updatedShardPathsIndexIds.stream()
+                .map(s -> getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]))
+                .collect(Collectors.toSet());
+            Set<String> indexIdShardPaths = getSnapshotShardPaths().keySet();
+            List<String> staleShardPaths = indexIdShardPaths.stream()
+                .filter(s -> updatedShardPathsIndexIds.contains(s) == false)
+                .filter(s -> {
+                    String indexId = getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]);
+                    return updatedIndexIds.contains(indexId);
+                })
+                .collect(Collectors.toList());
+            try {
+                deleteFromContainer(snapshotShardPathBlobContainer(), staleShardPaths);
+            } catch (IOException e) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "Repository [{}] Exception during snapshot stale index deletion {}",
+                        metadata.name(),
+                        staleShardPaths
+                    ),
+                    e
+                );
+            }
+        } catch (Exception ex) {
+            logger.error("Exception during cleanup of redundant snapshot shard paths", ex);
         }
     }
 

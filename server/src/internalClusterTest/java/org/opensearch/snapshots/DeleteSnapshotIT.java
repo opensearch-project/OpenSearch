@@ -45,7 +45,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private static final String REMOTE_REPO_NAME = "remote-store-repo-name";
 
-    public void testShardBlobDeletionForHashedPrefixPathType() throws Exception {
+    public void testStaleIndexDeletion() throws Exception {
         String indexName1 = ".testindex1";
         String repoName = "test-restore-snapshot-repo";
         String snapshotName1 = "test-restore-snapshot1";
