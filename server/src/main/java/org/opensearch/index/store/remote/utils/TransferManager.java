@@ -24,7 +24,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,39 +57,52 @@ public class TransferManager {
 
     /**
      * Given a blobFetchRequestList, return it's corresponding IndexInput.
+     *
+     * Note: Scripted queries/aggs may trigger a blob fetch within a new security context.
+     * As such the following operations require elevated permissions.
+     *
+     * cacheEntry.getIndexInput() downloads new blobs from the remote store to local fileCache.
+     * fileCache.compute() as inserting into the local fileCache may trigger an eviction.
+     *
      * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
-
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("fetchBlob called for {}", key.toString());
 
-        // We need to do a privileged action here in order to fetch from remote
-        // and write/evict from local file cache in case this is invoked as a side
-        // effect of a plugin (such as a scripted search) that doesn't have the
-        // necessary permissions.
-        final CachedIndexInput cacheEntry = AccessController.doPrivileged((PrivilegedAction<CachedIndexInput>) () -> {
-            return fileCache.compute(key, (path, cachedIndexInput) -> {
-                if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
-                    logger.trace("Transfer Manager - IndexInput closed or not in cache");
-                    // Doesn't exist or is closed, either way create a new one
-                    return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
-                } else {
-                    logger.trace("Transfer Manager - Already in cache");
-                    // already in the cache and ready to be used (open)
-                    return cachedIndexInput;
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<IndexInput>) () -> {
+                CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
+                    if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
+                        logger.trace("Transfer Manager - IndexInput closed or not in cache");
+                        // Doesn't exist or is closed, either way create a new one
+                        return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
+                    } else {
+                        logger.trace("Transfer Manager - Already in cache");
+                        // already in the cache and ready to be used (open)
+                        return cachedIndexInput;
+                    }
+                });
+
+                // Cache entry was either retrieved from the cache or newly added, either
+                // way the reference count has been incremented by one. We can only
+                // decrement this reference _after_ creating the clone to be returned.
+                try {
+                    return cacheEntry.getIndexInput().clone();
+                } finally {
+                    fileCache.decRef(key);
                 }
             });
-        });
-
-        // Cache entry was either retrieved from the cache or newly added, either
-        // way the reference count has been incremented by one. We can only
-        // decrement this reference _after_ creating the clone to be returned.
-        try {
-            return cacheEntry.getIndexInput().clone();
-        } finally {
-            fileCache.decRef(key);
+        } catch (PrivilegedActionException e) {
+            final Exception cause = e.getException();
+            if (cause instanceof IOException) {
+                throw (IOException) cause;
+            } else if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else {
+                throw new IOException(cause);
+            }
         }
     }
 
