@@ -60,7 +60,7 @@ public class SegmentReplicationPressureService implements Closeable {
 
     public static final Setting<Integer> MAX_INDEXING_CHECKPOINTS = Setting.intSetting(
         "segrep.pressure.checkpoint.limit",
-        4,
+        30,
         1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
