@@ -5192,7 +5192,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             String segmentsNFile = copySegmentFiles(
                 storeDirectory,
                 sourceRemoteDirectory,
-                hasPreexistingRemoteData ? null : remoteDirectory, // Pass null to skip upload,
+                hasPreexistingRemoteData ? null : remoteDirectory, // Pass null to skip upload if pre-exsisting data is present,
                 uploadedSegments,
                 overrideLocal,
                 () -> {}
