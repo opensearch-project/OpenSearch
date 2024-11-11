@@ -10,7 +10,7 @@
  */
 
 syntax = "proto3";
-package org.opensearch.proto;
+package org.opensearch.extensions.proto;
 
 import "org/opensearch/extensions/ExtensionIdentityProto.proto";
 

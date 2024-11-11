@@ -11,7 +11,7 @@ package org.opensearch.extensions.action;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.extensions.proto.ExtensionIdentityProto.ExtensionIdentity;
-import org.opensearch.extensions.proto.RegisterTransportActionsProto.RegisterTransportActions;
+import org.opensearch.extensions.proto.RegisterTransportActionsProto;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -25,16 +25,16 @@ import java.util.Set;
  * @opensearch.internal
  */
 public class RegisterTransportActionsRequest extends TransportRequest {
-    private final RegisterTransportActions request;
+    private final RegisterTransportActionsProto.RegisterTransportActions request;
 
     public RegisterTransportActionsRequest(String uniqueId, Set<String> transportActions) {
         ExtensionIdentity identity = ExtensionIdentity.newBuilder().setUniqueId(uniqueId).build();
-        this.request = RegisterTransportActions.newBuilder().setIdentity(identity).addAllTransportActions(transportActions).build();
+        this.request = RegisterTransportActionsProto.RegisterTransportActions.newBuilder().setIdentity(identity).addAllTransportActions(transportActions).build();
     }
 
     public RegisterTransportActionsRequest(StreamInput in) throws IOException {
         super(in);
-        this.request = RegisterTransportActions.parseFrom(in.readByteArray());
+        this.request = RegisterTransportActionsProto.RegisterTransportActions.parseFrom(in.readByteArray());
     }
 
     public String getUniqueId() {
