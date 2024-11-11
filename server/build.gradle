@@ -414,6 +414,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     onlyModified = true
     failOnModification = true
     ignoreMissingClasses = true
+    failOnSourceIncompatibility = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
     annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
