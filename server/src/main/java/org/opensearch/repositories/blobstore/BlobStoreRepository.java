@@ -2565,7 +2565,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Set<String> updatedIndexIds = updatedShardPathsIndexIds.stream()
                 .map(s -> getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]))
                 .collect(Collectors.toSet());
+            logger.debug(new ParameterizedMessage("updatedIndexIds={}", updatedIndexIds));
             Set<String> indexIdShardPaths = getSnapshotShardPaths().keySet();
+            logger.debug(new ParameterizedMessage("indexIdShardPaths={}", indexIdShardPaths));
             List<String> staleShardPaths = indexIdShardPaths.stream()
                 .filter(s -> updatedShardPathsIndexIds.contains(s) == false)
                 .filter(s -> {
@@ -2573,20 +2575,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     return updatedIndexIds.contains(indexId);
                 })
                 .collect(Collectors.toList());
-            try {
-                deleteFromContainer(snapshotShardPathBlobContainer(), staleShardPaths);
-            } catch (IOException e) {
-                logger.warn(
-                    new ParameterizedMessage(
-                        "Repository [{}] Exception during snapshot stale index deletion {}",
-                        metadata.name(),
-                        staleShardPaths
-                    ),
-                    e
-                );
-            }
-        } catch (Exception ex) {
-            logger.error("Exception during cleanup of redundant snapshot shard paths", ex);
+            logger.debug(new ParameterizedMessage("staleShardPaths={}", staleShardPaths));
+            deleteFromContainer(snapshotShardPathBlobContainer(), staleShardPaths);
+        } catch (Exception e) {
+            logger.warn(
+                new ParameterizedMessage(
+                    "Repository [{}] Exception during snapshot stale index deletion for updatedIndexIds {}",
+                    metadata.name(),
+                    updatedShardPathsIndexIds
+                ),
+                e
+            );
         }
     }
 

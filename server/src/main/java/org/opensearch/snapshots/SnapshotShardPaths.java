@@ -92,7 +92,7 @@ public class SnapshotShardPaths implements ToXContent {
      * Parses a shard path string and extracts relevant shard information.
      *
      * @param shardPath The shard path string to parse. Expected format is:
-     *                  [index_id].[index_name].[shard_count].[path_type_code].[path_hash_algorithm_code]
+     *                  snapshot_path_[index_id].[index_name].[shard_count].[path_type_code].[path_hash_algorithm_code]
      * @return A {@link ShardInfo} object containing the parsed index ID and shard count.
      * @throws IllegalArgumentException if the shard path format is invalid or cannot be parsed.
      */
@@ -103,8 +103,12 @@ public class SnapshotShardPaths implements ToXContent {
             throw new IllegalArgumentException("Invalid shard path format: " + shardPath);
         }
         try {
-            // indexName is never used from within the ShardInfo returned
-            String indexName = len == 5 ? parts[1] : "";
+            String indexName = shardPath.substring(
+                // First separator after index id
+                shardPath.indexOf(DELIMITER) + 1,
+                // Since we know there are exactly 3 fields at the end
+                shardPath.lastIndexOf(DELIMITER, shardPath.lastIndexOf(DELIMITER, shardPath.lastIndexOf(DELIMITER) - 1) - 1)
+            );
             IndexId indexId = new IndexId(indexName, getIndexId(parts[0]), Integer.parseInt(parts[len - 2]));
             int shardCount = Integer.parseInt(parts[len - 3]);
             return new ShardInfo(indexId, shardCount);
