@@ -124,7 +124,14 @@ dependencies {
 
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+
+  // gRPC
+  api "io.grpc:grpc-stub:${versions.grpc}"
+  api "io.grpc:grpc-protobuf:${versions.grpc}"
+  api "io.grpc:grpc-core:${versions.grpc}"
+  api "io.grpc:grpc-api:${versions.grpc}"
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   implementation 'org.roaringbitmap:RoaringBitmap:1.3.0'
@@ -224,12 +231,19 @@ protobuf {
     artifact = "com.google.protobuf:protoc:${versions.protobuf}"
   }
 
+  plugins {
+    grpc {
+      artifact = "io.grpc:protoc-gen-grpc-java:${versions.grpc}"
+    }
+  }
+
   generateProtoTasks {
     all().each { task ->
       task.builtins {
-        java {
-          option "annotate_code"
-        }
+        java {}
+      }
+      task.plugins {
+        grpc {}
       }
     }
   }
