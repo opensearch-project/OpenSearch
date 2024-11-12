@@ -239,7 +239,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
-            searchLeaf(ctx, weight, collector);
+            searchLeaf(ctx, 0, DocIdSetIterator.NO_MORE_DOCS, weight, collector);
             collectors.add(collector);
         }
         TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
@@ -274,7 +274,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -282,12 +282,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
             // reader order here.
             if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
-                for (int i = leaves.size() - 1; i >= 0; i--) {
-                    searchLeaf(leaves.get(i), weight, collector);
+                for (int i = partitions.length - 1; i >= 0; i--) {
+                    searchLeaf(partitions[i].ctx, partitions[i].minDocId, partitions[i].maxDocId, weight, collector);
                 }
             } else {
-                for (int i = 0; i < leaves.size(); i++) {
-                    searchLeaf(leaves.get(i), weight, collector);
+                for (LeafReaderContextPartition partition : partitions) {
+                    searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
                 }
             }
             searchContext.bucketCollectorProcessor().processPostCollection(collector);
@@ -305,7 +305,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     @Override
-    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    protected void searchLeaf(LeafReaderContext ctx,int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
 
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {
@@ -337,7 +337,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
                 try {
-                    bulkScorer.score(leafCollector, liveDocs, 0, DocIdSetIterator.NO_MORE_DOCS);
+                    bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -355,6 +355,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                         scorer,
                         liveDocsBitSet,
                         leafCollector,
+                        minDocId,
+                        maxDocId,
                         this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
                     );
                 } catch (CollectionTerminatedException e) {
@@ -449,7 +451,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     }
 
-    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)
+    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled) throws IOException {
+        intersectScorerAndBitSet(scorer, acceptDocs, collector, 0, DocIdSetIterator.NO_MORE_DOCS, checkCancelled);
+    }
+
+    private static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, int minDocId, int maxDocId, Runnable checkCancelled)
         throws IOException {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
@@ -459,7 +465,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
         int seen = 0;
         checkCancelled.run();
-        for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+        iterator.advance(minDocId);
+        for (int docId = iterator.nextDoc(); docId < maxDocId; docId = iterator.nextDoc()) {
             if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                 checkCancelled.run();
             }

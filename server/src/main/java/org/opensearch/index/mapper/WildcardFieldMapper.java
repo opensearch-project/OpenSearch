@@ -404,6 +404,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
+            MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
             // TODO: Not sure if we can reasonably describe a fuzzy query in terms of n-grams without exploding the cardinality

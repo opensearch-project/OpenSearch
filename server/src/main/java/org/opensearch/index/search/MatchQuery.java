@@ -601,13 +601,7 @@ public class MatchQuery {
         protected Query newTermQuery(Term term, float boost) {
             Supplier<Query> querySupplier;
             if (fuzziness != null) {
-                querySupplier = () -> {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
-                    if (query instanceof FuzzyQuery) {
-                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
-                    }
-                    return query;
-                };
+                querySupplier = () -> fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, fuzzyRewriteMethod, context);
             } else {
                 querySupplier = () -> fieldType.termQuery(term.bytes(), context);
             }

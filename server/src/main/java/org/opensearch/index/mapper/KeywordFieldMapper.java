@@ -599,7 +599,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                     MultiTermQuery.DOC_VALUES_REWRITE
                 );
             }
-            return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+            return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
         }
 
         @Override

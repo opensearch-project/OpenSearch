@@ -367,6 +367,7 @@ public class ScriptScoreQuery extends Query {
         private final Scorable subQueryScorer;
         private final float boost;
         private final ExplanationHolder explanation;
+        private int docId;
 
         ScriptScorable(
             ScoreScript scoreScript,
@@ -384,9 +385,12 @@ public class ScriptScoreQuery extends Query {
             this.explanation = explanation;
         }
 
+        void setDocument(int docId) {
+            this.docId = docId;
+        }
+
         @Override
         public float score() throws IOException {
-            int docId = docID();
             scoreScript.setDocument(docId);
             float score = (float) scoreScript.execute(explanation);
             if (score < 0f || Float.isNaN(score)) {
@@ -400,11 +404,6 @@ public class ScriptScoreQuery extends Query {
                 );
             }
             return score * boost;
-        }
-
-        @Override
-        public int docID() {
-            return subQueryScorer.docID();
         }
     }
 
@@ -434,9 +433,17 @@ public class ScriptScoreQuery extends Query {
 
         private LeafCollector wrapCollector(LeafCollector collector) {
             return new FilterLeafCollector(collector) {
+                private ScriptScorable scriptScorable;
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, null));
+                    scriptScorable = new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, null);
+                    in.setScorer(scriptScorable);
+                }
+
+                @Override
+                public void collect(int doc) throws IOException {
+                    scriptScorable.setDocument(doc);
+                    super.collect(doc);
                 }
             };
         }

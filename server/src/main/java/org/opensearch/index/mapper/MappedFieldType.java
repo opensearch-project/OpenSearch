@@ -256,19 +256,6 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
-    public Query fuzzyQuery(
-        Object value,
-        Fuzziness fuzziness,
-        int prefixLength,
-        int maxExpansions,
-        boolean transpositions,
-        QueryShardContext context
-    ) {
-        throw new IllegalArgumentException(
-            "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
     // Fuzzy Query with re-write method
     public Query fuzzyQuery(
         Object value,

@@ -89,18 +89,18 @@ public class AutomatonQueries {
     }
 
     /**
-     * Build an automaton matching a wildcard pattern, ASCII case insensitive, if the method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_REWRITE}.
+     * Build an automaton matching a wildcard pattern, ASCII case insensitive, if the method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_BLENDED_REWRITE}.
      */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery, MultiTermQuery.RewriteMethod method) {
         return createAutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery, Integer.MAX_VALUE), method);
     }
 
     /**
-     * Build an automaton matching a given pattern with rewrite method, if the rewrite method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_REWRITE}.
+     * Build an automaton matching a given pattern with rewrite method, if the rewrite method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_BLENDED_REWRITE}.
      */
     public static AutomatonQuery createAutomatonQuery(Term term, Automaton automaton, MultiTermQuery.RewriteMethod method) {
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
         return new AutomatonQuery(term, automaton, false, method);
     }
