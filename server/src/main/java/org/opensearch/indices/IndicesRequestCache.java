@@ -147,6 +147,18 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.NodeScope
     );
 
+    /**
+     * If enabled, allows caching all cacheable queries. For now, this means also allowing size > 0 queries.
+     * If enabled, fundamentally non-cacheable queries like DFS queries, queries using the `now` keyword, and
+     * scroll requests are still not cached.
+     */
+    public static final Setting<Boolean> INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING = Setting.boolSetting(
+        "indices.requests.cache.enable_for_all_requests",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();

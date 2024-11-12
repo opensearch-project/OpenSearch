@@ -301,8 +301,7 @@ public class RemoteClusterStateService implements Closeable {
      * @return A manifest object which contains the details of uploaded entity metadata.
      */
     @Nullable
-    public RemoteClusterStateManifestInfo writeFullMetadata(ClusterState clusterState, String previousClusterUUID, int codecVersion)
-        throws IOException {
+    public RemoteClusterStateManifestInfo writeFullMetadata(ClusterState clusterState, String previousClusterUUID) throws IOException {
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
@@ -342,8 +341,7 @@ public class RemoteClusterStateService implements Closeable {
             !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
                 ? new ClusterStateChecksum(clusterState, threadpool)
                 : null,
-            false,
-            codecVersion
+            false
         );
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
@@ -551,8 +549,7 @@ public class RemoteClusterStateService implements Closeable {
             !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
                 ? new ClusterStateChecksum(clusterState, threadpool)
                 : null,
-            false,
-            previousManifest.getCodecVersion()
+            false
         );
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
@@ -1024,8 +1021,7 @@ public class RemoteClusterStateService implements Closeable {
             !remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
                 ? new ClusterStateChecksum(clusterState, threadpool)
                 : null,
-            true,
-            previousManifest.getCodecVersion()
+            true
         );
         if (!previousManifest.isClusterUUIDCommitted() && committedManifestDetails.getClusterMetadataManifest().isClusterUUIDCommitted()) {
             remoteClusterStateCleanupManager.deleteStaleClusterUUIDs(clusterState, committedManifestDetails.getClusterMetadataManifest());

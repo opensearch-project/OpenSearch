@@ -25,9 +25,16 @@ import java.util.function.Consumer;
 public class ReadDimension implements Dimension {
     public static final String READ = "read";
     private final String field;
+    private final DocValuesType docValuesType;
 
     public ReadDimension(String field) {
         this.field = field;
+        this.docValuesType = DocValuesType.SORTED_NUMERIC;
+    }
+
+    public ReadDimension(String field, DocValuesType docValuesType) {
+        this.field = field;
+        this.docValuesType = docValuesType;
     }
 
     public String getField() {
@@ -50,6 +57,11 @@ public class ReadDimension implements Dimension {
     }
 
     @Override
+    public DocValuesType getDocValuesType() {
+        return docValuesType;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(CompositeDataCubeFieldType.NAME, field);
@@ -69,10 +81,5 @@ public class ReadDimension implements Dimension {
     @Override
     public int hashCode() {
         return Objects.hash(field);
-    }
-
-    @Override
-    public DocValuesType getDocValuesType() {
-        return DocValuesType.SORTED_NUMERIC;
     }
 }
