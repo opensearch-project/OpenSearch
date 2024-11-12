@@ -14,6 +14,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.remotemigration.MigrationBaseTestCase;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -115,7 +116,7 @@ public class RemoteRepositoryConfigurationIT extends MigrationBaseTestCase {
                     segmentRepoPath,
                     REPOSITORY_2_NAME,
                     translogRepoPath,
-                    REPOSITORY_NAME,
+                    ROUTING_TABLE_REPO_NAME,
                     segmentRepoPath,
                     false
                 )
@@ -196,6 +197,7 @@ public class RemoteRepositoryConfigurationIT extends MigrationBaseTestCase {
 
         // Remote Repo with Routing table
         Settings settings = remoteWithRoutingTableNodeSetting().build();
+
         internalCluster().startClusterManagerOnlyNode(settings);
         ensureStableCluster(4);
         ensureGreen();
@@ -285,10 +287,13 @@ public class RemoteRepositoryConfigurationIT extends MigrationBaseTestCase {
                 buildRemoteStoreNodeAttributes(
                     REPOSITORY_NAME,
                     segmentRepoPath,
+                    ReloadableFsRepository.TYPE,
                     REPOSITORY_2_NAME,
                     translogRepoPath,
+                    FsRepository.TYPE,
                     ROUTING_TABLE_REPO_NAME,
                     segmentRepoPath,
+                    ReloadableFsRepository.TYPE,
                     false
                 )
             )
