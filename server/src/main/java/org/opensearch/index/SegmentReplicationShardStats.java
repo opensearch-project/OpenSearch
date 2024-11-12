@@ -64,6 +64,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         this.currentReplicationTimeMillis = in.readVLong();
         this.lastCompletedReplicationTimeMillis = in.readVLong();
         this.currentReplicationLagMillis = in.readVLong();
+        this.currentReplicationState = in.readOptionalWriteable(SegmentReplicationState::new);
     }
 
     public String getAllocationId() {
@@ -118,7 +119,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         builder.field("current_replication_lag", new TimeValue(currentReplicationLagMillis));
         builder.field("last_completed_replication_time", new TimeValue(lastCompletedReplicationTimeMillis));
         if (currentReplicationState != null) {
-            builder.startObject();
+            builder.startObject("current_replication_state");
             currentReplicationState.toXContent(builder, params);
             builder.endObject();
         }
@@ -134,6 +135,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         out.writeVLong(currentReplicationTimeMillis);
         out.writeVLong(lastCompletedReplicationTimeMillis);
         out.writeVLong(currentReplicationLagMillis);
+        out.writeOptionalWriteable(currentReplicationState);
     }
 
     @Override
