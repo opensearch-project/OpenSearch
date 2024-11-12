@@ -846,7 +846,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         final TotalHits totalHits = searchResponse.getHits().getTotalHits();
         if (totalHits.value() != expectedResults || totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
             StringBuilder sb = new StringBuilder("search result contains [");
-            String value = Long.toString(totalHits.value) + (totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO ? "+" : "");
+            String value = Long.toString(totalHits.value()) + (totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                ? "+"
+                : "");
             sb.append(value).append("] results. expected [").append(expectedResults).append("]");
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -1041,7 +1043,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                         .setQuery(matchAllQuery())
                         .get()
                         .getHits()
-                        .getTotalHits().value;
+                        .getTotalHits()
+                        .value();
 
                     if (count == lastKnownCount) {
                         // no progress - try to refresh for the next time
