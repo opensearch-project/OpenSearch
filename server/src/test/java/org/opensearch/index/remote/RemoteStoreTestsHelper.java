@@ -48,7 +48,7 @@ public class RemoteStoreTestsHelper {
         if (remote) {
             Settings nodeSettings = Settings.builder()
                 .put("node.name", "xyz")
-                .put("node.attr.remote_store.translog.repository", "seg_repo")
+                .put("node.attr.remote_publication.translog.repository", "seg_repo")
                 .build();
             indexSettings = IndexSettingsModule.newIndexSettings(new Index("test_index", "_na_"), settings, nodeSettings);
         } else {
