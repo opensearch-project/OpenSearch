@@ -787,6 +787,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Snapshot related Settings
                 BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
                 BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING,
+                BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
