@@ -23,6 +23,14 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
             this.pointer = kafkaOffset;
             this.message = message;
         }
+
+        public T getPointer() {
+            return pointer;
+        }
+
+        public M getMessage() {
+            return message;
+        }
     }
 
     /**

@@ -75,7 +75,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
     @Override
     public int getShardId() {
-        return 0;
+        return topicPartition.partition();
     }
 
 
