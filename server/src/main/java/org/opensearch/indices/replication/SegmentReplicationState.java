@@ -18,6 +18,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
@@ -88,6 +89,8 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
     private String sourceDescription;
     private DiscoveryNode targetNode;
 
+    private ReplicationCheckpoint latestReplicationCheckpoint;
+
     public ShardRouting getShardRouting() {
         return shardRouting;
     }
@@ -146,6 +149,10 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
     public TimeValue getFinalizeReplicationStageTime() {
         long time = timingData.getOrDefault(Stage.FINALIZE_REPLICATION.toString(), 0L);
         return new TimeValue(time);
+    }
+
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        return this.latestReplicationCheckpoint;
     }
 
     public SegmentReplicationState(
@@ -250,6 +257,10 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
             default:
                 throw new IllegalArgumentException("unknown SegmentReplicationState.Stage [" + stage + "]");
         }
+    }
+
+    public void setLatestReplicationCheckpoint(ReplicationCheckpoint latestReplicationCheckpoint) {
+        this.latestReplicationCheckpoint = latestReplicationCheckpoint;
     }
 
     @Override

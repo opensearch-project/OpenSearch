@@ -16,6 +16,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
@@ -433,4 +434,103 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
 
     }
 
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, true).build();
+    }
+
+    public void testSegmentReplicationStatsResponseWithSearchReplica() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        int numShards = 2;
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                0,
+                Settings.builder()
+                    .put("number_of_shards", numShards)
+                    .put("number_of_replicas", 1)
+                    .put("number_of_search_only_replicas", 1)
+                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            )
+        );
+        ensureGreen();
+        final long numDocs = scaledRandomIntBetween(50, 100);
+        for (int i = 0; i < numDocs; i++) {
+            index(INDEX_NAME, "doc", Integer.toString(i));
+        }
+        refresh(INDEX_NAME);
+        ensureSearchable(INDEX_NAME);
+
+        assertBusy(() -> {
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .setDetailed(true)
+                .execute()
+                .actionGet();
+            SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0);
+            final SegmentReplicationState currentReplicationState = perGroupStats.getReplicaStats()
+                .stream()
+                .findFirst()
+                .get()
+                .getCurrentReplicationState();
+            assertEquals(segmentReplicationStatsResponse.getReplicationStats().size(), 1);
+            assertEquals(segmentReplicationStatsResponse.getTotalShards(), numShards * 3);
+            assertEquals(segmentReplicationStatsResponse.getSuccessfulShards(), numShards * 3);
+            assertNotNull(currentReplicationState);
+            assertEquals(currentReplicationState.getStage(), SegmentReplicationState.Stage.DONE);
+            assertTrue(currentReplicationState.getIndex().recoveredFileCount() > 0);
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    public void testSegmentReplicationStatsResponseWithOnlySearchReplica() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        int numShards = 1;
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                0,
+                Settings.builder()
+                    .put("number_of_shards", numShards)
+                    .put("number_of_replicas", 0)
+                    .put("number_of_search_only_replicas", 1)
+                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            )
+        );
+        ensureGreen();
+        final long numDocs = scaledRandomIntBetween(50, 100);
+        for (int i = 0; i < numDocs; i++) {
+            index(INDEX_NAME, "doc", Integer.toString(i));
+        }
+        refresh(INDEX_NAME);
+        ensureSearchable(INDEX_NAME);
+
+        assertBusy(() -> {
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .setDetailed(true)
+                .execute()
+                .actionGet();
+            SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0);
+            final SegmentReplicationState currentReplicationState = perGroupStats.getReplicaStats()
+                .stream()
+                .findFirst()
+                .get()
+                .getCurrentReplicationState();
+            assertEquals(segmentReplicationStatsResponse.getReplicationStats().size(), 1);
+            assertEquals(segmentReplicationStatsResponse.getTotalShards(), 2);
+            assertEquals(segmentReplicationStatsResponse.getSuccessfulShards(), 2);
+            assertNotNull(currentReplicationState);
+            assertEquals(currentReplicationState.getStage(), SegmentReplicationState.Stage.DONE);
+            assertTrue(currentReplicationState.getIndex().recoveredFileCount() > 0);
+        }, 1, TimeUnit.MINUTES);
+    }
 }
