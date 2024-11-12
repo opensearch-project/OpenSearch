@@ -16,6 +16,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexFileNames;
@@ -41,6 +42,7 @@ import org.opensearch.index.mapper.CompositeMappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +114,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                     readState.segmentInfo.getId(),
                     readState.segmentSuffix
                 );
-
+                Map<String, DocValuesType> dimensionFieldTypeMap = new HashMap<>();
                 while (true) {
 
                     // validate magic marker
@@ -156,13 +158,16 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                             compositeIndexInputMap.put(compositeFieldName, starTreeIndexInput);
                             compositeIndexMetadataMap.put(compositeFieldName, starTreeMetadata);
 
-                            List<String> dimensionFields = starTreeMetadata.getDimensionFields();
-
+                            Map<String, DocValuesType> dimensionFieldToDocValuesMap = starTreeMetadata.getDimensionFields();
                             // generating star tree unique fields (fully qualified name for dimension and metrics)
-                            for (String dimensions : dimensionFields) {
-                                fields.add(fullyQualifiedFieldNameForStarTreeDimensionsDocValues(compositeFieldName, dimensions));
+                            for (Map.Entry<String, DocValuesType> dimensionEntry : dimensionFieldToDocValuesMap.entrySet()) {
+                                String dimName = fullyQualifiedFieldNameForStarTreeDimensionsDocValues(
+                                    compositeFieldName,
+                                    dimensionEntry.getKey()
+                                );
+                                fields.add(dimName);
+                                dimensionFieldTypeMap.put(dimName, dimensionEntry.getValue());
                             }
-
                             // adding metric fields
                             for (Metric metric : starTreeMetadata.getMetrics()) {
                                 for (MetricStat metricStat : metric.getBaseMetrics()) {
@@ -185,7 +190,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
 
                 // populates the dummy list of field infos to fetch doc id set iterators for respective fields.
                 // the dummy field info is used to fetch the doc id set iterators for respective fields based on field name
-                FieldInfos fieldInfos = new FieldInfos(getFieldInfoList(fields));
+                FieldInfos fieldInfos = new FieldInfos(getFieldInfoList(fields, dimensionFieldTypeMap));
                 this.readState = new SegmentReadState(
                     readState.directory,
                     readState.segmentInfo,

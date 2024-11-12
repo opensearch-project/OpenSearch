@@ -9,7 +9,6 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 
 import java.util.ArrayList;

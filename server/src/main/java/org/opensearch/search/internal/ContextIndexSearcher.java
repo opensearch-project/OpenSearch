@@ -305,7 +305,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     @Override
-    protected void searchLeaf(LeafReaderContext ctx,int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
+    protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
 
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {
@@ -451,12 +451,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     }
 
-    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled) throws IOException {
+    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)
+        throws IOException {
         intersectScorerAndBitSet(scorer, acceptDocs, collector, 0, DocIdSetIterator.NO_MORE_DOCS, checkCancelled);
     }
 
-    private static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, int minDocId, int maxDocId, Runnable checkCancelled)
-        throws IOException {
+    private static void intersectScorerAndBitSet(
+        Scorer scorer,
+        BitSet acceptDocs,
+        LeafCollector collector,
+        int minDocId,
+        int maxDocId,
+        Runnable checkCancelled
+    ) throws IOException {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:

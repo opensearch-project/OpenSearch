@@ -115,13 +115,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions)
-        throws IOException {
+    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) throws IOException {
         if (preLoadExtensions.isEmpty() == false) {
             if (preLoadExtensions.contains("*")) {
                 mMapDirectory.setPreload(MMapDirectory.ALL_FILES);
             } else {
-                mMapDirectory.setPreload((s,f) -> {
+                mMapDirectory.setPreload((s, f) -> {
                     int dotIndex = s.lastIndexOf('.');
                     if (dotIndex > 0) {
                         return preLoadExtensions.contains(s.substring(dotIndex + 1));

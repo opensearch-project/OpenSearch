@@ -71,7 +71,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -601,7 +600,15 @@ public class MatchQuery {
         protected Query newTermQuery(Term term, float boost) {
             Supplier<Query> querySupplier;
             if (fuzziness != null) {
-                querySupplier = () -> fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, fuzzyRewriteMethod, context);
+                querySupplier = () -> fieldType.fuzzyQuery(
+                    term.text(),
+                    fuzziness,
+                    fuzzyPrefixLength,
+                    maxExpansions,
+                    transpositions,
+                    fuzzyRewriteMethod,
+                    context
+                );
             } else {
                 querySupplier = () -> fieldType.termQuery(term.bytes(), context);
             }

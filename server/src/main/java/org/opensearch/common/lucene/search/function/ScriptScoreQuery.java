@@ -434,6 +434,7 @@ public class ScriptScoreQuery extends Query {
         private LeafCollector wrapCollector(LeafCollector collector) {
             return new FilterLeafCollector(collector) {
                 private ScriptScorable scriptScorable;
+
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
                     scriptScorable = new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, null);
