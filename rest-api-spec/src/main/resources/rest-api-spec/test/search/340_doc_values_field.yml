@@ -1119,10 +1119,6 @@
   - match: { hits.total: 0 }
 ---
 "search on fields with only doc_values enabled":
-  - skip:
-      features: [ "headers" ]
-      version: " - 2.99.99"
-      reason: "searching with only doc_values was added in 3.0.0"
   - do:
       indices.create:
         index: test-doc-values
