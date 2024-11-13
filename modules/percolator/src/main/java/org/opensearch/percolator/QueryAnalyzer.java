@@ -32,7 +32,6 @@
 package org.opensearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -51,6 +50,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.opensearch.Version;
@@ -197,7 +197,7 @@ final class QueryAnalyzer {
             if (parent instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) parent;
                 if (bq.getMinimumNumberShouldMatch() == 0
-                    && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
+                    && bq.clauses().stream().anyMatch(c -> c.occur() == Occur.MUST || c.occur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
                 }
                 minimumShouldMatch = bq.getMinimumNumberShouldMatch();
@@ -234,7 +234,7 @@ final class QueryAnalyzer {
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
             if (query instanceof TermInSetQuery) {
                 TermInSetQuery q = (TermInSetQuery) query;
-                PrefixCodedTerms.TermIterator ti = q.getTermData().iterator();
+                BytesRefIterator ti = q.getBytesRefIterator();
                 BytesRef term;
                 Set<QueryExtraction> qe = new HashSet<>();
                 while ((term = ti.next()) != null) {
