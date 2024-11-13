@@ -288,23 +288,26 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 }
                 addresses[i++] = address;
             }
-            Supplier<Query> dvQuery = () -> {
+            Query dvQuery = null;
+            if (hasDocValues()) {
                 List<BytesRef> bytesRefs = Arrays.stream(addresses)
                     .distinct()
                     .map(InetAddressPoint::encode)
                     .map(BytesRef::new)
                     .collect(Collectors.<BytesRef>toList());
-                return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
-            };
-            Supplier<Query> pointQuery = () -> InetAddressPoint.newSetQuery(name(), addresses);
+                dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
+            }
+            Query pointQuery = null;
+            if (isSearchable()) {
+                pointQuery = InetAddressPoint.newSetQuery(name(), addresses);
+            }
             if (isSearchable() && hasDocValues()) {
-                return new IndexOrDocValuesQuery(pointQuery.get(), dvQuery.get());
+                return new IndexOrDocValuesQuery(pointQuery, dvQuery);
             } else {
                 if (isSearchable()) {
-                    return pointQuery.get();
+                    return pointQuery;
                 } else {
-                    assert hasDocValues();
-                    return dvQuery.get();
+                    return dvQuery;
                 }
             }
         }
@@ -314,18 +317,21 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexedAndNoDocValues();
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
-                Supplier<Query> dvQuery = () -> SortedSetDocValuesField.newSlowRangeQuery(
-                    ((PointRangeQuery) query).getField(),
-                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
-                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
-                    true,
-                    true
-                );
+                Query dvQuery = null;
+                if (hasDocValues()) {
+                    dvQuery = SortedSetDocValuesField.newSlowRangeQuery(
+                        ((PointRangeQuery) query).getField(),
+                        new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                        new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                        true,
+                        true
+                    );
+                }
                 if (isSearchable() && hasDocValues()) {
-                    return new IndexOrDocValuesQuery(query, dvQuery.get());
+                    return new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 if (hasDocValues()) {
-                    return dvQuery.get();
+                    return dvQuery;
                 }
                 return query;
             });
