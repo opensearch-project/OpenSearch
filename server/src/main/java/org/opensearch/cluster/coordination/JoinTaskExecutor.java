@@ -55,6 +55,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,7 +70,8 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getClusterStateRepoName;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRoutingTableRepoName;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
@@ -539,7 +541,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .findFirst();
 
         if (remotePublicationNode.isPresent() && joiningNode.isRemoteStatePublicationEnabled()) {
-            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), REMOTE_CLUSTER_PUBLICATION_REPO_NAME_ATTRIBUTES);
+            List<String> repos = Arrays.asList(
+                getClusterStateRepoName(remotePublicationNode.get().getAttributes()),
+                getRoutingTableRepoName(remotePublicationNode.get().getAttributes())
+            );
+
+            ensureRepositoryCompatibility(joiningNode, remotePublicationNode.get(), repos);
         }
     }
 
@@ -568,16 +575,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         List<String> reposToSkip = new ArrayList<>(1);
         // find a remote node which has routing table configured
         Optional<DiscoveryNode> remoteRoutingTableNode = existingNodes.stream()
-            .filter(
-                node -> node.isRemoteStoreNode()
-                    && node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY) != null
-            )
+            .filter(node -> node.isRemoteStoreNode() && RemoteStoreNodeAttribute.getRoutingTableRepoName(node.getAttributes()) != null)
             .findFirst();
         // If none of the existing nodes have routing table repo, then we skip this repo check if present in joining node.
         // This ensures a new node with remote routing table repo is able to join the cluster.
         if (remoteRoutingTableNode.isEmpty()) {
-            String joiningNodeRepoName = joiningNode.getAttributes()
-                .get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
+            String joiningNodeRepoName = getRoutingTableRepoName(joiningNode.getAttributes());
             if (joiningNodeRepoName != null) {
                 reposToSkip.add(joiningNodeRepoName);
             }
