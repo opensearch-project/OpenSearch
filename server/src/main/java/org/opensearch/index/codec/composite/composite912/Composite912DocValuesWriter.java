@@ -35,6 +35,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.CompositeInde
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
@@ -277,7 +278,8 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     }
 
     private boolean isSortedSetField(String field) {
-        return mapperService.fieldType(field) instanceof KeywordFieldMapper.KeywordFieldType;
+        return mapperService.fieldType(field) instanceof KeywordFieldMapper.KeywordFieldType
+            || mapperService.fieldType(field) instanceof IpFieldMapper.IpFieldType;
     }
 
     @Override

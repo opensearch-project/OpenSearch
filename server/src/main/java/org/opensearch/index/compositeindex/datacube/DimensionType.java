@@ -33,5 +33,11 @@ public enum DimensionType {
      * Represents a keyword dimension type.
      * This is used for dimensions that contain keyword ordinals.
      */
-    KEYWORD
+    KEYWORD,
+
+    /**
+     * Represents an IP dimension type.
+     * This is used for dimensions that contain IP ordinals.
+     */
+    IP
 }
