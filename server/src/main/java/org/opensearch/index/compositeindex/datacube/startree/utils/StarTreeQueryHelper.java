@@ -29,6 +29,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -74,9 +76,14 @@ public class StarTreeQueryHelper {
         );
 
         for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
+            // first check for aggregation is a metric aggregation
             MetricStat metricStat = validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory);
+
+            // if not a metric aggregation, check for applicable date histogram shape
             if (metricStat == null) {
-                return null;
+                if (validateDateHistogramSupport(compositeMappedFieldType, aggregatorFactory) == false) {
+                    return null;
+                }
             }
         }
 
@@ -157,6 +164,20 @@ public class StarTreeQueryHelper {
             }
         }
         return null;
+    }
+
+    private static boolean validateDateHistogramSupport(
+        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        AggregatorFactory aggregatorFactory
+    ) {
+        if (aggregatorFactory instanceof DateHistogramAggregatorFactory && aggregatorFactory.getSubFactories().getFactories().length == 1) {
+            AggregatorFactory subFactory = aggregatorFactory.getSubFactories().getFactories()[0];
+            MetricStat metricStat = validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory);
+            if (metricStat != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static CompositeIndexFieldInfo getSupportedStarTree(SearchContext context) {
@@ -240,7 +261,7 @@ public class StarTreeQueryHelper {
         throws IOException {
         FixedBitSet result = context.getStarTreeQueryContext().getStarTreeValues(ctx);
         if (result == null) {
-            result = StarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
+            result = StarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap(), Set.of());
             context.getStarTreeQueryContext().setStarTreeValues(ctx, result);
         }
         return result;

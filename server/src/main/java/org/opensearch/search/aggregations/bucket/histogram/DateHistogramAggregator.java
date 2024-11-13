@@ -34,11 +34,16 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -47,6 +52,7 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
@@ -54,6 +60,7 @@ import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,6 +68,8 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
 /**
@@ -171,6 +180,51 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        if (supportedStarTree != null) {
+            StarTreeValues starTreeValues = getStarTreeValues(ctx, supportedStarTree);
+            assert starTreeValues != null;
+
+            FixedBitSet matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
+
+            SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getDimensionValuesIterator("@timestamp_month");
+
+            SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator("startree1__doc_count_doc_count_metric");
+
+            int numBits = matchingDocsBitSet.length();
+
+            if (numBits > 0) {
+                for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
+                    ? matchingDocsBitSet.nextSetBit(bit + 1)
+                    : DocIdSetIterator.NO_MORE_DOCS) {
+
+                    if (!valuesIterator.advanceExact(bit)) {
+                        continue;
+                    }
+
+                    for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
+                        long dimensionValue = valuesIterator.nextValue();
+
+                        if (metricValuesIterator.advanceExact(bit)) {
+                            long metricValue = metricValuesIterator.nextValue();
+
+                            long bucketOrd = bucketOrds.add(0, dimensionValue);
+                            if (bucketOrd < 0) {
+                                bucketOrd = -1 - bucketOrd;
+                                collectStarTreeBucket((StarTreeBucketCollector) sub, metricValue, bucketOrd, bit);
+                            } else {
+                                grow(bucketOrd + 1);
+                                collectStarTreeBucket((StarTreeBucketCollector) sub, metricValue, bucketOrd, bit);
+                            }
+                        }
+                    }
+                }
+            }
+            throw new CollectionTerminatedException();
+        }
+
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
