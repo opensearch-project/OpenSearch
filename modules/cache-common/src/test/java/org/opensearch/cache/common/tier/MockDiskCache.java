@@ -128,6 +128,10 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     }
 
+    long getMaxSize() {
+        return maxSize;
+    }
+
     public static class MockDiskCacheFactory implements Factory {
 
         public static final String NAME = "mockDiskCache";

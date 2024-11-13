@@ -53,12 +53,16 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
+import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
+import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -850,6 +854,40 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             cache.cacheCleanupManager.getCleanupKeyToCountMap().get(indexShard.shardId()).size()
         );
         assertFalse(concurrentModificationExceptionDetected.get());
+    }
+
+    public void testCacheMaxSize_WhenPluggableCachingOff() throws Exception {
+        // If pluggable caching is off, the IRC should put a max size value into the cache config that it uses to create its cache.
+        threadPool = getThreadPool();
+        long cacheSize = 1000;
+        Settings settings = Settings.builder().put(INDICES_CACHE_QUERY_SIZE.getKey(), cacheSize + "b").build();
+        cache = getIndicesRequestCache(settings);
+        CacheConfig<IndicesRequestCache.Key, BytesReference> config;
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            // For the purposes of this test it doesn't matter if the node environment matches the one used in the constructor
+            config = cache.getCacheConfig(settings, env);
+        }
+        assertEquals(cacheSize, (long) config.getMaxSizeInBytes());
+    }
+
+    public void testCacheMaxSize_WhenPluggableCachingOn() throws Exception {
+        // If pluggable caching is on, and a store name is present, the IRC should NOT put a max size value into the cache config.
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder()
+            .put(INDICES_CACHE_QUERY_SIZE.getKey(), 1000 + "b")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
+            )
+            .build();
+        cache = getIndicesRequestCache(settings);
+        CacheConfig<IndicesRequestCache.Key, BytesReference> config;
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            // For the purposes of this test it doesn't matter if the node environment matches the one used in the constructor
+            config = cache.getCacheConfig(settings, env);
+        }
+        assertEquals(0, (long) config.getMaxSizeInBytes());
     }
 
     private IndicesRequestCache getIndicesRequestCache(Settings settings) throws IOException {
