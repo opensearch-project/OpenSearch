@@ -157,6 +157,7 @@ import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
@@ -548,10 +549,27 @@ public class Node implements Closeable {
              */
             this.environment = new Environment(settings, initialEnvironment.configDir(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
+            Stream<IndexStoreListener> indexStoreListenerStream = pluginsService.filterPlugins(IndexStorePlugin.class)
+                .stream()
+                .map(IndexStorePlugin::getIndexStoreListener)
+                .filter(Optional::isPresent)
+                .map(Optional::get);
+            // FileCache is only initialized on search nodes, so we only create FileCacheCleaner on search nodes as well
             if (DiscoveryNode.isSearchNode(settings) == false) {
-                nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+                nodeEnvironment = new NodeEnvironment(
+                    settings,
+                    environment,
+                    new IndexStoreListener.CompositeIndexStoreListener(indexStoreListenerStream.collect(Collectors.toList()))
+                );
             } else {
-                nodeEnvironment = new NodeEnvironment(settings, environment, new FileCacheCleaner(this::fileCache));
+                nodeEnvironment = new NodeEnvironment(
+                    settings,
+                    environment,
+                    new IndexStoreListener.CompositeIndexStoreListener(
+                        Stream.concat(indexStoreListenerStream, Stream.of(new FileCacheCleaner(this::fileCache)))
+                            .collect(Collectors.toList())
+                    )
+                );
             }
             logger.info(
                 "node name [{}], node ID [{}], cluster name [{}], roles {}",
