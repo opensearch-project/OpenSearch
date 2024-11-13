@@ -490,10 +490,10 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             OpenSearchToParentBlockJoinQuery blockJoinQuery = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
             Optional<BooleanClause> childLeg = ((BooleanQuery) blockJoinQuery.getChildQuery()).clauses()
                 .stream()
-                .filter(c -> c.getOccur() == BooleanClause.Occur.MUST)
+                .filter(c -> c.occur() == BooleanClause.Occur.MUST)
                 .findFirst();
             assertTrue(childLeg.isPresent());
-            assertEquals(new MatchAllDocsQuery(), childLeg.get().getQuery());
+            assertEquals(new MatchAllDocsQuery(), childLeg.get().query());
         };
         check.accept(createShardContext());
         doWithDepth(randomIntBetween(1, 20), check);

@@ -92,7 +92,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 assertThat(booleanQuery.clauses().size(), equalTo(childFields.size()));
                 for (int i = 0; i < childFields.size(); i++) {
                     BooleanClause booleanClause = booleanQuery.clauses().get(i);
-                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                    assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             } else if (context.getMapperService().fieldType(field).hasDocValues()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
@@ -115,7 +115,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(booleanQuery.clauses().size(), equalTo(mappedFields.size()));
             for (int i = 0; i < mappedFields.size(); i++) {
                 BooleanClause booleanClause = booleanQuery.clauses().get(i);
-                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
             }
         }
     }
