@@ -45,7 +45,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -158,18 +157,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             } else {
                 throw new IllegalStateException("collator is null");
             }
-        }
-
-        @Override
-        public Query fuzzyQuery(
-            Object value,
-            Fuzziness fuzziness,
-            int prefixLength,
-            int maxExpansions,
-            boolean transpositions,
-            QueryShardContext context
-        ) {
-            throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
