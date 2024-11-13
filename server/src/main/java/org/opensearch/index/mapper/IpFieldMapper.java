@@ -246,22 +246,24 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 }
                 pointQuery = (PointRangeQuery) query;
             }
-            final Supplier<Query> dvQuery = () -> SortedSetDocValuesField.newSlowRangeQuery(
-                name(),
-                new BytesRef(pointQuery.getLowerPoint()),
-                new BytesRef(pointQuery.getUpperPoint()),
-                true,
-                true
-            );
+            Query dvQuery = null;
+            if (hasDocValues()) {
+                dvQuery = SortedSetDocValuesField.newSlowRangeQuery(
+                    name(),
+                    new BytesRef(pointQuery.getLowerPoint()),
+                    new BytesRef(pointQuery.getUpperPoint()),
+                    true,
+                    true
+                );
+            }
 
             if (isSearchable() && hasDocValues()) {
-                return new IndexOrDocValuesQuery(pointQuery, dvQuery.get());
+                return new IndexOrDocValuesQuery(pointQuery, dvQuery);
             } else {
                 if (isSearchable()) {
                     return pointQuery;
                 } else {
-                    assert hasDocValues();
-                    return dvQuery.get();
+                    return dvQuery;
                 }
             }
         }
