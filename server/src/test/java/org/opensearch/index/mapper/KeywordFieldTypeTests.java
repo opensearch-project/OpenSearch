@@ -42,11 +42,10 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
@@ -160,13 +159,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         {
             KeywordFieldType ft = new KeywordFieldType("field");
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
             KeywordFieldType ft = new KeywordFieldType("field", fieldType);
-            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
             KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
