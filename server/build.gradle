@@ -121,17 +121,32 @@ dependencies {
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
-
-  // protobuf
+  
+  // protobuf java utils
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
-  api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
 
-  // gRPC
+  // gRPC generated service code
+  api "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+  api "io.grpc:grpc-api:${versions.grpc}"
   api "io.grpc:grpc-stub:${versions.grpc}"
   api "io.grpc:grpc-protobuf:${versions.grpc}"
-  api "io.grpc:grpc-core:${versions.grpc}"
-  api "io.grpc:grpc-api:${versions.grpc}"
+  api "io.perfmark:perfmark-api:${versions.perfmark_api}"
+
+  // protobuf/gRPC annotations
+  compileOnly "javax.annotation:javax.annotation-api:${versions.javax_annotations}"
+  compileOnly "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+  compileOnly "com.google.code.findbugs:jsr305:${versions.jsr305}"
+  compileOnly "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
+
+  // Guava (explicit standard-jvm variant)
+  api "com.google.guava:failureaccess:${versions.failureaccess}"
+  api("com.google.guava:guava:${versions.guava}") {
+    attributes {
+      attribute(org.gradle.api.attributes.java.TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+        objects.named(org.gradle.api.attributes.java.TargetJvmEnvironment, 'standard-jvm'))
+    }
+  }
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   implementation 'org.roaringbitmap:RoaringBitmap:1.3.0'
@@ -144,6 +159,15 @@ dependencies {
     exclude group: 'org.opensearch', module: 'server'
   }
 }
+
+// Ensure Guava is available at compile time for protobuf-generated sources
+configurations {
+  compileOnlyWithGuava {
+    extendsFrom compileOnly
+    canBeResolved = true
+  }
+}
+sourceSets.main.compileClasspath += configurations.compileOnlyWithGuava
 
 tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Xlint:cast'
