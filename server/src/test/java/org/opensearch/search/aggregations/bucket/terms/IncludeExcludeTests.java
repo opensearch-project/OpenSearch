@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.opensearch.common.xcontent.XContentType;
@@ -81,7 +82,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             @Override
             public long nextOrd() {
                 if (consumed) {
-                    return SortedSetDocValues.NO_MORE_ORDS;
+                    return DocIdSetIterator.NO_MORE_DOCS;
                 } else {
                     consumed = true;
                     return 0;

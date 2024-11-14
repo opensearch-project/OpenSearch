@@ -1574,38 +1574,28 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
     public void testThatDateHistogramFailsFormatAfter() throws IOException {
         OpenSearchParseException exc = expectThrows(
             OpenSearchParseException.class,
-            () -> testSearchCase(
-                Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("date")),
-                Collections.emptyList(),
-                () -> {
-                    DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
-                        .dateHistogramInterval(DateHistogramInterval.days(1))
-                        .format("yyyy-MM-dd");
-                    return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).aggregateAfter(
-                        createAfterKey("date", "now")
-                    );
-                },
-                (result) -> {}
-            )
+            () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("date")), Collections.emptyList(), () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
+                    .dateHistogramInterval(DateHistogramInterval.days(1))
+                    .format("yyyy-MM-dd");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).aggregateAfter(
+                    createAfterKey("date", "now")
+                );
+            }, (result) -> {})
         );
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getMessage(), containsString("now() is not supported in [after] key"));
 
         exc = expectThrows(
             OpenSearchParseException.class,
-            () -> testSearchCase(
-                Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("date")),
-                Collections.emptyList(),
-                () -> {
-                    DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
-                        .dateHistogramInterval(DateHistogramInterval.days(1))
-                        .format("yyyy-MM-dd");
-                    return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).aggregateAfter(
-                        createAfterKey("date", "1474329600000")
-                    );
-                },
-                (result) -> {}
-            )
+            () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("date")), Collections.emptyList(), () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
+                    .dateHistogramInterval(DateHistogramInterval.days(1))
+                    .format("yyyy-MM-dd");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).aggregateAfter(
+                    createAfterKey("date", "1474329600000")
+                );
+            }, (result) -> {})
         );
         assertThat(exc.getMessage(), containsString("failed to parse date field [1474329600000]"));
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
@@ -2151,19 +2141,19 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
             topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 1);
-            assertEquals(topHits.getHits().getTotalHits().value, 1L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 1L);
         });
 
         testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("keyword")), dataset, () -> {
@@ -2178,13 +2168,13 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
             topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 1);
-            assertEquals(topHits.getHits().getTotalHits().value, 1L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 1L);
         });
     }
 

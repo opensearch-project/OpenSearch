@@ -29,6 +29,23 @@ public class LuceneDocValuesConsumerFactory {
 
     public static DocValuesConsumer getDocValuesConsumerForCompositeCodec(
         SegmentWriteState state,
+        String dataCodec,
+        String dataExtension,
+        String metaCodec,
+        String metaExtension
+    ) throws IOException {
+        return getDocValuesConsumerForCompositeCodec(
+            state,
+            4096,
+            /* Lucene90DocValuesFormat#DEFAULT_SKIP_INDEX_INTERVAL_SIZE */ dataCodec,
+            dataExtension,
+            metaCodec,
+            metaExtension
+        );
+    }
+
+    public static DocValuesConsumer getDocValuesConsumerForCompositeCodec(
+        SegmentWriteState state,
         int skipIndexIntervalSize,
         String dataCodec,
         String dataExtension,

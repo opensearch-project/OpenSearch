@@ -210,9 +210,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                     )
                 );
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, new FieldExistsQuery("number")));
-                assertNotNull(
-                    source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number")))
-                );
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number"))));
                 assertNotNull(
                     source.createSortedDocsProducerOrNull(
                         reader,
@@ -237,10 +235,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new FieldExistsQuery("number")));
                 assertNull(
-                    sourceWithMissing.createSortedDocsProducerOrNull(
-                        reader,
-                        new ConstantScoreQuery(new FieldExistsQuery("number"))
-                    )
+                    sourceWithMissing.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number")))
                 );
 
                 LongValuesSource sourceRev = new LongValuesSource(
@@ -256,9 +251,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                 );
                 assertNull(sourceRev.createSortedDocsProducerOrNull(reader, null));
                 assertNull(sourceRev.createSortedDocsProducerOrNull(reader, new FieldExistsQuery("number")));
-                assertNull(
-                    sourceRev.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number")))
-                );
+                assertNull(sourceRev.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number"))));
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
             } else if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT
                 || numberType == NumberFieldMapper.NumberType.FLOAT
@@ -277,9 +270,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                     assertNull(source.createSortedDocsProducerOrNull(reader, null));
                     assertNull(source.createSortedDocsProducerOrNull(reader, new FieldExistsQuery("number")));
                     assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
-                    assertNull(
-                        source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number")))
-                    );
+                    assertNull(source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number"))));
                 } else {
                     throw new AssertionError("missing type:" + numberType.typeName());
                 }
