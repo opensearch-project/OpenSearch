@@ -41,6 +41,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.grpc.GrpcServerTransport;
+import org.opensearch.grpc.services.gRPCServiceRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
@@ -114,7 +115,8 @@ public interface NetworkPlugin {
      */
     default Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(
         Settings settings,
-        NetworkService networkService
+        NetworkService networkService,
+        gRPCServiceRegistry grpcServiceRegistry
     ) {
         return Collections.emptyMap();
     }

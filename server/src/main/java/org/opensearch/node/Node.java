@@ -146,6 +146,8 @@ import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.grpc.GrpcServerTransport;
+import org.opensearch.grpc.services.gRPCServiceRegistry;
+import org.opensearch.grpc.services.nodesInfo.NodesInfoServiceImpl;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
@@ -1151,6 +1153,14 @@ public class Node implements Closeable {
                 admissionControlTransportInterceptor,
                 workloadManagementTransportInterceptor
             );
+
+            gRPCServiceRegistry grpcReg = new gRPCServiceRegistry(
+                new ArrayList<>(Arrays.asList(
+                    new NodesInfoServiceImpl()
+                    // TODO: Other service stubs here
+                ))
+            );
+
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -1160,6 +1170,7 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 namedWriteableRegistry,
                 xContentRegistry,
+                grpcReg,
                 networkService,
                 restController,
                 clusterService.getClusterSettings(),

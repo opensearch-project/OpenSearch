@@ -8,6 +8,7 @@
 
 package org.opensearch.grpc.netty4;
 
+import io.grpc.BindableService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.network.NetworkService;
@@ -17,6 +18,7 @@ import org.opensearch.common.transport.PortsRange;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.grpc.AbstractGrpcServerTransport;
 import org.opensearch.grpc.GrpcStats;
+import org.opensearch.grpc.services.gRPCServiceRegistry;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.SharedGroupFactory;
 
@@ -45,16 +47,18 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
     public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = Setting.intSetting("grpc.worker_count", 1, Setting.Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
+    private final gRPCServiceRegistry grpcServiceRegistry;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     private final ServerStatsInterceptor sharedServerStatsInterceptor;
     private final AtomicLong currentOpen = new AtomicLong(0);
     private final AtomicLong totalOpened = new AtomicLong(0);
 
-    public Netty4GrpcServerTransport(Settings settings, NetworkService networkService, SharedGroupFactory sharedGroupFactory) {
+    public Netty4GrpcServerTransport(Settings settings, NetworkService networkService, SharedGroupFactory sharedGroupFactory, gRPCServiceRegistry grpcServiceRegistry) {
         super(settings, networkService);
         this.sharedGroupFactory = sharedGroupFactory;
         this.sharedServerStatsInterceptor = new ServerStatsInterceptor(currentOpen, totalOpened);
+        this.grpcServiceRegistry = grpcServiceRegistry;
     }
 
     @Override
@@ -88,7 +92,9 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
                     .addService(new HealthStatusManager().getHealthService())
                     .addService(ProtoReflectionService.newInstance());
 
-                // TODO: INJECT SERVICE DEFINITIONS // .addService(new GrpcQueryServiceImpl(this))
+                for (BindableService bService : grpcServiceRegistry) {
+                    srvBuilder.addService(bService);
+                }
 
                 Server srv = srvBuilder.build().start();
                 servers.add(srv);

@@ -53,6 +53,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.grpc.GrpcServerTransport;
+import org.opensearch.grpc.services.gRPCServiceRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
@@ -174,6 +175,7 @@ public final class NetworkModule {
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NamedXContentRegistry xContentRegistry,
+        gRPCServiceRegistry grpcServiceRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
@@ -226,7 +228,8 @@ public final class NetworkModule {
 
             Map<String, Supplier<GrpcServerTransport>> GrpcTransportFactory = plugin.getGrpcTransports(
                 settings,
-                networkService
+                networkService,
+                grpcServiceRegistry
             );
             for (Map.Entry<String, Supplier<GrpcServerTransport>> entry : GrpcTransportFactory.entrySet()) {
                 registerGrpcTransport(entry.getKey(), entry.getValue());

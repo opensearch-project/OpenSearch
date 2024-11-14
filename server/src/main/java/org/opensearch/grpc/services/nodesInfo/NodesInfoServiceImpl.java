@@ -16,7 +16,7 @@ public class NodesInfoServiceImpl extends NodesInfoServiceGrpc.NodesInfoServiceI
 
     @Override
     public void getNodesInfo(NodesInfoProtoService.NodesInfoRequest request, StreamObserver<NodesInfoProtoService.NodesInfoResponse> responseObserver) {
-        // Func stub
+        System.out.println("getNodesInfo");
     }
 
     @Override
