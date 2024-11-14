@@ -121,7 +121,7 @@ dependencies {
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
-  
+
   // protobuf java utils
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
@@ -159,15 +159,6 @@ dependencies {
     exclude group: 'org.opensearch', module: 'server'
   }
 }
-
-// Ensure Guava is available at compile time for protobuf-generated sources
-configurations {
-  compileOnlyWithGuava {
-    extendsFrom compileOnly
-    canBeResolved = true
-  }
-}
-sourceSets.main.compileClasspath += configurations.compileOnlyWithGuava
 
 tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Xlint:cast'
