@@ -257,15 +257,15 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         private Query indexOrDvQuery(Query pointQuery, Query dvQuery) {
             if (isSearchable() && hasDocValues()) {
-                assert pointQuery!=null;
-                assert dvQuery!=null;
+                assert pointQuery != null;
+                assert dvQuery != null;
                 return new IndexOrDocValuesQuery(pointQuery, dvQuery);
             } else {
                 if (isSearchable()) {
-                    assert pointQuery!=null;
+                    assert pointQuery != null;
                     return pointQuery;
                 } else {
-                    assert dvQuery!=null;
+                    assert dvQuery != null;
                     return dvQuery;
                 }
             }
