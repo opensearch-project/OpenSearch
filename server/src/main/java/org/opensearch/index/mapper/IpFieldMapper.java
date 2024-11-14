@@ -227,24 +227,20 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             final PointRangeQuery pointQuery;
-            {
-                final Query query;
-                if (value instanceof InetAddress) {
-                    query = InetAddressPoint.newExactQuery(name(), (InetAddress) value);
-                } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
-                    }
-                    String term = value.toString();
-                    if (term.contains("/")) {
-                        final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
-                        query = InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
-                    } else {
-                        InetAddress address = InetAddresses.forString(term);
-                        query = InetAddressPoint.newExactQuery(name(), address);
-                    }
+            if (value instanceof InetAddress) {
+                pointQuery = (PointRangeQuery) InetAddressPoint.newExactQuery(name(), (InetAddress) value);
+            } else {
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
                 }
-                pointQuery = (PointRangeQuery) query;
+                String term = value.toString();
+                if (term.contains("/")) {
+                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
+                    pointQuery = (PointRangeQuery) InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+                } else {
+                    InetAddress address = InetAddresses.forString(term);
+                    pointQuery = (PointRangeQuery) InetAddressPoint.newExactQuery(name(), address);
+                }
             }
             Query dvQuery = null;
             if (hasDocValues()) {
