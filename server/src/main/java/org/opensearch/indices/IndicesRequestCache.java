@@ -128,11 +128,14 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     /**
      * If pluggable caching is off, or pluggable caching is on but a store name isn't specified, this setting determines the cache size.
      * Otherwise, the implementation-specific size setting like indices.requests.cache.opensearch_onheap.size is used instead.
+     *
+     * Deprecated; once pluggable caching is no longer behind a feature flag (likely in 2.19), this setting will no longer have any effect.
      */
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE = Setting.memorySizeSetting(
         "indices.requests.cache.size",
         "1%",
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE = Setting.positiveTimeSetting(
         "indices.requests.cache.expire",
@@ -229,8 +232,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         if (!CacheService.pluggableCachingEnabled(CacheType.INDICES_REQUEST_CACHE, settings)) {
             // If pluggable caching is not enabled, use the max size based on the IRC setting into the config.
             // If pluggable caching is enabled, cache implementations instead determine their own sizes based on their own implementation
-            // size
-            // settings.
+            // size settings.
             configBuilder.setMaxSizeInBytes(sizeInBytes);
         }
         return configBuilder.build();

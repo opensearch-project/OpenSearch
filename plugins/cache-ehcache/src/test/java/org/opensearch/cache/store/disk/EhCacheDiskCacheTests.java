@@ -53,7 +53,6 @@ import java.util.concurrent.Phaser;
 import java.util.function.ToLongBiFunction;
 
 import org.ehcache.PersistentCacheManager;
-import org.ehcache.impl.serialization.StringSerializer;
 
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;

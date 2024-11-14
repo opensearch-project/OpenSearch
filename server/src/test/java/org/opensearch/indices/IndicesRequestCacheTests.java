@@ -868,6 +868,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             config = cache.getCacheConfig(settings, env);
         }
         assertEquals(cacheSize, (long) config.getMaxSizeInBytes());
+        allowDeprecationWarning();
     }
 
     public void testCacheMaxSize_WhenPluggableCachingOn() throws Exception {
@@ -888,6 +889,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             config = cache.getCacheConfig(settings, env);
         }
         assertEquals(0, (long) config.getMaxSizeInBytes());
+        allowDeprecationWarning();
     }
 
     private IndicesRequestCache getIndicesRequestCache(Settings settings) throws IOException {
@@ -1133,6 +1135,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(2, cache.count());
         assertEquals(1, indexShard.requestCache().stats().getEvictions());
         IOUtils.close(reader, secondReader, thirdReader, environment);
+        allowDeprecationWarning();
     }
 
     public void testClearAllEntityIdentity() throws Exception {
@@ -1410,6 +1413,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         }
         IOUtils.close(cache);
         executorService.shutdownNow();
+        allowDeprecationWarning();
     }
 
     public void testDeleteAndCreateIndexShardOnSameNodeAndVerifyStats() throws Exception {
@@ -1576,6 +1580,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             sb.append(characters.charAt(index));
         }
         return sb.toString();
+    }
+
+    private void allowDeprecationWarning() {
+        assertWarnings(
+            "[indices.requests.cache.size] setting was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private class TestBytesReference extends AbstractBytesReference {
