@@ -58,14 +58,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
-forbiddenPatterns {
-  exclude '**/*.key'
-  exclude '**/*.pem'
-  exclude '**/*.p12'
-  exclude '**/*.jks'
-  exclude '**/*.bcfks'
-}
-
 tasks.test {
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
