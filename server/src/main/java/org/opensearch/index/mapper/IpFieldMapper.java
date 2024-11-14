@@ -252,7 +252,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                     true
                 );
             }
+            return indexOrDvQuery(pointQuery, dvQuery);
+        }
 
+        private Query indexOrDvQuery(Query pointQuery, Query dvQuery) {
             if (isSearchable() && hasDocValues()) {
                 return new IndexOrDocValuesQuery(pointQuery, dvQuery);
             } else {
@@ -299,39 +302,25 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             if (isSearchable()) {
                 pointQuery = InetAddressPoint.newSetQuery(name(), addresses);
             }
-            if (isSearchable() && hasDocValues()) {
-                return new IndexOrDocValuesQuery(pointQuery, dvQuery);
-            } else {
-                if (isSearchable()) {
-                    return pointQuery;
-                } else {
-                    return dvQuery;
-                }
-            }
+            return indexOrDvQuery(pointQuery, dvQuery);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
-                Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
+                PointRangeQuery pointQuery = (PointRangeQuery) InetAddressPoint.newRangeQuery(name(), lower, upper);
                 Query dvQuery = null;
                 if (hasDocValues()) {
                     dvQuery = SortedSetDocValuesField.newSlowRangeQuery(
-                        ((PointRangeQuery) query).getField(),
-                        new BytesRef(((PointRangeQuery) query).getLowerPoint()),
-                        new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                        pointQuery.getField(),
+                        new BytesRef(pointQuery.getLowerPoint()),
+                        new BytesRef(pointQuery.getUpperPoint()),
                         true,
                         true
                     );
                 }
-                if (isSearchable() && hasDocValues()) {
-                    return new IndexOrDocValuesQuery(query, dvQuery);
-                }
-                if (hasDocValues()) {
-                    return dvQuery;
-                }
-                return query;
+                return indexOrDvQuery(pointQuery, dvQuery);
             });
         }
 
