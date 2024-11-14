@@ -350,7 +350,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 Locale.ROOT,
                 "https://artifacts.opensearch.org/snapshots/plugins/%s/%s",
                 pluginId,
-                version + "-SNAPSHOT"
+                Build.CURRENT.getQualifiedVersion()
             );
         } else {
             baseUrl = String.format(
